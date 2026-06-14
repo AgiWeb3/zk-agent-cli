@@ -1,0 +1,31 @@
+{
+  "name": "@zk-agent/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "zk-agent": "dist/index.js",
+    "zksync-agent": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.2.1",
+    "@noble/curves": "^1.8.1",
+    "@noble/hashes": "^1.7.2",
+    "@zk-agent/agent-core": "workspace:*",
+    "@zk-agent/agent-session-protocol": "workspace:*",
+    "@zk-agent/provider-zksync-wallet": "workspace:*",
+    "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
+    "zksync-ethers": "^6.21.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.tmp-home-*
+.DS_Store
+*.tsbuildinfo
+packages/test-erc20/artifacts
+packages/test-erc20/artifacts-zk
+packages/test-erc20/bin
+packages/test-erc20/cache-zk
+packages/test-erc20/deployments

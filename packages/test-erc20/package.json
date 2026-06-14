@@ -1,0 +1,24 @@
+{
+  "name": "@zk-agent/test-erc20",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "compile": "pnpm run build && node dist/compile.js",
+    "deploy": "pnpm run build && node dist/deploy.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "solc": "0.8.24"
+  },
+  "devDependencies": {
+    "ethers": "^6.16.0",
+    "ts-node": "^10.9.2"
+  }
+}
