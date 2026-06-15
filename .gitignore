@@ -9,3 +9,9 @@ packages/test-erc20/artifacts-zk
 packages/test-erc20/bin
 packages/test-erc20/cache-zk
 packages/test-erc20/deployments
+packages/account-profiles/artifacts
+packages/account-profiles/artifacts-zk
+packages/account-profiles/cache-zk
+PLANS.md
+PROJECT_STATE.md
+AGENTS.md
