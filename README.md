@@ -21,6 +21,7 @@ What is already in place:
 - provider boundaries
 - local storage model
 - session protocol package
+- built-in AA profile registry in `packages/account-profiles`
 - initial Commander-based CLI commands
 - local `packages/test-erc20` utility package for compiling and deploying a standard ERC-20 on zkSync Sepolia
 - `zksync-ethers` read path for balances and contract calls
@@ -28,6 +29,20 @@ What is already in place:
   - `send`
   - `send-token`
   - write-mode `call`
+- `wallet status` inspection for:
+  - execution address vs owner address
+  - session signer consistency
+  - deployed vs undeployed smart-account state
+  - local write readiness blockers
+- generic `wallet smart-account predict|deploy` flow for:
+  - artifact-driven address prediction
+  - account deployment via `createAccount` / `create2Account`
+  - saving the deployed execution address back into the local wallet record
+- first built-in smart-account profile:
+  - `daily-spend-limit`
+  - source checked into the workspace
+  - CLI profile discovery via `wallet smart-account profiles`
+  - explicit `source-only` status until a zkSync EraVM artifact is compiled
 - zkSync-native transaction previews for type `113` requests
 - paymaster metadata wiring for:
   - session approval payloads
@@ -47,7 +62,8 @@ What is already in place:
 
 What is next:
 
-- richer wallet/session records
+- compile and validate the built-in `daily-spend-limit` EraVM artifact
+- run a live deploy/predict smoke test through `--profile daily-spend-limit`
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
 - bridge / deposit / withdraw / swap implementations
@@ -188,7 +204,13 @@ Latest local result:
 Important:
 
 - current `smart-account` sessions in this repository are still metadata-level
+- `wallet status` now surfaces when a record is still undeployed or has signer metadata mismatches
+- `wallet smart-account predict|deploy` now exists, and it can now resolve built-in profiles such as `daily-spend-limit`
+- built-in profiles still require a zkSync-compatible EraVM account artifact before they can actually deploy
+- standard EVM `solc` artifacts are not enough for this path; the current command returns a structured error instead of a raw SDK exception
+- `daily-spend-limit` is the first concrete AA profile we chose for this repository, but its current policy hook only limits native-token spending
 - real smart-account deployment / reconstruction is not finished yet
+- write commands now fail early for undeployed smart-account records instead of returning misleading previews
 - so do not read current Sepolia broadcast results as proof that the long-term smart-account design is correct
 
 ## Notes

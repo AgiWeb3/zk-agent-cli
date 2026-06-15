@@ -19,6 +19,7 @@ export interface WalletBalance {
 export interface WalletSessionRecord {
   walletName: string;
   walletAddress: string;
+  ownerAddress?: string;
   chain: string;
   chainId: number;
   provider: 'zksync-sso' | 'manual';
@@ -172,10 +173,75 @@ export interface FundingInfo {
   notes: string[];
 }
 
+export interface WalletInspectionResult {
+  walletName: string;
+  executionAddress: string;
+  ownerAddress?: string;
+  chain: string;
+  chainId: number;
+  accountKind: AccountKind;
+  paymasterMode?: PaymasterMode;
+  deploymentStatus: 'not-applicable' | 'deployed' | 'not-deployed';
+  codeLength: number;
+  sessionPrivateKeyStored: boolean;
+  derivedSignerAddress?: string;
+  signerMatchesStoredIdentity?: boolean;
+  writeReady: boolean;
+  blockers: string[];
+  notes: string[];
+}
+
+export interface SmartAccountArtifactInput {
+  contractName?: string;
+  abi: unknown[];
+  bytecode: string;
+  factoryDeps?: string[];
+}
+
+export interface SmartAccountDeploymentInput {
+  wallet: WalletSessionRecord;
+  artifact: SmartAccountArtifactInput;
+  deploymentType: 'createAccount' | 'create2Account';
+  constructorArgs?: unknown[];
+  salt?: string;
+}
+
+export interface SmartAccountDeploymentPlan {
+  walletName: string;
+  chain: string;
+  chainId: number;
+  currentExecutionAddress: string;
+  ownerAddress: string;
+  deployerAddress: string;
+  deploymentType: 'createAccount' | 'create2Account';
+  artifactContractName?: string;
+  bytecodeHash: string;
+  constructorArgs: unknown[];
+  constructorData: string;
+  predictedAddress: string;
+  deploymentNonce?: string;
+  salt?: string;
+  factoryDepsCount: number;
+  notes: string[];
+}
+
+export interface SmartAccountDeploymentResult extends SmartAccountDeploymentPlan {
+  txHash: string;
+  explorerUrl?: string;
+  deployedAddress: string;
+}
+
 export interface WalletProvider {
   readonly name: 'zksync-sso';
   createSessionRequest(input: CreateSessionRequestInput): Promise<CreateSessionRequestResult>;
   importSession(walletName: string, payload: SessionPayload): Promise<WalletSessionRecord>;
+  inspectWallet(wallet: WalletSessionRecord): Promise<WalletInspectionResult>;
+  planSmartAccountDeployment(
+    input: SmartAccountDeploymentInput
+  ): Promise<SmartAccountDeploymentPlan>;
+  deploySmartAccount(
+    input: SmartAccountDeploymentInput
+  ): Promise<SmartAccountDeploymentResult>;
   getBalances(input: GetBalancesInput): Promise<GetBalancesResult>;
   call(input: ContractCallInput): Promise<ContractCallResult>;
   sendNative(input: NativeTransferInput): Promise<TransactionExecutionResult>;

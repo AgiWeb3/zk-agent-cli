@@ -20,6 +20,7 @@ const SAMPLE_PAYLOAD: SessionPayload = {
   account: {
     kind: 'smart-account',
     address: '0x1111111111111111111111111111111111111111',
+    ownerAddress: '0x2222222222222222222222222222222222222222',
     signerType: 'local'
   },
   sessionScope: {
@@ -51,6 +52,7 @@ describe('session protocol crypto', () => {
     const decrypted = decryptSession(encrypted, secretKey, code, requestId);
 
     expect(decrypted.walletAddress).toBe(SAMPLE_PAYLOAD.walletAddress);
+    expect(decrypted.account?.ownerAddress).toBe(SAMPLE_PAYLOAD.account?.ownerAddress);
     expect(decrypted.chainId).toBe(324);
   });
 

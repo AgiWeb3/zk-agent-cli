@@ -19,6 +19,9 @@ export function decodeSessionApprovalRequest(value: string): SessionApprovalRequ
 
 export function buildApprovedSessionPayload(input: SessionApprovalInput): SessionPayload {
   if (!isAddress(input.walletAddress)) throw new Error('walletAddress must be a valid address');
+  if (input.ownerAddress && !isAddress(input.ownerAddress)) {
+    throw new Error('ownerAddress must be a valid address');
+  }
   if (input.sessionAddress && !isAddress(input.sessionAddress)) {
     throw new Error('sessionAddress must be a valid address');
   }
@@ -44,6 +47,7 @@ export function buildApprovedSessionPayload(input: SessionApprovalInput): Sessio
     account: {
       kind: input.request.requestedAccountKind,
       address: input.walletAddress,
+      ownerAddress: input.ownerAddress,
       sessionAddress: input.sessionAddress,
       validatorAddress: input.validatorAddress,
       signerType: input.signerType || 'connector'

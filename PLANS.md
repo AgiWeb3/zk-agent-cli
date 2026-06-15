@@ -11,6 +11,11 @@ Build `zk-agent-cli` as a local-first, agent-oriented CLI for `zkSync Era` and t
 - Workspace and package skeleton created.
 - Shared session protocol package established.
 - Local encrypted storage established.
+- Wallet/session records can now distinguish execution address vs owner address for smart-account sessions.
+- CLI and provider can now inspect whether a stored wallet is genuinely write-ready.
+- CLI and provider now expose a generic smart-account `predict/deploy` path driven by supplied account artifacts.
+- First built-in AA profile registry now exists in `packages/account-profiles`.
+- `daily-spend-limit` is now registered as the first concrete smart-account profile.
 - Verified default chain registry established for:
   - `zksync-era` (`324`)
   - `zksync-sepolia` (`300`)
@@ -43,6 +48,10 @@ Build `zk-agent-cli` as a local-first, agent-oriented CLI for `zkSync Era` and t
   - current blocker is not CLI request shaping alone
   - current blocker is the live broadcast validation path
 - JSON errors can now return stable `code` and `details` when provider capability is missing.
+- Write commands now fail early for undeployed smart-account records, missing local session keys, and signer/address mismatches.
+- Smart-account deployment commands now fail with a stable structured error when the supplied artifact is standard EVM bytecode instead of zkSync EraVM bytecode.
+- CLI smart-account commands can now resolve built-in profiles in addition to raw artifacts.
+- Built-in profiles are currently surfaced with an explicit `artifact-ready` vs `source-only` status.
 - Agent tool surface scaffolded in `packages/agent-tools`.
 - Connector UI scaffold exists, but approval flow is not implemented yet.
 
@@ -50,8 +59,12 @@ Build `zk-agent-cli` as a local-first, agent-oriented CLI for `zkSync Era` and t
 
 - Real browser approval and relay-backed session confirmation.
 - Smart account deployment and reconstruction flow.
-  - current `smart-account` records still store metadata against the approved wallet address
-  - they do not yet represent a completed smart-account address lifecycle
+  - current `smart-account` records can now be inspected for deployment readiness
+  - generic artifact-driven deploy/predict exists
+  - `daily-spend-limit` is now the chosen first concrete account profile
+  - its compiled EraVM artifact is still missing from the repository
+  - live deployment and post-deploy reconstruction still need to be validated
+  - they still do not represent a completed deploy / reconstruct / restore lifecycle
 - Funded end-to-end paymaster broadcast validation on zkSync test infrastructure.
   - approval-based preview is validated
   - approval-based broadcast is still blocked by chain-side validation on Sepolia
@@ -136,6 +149,7 @@ Execution rule:
 | browser approval UI | `packages/zk-connector-ui` |
 | session payloads, crypto, relay types | `packages/agent-session-protocol` |
 | storage, registries, provider contracts | `packages/agent-core` |
+| built-in smart-account profiles | `packages/account-profiles` |
 | zkSync wallet / AA / balances / transactions | `packages/provider-zksync-wallet` |
 | swap / bridge / deposit / withdraw | `packages/provider-zksync-defi` |
 | agent-facing tool adapters | `packages/agent-tools` |

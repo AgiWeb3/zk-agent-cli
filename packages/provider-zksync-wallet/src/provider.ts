@@ -22,14 +22,19 @@ import {
   type FundingInfo,
   type GetBalancesInput,
   type GetBalancesResult,
+  type SmartAccountDeploymentInput,
+  type SmartAccountDeploymentPlan,
+  type SmartAccountDeploymentResult,
   type TokenTransferInput,
   type TransactionExecutionResult,
   type TransactionPreview,
+  type WalletInspectionResult,
   type WalletProvider,
   type WalletSessionRecord,
   type WriteContractInput
 } from '@zk-agent/agent-core';
-import { ECDSASmartAccount, Provider, Wallet, utils } from 'zksync-ethers';
+import { ethers } from 'ethers';
+import { ContractFactory, ECDSASmartAccount, Provider, Wallet, utils } from 'zksync-ethers';
 
 const providers = new Map<string, Provider>();
 const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
@@ -120,6 +125,14 @@ function resolveAccountKind(payload: WalletSessionRecord['sessionPayload']): Acc
   return payload?.account?.kind || 'smart-account';
 }
 
+function resolveExecutionAddress(wallet: WalletSessionRecord): string {
+  return wallet.sessionPayload?.account?.address || wallet.walletAddress;
+}
+
+function resolveOwnerAddress(wallet: WalletSessionRecord): string | undefined {
+  return wallet.ownerAddress || wallet.sessionPayload?.account?.ownerAddress;
+}
+
 function resolvePaymasterMode(payload: WalletSessionRecord['sessionPayload']): PaymasterMode {
   if (payload?.paymaster?.mode) return payload.paymaster.mode;
   if (payload?.paymasterAddress) return 'sponsored';
@@ -161,12 +174,58 @@ function buildPreview(value: unknown): TransactionPreview {
   return normalizeForJson(value) as TransactionPreview;
 }
 
+function hasDeployedCode(code: string): boolean {
+  return code !== '0x';
+}
+
+function buildInspectionResult(
+  wallet: WalletSessionRecord,
+  codeLength: number,
+  derivedSignerAddress: string | undefined,
+  blockers: string[],
+  notes: string[]
+): WalletInspectionResult {
+  const executionAddress = resolveExecutionAddress(wallet);
+  const ownerAddress = resolveOwnerAddress(wallet);
+  const signerMatchesStoredIdentity = derivedSignerAddress
+    ? wallet.accountKind === 'smart-account'
+      ? ownerAddress
+        ? derivedSignerAddress.toLowerCase() === ownerAddress.toLowerCase()
+        : undefined
+      : derivedSignerAddress.toLowerCase() === executionAddress.toLowerCase()
+    : undefined;
+  const deploymentStatus =
+    wallet.accountKind === 'smart-account'
+      ? codeLength > 0
+        ? 'deployed'
+        : 'not-deployed'
+      : 'not-applicable';
+
+  return {
+    walletName: wallet.walletName,
+    executionAddress,
+    ownerAddress,
+    chain: wallet.chain,
+    chainId: wallet.chainId,
+    accountKind: wallet.accountKind,
+    paymasterMode: wallet.paymasterMode,
+    deploymentStatus,
+    codeLength,
+    sessionPrivateKeyStored: Boolean(wallet.sessionPayload?.sessionPrivateKey),
+    derivedSignerAddress,
+    signerMatchesStoredIdentity,
+    writeReady: blockers.length === 0,
+    blockers,
+    notes
+  };
+}
+
 function buildStaticWritePreview(
   wallet: WalletSessionRecord,
   tx: { to: string; data: string; value: bigint }
 ): TransactionPreview {
   return {
-    from: wallet.walletAddress,
+    from: resolveExecutionAddress(wallet),
     to: tx.to,
     data: tx.data,
     value: tx.value.toString(),
@@ -189,7 +248,7 @@ function buildEstimatedPreview(
   customData: Record<string, unknown> = {}
 ): TransactionPreview {
   return {
-    from: wallet.walletAddress,
+    from: resolveExecutionAddress(wallet),
     to: tx.to,
     data: tx.data,
     value: tx.value.toString(),
@@ -322,7 +381,7 @@ function buildBaseTxRequest(
 } {
   return {
     type: utils.EIP712_TX_TYPE,
-    from: wallet.walletAddress,
+    from: resolveExecutionAddress(wallet),
     to: tx.to,
     data: tx.data,
     value: tx.value,
@@ -501,6 +560,305 @@ async function preparePaymasterTransaction(
   }
 }
 
+function deriveSignerAddress(privateKey: string | undefined): string | undefined {
+  if (!privateKey || !isHexPrivateKey(privateKey)) return undefined;
+  return new Wallet(privateKey).address;
+}
+
+function normalizeSalt(value: string | undefined): string {
+  if (!value) {
+    throw new AgentError(
+      'SMART_ACCOUNT_SALT_REQUIRED',
+      'create2Account deployment requires a salt.',
+      { deploymentType: 'create2Account' }
+    );
+  }
+  if (!isHexData(value)) {
+    throw new AgentError('INVALID_SMART_ACCOUNT_SALT', 'Salt must be a hex string.', { salt: value });
+  }
+  return ethers.hexlify(ethers.zeroPadValue(value, 32));
+}
+
+function validateHexBytecode(value: string): string {
+  if (!/^0x([a-fA-F0-9]{2})+$/.test(value)) {
+    throw new AgentError(
+      'INVALID_SMART_ACCOUNT_BYTECODE',
+      'Artifact bytecode must be a 0x-prefixed even-length hex string.',
+      { bytecode: value }
+    );
+  }
+  return value;
+}
+
+function normalizeFactoryDeps(factoryDeps: string[] | undefined): string[] {
+  if (!factoryDeps || factoryDeps.length === 0) return [];
+  return factoryDeps.map((entry) => validateHexBytecode(entry));
+}
+
+interface ResolvedSmartAccountDeploymentContext {
+  signer: Wallet;
+  artifact: SmartAccountDeploymentInput['artifact'];
+  constructorArgs: unknown[];
+  normalizedSalt?: string;
+  plan: SmartAccountDeploymentPlan;
+}
+
+async function resolveSmartAccountDeploymentContext(
+  input: SmartAccountDeploymentInput
+): Promise<ResolvedSmartAccountDeploymentContext> {
+  const wallet = input.wallet;
+  if (wallet.accountKind !== 'smart-account') {
+    throw new AgentError(
+      'SMART_ACCOUNT_REQUIRED',
+      'Smart-account deployment is only available for smart-account wallet records.',
+      {
+        walletName: wallet.walletName,
+        accountKind: wallet.accountKind
+      }
+    );
+  }
+
+  const ownerAddress = resolveOwnerAddress(wallet);
+  if (!ownerAddress) {
+    throw new AgentError(
+      'SMART_ACCOUNT_OWNER_REQUIRED',
+      'Smart-account deployment requires ownerAddress metadata.',
+      { walletName: wallet.walletName }
+    );
+  }
+
+  const sessionPrivateKey = requireWritableSession(wallet);
+  const provider = getProvider(wallet.chain);
+  const signer = new Wallet(sessionPrivateKey, provider);
+  const deployerAddress = await signer.getAddress();
+  if (deployerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+    throw new AgentError(
+      'SMART_ACCOUNT_SIGNER_MISMATCH',
+      'Stored sessionPrivateKey does not match the smart-account ownerAddress.',
+      {
+        walletName: wallet.walletName,
+        ownerAddress,
+        derivedSignerAddress: deployerAddress
+      }
+    );
+  }
+
+  if (!Array.isArray(input.artifact.abi)) {
+    throw new AgentError(
+      'INVALID_SMART_ACCOUNT_ARTIFACT',
+      'Artifact abi must be an array.',
+      { walletName: wallet.walletName }
+    );
+  }
+
+  const bytecode = validateHexBytecode(input.artifact.bytecode);
+  const factoryDeps = normalizeFactoryDeps(input.artifact.factoryDeps);
+  const constructorArgs = input.constructorArgs || [];
+  const deploymentType = input.deploymentType;
+  const contractInterface = new ethers.Interface(input.artifact.abi as any);
+  const constructorData = contractInterface.encodeDeploy(constructorArgs);
+  let bytecodeHash: string;
+  try {
+    bytecodeHash = ethers.hexlify(utils.hashBytecode(bytecode));
+  } catch (error) {
+    throw new AgentError(
+      'SMART_ACCOUNT_ARTIFACT_NOT_ERAVM',
+      'Artifact bytecode is not zkSync EraVM deployment bytecode. Use a zkSync-compatible account artifact, typically produced by zksolc.',
+      {
+        walletName: wallet.walletName,
+        artifactContractName: input.artifact.contractName,
+        cause: error instanceof Error ? error.message : String(error)
+      }
+    );
+  }
+  const currentExecutionAddress = resolveExecutionAddress(wallet);
+  const notes: string[] = [];
+
+  let predictedAddress: string;
+  let deploymentNonceText: string | undefined;
+  let normalizedSalt: string | undefined;
+
+  if (deploymentType === 'createAccount') {
+    const deploymentNonce = await signer.getDeploymentNonce();
+    deploymentNonceText = deploymentNonce.toString();
+    predictedAddress = utils.createAddress(deployerAddress, deploymentNonce);
+  } else {
+    normalizedSalt = normalizeSalt(input.salt);
+    predictedAddress = utils.create2Address(
+      deployerAddress,
+      bytecodeHash,
+      normalizedSalt,
+      constructorData
+    );
+  }
+
+  if (currentExecutionAddress.toLowerCase() === predictedAddress.toLowerCase()) {
+    notes.push('Predicted deployment address matches the stored execution address.');
+  } else {
+    notes.push(
+      'Predicted deployment address differs from the stored execution address. Save the deployed address back into the wallet record after deployment.'
+    );
+  }
+
+  if (factoryDeps.length > 0) {
+    notes.push(`Artifact includes ${factoryDeps.length} factory dependency bytecodes.`);
+  }
+
+  const plan: SmartAccountDeploymentPlan = {
+    walletName: wallet.walletName,
+    chain: wallet.chain,
+    chainId: wallet.chainId,
+    currentExecutionAddress,
+    ownerAddress,
+    deployerAddress,
+    deploymentType,
+    artifactContractName: input.artifact.contractName,
+    bytecodeHash,
+    constructorArgs,
+    constructorData,
+    predictedAddress,
+    deploymentNonce: deploymentNonceText,
+    salt: normalizedSalt,
+    factoryDepsCount: factoryDeps.length,
+    notes
+  };
+
+  return {
+    signer,
+    artifact: {
+      ...input.artifact,
+      bytecode,
+      factoryDeps
+    },
+    constructorArgs,
+    normalizedSalt,
+    plan
+  };
+}
+
+async function inspectWalletRecord(wallet: WalletSessionRecord): Promise<WalletInspectionResult> {
+  const executionAddress = resolveExecutionAddress(wallet);
+  const ownerAddress = resolveOwnerAddress(wallet);
+  const sessionPrivateKey = wallet.sessionPayload?.sessionPrivateKey;
+  const derivedSignerAddress = deriveSignerAddress(sessionPrivateKey);
+  const provider = getProvider(wallet.chain);
+  const code = await provider.getCode(executionAddress);
+  const codeLength = hasDeployedCode(code) ? (code.length - 2) / 2 : 0;
+  const blockers: string[] = [];
+  const notes: string[] = [];
+
+  if (wallet.accountKind === 'session-key') {
+    blockers.push('Session-key execution is not implemented yet.');
+  }
+
+  if (!sessionPrivateKey) {
+    blockers.push(
+      'Writable local execution requires a stored sessionPrivateKey. Re-approve locally with --session-private-key or import a writable session.'
+    );
+  } else if (!isHexPrivateKey(sessionPrivateKey)) {
+    blockers.push('Stored sessionPrivateKey is not a valid 32-byte hex key.');
+  }
+
+  if (wallet.accountKind === 'eoa') {
+    if (derivedSignerAddress && derivedSignerAddress.toLowerCase() !== executionAddress.toLowerCase()) {
+      blockers.push('Stored sessionPrivateKey does not match the EOA execution address.');
+    }
+
+    if (codeLength > 0) {
+      notes.push('EOA wallet record points to an address with deployed bytecode.');
+    }
+  }
+
+  if (wallet.accountKind === 'smart-account') {
+    if (!ownerAddress) {
+      blockers.push('Smart-account session is missing ownerAddress metadata.');
+    }
+
+    if (ownerAddress && derivedSignerAddress && derivedSignerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+      blockers.push('Stored sessionPrivateKey does not match the smart-account ownerAddress.');
+    }
+
+    if (codeLength === 0) {
+      blockers.push(
+        'Smart-account deployment is required before write execution. Use wallet smart-account deploy once you have a zkSync-compatible account artifact or built-in profile.'
+      );
+    }
+
+    notes.push('zkSync smart accounts should be deployed through createAccount/create2Account semantics.');
+    if (ownerAddress && ownerAddress.toLowerCase() === executionAddress.toLowerCase()) {
+      notes.push(
+        'executionAddress matches ownerAddress. This usually means the stored record is placeholder metadata, not a distinct deployed smart account.'
+      );
+    }
+  }
+
+  return buildInspectionResult(wallet, codeLength, derivedSignerAddress, blockers, notes);
+}
+
+async function assertWalletReadyForWrite(wallet: WalletSessionRecord): Promise<WalletInspectionResult> {
+  const inspection = await inspectWalletRecord(wallet);
+  if (inspection.writeReady) return inspection;
+
+  if (wallet.accountKind === 'session-key') {
+    throw new AgentError(
+      'SESSION_KEY_NOT_SUPPORTED',
+      'Session-key execution is not implemented yet.',
+      { inspection }
+    );
+  }
+
+  const sessionPrivateKey = wallet.sessionPayload?.sessionPrivateKey;
+  if (!sessionPrivateKey || !isHexPrivateKey(sessionPrivateKey)) {
+    throw new AgentError(
+      'WRITABLE_SESSION_REQUIRED',
+      'Writable local execution requires a valid stored sessionPrivateKey.',
+      { inspection }
+    );
+  }
+
+  if (wallet.accountKind === 'eoa') {
+    throw new AgentError(
+      'EOA_SIGNER_MISMATCH',
+      'Stored sessionPrivateKey does not match the EOA execution address.',
+      { inspection }
+    );
+  }
+
+  if (!inspection.ownerAddress) {
+    throw new AgentError(
+      'SMART_ACCOUNT_OWNER_REQUIRED',
+      'Smart-account session is missing ownerAddress metadata.',
+      { inspection }
+    );
+  }
+
+  if (inspection.signerMatchesStoredIdentity === false) {
+    throw new AgentError(
+      'SMART_ACCOUNT_SIGNER_MISMATCH',
+      'Stored sessionPrivateKey does not match the smart-account ownerAddress.',
+      { inspection }
+    );
+  }
+
+  if (inspection.deploymentStatus === 'not-deployed') {
+    throw new AgentError(
+      'SMART_ACCOUNT_DEPLOYMENT_REQUIRED',
+      'Smart-account deployment is required before write execution.',
+      {
+        inspection,
+        note:
+          'Deploy the account first with wallet smart-account deploy, then save the deployed execution address back into the wallet record.'
+      }
+    );
+  }
+
+  throw new AgentError(
+    'WALLET_NOT_WRITE_READY',
+    'Stored wallet session is not ready for write execution.',
+    { inspection }
+  );
+}
+
 function requireWritableSession(wallet: WalletSessionRecord): string {
   const privateKey = wallet.sessionPayload?.sessionPrivateKey;
   if (!privateKey) {
@@ -523,9 +881,7 @@ function buildSigner(wallet: WalletSessionRecord) {
   }
 
   if (wallet.accountKind === 'smart-account') {
-    // Current storage still treats the approved walletAddress as the transaction sender.
-    // Real smart-account deployment / address reconstruction is a later milestone.
-    return ECDSASmartAccount.create(wallet.walletAddress, privateKey, provider);
+    return ECDSASmartAccount.create(resolveExecutionAddress(wallet), privateKey, provider);
   }
 
   throw new Error(
@@ -541,6 +897,7 @@ async function executeWriteTransaction(
 ): Promise<TransactionExecutionResult> {
   if (!isAddress(tx.to)) throw new Error('Invalid transaction target address');
   if (!isHexData(tx.data)) throw new Error('Transaction data must be a hex string');
+  await assertWalletReadyForWrite(wallet);
   const paymaster = resolvePaymasterSelection(wallet, requestedPaymaster);
 
   if (paymaster.mode !== 'none') {
@@ -549,7 +906,7 @@ async function executeWriteTransaction(
     if (!broadcast) {
       return {
         walletName: wallet.walletName,
-        walletAddress: wallet.walletAddress,
+        walletAddress: resolveExecutionAddress(wallet),
         chain: wallet.chain,
         chainId: wallet.chainId,
         accountKind: wallet.accountKind,
@@ -606,7 +963,7 @@ async function executeWriteTransaction(
 
     return {
       walletName: wallet.walletName,
-      walletAddress: wallet.walletAddress,
+      walletAddress: resolveExecutionAddress(wallet),
       chain: wallet.chain,
       chainId: wallet.chainId,
       accountKind: wallet.accountKind,
@@ -624,7 +981,7 @@ async function executeWriteTransaction(
   if (!broadcast) {
     return {
       walletName: wallet.walletName,
-      walletAddress: wallet.walletAddress,
+      walletAddress: resolveExecutionAddress(wallet),
       chain: wallet.chain,
       chainId: wallet.chainId,
       accountKind: wallet.accountKind,
@@ -652,7 +1009,7 @@ async function executeWriteTransaction(
 
   return {
     walletName: wallet.walletName,
-    walletAddress: wallet.walletAddress,
+    walletAddress: resolveExecutionAddress(wallet),
     chain: wallet.chain,
     chainId: wallet.chainId,
     accountKind: wallet.accountKind,
@@ -730,11 +1087,19 @@ export class ZkSyncWalletProvider implements WalletProvider {
   async importSession(walletName: string, payload: WalletSessionRecord['sessionPayload']): Promise<WalletSessionRecord> {
     if (!payload) throw new Error('Session payload is required');
     if (!isAddress(payload.walletAddress)) throw new Error('Invalid walletAddress in session payload');
+    if (payload.account?.address && !isAddress(payload.account.address)) {
+      throw new Error('Invalid account.address in session payload');
+    }
+    if (payload.account?.ownerAddress && !isAddress(payload.account.ownerAddress)) {
+      throw new Error('Invalid account.ownerAddress in session payload');
+    }
 
     const chain = resolveChain(payload.chainId);
+    const walletAddress = payload.account?.address || payload.walletAddress;
     return {
       walletName,
-      walletAddress: payload.walletAddress,
+      walletAddress,
+      ownerAddress: payload.account?.ownerAddress,
       chain: payload.chain || chain.key,
       chainId: payload.chainId,
       provider: payload.provider,
@@ -746,6 +1111,78 @@ export class ZkSyncWalletProvider implements WalletProvider {
       paymasterMode: resolvePaymasterMode(payload),
       createdAt: new Date().toISOString(),
       sessionPayload: payload
+    };
+  }
+
+  async inspectWallet(wallet: WalletSessionRecord): Promise<WalletInspectionResult> {
+    return inspectWalletRecord(wallet);
+  }
+
+  async planSmartAccountDeployment(
+    input: SmartAccountDeploymentInput
+  ): Promise<SmartAccountDeploymentPlan> {
+    const context = await resolveSmartAccountDeploymentContext(input);
+    return context.plan;
+  }
+
+  async deploySmartAccount(
+    input: SmartAccountDeploymentInput
+  ): Promise<SmartAccountDeploymentResult> {
+    const context = await resolveSmartAccountDeploymentContext(input);
+    const { artifact, constructorArgs, normalizedSalt, plan, signer } = context;
+    const contractFactory = new ContractFactory(
+      artifact.abi as any,
+      artifact.bytecode,
+      signer,
+      input.deploymentType
+    );
+
+    const overrides: ethers.Overrides = {};
+    if ((artifact.factoryDeps && artifact.factoryDeps.length > 0) || normalizedSalt) {
+      overrides.customData = {};
+      if (artifact.factoryDeps && artifact.factoryDeps.length > 0) {
+        overrides.customData.factoryDeps = artifact.factoryDeps;
+      }
+      if (normalizedSalt) {
+        overrides.customData.salt = normalizedSalt;
+      }
+    }
+
+    const deployArgs =
+      overrides.customData === undefined
+        ? constructorArgs
+        : [...constructorArgs, overrides];
+
+    const contract = await contractFactory.deploy(...(deployArgs as []));
+    const deployedAddress = await contract.getAddress();
+    const deploymentTx = contract.deploymentTransaction();
+
+    if (!deploymentTx) {
+      throw new AgentError(
+        'SMART_ACCOUNT_DEPLOYMENT_TX_MISSING',
+        'Deployment transaction metadata is missing.',
+        { walletName: input.wallet.walletName, plan }
+      );
+    }
+
+    if (deployedAddress.toLowerCase() !== plan.predictedAddress.toLowerCase()) {
+      throw new AgentError(
+        'SMART_ACCOUNT_DEPLOYMENT_ADDRESS_MISMATCH',
+        'Deployed address does not match the predicted smart-account address.',
+        {
+          walletName: input.wallet.walletName,
+          predictedAddress: plan.predictedAddress,
+          deployedAddress,
+          txHash: deploymentTx.hash
+        }
+      );
+    }
+
+    return {
+      ...plan,
+      txHash: deploymentTx.hash,
+      explorerUrl: getExplorerUrl(input.wallet.chain, deploymentTx.hash),
+      deployedAddress
     };
   }
 

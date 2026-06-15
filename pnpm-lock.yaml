@@ -18,6 +18,12 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/account-profiles:
+    dependencies:
+      '@zk-agent/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+
   packages/agent-core:
     dependencies:
       '@zk-agent/agent-session-protocol':
@@ -58,6 +64,9 @@ importers:
       '@zk-agent/agent-session-protocol':
         specifier: workspace:*
         version: link:../agent-session-protocol
+      ethers:
+        specifier: ^6.16.0
+        version: 6.16.0
       zksync-ethers:
         specifier: ^6.21.2
         version: 6.21.2(ethers@6.16.0)
@@ -89,6 +98,9 @@ importers:
       '@noble/hashes':
         specifier: ^1.7.2
         version: 1.8.0
+      '@zk-agent/account-profiles':
+        specifier: workspace:*
+        version: link:../account-profiles
       '@zk-agent/agent-core':
         specifier: workspace:*
         version: link:../agent-core
@@ -104,6 +116,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      ethers:
+        specifier: ^6.16.0
+        version: 6.16.0
       zksync-ethers:
         specifier: ^6.21.2
         version: 6.21.2(ethers@6.16.0)

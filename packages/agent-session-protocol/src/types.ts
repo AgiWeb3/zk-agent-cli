@@ -60,6 +60,7 @@ export interface SessionCapabilities {
 export interface SessionAccountMetadata {
   kind: AccountKind;
   address: string;
+  ownerAddress?: string;
   sessionAddress?: string;
   validatorAddress?: string;
   signerType?: 'local' | 'connector' | 'external';
@@ -92,6 +93,7 @@ export interface SessionApprovalRequest {
 export interface SessionApprovalInput {
   request: SessionApprovalRequest;
   walletAddress: string;
+  ownerAddress?: string;
   sessionAddress?: string;
   sessionPrivateKey?: string;
   validatorAddress?: string;

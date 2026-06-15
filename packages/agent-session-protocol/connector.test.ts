@@ -48,6 +48,7 @@ describe('connector request helpers', () => {
     const payload = buildApprovedSessionPayload({
       request: SAMPLE_REQUEST,
       walletAddress: '0x1111111111111111111111111111111111111111',
+      ownerAddress: '0x3333333333333333333333333333333333333333',
       sessionPrivateKey:
         '0x1111111111111111111111111111111111111111111111111111111111111111',
       paymasterToken: '0x2222222222222222222222222222222222222222',
@@ -56,6 +57,7 @@ describe('connector request helpers', () => {
 
     expect(payload.walletAddress).toBe('0x1111111111111111111111111111111111111111');
     expect(payload.account?.kind).toBe('smart-account');
+    expect(payload.account?.ownerAddress).toBe('0x3333333333333333333333333333333333333333');
     expect(payload.permissions.expiresAt).toBe(SAMPLE_REQUEST.policies.expiresAt);
     expect(payload.sessionPrivateKey).toMatch(/^0x[0-9a-f]{64}$/);
     expect(payload.paymaster?.token).toBe('0x2222222222222222222222222222222222222222');

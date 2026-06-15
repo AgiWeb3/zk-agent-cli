@@ -1,4 +1,9 @@
 import { Command } from 'commander';
+import {
+  listBuiltinSmartAccountProfiles,
+  requireBuiltinSmartAccountProfile,
+  type BuiltinSmartAccountProfile
+} from '@zk-agent/account-profiles';
 
 import {
   deleteWalletSession,
@@ -8,6 +13,10 @@ import {
   loadWalletSession,
   saveWalletRequest,
   saveWalletSession,
+  type SmartAccountArtifactInput,
+  type SmartAccountDeploymentPlan,
+  type SmartAccountDeploymentResult,
+  type WalletInspectionResult,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
 import {
@@ -15,6 +24,7 @@ import {
   type SessionPayload
 } from '@zk-agent/agent-session-protocol';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
+import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
 import { parseJsonInput, printResult, shouldJsonOutput } from '../lib/io.js';
 
@@ -45,6 +55,266 @@ function displayAccountKind(wallet: WalletSessionRecord): string {
 
 function displayPaymasterMode(wallet: WalletSessionRecord): string {
   return wallet.paymasterMode || wallet.sessionPayload?.paymaster?.mode || 'none';
+}
+
+function displayOwnerAddress(wallet: WalletSessionRecord): string | undefined {
+  return wallet.ownerAddress || wallet.sessionPayload?.account?.ownerAddress;
+}
+
+function formatWalletSummary(wallet: WalletSessionRecord): string {
+  const ownerAddress = displayOwnerAddress(wallet);
+  const ownerSuffix =
+    ownerAddress && ownerAddress.toLowerCase() !== wallet.walletAddress.toLowerCase()
+      ? `  owner=${ownerAddress}`
+      : '';
+  return `${wallet.walletName}  ${wallet.walletAddress}  ${displayAccountKind(wallet)}  ${wallet.chain} (${wallet.chainId})${ownerSuffix}`;
+}
+
+function deriveAddressFromPrivateKey(value?: string): string | undefined {
+  if (!value) return undefined;
+  return new ZkSyncWallet(value).address;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeHexString(value: string, label: string): string {
+  const trimmed = value.trim();
+  const prefixed = trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`;
+  if (!/^0x([a-fA-F0-9]{2})+$/.test(prefixed)) {
+    throw new Error(`${label} must be a 0x-prefixed even-length hex string`);
+  }
+  return prefixed;
+}
+
+function parseArtifactInput(value: string): SmartAccountArtifactInput {
+  const raw = parseJsonInput<unknown>(value);
+  if (!isRecord(raw)) throw new Error('Artifact must be a JSON object');
+  if (!Array.isArray(raw.abi)) throw new Error('Artifact must include an abi array');
+
+  const bytecodeCandidate =
+    typeof raw.bytecode === 'string'
+      ? raw.bytecode
+      : isRecord(raw.evm) && isRecord(raw.evm.bytecode) && typeof raw.evm.bytecode.object === 'string'
+        ? raw.evm.bytecode.object
+        : undefined;
+
+  if (!bytecodeCandidate) {
+    throw new Error('Artifact must include bytecode or evm.bytecode.object');
+  }
+
+  let factoryDeps: string[] | undefined;
+  if (Array.isArray(raw.factoryDeps)) {
+    factoryDeps = raw.factoryDeps.map((entry, index) => {
+      if (typeof entry !== 'string') {
+        throw new Error(`factoryDeps[${index}] must be a hex string`);
+      }
+      return normalizeHexString(entry, `factoryDeps[${index}]`);
+    });
+  } else if (isRecord(raw.factoryDeps)) {
+    factoryDeps = Object.values(raw.factoryDeps).map((entry, index) => {
+      if (typeof entry !== 'string') {
+        throw new Error(`factoryDeps value ${index} must be a hex string`);
+      }
+      return normalizeHexString(entry, `factoryDeps value ${index}`);
+    });
+  }
+
+  return {
+    contractName: typeof raw.contractName === 'string' ? raw.contractName : undefined,
+    abi: raw.abi,
+    bytecode: normalizeHexString(bytecodeCandidate, 'artifact bytecode'),
+    factoryDeps
+  };
+}
+
+function parseConstructorArgs(value?: string): unknown[] {
+  if (!value) return [];
+  const parsed = parseJsonInput<unknown>(value);
+  if (!Array.isArray(parsed)) throw new Error('Constructor args must be a JSON array');
+  return parsed;
+}
+
+function requireWalletOwnerAddress(wallet: WalletSessionRecord): string {
+  const ownerAddress = displayOwnerAddress(wallet);
+  if (!ownerAddress) {
+    throw new Error(
+      `Wallet ${wallet.walletName} is missing ownerAddress metadata. Re-import or re-approve it before using a built-in smart-account profile.`
+    );
+  }
+  return ownerAddress;
+}
+
+interface SmartAccountCommandOptions {
+  artifact?: string;
+  profile?: string;
+  constructorArgs?: string;
+  deploymentType?: 'createAccount' | 'create2Account';
+  salt?: string;
+}
+
+interface ResolvedSmartAccountCommandInput {
+  artifact: SmartAccountArtifactInput;
+  constructorArgs: unknown[];
+  deploymentType: 'createAccount' | 'create2Account';
+  salt?: string;
+  profile?: BuiltinSmartAccountProfile;
+}
+
+function resolveSmartAccountCommandInput(
+  wallet: WalletSessionRecord,
+  options: SmartAccountCommandOptions
+): ResolvedSmartAccountCommandInput {
+  if (options.artifact && options.profile) {
+    throw new Error('Choose either --artifact or --profile, not both.');
+  }
+
+  if (options.profile) {
+    const profile = requireBuiltinSmartAccountProfile(options.profile);
+    const deploymentType = options.deploymentType || profile.recommendedDeploymentType;
+    const constructorArgs = options.constructorArgs
+      ? parseConstructorArgs(options.constructorArgs)
+      : profile.buildConstructorArgs({
+          ownerAddress: requireWalletOwnerAddress(wallet)
+        });
+
+    return {
+      profile,
+      artifact: profile.resolveArtifact(),
+      constructorArgs,
+      deploymentType,
+      salt: options.salt || (deploymentType === 'create2Account' ? profile.defaultSalt : undefined)
+    };
+  }
+
+  if (!options.artifact) {
+    throw new Error('Provide --artifact or --profile.');
+  }
+
+  return {
+    artifact: parseArtifactInput(options.artifact),
+    constructorArgs: parseConstructorArgs(options.constructorArgs),
+    deploymentType: options.deploymentType || 'createAccount',
+    salt: options.salt
+  };
+}
+
+function profileDetailLines(profile: BuiltinSmartAccountProfile): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['profile', profile.id],
+    ['name', profile.displayName],
+    ['status', profile.artifactReady ? 'artifact-ready' : 'source-only'],
+    ['deployment', profile.recommendedDeploymentType],
+    ['artifact', profile.artifactPath]
+  ];
+
+  if (profile.defaultSalt) {
+    lines.push(['default salt', profile.defaultSalt]);
+  }
+
+  lines.push(['constructor args', profile.constructorArgsDescription.join(', ') || 'none']);
+
+  for (const note of profile.notes) {
+    lines.push(['note', note]);
+  }
+
+  return lines;
+}
+
+function deploymentPlanLines(
+  plan: SmartAccountDeploymentPlan | SmartAccountDeploymentResult
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['wallet', plan.walletName],
+    ['chain', `${plan.chain} (${plan.chainId})`],
+    ['owner', plan.ownerAddress],
+    ['deployer', plan.deployerAddress],
+    ['deployment', plan.deploymentType],
+    ['predicted', plan.predictedAddress],
+    ['current address', plan.currentExecutionAddress],
+    ['bytecode hash', plan.bytecodeHash],
+    ['factory deps', String(plan.factoryDepsCount)]
+  ];
+
+  if (plan.artifactContractName) {
+    lines.splice(5, 0, ['artifact', plan.artifactContractName]);
+  }
+
+  if (plan.deploymentNonce) lines.push(['deployment nonce', plan.deploymentNonce]);
+  if (plan.salt) lines.push(['salt', plan.salt]);
+  if ('txHash' in plan) {
+    lines.push(['txHash', plan.txHash]);
+    if (plan.explorerUrl) lines.push(['explorer', plan.explorerUrl]);
+    lines.push(['deployed', plan.deployedAddress]);
+  }
+
+  for (const note of plan.notes) {
+    lines.push(['note', note]);
+  }
+
+  return lines;
+}
+
+function applyExecutionAddress(wallet: WalletSessionRecord, executionAddress: string): WalletSessionRecord {
+  return {
+    ...wallet,
+    walletAddress: executionAddress,
+    sessionPayload: wallet.sessionPayload
+      ? {
+          ...wallet.sessionPayload,
+          walletAddress: executionAddress,
+          account: wallet.sessionPayload.account
+            ? {
+                ...wallet.sessionPayload.account,
+                address: executionAddress
+              }
+            : wallet.sessionPayload.account
+        }
+      : wallet.sessionPayload
+  };
+}
+
+function formatDeploymentStatus(inspection: WalletInspectionResult): string {
+  if (inspection.deploymentStatus === 'not-applicable') return 'n/a';
+  return inspection.deploymentStatus;
+}
+
+function inspectionLines(inspection: WalletInspectionResult): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['wallet', inspection.walletName],
+    ['address', inspection.executionAddress],
+    ['account', inspection.accountKind],
+    ['chain', `${inspection.chain} (${inspection.chainId})`],
+    ['deployment', formatDeploymentStatus(inspection)],
+    ['bytecode', inspection.codeLength > 0 ? `${inspection.codeLength} bytes` : 'none'],
+    ['write', inspection.writeReady ? 'ready' : 'blocked']
+  ];
+
+  if (inspection.ownerAddress) lines.splice(2, 0, ['owner', inspection.ownerAddress]);
+  if (inspection.derivedSignerAddress) lines.push(['derived signer', inspection.derivedSignerAddress]);
+  if (typeof inspection.signerMatchesStoredIdentity === 'boolean') {
+    lines.push([
+      'signer match',
+      inspection.signerMatchesStoredIdentity ? 'yes' : 'no'
+    ]);
+  }
+
+  lines.push(['session key', inspection.sessionPrivateKeyStored ? 'stored' : 'missing']);
+
+  if (inspection.paymasterMode) {
+    lines.push(['paymaster', inspection.paymasterMode]);
+  }
+
+  for (const blocker of inspection.blockers) {
+    lines.push(['blocker', blocker]);
+  }
+
+  for (const note of inspection.notes) {
+    lines.push(['note', note]);
+  }
+
+  return lines;
 }
 
 async function requireWalletRequest(requestId: string) {
@@ -94,15 +364,35 @@ async function printWalletList(): Promise<void> {
   }
 
   for (const wallet of wallets) {
-    process.stdout.write(
-      `${wallet.walletName}  ${wallet.walletAddress}  ${displayAccountKind(wallet)}  ${wallet.chain} (${wallet.chainId})\n`
-    );
+    process.stdout.write(`${formatWalletSummary(wallet)}\n`);
   }
+}
+
+async function printBuiltinSmartAccountProfiles(): Promise<void> {
+  const profiles = listBuiltinSmartAccountProfiles();
+
+  if (shouldJsonOutput()) {
+    printResult([], { ok: true, profiles });
+    return;
+  }
+
+  profiles.forEach((profile, index) => {
+    for (const [label, value] of profileDetailLines(profile)) {
+      process.stdout.write(`${label}: ${value}\n`);
+    }
+
+    if (index < profiles.length - 1) {
+      process.stdout.write('\n');
+    }
+  });
 }
 
 export function createWalletCommand(): Command {
   const wallet = new Command('wallet').description('Manage wallet sessions');
   const request = new Command('request').description('Inspect and locally approve pending wallet requests');
+  const smartAccount = new Command('smart-account').description(
+    'Predict and deploy zkSync smart-account contracts from a supplied artifact or built-in profile'
+  );
 
   wallet
     .command('create')
@@ -180,6 +470,9 @@ export function createWalletCommand(): Command {
           ['status', 'Wallet session imported'],
           ['wallet', walletRecord.walletName],
           ['address', walletRecord.walletAddress],
+          ...(displayOwnerAddress(walletRecord)
+            ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
+            : []),
           ['account', displayAccountKind(walletRecord)],
           ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
           ['paymaster', displayPaymasterMode(walletRecord)],
@@ -206,11 +499,26 @@ export function createWalletCommand(): Command {
         [
           ['wallet', walletRecord.walletName],
           ['address', walletRecord.walletAddress],
+          ...(displayOwnerAddress(walletRecord)
+            ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
+            : []),
           ['account', displayAccountKind(walletRecord)],
           ['chain', `${walletRecord.chain} (${walletRecord.chainId})`]
         ],
         { ok: true, wallet: sanitizeWalletRecord(walletRecord) }
       );
+    });
+
+  wallet
+    .command('status')
+    .description('Inspect whether a stored wallet is actually ready for local write execution')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = await loadWalletSession(options.name);
+      if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
+
+      const inspection = await provider.inspectWallet(walletRecord);
+      printResult(inspectionLines(inspection), { ok: true, inspection });
     });
 
   wallet
@@ -255,7 +563,8 @@ export function createWalletCommand(): Command {
     .command('approve-local')
     .description('Approve a stored wallet request locally and save the resulting session')
     .requiredOption('--request-id <id>', 'Wallet request id')
-    .requiredOption('--wallet-address <address>', 'Approved wallet address')
+    .requiredOption('--wallet-address <address>', 'Approved execution address (EOA address or smart-account address)')
+    .option('--owner-address <address>', 'Owner / signer address for smart-account sessions')
     .option('--name <name>', 'Override saved wallet name')
     .option('--session-address <address>', 'Optional session address')
     .option('--session-private-key <hex>', 'Optional local private key for writable testnet sessions')
@@ -267,6 +576,7 @@ export function createWalletCommand(): Command {
       async (options: {
         requestId: string;
         walletAddress: string;
+        ownerAddress?: string;
         name?: string;
         sessionAddress?: string;
         sessionPrivateKey?: string;
@@ -277,10 +587,22 @@ export function createWalletCommand(): Command {
       }) => {
         const walletRequest = await requireWalletRequest(options.requestId);
         assertRequestActive(walletRequest.expiresAt);
+        const derivedOwnerAddress = deriveAddressFromPrivateKey(options.sessionPrivateKey);
+        const ownerAddress = options.ownerAddress || derivedOwnerAddress;
+
+        if (
+          walletRequest.requestedAccountKind === 'smart-account' &&
+          !ownerAddress
+        ) {
+          throw new Error(
+            'Smart-account approval requires --owner-address or a --session-private-key that can be used to derive it.'
+          );
+        }
 
         const payload = buildApprovedSessionPayload({
           request: walletRequest,
           walletAddress: options.walletAddress,
+          ownerAddress,
           sessionAddress: options.sessionAddress,
           sessionPrivateKey: options.sessionPrivateKey,
           validatorAddress: options.validatorAddress,
@@ -301,6 +623,9 @@ export function createWalletCommand(): Command {
             ['request', walletRequest.requestId],
             ['wallet', walletRecord.walletName],
             ['address', walletRecord.walletAddress],
+            ...(displayOwnerAddress(walletRecord)
+              ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
+              : []),
             ['account', displayAccountKind(walletRecord)],
             ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
             ['paymaster', displayPaymasterMode(walletRecord)],
@@ -316,6 +641,121 @@ export function createWalletCommand(): Command {
       }
     );
 
+  smartAccount
+    .command('profiles')
+    .description('List built-in smart-account profiles available to the CLI')
+    .action(async () => printBuiltinSmartAccountProfiles());
+
+  smartAccount
+    .command('predict')
+    .description('Predict the smart-account deployment address using a zkSync-compatible artifact or built-in profile')
+    .option('--artifact <payload>', 'Artifact JSON or @file path')
+    .option('--profile <id>', 'Built-in smart-account profile id')
+    .option('--constructor-args <payload>', 'JSON array or @file path for constructor arguments')
+    .option('--deployment-type <type>', 'createAccount or create2Account')
+    .option('--salt <hex>', 'Required for create2Account deployment')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(
+      async (options: {
+        artifact?: string;
+        profile?: string;
+        constructorArgs?: string;
+        deploymentType?: 'createAccount' | 'create2Account';
+        salt?: string;
+        name: string;
+      }) => {
+        const walletRecord = await loadWalletSession(options.name);
+        if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
+        const resolved = resolveSmartAccountCommandInput(walletRecord, options);
+
+        const plan = await provider.planSmartAccountDeployment({
+          wallet: walletRecord,
+          artifact: resolved.artifact,
+          deploymentType: resolved.deploymentType,
+          constructorArgs: resolved.constructorArgs,
+          salt: resolved.salt
+        });
+
+        const lines = deploymentPlanLines(plan);
+        if (resolved.profile) {
+          lines.splice(1, 0, ['profile', resolved.profile.id]);
+        }
+
+        printResult(lines, {
+          ok: true,
+          profile: resolved.profile
+            ? {
+                id: resolved.profile.id,
+                displayName: resolved.profile.displayName
+              }
+            : undefined,
+          plan
+        });
+      }
+    );
+
+  smartAccount
+    .command('deploy')
+    .description('Deploy a smart-account contract from a zkSync-compatible artifact or built-in profile')
+    .option('--artifact <payload>', 'Artifact JSON or @file path')
+    .option('--profile <id>', 'Built-in smart-account profile id')
+    .option('--constructor-args <payload>', 'JSON array or @file path for constructor arguments')
+    .option('--deployment-type <type>', 'createAccount or create2Account')
+    .option('--salt <hex>', 'Required for create2Account deployment')
+    .option('--name <name>', 'Wallet name', 'main')
+    .option('--no-save', 'Do not update the local wallet record with the deployed execution address')
+    .action(
+      async (options: {
+        artifact?: string;
+        profile?: string;
+        constructorArgs?: string;
+        deploymentType?: 'createAccount' | 'create2Account';
+        salt?: string;
+        name: string;
+        save?: boolean;
+      }) => {
+        const walletRecord = await loadWalletSession(options.name);
+        if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
+        const resolved = resolveSmartAccountCommandInput(walletRecord, options);
+
+        const result = await provider.deploySmartAccount({
+          wallet: walletRecord,
+          artifact: resolved.artifact,
+          deploymentType: resolved.deploymentType,
+          constructorArgs: resolved.constructorArgs,
+          salt: resolved.salt
+        });
+
+        let savedWallet: WalletSessionRecord | undefined;
+        if (options.save !== false) {
+          savedWallet = applyExecutionAddress(walletRecord, result.deployedAddress);
+          await saveWalletSession(savedWallet);
+        }
+
+        const lines = deploymentPlanLines(result);
+        if (resolved.profile) {
+          lines.splice(1, 0, ['profile', resolved.profile.id]);
+        }
+        lines.push(['saved', options.save === false ? 'no' : 'yes']);
+        if (savedWallet) {
+          lines.push(['next', `zk-agent wallet status --name ${savedWallet.walletName}`]);
+        }
+
+        printResult(lines, {
+          ok: true,
+          profile: resolved.profile
+            ? {
+                id: resolved.profile.id,
+                displayName: resolved.profile.displayName
+              }
+            : undefined,
+          result,
+          wallet: savedWallet ? sanitizeWalletRecord(savedWallet) : undefined
+        });
+      }
+    );
+
+  wallet.addCommand(smartAccount);
   wallet.addCommand(request);
 
   return wallet;
