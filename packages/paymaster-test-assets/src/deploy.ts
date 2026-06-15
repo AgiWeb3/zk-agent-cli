@@ -7,7 +7,7 @@ import { readTestTokenConfig, getWorkspaceRoot } from './config.js';
 import { compileStandardTestToken, writeArtifact } from './compiler.js';
 
 function deploymentDir(): string {
-  return path.resolve(getWorkspaceRoot(), 'packages/test-erc20/deployments');
+  return path.resolve(getWorkspaceRoot(), 'packages/paymaster-test-assets/deployments');
 }
 
 async function main() {

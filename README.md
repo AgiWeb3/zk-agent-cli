@@ -27,7 +27,7 @@ What is already in place:
 - session protocol package
 - built-in AA profile registry in `packages/account-profiles`
 - initial Commander-based CLI commands
-- local `packages/test-erc20` utility package for compiling and deploying a standard ERC-20 on zkSync Sepolia
+- local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
 - `zksync-ethers` read path for balances and contract calls
 - thin AA-oriented transaction commands for:
   - `send`
@@ -144,25 +144,25 @@ pnpm build
 Test ERC-20 utility:
 
 ```bash
-pnpm --filter @zk-agent/test-erc20 compile
-pnpm --filter @zk-agent/test-erc20 deploy
-pnpm --filter @zk-agent/test-erc20 compile:eravm
-pnpm --filter @zk-agent/test-erc20 deploy:token:eravm
-pnpm --filter @zk-agent/test-erc20 deploy:paymaster
+pnpm --filter @zk-agent/paymaster-test-assets compile
+pnpm --filter @zk-agent/paymaster-test-assets deploy
+pnpm --filter @zk-agent/paymaster-test-assets compile:eravm
+pnpm --filter @zk-agent/paymaster-test-assets deploy:token:eravm
+pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
 ```
 
 ## Test ERC-20 Package
 
-`packages/test-erc20` is a small workspace package that gives us deterministic
+`packages/paymaster-test-assets` is a small workspace package that gives us deterministic
 Sepolia assets for paymaster testing, so we do not need to depend on third-party
 token or paymaster addresses.
 
 What it does:
 
 - compiles `contracts/StandardTestToken.sol` with standard `solc`
-- writes the artifact to `packages/test-erc20/artifacts/StandardTestToken.json`
+- writes the artifact to `packages/paymaster-test-assets/artifacts/StandardTestToken.json`
 - deploys the token to zkSync Sepolia through standard EVM bytecode deployment
-- records the latest deployment in `packages/test-erc20/deployments/zksync-sepolia.latest.json`
+- records the latest deployment in `packages/paymaster-test-assets/deployments/zksync-sepolia.latest.json`
 - can also export and deploy the same token as native EraVM bytecode for
   approval-based compatibility testing
 - compiles and deploys the EraVM-native `ManagedPaymaster`

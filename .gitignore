@@ -4,11 +4,11 @@ dist
 .tmp-home-*
 .DS_Store
 *.tsbuildinfo
-packages/test-erc20/artifacts
-packages/test-erc20/artifacts-zk
-packages/test-erc20/bin
-packages/test-erc20/cache-zk
-packages/test-erc20/deployments
+packages/paymaster-test-assets/artifacts
+packages/paymaster-test-assets/artifacts-zk
+packages/paymaster-test-assets/bin
+packages/paymaster-test-assets/cache-zk
+packages/paymaster-test-assets/deployments
 packages/account-profiles/artifacts
 packages/account-profiles/artifacts-zk
 packages/account-profiles/cache-zk

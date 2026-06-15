@@ -18,7 +18,7 @@ export interface DeploymentRecord {
 }
 
 function packageRoot(): string {
-  return path.resolve(getWorkspaceRoot(), 'packages/test-erc20');
+  return path.resolve(getWorkspaceRoot(), 'packages/paymaster-test-assets');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

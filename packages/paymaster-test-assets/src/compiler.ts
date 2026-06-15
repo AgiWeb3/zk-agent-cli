@@ -14,7 +14,7 @@ export interface CompiledTokenArtifact {
 
 const SOURCE_NAME = 'StandardTestToken.sol';
 const CONTRACT_NAME = 'StandardTestToken';
-const packageRoot = path.resolve(getWorkspaceRoot(), 'packages/test-erc20');
+const packageRoot = path.resolve(getWorkspaceRoot(), 'packages/paymaster-test-assets');
 const contractPath = path.join(packageRoot, 'contracts', SOURCE_NAME);
 const artifactPath = path.join(packageRoot, 'artifacts', `${CONTRACT_NAME}.json`);
 

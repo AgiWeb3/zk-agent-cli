@@ -1,5 +1,5 @@
 {
-  "name": "@zk-agent/test-erc20",
+  "name": "@zk-agent/paymaster-test-assets",
   "version": "0.1.0",
   "private": true,
   "type": "module",

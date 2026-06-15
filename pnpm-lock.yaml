@@ -87,7 +87,7 @@ importers:
         specifier: ^6.21.2
         version: 6.21.2(ethers@6.16.0)
 
-  packages/test-erc20:
+  packages/paymaster-test-assets:
     dependencies:
       dotenv:
         specifier: ^17.4.2

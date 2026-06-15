@@ -13,7 +13,7 @@ import {
 import { getWorkspaceRoot, readManagedPaymasterConfig } from './config.js';
 
 function deploymentsDir(): string {
-  return path.resolve(getWorkspaceRoot(), 'packages/test-erc20/deployments');
+  return path.resolve(getWorkspaceRoot(), 'packages/paymaster-test-assets/deployments');
 }
 
 type DeploymentOverrides = ethers.Overrides & {

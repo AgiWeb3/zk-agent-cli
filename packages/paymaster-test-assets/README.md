@@ -1,4 +1,4 @@
-# @zk-agent/test-erc20
+# @zk-agent/paymaster-test-assets
 
 这个包现在不只是部署一个测试 ERC-20。
 
@@ -37,28 +37,28 @@
 ## 命令
 
 ```bash
-pnpm --filter @zk-agent/test-erc20 compile
-pnpm --filter @zk-agent/test-erc20 deploy
+pnpm --filter @zk-agent/paymaster-test-assets compile
+pnpm --filter @zk-agent/paymaster-test-assets deploy
 
-pnpm --filter @zk-agent/test-erc20 compile:eravm
-pnpm --filter @zk-agent/test-erc20 deploy:token:eravm
-pnpm --filter @zk-agent/test-erc20 deploy:paymaster
+pnpm --filter @zk-agent/paymaster-test-assets compile:eravm
+pnpm --filter @zk-agent/paymaster-test-assets deploy:token:eravm
+pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
 ```
 
 ## 生成物
 
 - ERC-20 artifact:
-  `packages/test-erc20/artifacts/StandardTestToken.json`
+  `packages/paymaster-test-assets/artifacts/StandardTestToken.json`
 - EraVM token artifact:
-  `packages/test-erc20/artifacts/tokens/StandardTestToken.eravm.json`
+  `packages/paymaster-test-assets/artifacts/tokens/StandardTestToken.eravm.json`
 - EraVM paymaster artifact:
-  `packages/test-erc20/artifacts/paymasters/ManagedPaymaster.json`
+  `packages/paymaster-test-assets/artifacts/paymasters/ManagedPaymaster.json`
 - ERC-20 deployment:
-  `packages/test-erc20/deployments/zksync-sepolia.latest.json`
+  `packages/paymaster-test-assets/deployments/zksync-sepolia.latest.json`
 - EraVM token deployment:
-  `packages/test-erc20/deployments/zksync-sepolia.eravm-token.latest.json`
+  `packages/paymaster-test-assets/deployments/zksync-sepolia.eravm-token.latest.json`
 - paymaster deployment:
-  `packages/test-erc20/deployments/zksync-sepolia.paymaster.latest.json`
+  `packages/paymaster-test-assets/deployments/zksync-sepolia.paymaster.latest.json`
 
 ## `.env` 字段
 
