@@ -4,6 +4,10 @@
 
 Build `zk-agent-cli` as a local-first, agent-oriented CLI for `zkSync Era` and the wider `ZK Stack`, preserving the reusable architecture of `polygon-agent-cli` while replacing Polygon/Sequence-specific implementation details with explicit zkSync provider boundaries.
 
+Cross-environment handoff reference:
+
+- [PROJECT_STATE.md](./PROJECT_STATE.md)
+
 ## Current Status
 
 ### Baseline completed
@@ -37,16 +41,20 @@ Build `zk-agent-cli` as a local-first, agent-oriented CLI for `zkSync Era` and t
   - preview / JSON output
 - Provider write path now builds live paymaster transaction parameters for:
   - `sponsored` via General flow
-  - `approval-based` via zkSync testnet paymaster resolution and buffered allowance estimation
+  - `approval-based` via explicit/custom paymaster addresses and buffered allowance estimation
 - Live Sepolia validation showed an important boundary:
   - a token that works for normal ERC-20 transfer preview may still fail approval-based paymaster validation
   - fee-token compatibility must be treated as a real chain/paymaster constraint, not inferred from ERC-20 compliance alone
-- A self-deployed `18 decimals` ERC-20 now gives us a deterministic fee-token path on Sepolia:
-  - approval-based preview / estimation succeeds with the testnet paymaster
-  - real broadcast is still rejected during chain-side validation
-- Direct `zksync-ethers` reproduction matches the same broadcast failure:
-  - current blocker is not CLI request shaping alone
-  - current blocker is the live broadcast validation path
+- A self-deployed `18 decimals` ERC-20 plus a self-deployed EraVM paymaster now
+  gives us a deterministic fee-token path on Sepolia:
+  - approval-based preview / estimation succeeds
+  - sponsored/general preview also succeeds
+  - sponsored/general live broadcast also succeeds
+- Approval-based live broadcast now also succeeds once the fee token itself is
+  deployed as native EraVM bytecode
+- The `SystemContext`-related failure still reproduces for the older
+  EVM-interpreter token path, which now points more strongly to a fee-token
+  compatibility boundary than to a generic paymaster bug
 - JSON errors can now return stable `code` and `details` when provider capability is missing.
 - Write commands now fail early for undeployed smart-account records, missing local session keys, and signer/address mismatches.
 - Smart-account deployment commands now fail with a stable structured error when the supplied artifact is standard EVM bytecode instead of zkSync EraVM bytecode.
@@ -66,8 +74,10 @@ Build `zk-agent-cli` as a local-first, agent-oriented CLI for `zkSync Era` and t
   - live deployment and post-deploy reconstruction still need to be validated
   - they still do not represent a completed deploy / reconstruct / restore lifecycle
 - Funded end-to-end paymaster broadcast validation on zkSync test infrastructure.
-  - approval-based preview is validated
-  - approval-based broadcast is still blocked by chain-side validation on Sepolia
+  - sponsored and approval-based preview are validated with the upgraded custom
+    paymaster
+  - sponsored live broadcast is validated with the upgraded custom paymaster
+  - approval-based live broadcast is validated on the EraVM token path
 - Explicitly validated fee-token set or token-registry guidance for approval-based paymaster flows.
 - End-to-end funded write broadcast test on zkSync test infrastructure.
 - `swap`, `bridge`, `deposit`, `withdraw`.
@@ -272,8 +282,12 @@ Exit criteria:
 
 Current note:
 
-- base write flows without paymaster are the current safe path
-- approval-based paymaster broadcast remains blocked by Sepolia validation even after fee-token compatibility was fixed
+- base write flows without paymaster are still the conservative fallback path
+- upgraded paymaster preview is validated for both flows
+- upgraded paymaster live broadcast is validated for sponsored/general flow
+- approval-based live broadcast is validated for the EraVM token path
+- EVM-interpreter fee tokens remain a known incompatible path for approval-based
+  live validation
 
 Validation:
 

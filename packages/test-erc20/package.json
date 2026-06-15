@@ -11,14 +11,24 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "compile": "pnpm run build && node dist/compile.js",
-    "deploy": "pnpm run build && node dist/deploy.js"
+    "deploy": "pnpm run build && node dist/deploy.js",
+    "compile:eravm": "hardhat compile --config ./hardhat.config.cjs && node ./scripts/export-eravm-artifacts.mjs",
+    "deploy:token:eravm": "pnpm run build && node dist/deployEraVmToken.js",
+    "clean:eravm": "hardhat clean --config ./hardhat.config.cjs",
+    "deploy:paymaster": "pnpm run build && node dist/deployManagedPaymaster.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "solc": "0.8.24"
+    "ethers": "^6.16.0",
+    "solc": "0.8.24",
+    "zksync-ethers": "^6.21.2"
   },
   "devDependencies": {
-    "ethers": "^6.16.0",
+    "@matterlabs/hardhat-zksync": "^1.6.2",
+    "@matterlabs/zksync-contracts": "^29.0.0",
+    "@openzeppelin/contracts": "=5.2.0",
+    "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@4.9.6",
+    "hardhat": "^2.26.2",
     "ts-node": "^10.9.2"
   }
 }

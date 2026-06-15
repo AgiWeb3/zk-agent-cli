@@ -21,7 +21,8 @@ import {
 } from '@zk-agent/agent-core';
 import {
   buildApprovedSessionPayload,
-  type SessionPayload
+  type SessionPayload,
+  type PaymasterMode
 } from '@zk-agent/agent-session-protocol';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
@@ -73,6 +74,17 @@ function formatWalletSummary(wallet: WalletSessionRecord): string {
 function deriveAddressFromPrivateKey(value?: string): string | undefined {
   if (!value) return undefined;
   return new ZkSyncWallet(value).address;
+}
+
+function isAddress(value: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function parsePaymasterMode(value: string): PaymasterMode {
+  if (value === 'none' || value === 'sponsored' || value === 'approval-based') {
+    return value;
+  }
+  throw new Error(`Unsupported paymaster mode: ${value}`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -393,6 +405,9 @@ export function createWalletCommand(): Command {
   const smartAccount = new Command('smart-account').description(
     'Predict and deploy zkSync smart-account contracts from a supplied artifact or built-in profile'
   );
+  const paymaster = new Command('paymaster').description(
+    'Manage saved paymaster defaults for stored wallets'
+  );
 
   wallet
     .command('create')
@@ -641,6 +656,95 @@ export function createWalletCommand(): Command {
       }
     );
 
+  paymaster
+    .command('set')
+    .description('Update the saved default paymaster metadata for a stored wallet')
+    .option('--name <name>', 'Wallet name', 'main')
+    .requiredOption('--mode <mode>', 'none, sponsored, or approval-based')
+    .option('--address <address>', 'Paymaster contract address')
+    .option('--token <address>', 'ERC-20 fee token for approval-based mode')
+    .action(
+      async (options: {
+        name: string;
+        mode: string;
+        address?: string;
+        token?: string;
+      }) => {
+        const walletRecord = await loadWalletSession(options.name);
+        if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
+
+        const mode = parsePaymasterMode(options.mode);
+        const address = options.address?.trim();
+        const token = options.token?.trim();
+
+        if (address && !isAddress(address)) {
+          throw new Error('--address must be a valid 20-byte hex address');
+        }
+
+        if (token && !isAddress(token)) {
+          throw new Error('--token must be a valid 20-byte hex address');
+        }
+
+        if (mode === 'none' && (address || token)) {
+          throw new Error('Do not supply --address or --token when --mode none');
+        }
+
+        if (mode === 'sponsored' && token) {
+          throw new Error('--token is only valid for --mode approval-based');
+        }
+
+        if (mode === 'sponsored' && !address) {
+          throw new Error('--address is required when --mode sponsored');
+        }
+
+        if (mode === 'approval-based' && !token) {
+          throw new Error('--token is required when --mode approval-based');
+        }
+
+        const nextPayload =
+          mode === 'none'
+            ? walletRecord.sessionPayload
+              ? {
+                  ...walletRecord.sessionPayload,
+                  paymaster: undefined,
+                  paymasterAddress: undefined
+                }
+              : walletRecord.sessionPayload
+            : walletRecord.sessionPayload
+              ? {
+                  ...walletRecord.sessionPayload,
+                  paymaster: {
+                    mode,
+                    address,
+                    token
+                  },
+                  paymasterAddress: address
+                }
+              : walletRecord.sessionPayload;
+
+        const nextWallet: WalletSessionRecord = {
+          ...walletRecord,
+          paymasterMode: mode,
+          sessionPayload: nextPayload
+        };
+
+        await saveWalletSession(nextWallet);
+
+        printResult(
+          [
+            ['wallet', nextWallet.walletName],
+            ['paymaster', displayPaymasterMode(nextWallet)],
+            ['paymaster address', nextWallet.sessionPayload?.paymaster?.address || 'none'],
+            ['paymaster token', nextWallet.sessionPayload?.paymaster?.token || 'none']
+          ],
+          {
+            ok: true,
+            wallet: sanitizeWalletRecord(nextWallet)
+          }
+        );
+      }
+    );
+
   smartAccount
     .command('profiles')
     .description('List built-in smart-account profiles available to the CLI')
@@ -756,6 +860,7 @@ export function createWalletCommand(): Command {
     );
 
   wallet.addCommand(smartAccount);
+  wallet.addCommand(paymaster);
   wallet.addCommand(request);
 
   return wallet;

@@ -38,6 +38,7 @@ import { ContractFactory, ECDSASmartAccount, Provider, Wallet, utils } from 'zks
 
 const providers = new Map<string, Provider>();
 const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
+const APPROVAL_BASED_ALLOWANCE_STORAGE_GAS_HEADROOM = 400_000n;
 
 function getProvider(chainKey: string): Provider {
   const chain = resolveChain(chainKey);
@@ -71,6 +72,39 @@ function padHex(value: string, length = 64): string {
 
 function applyBuffer(value: bigint, numerator = 12n, denominator = 10n): bigint {
   return (value * numerator + denominator - 1n) / denominator;
+}
+
+function buildApprovalBasedPaymasterParams(
+  paymasterAddress: string,
+  token: string,
+  minimalAllowance: bigint
+): ReturnType<typeof utils.getPaymasterParams> {
+  return utils.getPaymasterParams(paymasterAddress, {
+    type: 'ApprovalBased',
+    token,
+    minimalAllowance,
+    innerInput: '0x'
+  });
+}
+
+function isApprovalBasedAllowanceFailure(error: unknown): boolean {
+  const cause = formatCause(error).toLowerCase();
+  return (
+    cause.includes('provided minallowance is too low') ||
+    cause.includes('minimalallowance') ||
+    cause.includes('min allowance too low') ||
+    cause.includes('actual allowance is too low') ||
+    cause.includes('allowance too low')
+  );
+}
+
+function deriveInitialApprovalBasedAllowance(
+  fee: Awaited<ReturnType<Provider['estimateFee']>>
+): bigint {
+  const baseCost = fee.gasLimit * fee.maxFeePerGas;
+  const allowanceStorageHeadroom =
+    APPROVAL_BASED_ALLOWANCE_STORAGE_GAS_HEADROOM * fee.maxFeePerGas;
+  return applyBuffer(baseCost + allowanceStorageHeadroom);
 }
 
 function formatUnits(value: bigint, decimals: number): string {
@@ -497,31 +531,45 @@ async function preparePaymasterTransaction(
     // Approval-based flow validates fee payment against the paymaster's token logic.
     // A token can be perfectly valid for ERC-20 transfer and still fail here.
     const initialFee = await provider.estimateFee(baseTx);
-    const initialAllowance = applyBuffer(initialFee.gasLimit * initialFee.maxFeePerGas);
-    const initialPaymasterParams = utils.getPaymasterParams(paymasterAddress, {
-      type: 'ApprovalBased',
-      token: paymaster.token,
-      minimalAllowance: initialAllowance,
-      innerInput: '0x'
-    });
+    let allowance = deriveInitialApprovalBasedAllowance(initialFee);
+    let paymasterFee: Awaited<ReturnType<Provider['estimateFee']>> | undefined;
 
-    const paymasterFee = await provider.estimateFee({
-      ...baseTx,
-      customData: {
-        ...baseTx.customData,
-        paymasterParams: initialPaymasterParams
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const paymasterParams = buildApprovalBasedPaymasterParams(
+        paymasterAddress,
+        paymaster.token,
+        allowance
+      );
+
+      try {
+        paymasterFee = await provider.estimateFee({
+          ...baseTx,
+          customData: {
+            ...baseTx.customData,
+            paymasterParams
+          }
+        });
+        break;
+      } catch (error) {
+        if (!isApprovalBasedAllowanceFailure(error) || attempt === 4) {
+          throw error;
+        }
+        allowance *= 2n;
       }
-    });
+    }
+
+    if (!paymasterFee) {
+      throw new Error('Approval-based paymaster fee estimation did not produce a result');
+    }
 
     const finalAllowance = applyBuffer(
       paymasterFee.gasLimit * paymasterFee.maxFeePerGas
     );
-    const paymasterParams = utils.getPaymasterParams(paymasterAddress, {
-      type: 'ApprovalBased',
-      token: paymaster.token,
-      minimalAllowance: finalAllowance,
-      innerInput: '0x'
-    });
+    const paymasterParams = buildApprovalBasedPaymasterParams(
+      paymasterAddress,
+      paymaster.token,
+      finalAllowance
+    );
 
     return {
       policy: {
@@ -941,7 +989,7 @@ async function executeWriteTransaction(
               systemContract: 'SystemContext',
               systemContractAddress: SYSTEM_CONTEXT_ADDRESS,
               note:
-                'Local Sepolia testing currently reproduces this rejection even with direct zksync-ethers usage. Treat approval-based paymaster support as preview-validated, not broadcast-stable.'
+                'Local Sepolia testing reproduces this rejection for approval-based live broadcast when the fee token is the EVM-interpreter ERC20 path. The same approval-based flow succeeds once the fee token is deployed as native EraVM bytecode, so treat this as a fee-token compatibility boundary rather than a generic paymaster broadcast failure.'
             }
           }
         );

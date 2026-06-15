@@ -47,7 +47,9 @@ but it is not yet a complete "agent treasury policy engine".
   `packages/account-profiles/contracts/daily-spend-limit`
 - the CLI exposes `wallet smart-account profiles`
 - `wallet smart-account predict|deploy` now accepts `--profile daily-spend-limit`
-- the EraVM artifact is not checked in yet
+- the repository now includes a local EraVM compile path via
+  `pnpm --filter @zk-agent/account-profiles compile:eravm`
+- the compiled artifact remains a local generated file and is not checked in
 
 Until `packages/account-profiles/artifacts/daily-spend-limit/Account.json`
 exists, the CLI will report this profile as `source-only` and refuse actual

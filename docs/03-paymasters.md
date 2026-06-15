@@ -85,11 +85,16 @@ From the local `zksync-docs` set in this workspace:
 
 Our current interpretation is:
 
-- this strongly suggests the live validation path is touching forbidden context state during broadcast
+- this strongly suggests the approval-based live validation path is sensitive to
+  fee-token implementation details, not just token address or decimals
 - this is still an interpretation, not a fully confirmed root cause
-- the important confirmed fact is simpler:
-  - approval-based paymaster on Sepolia is now preview-validated
-  - approval-based paymaster on Sepolia is not yet broadcast-stable in this repository
+- the important confirmed facts are now:
+  - approval-based paymaster on Sepolia is preview-validated
+  - sponsored/general paymaster live broadcast succeeds with the same custom paymaster
+  - approval-based paymaster live broadcast succeeds once the fee token is also
+    deployed as native EraVM bytecode
+  - the older EVM-interpreter token path is still not broadcast-stable in this
+    repository
 
 ## What The Testnet Paymaster Actually Cares About
 
@@ -112,7 +117,8 @@ At the current stage of `zk-agent-cli`, we should treat `approval-based` paymast
 
 - a transaction capability that must be validated per chain
 - a fee-token compatibility problem, not just a token-registry problem
-- a preview-path success that still does not guarantee broadcast-path success
+- a preview-path success that still does not guarantee broadcast-path success for
+  every fee-token implementation
 - something that needs explicit errors and explicit documentation
 
 We should **not** assume:

@@ -9,9 +9,18 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "compile:eravm": "hardhat compile --config ./hardhat.config.cjs && node ./scripts/export-eravm-artifacts.mjs",
+    "clean:eravm": "hardhat clean --config ./hardhat.config.cjs"
   },
   "dependencies": {
     "@zk-agent/agent-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@matterlabs/hardhat-zksync": "^1.6.2",
+    "@matterlabs/zksync-contracts": "^29.0.0",
+    "@openzeppelin/contracts": "=5.2.0",
+    "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@4.9.6",
+    "hardhat": "^2.26.2"
   }
 }

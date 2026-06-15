@@ -2,6 +2,10 @@
 
 `zk-agent-cli` is a local-first monorepo for building an agent-oriented CLI on top of `zkSync Era` and the wider `ZK Stack`.
 
+Current handoff snapshot:
+
+- [PROJECT_STATE.md](./PROJECT_STATE.md)
+
 The project is intentionally modeled after the real architecture of `polygon-agent-cli`, but it is not a direct fork. The goal is to preserve the reusable system shape:
 
 - CLI entrypoint for humans and agent harnesses
@@ -34,6 +38,8 @@ What is already in place:
   - session signer consistency
   - deployed vs undeployed smart-account state
   - local write readiness blockers
+- `wallet paymaster set` for updating saved default paymaster metadata on a
+  stored wallet
 - generic `wallet smart-account predict|deploy` flow for:
   - artifact-driven address prediction
   - account deployment via `createAccount` / `create2Account`
@@ -59,6 +65,7 @@ What is already in place:
   - approval-based broadcast is still rejected by chain-side validation on Sepolia
 - background docs in `docs/`
 - execution plan in `PLANS.md`
+- cross-environment handoff snapshot in `PROJECT_STATE.md`
 
 What is next:
 
@@ -139,11 +146,16 @@ Test ERC-20 utility:
 ```bash
 pnpm --filter @zk-agent/test-erc20 compile
 pnpm --filter @zk-agent/test-erc20 deploy
+pnpm --filter @zk-agent/test-erc20 compile:eravm
+pnpm --filter @zk-agent/test-erc20 deploy:token:eravm
+pnpm --filter @zk-agent/test-erc20 deploy:paymaster
 ```
 
 ## Test ERC-20 Package
 
-`packages/test-erc20` is a small workspace package that gives us a deterministic standard ERC-20 for zkSync Sepolia testing, so we do not need to depend on a third-party faucet token address.
+`packages/test-erc20` is a small workspace package that gives us deterministic
+Sepolia assets for paymaster testing, so we do not need to depend on third-party
+token or paymaster addresses.
 
 What it does:
 
@@ -151,12 +163,17 @@ What it does:
 - writes the artifact to `packages/test-erc20/artifacts/StandardTestToken.json`
 - deploys the token to zkSync Sepolia through standard EVM bytecode deployment
 - records the latest deployment in `packages/test-erc20/deployments/zksync-sepolia.latest.json`
+- can also export and deploy the same token as native EraVM bytecode for
+  approval-based compatibility testing
+- compiles and deploys the EraVM-native `ManagedPaymaster`
 
 Why it uses this route:
 
-- the package exists to produce a deterministic ERC-20 for paymaster testing
-- native EraVM compiler setup added unnecessary friction for this isolated task
-- zkSync's EVM Interpreter lets us deploy standard EVM bytecode while keeping the main CLI project focused on zkSync-native transaction execution
+- the package exists to produce deterministic paymaster test assets
+- zkSync's EVM Interpreter is still useful as a cheap baseline for standard
+  ERC-20 deployment
+- but Sepolia validation showed that approval-based live broadcast can depend on
+  whether the fee token itself is deployed as native EraVM bytecode
 
 Configuration lives in the root `.env` file. A safe template is provided in `.env.example`.
 
@@ -193,13 +210,16 @@ For now:
 
 Latest local result:
 
-- a self-deployed `18 decimals` token can make approval-based preview / estimation succeed
-- the same transaction is still rejected on real broadcast with:
-  - `Touched disallowed storage slots: address 0x000000000000000000000000000000000000800b, key: 1`
-- local `zksync-docs` map `0x...800b` to `SystemContext`
-- current interpretation:
-  - fee-token compatibility is now validated
-  - the remaining blocker is broadcast-path validation, not token compatibility
+- a self-deployed EraVM `ManagedPaymaster` plus an EVM-interpreter ERC-20 can
+  make approval-based preview / estimation succeed
+- that same EVM-interpreter fee-token path is still rejected on live broadcast
+  with a `SystemContext`-related validation failure
+- once the fee token itself is also deployed as native EraVM bytecode,
+  approval-based live broadcast succeeds
+- the practical conclusion is:
+  - custom paymaster live broadcast works
+  - approval-based live broadcast works on the validated EraVM token path
+  - fee-token implementation details matter for live validation
 
 Important:
 

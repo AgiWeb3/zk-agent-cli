@@ -10,9 +10,20 @@ Current scope:
 Important boundary:
 
 - the Solidity source is checked in here
-- the zkSync EraVM artifact is not checked in yet
+- the zkSync EraVM artifact is generated locally and is git-ignored
 - until `artifacts/daily-spend-limit/Account.json` exists, the CLI will expose
   this profile as `source-only` and refuse deploy/predict with a clear error
+
+Compile the local EraVM artifact with:
+
+```bash
+pnpm --filter @zk-agent/account-profiles compile:eravm
+```
+
+This writes:
+
+- `artifacts-zk/` as the raw Hardhat zkSync output
+- `artifacts/daily-spend-limit/Account.json` as the minimal CLI-readable export
 
 Why this package exists:
 
