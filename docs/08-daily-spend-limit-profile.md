@@ -33,9 +33,12 @@ concrete, inspectable starting point for the AA part of `zk-agent-cli`.
 - the recommended default deployment mode is `create2Account`
 - the current profile metadata uses zero salt as the default deterministic
   first-pass value
-- the spend-limit logic only guards native-token `value` spending
-- it does not currently inspect ERC-20 calldata and enforce token-specific
-  spend limits during token transfers
+- the spend-limit logic only guards native-token spending
+- it still does not inspect ERC-20 calldata and enforce token-specific limits
+- live Sepolia validation showed that moving the limit check into
+  `validateTransaction` is not yet viable for this implementation because the
+  current policy relies on `block.timestamp`, and account validation is blocked
+  from touching `SystemContext`
 
 That last point matters: this profile is useful as a real AA starting point,
 but it is not yet a complete "agent treasury policy engine".
@@ -47,6 +50,8 @@ but it is not yet a complete "agent treasury policy engine".
   `packages/account-profiles/contracts/daily-spend-limit`
 - the CLI exposes `wallet smart-account profiles`
 - `wallet smart-account predict|deploy` now accepts `--profile daily-spend-limit`
+- `wallet smart-account daily-spend-limit show|set|remove` now manages the
+  profile's native spend-limit state over the existing smart-account write path
 - the repository now includes a local EraVM compile path via
   `pnpm --filter @zk-agent/account-profiles compile:eravm`
 - the compiled artifact remains a local generated file and is not checked in
@@ -54,6 +59,25 @@ but it is not yet a complete "agent treasury policy engine".
 Until `packages/account-profiles/artifacts/daily-spend-limit/Account.json`
 exists, the CLI will report this profile as `source-only` and refuse actual
 predict/deploy calls with a clear error.
+
+## Operational Commands
+
+Once a `daily-spend-limit` account is deployed and locally writable, the CLI can
+inspect and update the built-in policy module directly:
+
+```bash
+node packages/zk-agent-cli/dist/index.js wallet smart-account daily-spend-limit show --name <wallet>
+node packages/zk-agent-cli/dist/index.js wallet smart-account daily-spend-limit set --name <wallet> --amount 0.0005 --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account daily-spend-limit remove --name <wallet> --broadcast
+```
+
+Default behavior:
+
+- these commands target the zkSync base-token slot used for native ETH
+  `msg.value` spending
+- they do not make ERC-20 transfer limits enforceable
+- `--token` remains available only for advanced/manual inspection of other
+  storage slots in the same mapping
 
 ## Why This Is Still Useful Right Now
 

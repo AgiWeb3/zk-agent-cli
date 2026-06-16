@@ -1,13 +1,41 @@
 import { Command } from 'commander';
 import {
+  decodeSedLiteValidationHookRead,
+  decodeSedLiteValidationHooksRead,
+  decodeSedLiteModuleRead,
+  decodeSedLiteNativeSpendCapRead,
+  decodeSedLiteOwnerRead,
+  decodeNativePerTxLimitHookRead,
+  decodeDailySpendLimitRead,
+  encodeSedLiteAddValidationHook,
+  encodeSedLiteAddModule,
+  encodeSedLiteChangeOwner,
+  encodeSedLiteModuleRead,
+  encodeSedLiteNativeSpendCapRead,
+  encodeSedLiteOwnerRead,
+  encodeSedLiteRemoveValidationHook,
+  encodeSedLiteRemoveNativeSpendCap,
+  encodeSedLiteRemoveModule,
+  encodeSedLiteSetNativeSpendCap,
+  encodeSedLiteValidationHookRead,
+  encodeSedLiteValidationHooksRead,
+  encodeDailySpendLimitRead,
+  encodeDailySpendLimitRemove,
+  encodeDailySpendLimitSet,
+  encodeNativePerTxLimitHookRead,
+  encodeNativePerTxLimitHookRemove,
+  encodeNativePerTxLimitHookSet,
   listBuiltinSmartAccountProfiles,
   requireBuiltinSmartAccountProfile,
+  resolveDailySpendLimitTokenAddress,
   type BuiltinSmartAccountProfile
 } from '@zk-agent/account-profiles';
 
 import {
+  type PaymasterSelectionInput,
   deleteWalletSession,
   listWalletNames,
+  renameWalletSession,
   loadProjectConfig,
   loadWalletRequest,
   loadWalletSession,
@@ -16,6 +44,7 @@ import {
   type SmartAccountArtifactInput,
   type SmartAccountDeploymentPlan,
   type SmartAccountDeploymentResult,
+  type TransactionExecutionResult,
   type WalletInspectionResult,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
@@ -24,12 +53,14 @@ import {
   type SessionPayload,
   type PaymasterMode
 } from '@zk-agent/agent-session-protocol';
+import { ethers } from 'ethers';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
 import { parseJsonInput, printResult, shouldJsonOutput } from '../lib/io.js';
 
 const provider = new ZkSyncWalletProvider();
+const NATIVE_TOKEN_DECIMALS = 18;
 
 function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
   if (!payload) return undefined;
@@ -87,6 +118,37 @@ function parsePaymasterMode(value: string): PaymasterMode {
   throw new Error(`Unsupported paymaster mode: ${value}`);
 }
 
+function withPaymasterOptions(command: Command): Command {
+  return command
+    .option('--paymaster-mode <mode>', 'none, sponsored, or approval-based')
+    .option('--paymaster-address <address>', 'Explicit paymaster contract address override')
+    .option('--paymaster-token <address>', 'ERC-20 token address for approval-based paymaster mode');
+}
+
+function resolvePaymasterInput(options: {
+  paymasterMode?: string;
+  paymasterAddress?: string;
+  paymasterToken?: string;
+}): PaymasterSelectionInput | undefined {
+  if (!options.paymasterMode && !options.paymasterAddress && !options.paymasterToken) {
+    return undefined;
+  }
+
+  return {
+    mode: options.paymasterMode as PaymasterSelectionInput['mode'],
+    address: options.paymasterAddress,
+    token: options.paymasterToken
+  };
+}
+
+function requireSmartAccountWallet(wallet: WalletSessionRecord): WalletSessionRecord {
+  if (displayAccountKind(wallet) !== 'smart-account') {
+    throw new Error(`Wallet ${wallet.walletName} is not a smart-account record.`);
+  }
+
+  return wallet;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -94,7 +156,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function normalizeHexString(value: string, label: string): string {
   const trimmed = value.trim();
   const prefixed = trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`;
-  if (!/^0x([a-fA-F0-9]{2})+$/.test(prefixed)) {
+  if (!/^0x([a-fA-F0-9]{2})*$/.test(prefixed)) {
     throw new Error(`${label} must be a 0x-prefixed even-length hex string`);
   }
   return prefixed;
@@ -146,6 +208,137 @@ function parseConstructorArgs(value?: string): unknown[] {
   const parsed = parseJsonInput<unknown>(value);
   if (!Array.isArray(parsed)) throw new Error('Constructor args must be a JSON array');
   return parsed;
+}
+
+function parseNativeAmount(value: string): bigint {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error('Amount is required');
+  }
+
+  return ethers.parseUnits(trimmed, NATIVE_TOKEN_DECIMALS);
+}
+
+function formatResetTime(resetTime: bigint): string {
+  if (resetTime === 0n) return 'not scheduled';
+  if (resetTime > BigInt(Number.MAX_SAFE_INTEGER)) return resetTime.toString();
+  return new Date(Number(resetTime) * 1000).toISOString();
+}
+
+function dailySpendLimitStateLines(
+  wallet: WalletSessionRecord,
+  state: ReturnType<typeof decodeDailySpendLimitRead>
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['token', state.tokenAddress],
+    ['enabled', state.isEnabled ? 'yes' : 'no'],
+    ['limit', ethers.formatUnits(state.limit, NATIVE_TOKEN_DECIMALS)],
+    ['limit wei', state.limit.toString()],
+    ['available', ethers.formatUnits(state.available, NATIVE_TOKEN_DECIMALS)],
+    ['available wei', state.available.toString()],
+    ['reset time', state.resetTime.toString()],
+    ['resets at', formatResetTime(state.resetTime)]
+  ];
+}
+
+function sedLiteOwnerLines(
+  wallet: WalletSessionRecord,
+  ownerAddress: string
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['owner', ownerAddress]
+  ];
+}
+
+function sedLiteModuleLines(
+  wallet: WalletSessionRecord,
+  moduleAddress: string,
+  enabled: boolean
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['module', moduleAddress],
+    ['enabled', enabled ? 'yes' : 'no']
+  ];
+}
+
+function sedLiteNativeSpendCapLines(
+  wallet: WalletSessionRecord,
+  state: ReturnType<typeof decodeSedLiteNativeSpendCapRead>
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['enabled', state.enabled ? 'yes' : 'no'],
+    ['max per tx', ethers.formatUnits(state.maxPerTx, NATIVE_TOKEN_DECIMALS)],
+    ['max per tx wei', state.maxPerTx.toString()]
+  ];
+}
+
+function requireNonEmptyCallResult(
+  result: string,
+  commandName: string,
+  accountFeature: string
+): string {
+  if (result === '0x') {
+    throw new Error(
+      `${commandName} is not available on the currently deployed account bytecode. Redeploy the smart account to a newer sed-lite version that includes ${accountFeature}.`
+    );
+  }
+
+  return result;
+}
+
+function sedLiteValidationHookLines(
+  wallet: WalletSessionRecord,
+  hookAddress: string,
+  enabled: boolean
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['hook', hookAddress],
+    ['enabled', enabled ? 'yes' : 'no']
+  ];
+}
+
+function sedLiteValidationHooksLines(
+  wallet: WalletSessionRecord,
+  hooks: string[]
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['count', String(hooks.length)],
+    ['hooks', hooks.length > 0 ? hooks.join(', ') : 'none']
+  ];
+}
+
+function nativePerTxLimitHookLines(
+  wallet: WalletSessionRecord,
+  hookAddress: string,
+  state: ReturnType<typeof decodeNativePerTxLimitHookRead>
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['hook', hookAddress],
+    ['enabled', state.enabled ? 'yes' : 'no'],
+    ['max per tx', ethers.formatUnits(state.maxPerTx, NATIVE_TOKEN_DECIMALS)],
+    ['max per tx wei', state.maxPerTx.toString()]
+  ];
 }
 
 function requireWalletOwnerAddress(wallet: WalletSessionRecord): string {
@@ -329,10 +522,43 @@ function inspectionLines(inspection: WalletInspectionResult): Array<[string, str
   return lines;
 }
 
+function linesForWriteResult(result: TransactionExecutionResult): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['mode', result.mode],
+    ['wallet', result.walletName],
+    ['address', result.walletAddress],
+    ['account', result.accountKind],
+    ['chain', `${result.chain} (${result.chainId})`],
+    ['to', result.to],
+    ['value', result.value]
+  ];
+
+  lines.push(['paymaster', result.paymaster.mode]);
+  if (result.paymaster.address) lines.push(['paymaster address', result.paymaster.address]);
+  if (result.paymaster.token) lines.push(['paymaster token', result.paymaster.token]);
+  if (result.paymaster.minimalAllowance) {
+    lines.push(['paymaster allowance', result.paymaster.minimalAllowance]);
+  }
+  if (result.paymaster.note) lines.push(['paymaster note', result.paymaster.note]);
+  if (result.txHash) lines.push(['txHash', result.txHash]);
+  if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
+  if (result.mode === 'preview') {
+    lines.push(['next', 'Re-run with --broadcast to submit the transaction']);
+  }
+
+  return lines;
+}
+
 async function requireWalletRequest(requestId: string) {
   const request = await loadWalletRequest(requestId);
   if (!request) throw new Error(`Wallet request not found: ${requestId}`);
   return request;
+}
+
+async function requireWalletRecord(walletName: string): Promise<WalletSessionRecord> {
+  const walletRecord = await loadWalletSession(walletName);
+  if (!walletRecord) throw new Error(`Wallet not found: ${walletName}`);
+  return walletRecord;
 }
 
 function assertRequestActive(expiresAt: string): void {
@@ -404,6 +630,15 @@ export function createWalletCommand(): Command {
   const request = new Command('request').description('Inspect and locally approve pending wallet requests');
   const smartAccount = new Command('smart-account').description(
     'Predict and deploy zkSync smart-account contracts from a supplied artifact or built-in profile'
+  );
+  const sedLite = new Command('sed-lite').description(
+    'Inspect and manage the SED modular smart-account profile'
+  );
+  const nativeCapHook = new Command('native-cap-hook').description(
+    'Inspect and manage the first SED Lite validation-hook policy: native per-transaction spend caps'
+  );
+  const dailySpendLimit = new Command('daily-spend-limit').description(
+    'Read and update the native-token daily spend limit used by the built-in daily-spend-limit smart-account profile'
   );
   const paymaster = new Command('paymaster').description(
     'Manage saved paymaster defaults for stored wallets'
@@ -501,6 +736,32 @@ export function createWalletCommand(): Command {
     .command('list')
     .description('List stored wallets')
     .action(async () => printWalletList());
+
+  wallet
+    .command('rename')
+    .description('Rename a stored wallet and update any local pending requests that reference it')
+    .option('--name <name>', 'Current wallet name', 'main')
+    .requiredOption('--new-name <name>', 'New wallet name')
+    .action(async (options: { name: string; newName: string }) => {
+      const result = await renameWalletSession(options.name, options.newName);
+
+      printResult(
+        [
+          ['status', 'Wallet renamed'],
+          ['from', options.name],
+          ['to', result.wallet.walletName],
+          ['address', result.wallet.walletAddress],
+          ['requests updated', String(result.updatedRequestIds.length)]
+        ],
+        {
+          ok: true,
+          walletName: result.wallet.walletName,
+          previousWalletName: options.name,
+          wallet: sanitizeWalletRecord(result.wallet),
+          updatedRequestIds: result.updatedRequestIds
+        }
+      );
+    });
 
   wallet
     .command('address')
@@ -750,6 +1011,804 @@ export function createWalletCommand(): Command {
     .description('List built-in smart-account profiles available to the CLI')
     .action(async () => printBuiltinSmartAccountProfiles());
 
+  sedLite
+    .command('hooks')
+    .description('List enabled validation hooks for the SED Lite profile')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteValidationHooksRead()
+      });
+      const hooks = decodeSedLiteValidationHooksRead(
+        requireNonEmptyCallResult(result.result, 'sed-lite hooks', 'validation-hook listing')
+      );
+
+      printResult(sedLiteValidationHooksLines(walletRecord, hooks), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        hooks
+      });
+    });
+
+  sedLite
+    .command('hook')
+    .description('Read whether a validation hook is enabled for the SED Lite profile')
+    .requiredOption('--hook <address>', 'Validation hook address to inspect')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { hook: string; name: string }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteValidationHookRead(options.hook)
+      });
+      const enabled = decodeSedLiteValidationHookRead(
+        requireNonEmptyCallResult(result.result, 'sed-lite hook', 'validation-hook reads')
+      );
+
+      printResult(sedLiteValidationHookLines(walletRecord, options.hook, enabled), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        hookAddress: options.hook,
+        enabled
+      });
+    });
+
+  withPaymasterOptions(
+    sedLite
+      .command('hook-add')
+      .description('Enable a validation hook for the SED Lite profile via a self-call')
+      .requiredOption('--hook <address>', 'Validation hook address to enable')
+      .option('--init-data <hex>', 'Optional 0x-prefixed init payload passed to the hook', '0x')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      initData?: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const initData = normalizeHexString(options.initData || '0x', '--init-data');
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteAddValidationHook(options.hook, initData),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['init data', initData]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'hook-add',
+          hookAddress: options.hook,
+          initData
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    sedLite
+      .command('hook-remove')
+      .description('Disable a validation hook for the SED Lite profile via a self-call')
+      .requiredOption('--hook <address>', 'Validation hook address to disable')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteRemoveValidationHook(options.hook),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'hook-remove',
+          hookAddress: options.hook
+        },
+        ...result
+      });
+    }
+  );
+
+  sedLite
+    .command('owner')
+    .description('Read the current onchain owner for the SED Lite profile')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteOwnerRead()
+      });
+      const ownerAddress = decodeSedLiteOwnerRead(result.result);
+
+      printResult(sedLiteOwnerLines(walletRecord, ownerAddress), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        ownerAddress
+      });
+    });
+
+  withPaymasterOptions(
+    sedLite
+      .command('owner-set')
+      .description('Rotate the onchain owner for the SED Lite profile via a self-call')
+      .requiredOption('--address <address>', 'New owner address')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      address: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.address)) {
+        throw new Error('--address must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteChangeOwner(options.address),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['new owner', options.address]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'owner-set',
+          ownerAddress: options.address
+        },
+        ...result
+      });
+    }
+  );
+
+  sedLite
+    .command('module')
+    .description('Read whether a module is enabled for the SED Lite profile')
+    .requiredOption('--module <address>', 'Module address to inspect')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { module: string; name: string }) => {
+      if (!isAddress(options.module)) {
+        throw new Error('--module must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteModuleRead(options.module)
+      });
+      const enabled = decodeSedLiteModuleRead(result.result);
+
+      printResult(sedLiteModuleLines(walletRecord, options.module, enabled), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        moduleAddress: options.module,
+        enabled
+      });
+    });
+
+  withPaymasterOptions(
+    sedLite
+      .command('module-add')
+      .description('Enable a module for the SED Lite profile via a self-call')
+      .requiredOption('--module <address>', 'Module address to enable')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      module: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.module)) {
+        throw new Error('--module must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteAddModule(options.module),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['module', options.module]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'module-add',
+          moduleAddress: options.module
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    sedLite
+      .command('module-remove')
+      .description('Disable a module for the SED Lite profile via a self-call')
+      .requiredOption('--module <address>', 'Module address to disable')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      module: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.module)) {
+        throw new Error('--module must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteRemoveModule(options.module),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['module', options.module]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'module-remove',
+          moduleAddress: options.module
+        },
+        ...result
+      });
+    }
+  );
+
+  sedLite
+    .command('limit')
+    .description('Read the current native per-transaction spend cap for the SED Lite profile')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteNativeSpendCapRead()
+      });
+      const state = decodeSedLiteNativeSpendCapRead(result.result);
+
+      printResult(sedLiteNativeSpendCapLines(walletRecord, state), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        nativeSpendCap: {
+          enabled: state.enabled,
+          maxPerTx: state.maxPerTx.toString(),
+          maxPerTxFormatted: ethers.formatUnits(state.maxPerTx, NATIVE_TOKEN_DECIMALS),
+          decimals: NATIVE_TOKEN_DECIMALS
+        }
+      });
+    });
+
+  withPaymasterOptions(
+    sedLite
+      .command('limit-set')
+      .description('Set the native per-transaction spend cap for the SED Lite profile via a self-call')
+      .requiredOption('--amount <value>', 'Maximum native ETH amount allowed per transaction')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      amount: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const amountWei = parseNativeAmount(options.amount);
+      if (amountWei <= 0n) {
+        throw new Error('--amount must be greater than zero');
+      }
+
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteSetNativeSpendCap(amountWei),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['max per tx', options.amount]);
+      lines.splice(6, 0, ['max per tx wei', amountWei.toString()]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'limit-set',
+          maxPerTx: options.amount,
+          maxPerTxWei: amountWei.toString(),
+          decimals: NATIVE_TOKEN_DECIMALS
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    sedLite
+      .command('limit-remove')
+      .description('Remove the native per-transaction spend cap for the SED Lite profile via a self-call')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteRemoveNativeSpendCap(),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      printResult(linesForWriteResult(result), {
+        ok: true,
+        sedLite: {
+          operation: 'limit-remove'
+        },
+        ...result
+      });
+    }
+  );
+
+  nativeCapHook
+    .command('show')
+    .description('Read the current per-transaction native cap stored for this account in a NativePerTxLimitHook')
+    .requiredOption('--hook <address>', 'NativePerTxLimitHook address')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { hook: string; name: string }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: options.hook,
+        data: encodeNativePerTxLimitHookRead(walletRecord.walletAddress)
+      });
+      const state = decodeNativePerTxLimitHookRead(result.result);
+
+      printResult(nativePerTxLimitHookLines(walletRecord, options.hook, state), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        hookAddress: options.hook,
+        state: {
+          enabled: state.enabled,
+          maxPerTx: state.maxPerTx.toString(),
+          maxPerTxFormatted: ethers.formatUnits(state.maxPerTx, NATIVE_TOKEN_DECIMALS),
+          decimals: NATIVE_TOKEN_DECIMALS
+        }
+      });
+    });
+
+  withPaymasterOptions(
+    nativeCapHook
+      .command('enable')
+      .description('Enable a NativePerTxLimitHook for this SED Lite account and initialize its cap')
+      .requiredOption('--hook <address>', 'NativePerTxLimitHook address')
+      .requiredOption('--amount <value>', 'Maximum native ETH amount allowed per transaction')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      amount: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const amountWei = parseNativeAmount(options.amount);
+      if (amountWei <= 0n) {
+        throw new Error('--amount must be greater than zero');
+      }
+
+      const initData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [amountWei]);
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteAddValidationHook(options.hook, initData),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['max per tx', options.amount]);
+      lines.splice(7, 0, ['max per tx wei', amountWei.toString()]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'native-cap-hook-enable',
+          hookAddress: options.hook,
+          maxPerTx: options.amount,
+          maxPerTxWei: amountWei.toString(),
+          decimals: NATIVE_TOKEN_DECIMALS
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    nativeCapHook
+      .command('set')
+      .description('Update the native per-transaction cap stored in a NativePerTxLimitHook')
+      .requiredOption('--hook <address>', 'NativePerTxLimitHook address')
+      .requiredOption('--amount <value>', 'Maximum native ETH amount allowed per transaction')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      amount: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const amountWei = parseNativeAmount(options.amount);
+      if (amountWei <= 0n) {
+        throw new Error('--amount must be greater than zero');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: options.hook,
+        data: encodeNativePerTxLimitHookSet(amountWei),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['max per tx', options.amount]);
+      lines.splice(7, 0, ['max per tx wei', amountWei.toString()]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'native-cap-hook-set',
+          hookAddress: options.hook,
+          maxPerTx: options.amount,
+          maxPerTxWei: amountWei.toString(),
+          decimals: NATIVE_TOKEN_DECIMALS
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    nativeCapHook
+      .command('remove')
+      .description('Remove the native per-transaction cap stored in a NativePerTxLimitHook while keeping the hook enabled')
+      .requiredOption('--hook <address>', 'NativePerTxLimitHook address')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: options.hook,
+        data: encodeNativePerTxLimitHookRemove(),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'native-cap-hook-remove',
+          hookAddress: options.hook
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    nativeCapHook
+      .command('disable')
+      .description('Disable a NativePerTxLimitHook for this SED Lite account')
+      .requiredOption('--hook <address>', 'NativePerTxLimitHook address')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteRemoveValidationHook(options.hook),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'native-cap-hook-disable',
+          hookAddress: options.hook
+        },
+        ...result
+      });
+    }
+  );
+
+  dailySpendLimit
+    .command('show')
+    .description(
+      'Read the current daily spend-limit state. Defaults to the zkSync base-token slot used for native ETH value spending.'
+    )
+    .option('--name <name>', 'Wallet name', 'main')
+    .option('--token <address>', 'Optional token slot override for advanced/manual inspection')
+    .action(async (options: { name: string; token?: string }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const tokenAddress = resolveDailySpendLimitTokenAddress(options.token);
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeDailySpendLimitRead(tokenAddress)
+      });
+      const state = decodeDailySpendLimitRead(result.result, tokenAddress);
+
+      printResult(dailySpendLimitStateLines(walletRecord, state), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        state: {
+          tokenAddress: state.tokenAddress,
+          isEnabled: state.isEnabled,
+          limit: state.limit.toString(),
+          limitFormatted: ethers.formatUnits(state.limit, NATIVE_TOKEN_DECIMALS),
+          available: state.available.toString(),
+          availableFormatted: ethers.formatUnits(state.available, NATIVE_TOKEN_DECIMALS),
+          resetTime: state.resetTime.toString(),
+          resetsAt: formatResetTime(state.resetTime)
+        }
+      });
+    });
+
+  withPaymasterOptions(
+    dailySpendLimit
+      .command('set')
+      .description(
+        'Set the daily native spend limit. This profile currently enforces native token value spending, not generic ERC-20 calldata.'
+      )
+      .requiredOption('--amount <value>', 'Daily native-token limit in human-readable ETH units')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--token <address>', 'Optional token slot override for advanced/manual usage')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      amount: string;
+      name: string;
+      token?: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const tokenAddress = resolveDailySpendLimitTokenAddress(options.token);
+      const amountWei = parseNativeAmount(options.amount);
+      if (amountWei <= 0n) {
+        throw new Error('--amount must be greater than zero');
+      }
+
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeDailySpendLimitSet(amountWei, tokenAddress),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['limit', options.amount]);
+      lines.splice(6, 0, ['limit wei', amountWei.toString()]);
+      lines.splice(7, 0, ['limit token', tokenAddress]);
+
+      printResult(lines, {
+        ok: true,
+        dailySpendLimit: {
+          tokenAddress,
+          amount: options.amount,
+          amountWei: amountWei.toString(),
+          decimals: NATIVE_TOKEN_DECIMALS
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    dailySpendLimit
+      .command('remove')
+      .description(
+        'Remove the daily spend limit when the profile state allows it. Removal fails if the current period has partially consumed the limit.'
+      )
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--token <address>', 'Optional token slot override for advanced/manual usage')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      name: string;
+      token?: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const tokenAddress = resolveDailySpendLimitTokenAddress(options.token);
+
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeDailySpendLimitRemove(tokenAddress),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['limit token', tokenAddress]);
+
+      printResult(lines, {
+        ok: true,
+        dailySpendLimit: {
+          tokenAddress
+        },
+        ...result
+      });
+    }
+  );
+
   smartAccount
     .command('predict')
     .description('Predict the smart-account deployment address using a zkSync-compatible artifact or built-in profile')
@@ -859,6 +1918,9 @@ export function createWalletCommand(): Command {
       }
     );
 
+  sedLite.addCommand(nativeCapHook);
+  smartAccount.addCommand(sedLite);
+  smartAccount.addCommand(dailySpendLimit);
   wallet.addCommand(smartAccount);
   wallet.addCommand(paymaster);
   wallet.addCommand(request);

@@ -113,6 +113,14 @@ export async function listWalletNames(): Promise<string[]> {
     .map((entry) => entry.replace(/\.json$/, ''));
 }
 
+export async function listWalletRequestIds(): Promise<string[]> {
+  ensureStorageDir();
+  return fs
+    .readdirSync(path.join(STORAGE_DIR, 'requests'))
+    .filter((entry) => entry.endsWith('.json'))
+    .map((entry) => entry.replace(/\.json$/, ''));
+}
+
 export async function deleteWalletSession(walletName: string): Promise<boolean> {
   const filePath = path.join(STORAGE_DIR, 'wallets', `${walletName}.json`);
   if (!fs.existsSync(filePath)) return false;
@@ -129,4 +137,54 @@ export async function loadWalletRequest(requestId: string): Promise<WalletReques
   const filePath = path.join(STORAGE_DIR, 'requests', `${requestId}.json`);
   if (!fs.existsSync(filePath)) return null;
   return readEncryptedJson<WalletRequestRecord>(filePath);
+}
+
+export interface WalletRenameResult {
+  wallet: WalletSessionRecord;
+  updatedRequestIds: string[];
+}
+
+export async function renameWalletSession(
+  walletName: string,
+  nextWalletName: string
+): Promise<WalletRenameResult> {
+  ensureStorageDir();
+
+  const currentName = walletName.trim();
+  const targetName = nextWalletName.trim();
+
+  if (!currentName) throw new Error('Current wallet name is required.');
+  if (!targetName) throw new Error('New wallet name is required.');
+  if (currentName === targetName) {
+    throw new Error('New wallet name must be different from the current wallet name.');
+  }
+
+  const currentFilePath = path.join(STORAGE_DIR, 'wallets', `${currentName}.json`);
+  const targetFilePath = path.join(STORAGE_DIR, 'wallets', `${targetName}.json`);
+
+  if (!fs.existsSync(currentFilePath)) {
+    throw new Error(`Wallet not found: ${currentName}`);
+  }
+  if (fs.existsSync(targetFilePath)) {
+    throw new Error(`Wallet already exists: ${targetName}`);
+  }
+
+  const wallet = readEncryptedJson<WalletSessionRecord>(currentFilePath);
+  wallet.walletName = targetName;
+  writeEncryptedJson(targetFilePath, wallet);
+  fs.unlinkSync(currentFilePath);
+
+  const updatedRequestIds: string[] = [];
+  for (const requestId of await listWalletRequestIds()) {
+    const request = await loadWalletRequest(requestId);
+    if (!request || request.walletName !== currentName) continue;
+    request.walletName = targetName;
+    await saveWalletRequest(request);
+    updatedRequestIds.push(requestId);
+  }
+
+  return {
+    wallet,
+    updatedRequestIds
+  };
 }

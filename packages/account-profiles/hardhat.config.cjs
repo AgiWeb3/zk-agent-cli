@@ -14,6 +14,7 @@ module.exports = {
   zksolc: {
     version: '1.5.15',
     settings: {
+      enableEraVMExtensions: true,
       codegen: 'yul'
     }
   },

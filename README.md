@@ -27,6 +27,7 @@ What is already in place:
 - session protocol package
 - built-in AA profile registry in `packages/account-profiles`
 - initial Commander-based CLI commands
+- local wallet record maintenance via `wallet rename`
 - local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
 - `zksync-ethers` read path for balances and contract calls
 - thin AA-oriented transaction commands for:
@@ -45,10 +46,17 @@ What is already in place:
   - account deployment via `createAccount` / `create2Account`
   - saving the deployed execution address back into the local wallet record
 - first built-in smart-account profile:
+  - `sed-lite`
+  - source checked into the workspace
+  - CLI profile discovery via `wallet smart-account profiles`
+  - profile-specific account management via
+    `wallet smart-account sed-lite owner|owner-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook`
+- second built-in smart-account profile:
   - `daily-spend-limit`
   - source checked into the workspace
   - CLI profile discovery via `wallet smart-account profiles`
-  - explicit `source-only` status until a zkSync EraVM artifact is compiled
+  - profile-specific limit management via
+    `wallet smart-account daily-spend-limit show|set|remove`
 - zkSync-native transaction previews for type `113` requests
 - paymaster metadata wiring for:
   - session approval payloads
@@ -62,15 +70,15 @@ What is already in place:
   - `send-token` preview works with `--paymaster-mode none`
   - approval-based paymaster still requires explicit fee-token validation and cannot assume that any ERC-20 is usable
   - approval-based preview now succeeds with the self-deployed `18 decimals` test token
-  - approval-based broadcast is still rejected by chain-side validation on Sepolia
+  - approval-based live broadcast now works on the validated EraVM token path
 - background docs in `docs/`
 - execution plan in `PLANS.md`
 - cross-environment handoff snapshot in `PROJECT_STATE.md`
 
 What is next:
 
-- compile and validate the built-in `daily-spend-limit` EraVM artifact
-- run a live deploy/predict smoke test through `--profile daily-spend-limit`
+ - push policy work onto the `sed-lite` hook path instead of hardcoding it into account core
+- validate smart-account writes through paymaster mode once the base no-paymaster path is stable
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
 - bridge / deposit / withdraw / swap implementations
@@ -223,13 +231,45 @@ Latest local result:
 
 Important:
 
-- current `smart-account` sessions in this repository are still metadata-level
 - `wallet status` now surfaces when a record is still undeployed or has signer metadata mismatches
-- `wallet smart-account predict|deploy` now exists, and it can now resolve built-in profiles such as `daily-spend-limit`
+- `wallet status` now also shows when a record is fully write-ready after deployment
+- `wallet smart-account predict|deploy` now exists, and it can now resolve built-in profiles such as `sed-lite` and `daily-spend-limit`
+- `sed-lite` is now the better general-purpose AA base profile in this repository:
+  - it keeps the current raw ECDSA signing compatibility of the CLI/provider
+  - it takes the modular owner/self/module shape from Clave instead of hardcoding policy into the account core
+  - it can already rotate owner, toggle modules, and manage a native per-transaction cap through self-calls
+  - it now also has a minimal validation-hook pipeline for externalized policy contracts
+- live Sepolia validation is now complete for the base `sed-lite` path:
+  - `predict` works
+  - `deploy` works
+  - owner and cap reads work
+  - plain native transfer works after funding the account
+  - setting a native per-transaction cap works
+  - an over-cap native transfer is rejected during account validation
+  - a below-cap native transfer still succeeds
+- live Sepolia validation now also covers the next AA layer on top of `sed-lite`:
+  - `NativePerTxLimitHook` now deploys as a standalone EraVM contract
+  - a fresh `sed-lite` deployment can list enabled hooks onchain
+  - the hook can be enabled through a smart-account self-call
+  - the hook's per-account cap state can be read back onchain
+  - an over-cap native transfer is rejected during validation with the hook-specific error
+  - a below-cap native transfer still succeeds with the hook enabled
+  - the same hook also works with the approval-based paymaster path:
+    - a below-cap transaction succeeds with fee-token payment
+    - an over-cap transaction is rejected during paymaster fee estimation with the same hook-specific reason
+- `wallet smart-account daily-spend-limit show|set|remove` now drives the
+  built-in profile's native spend-limit state through the existing call/write
+  pipeline
+- live Sepolia validation still shows that native-transfer enforcement for the
+  built-in `daily-spend-limit` profile needs more EraVM-specific work:
+  execution-time checks do not currently catch plain native sends, while
+  validation-time checks immediately hit the documented `SystemContext`
+  restriction because the policy uses `block.timestamp`
 - built-in profiles still require a zkSync-compatible EraVM account artifact before they can actually deploy
 - standard EVM `solc` artifacts are not enough for this path; the current command returns a structured error instead of a raw SDK exception
 - `daily-spend-limit` is the first concrete AA profile we chose for this repository, but its current policy hook only limits native-token spending
-- real smart-account deployment / reconstruction is not finished yet
+- the generic deploy / reconstruct / restore lifecycle is still not finished yet
+- older `sed-lite` deployments that predate hook support cannot expose the new hook methods and need a fresh redeploy
 - write commands now fail early for undeployed smart-account records instead of returning misleading previews
 - so do not read current Sepolia broadcast results as proof that the long-term smart-account design is correct
 

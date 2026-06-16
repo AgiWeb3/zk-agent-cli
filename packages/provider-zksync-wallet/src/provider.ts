@@ -39,6 +39,7 @@ import { ContractFactory, ECDSASmartAccount, Provider, Wallet, utils } from 'zks
 const providers = new Map<string, Provider>();
 const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 const APPROVAL_BASED_ALLOWANCE_STORAGE_GAS_HEADROOM = 400_000n;
+const SMART_ACCOUNT_SELF_CALL_GAS_LIMIT = 20_000_000n;
 
 function getProvider(chainKey: string): Provider {
   const chain = resolveChain(chainKey);
@@ -425,6 +426,134 @@ function buildBaseTxRequest(
   };
 }
 
+function isSmartAccountSelfCall(
+  wallet: WalletSessionRecord,
+  tx: { to: string; data: string; value: bigint }
+): boolean {
+  return (
+    wallet.accountKind === 'smart-account' &&
+    tx.data !== '0x' &&
+    tx.to.toLowerCase() === resolveExecutionAddress(wallet).toLowerCase()
+  );
+}
+
+async function buildManualSmartAccountSelfCallRequest(
+  wallet: WalletSessionRecord,
+  tx: { to: string; data: string; value: bigint },
+  paymaster: ResolvedPaymasterPolicy
+): Promise<{
+  policy: ResolvedPaymasterPolicy;
+  txRequest: ReturnType<typeof buildBaseTxRequest> & {
+    chainId: number;
+    nonce: number;
+    gasLimit: bigint;
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+  };
+  preview: TransactionPreview;
+}> {
+  const provider = getProvider(wallet.chain);
+  const executionAddress = resolveExecutionAddress(wallet);
+  const feeData = await provider.getFeeData();
+  const maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
+  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? 0n;
+  const nonce = await provider.getTransactionCount(executionAddress, 'pending');
+
+  const txRequest: ReturnType<typeof buildBaseTxRequest> & {
+    chainId: number;
+    nonce: number;
+    gasLimit: bigint;
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+  } = {
+    ...buildBaseTxRequest(wallet, tx),
+    chainId: wallet.chainId,
+    nonce,
+    gasLimit: SMART_ACCOUNT_SELF_CALL_GAS_LIMIT,
+    maxFeePerGas,
+    maxPriorityFeePerGas
+  };
+
+  if (paymaster.mode === 'none') {
+    return {
+      policy: {
+        ...paymaster,
+        supported: true,
+        note:
+          'Using manual smart-account self-call gas fallback because zkSync estimation rewrites self-call validation through the owner EOA.'
+      },
+      txRequest,
+      preview: buildPreview(txRequest)
+    };
+  }
+
+  const paymasterAddress = await resolveSponsoredPaymasterAddress(provider, wallet, paymaster);
+
+  if (paymaster.mode === 'sponsored') {
+    const paymasterParams = utils.getPaymasterParams(paymasterAddress, {
+      type: 'General',
+      innerInput: '0x'
+    });
+
+    txRequest.customData = {
+      ...txRequest.customData,
+      paymasterParams
+    };
+
+    return {
+      policy: {
+        ...paymaster,
+        address: paymasterAddress,
+        supported: true,
+        note:
+          'Using General paymaster flow with manual smart-account self-call gas fallback.'
+      },
+      txRequest,
+      preview: buildPreview(txRequest)
+    };
+  }
+
+  if (!paymaster.token) {
+    throw new AgentError(
+      'PAYMASTER_TOKEN_REQUIRED',
+      'Approval-based paymaster mode requires a token address.',
+      {
+        walletName: wallet.walletName,
+        chain: wallet.chain,
+        requestedMode: paymaster.mode
+      }
+    );
+  }
+
+  const manualAllowance = applyBuffer(
+    SMART_ACCOUNT_SELF_CALL_GAS_LIMIT * maxFeePerGas
+      + APPROVAL_BASED_ALLOWANCE_STORAGE_GAS_HEADROOM * maxFeePerGas
+  );
+  const paymasterParams = buildApprovalBasedPaymasterParams(
+    paymasterAddress,
+    paymaster.token,
+    manualAllowance
+  );
+
+  txRequest.customData = {
+    ...txRequest.customData,
+    paymasterParams
+  };
+
+  return {
+    policy: {
+      ...paymaster,
+      address: paymasterAddress,
+      minimalAllowance: manualAllowance.toString(),
+      supported: true,
+      note:
+        'Using approval-based paymaster flow with manual smart-account self-call gas fallback.'
+    },
+    txRequest,
+    preview: buildPreview(txRequest)
+  };
+}
+
 async function resolveSponsoredPaymasterAddress(
   provider: Provider,
   wallet: WalletSessionRecord,
@@ -651,6 +780,15 @@ interface ResolvedSmartAccountDeploymentContext {
   plan: SmartAccountDeploymentPlan;
 }
 
+function resolveCreate2PredictionSender(
+  deployerAddress: string,
+  deploymentType: SmartAccountDeploymentInput['deploymentType']
+): string {
+  return deploymentType === 'create2Account'
+    ? utils.CONTRACT_2_FACTORY_ADDRESS
+    : deployerAddress;
+}
+
 async function resolveSmartAccountDeploymentContext(
   input: SmartAccountDeploymentInput
 ): Promise<ResolvedSmartAccountDeploymentContext> {
@@ -732,8 +870,9 @@ async function resolveSmartAccountDeploymentContext(
     predictedAddress = utils.createAddress(deployerAddress, deploymentNonce);
   } else {
     normalizedSalt = normalizeSalt(input.salt);
+    const predictionSender = resolveCreate2PredictionSender(deployerAddress, deploymentType);
     predictedAddress = utils.create2Address(
-      deployerAddress,
+      predictionSender,
       bytecodeHash,
       normalizedSalt,
       constructorData
@@ -947,6 +1086,65 @@ async function executeWriteTransaction(
   if (!isHexData(tx.data)) throw new Error('Transaction data must be a hex string');
   await assertWalletReadyForWrite(wallet);
   const paymaster = resolvePaymasterSelection(wallet, requestedPaymaster);
+  const selfCallFallback = isSmartAccountSelfCall(wallet, tx);
+
+  if (selfCallFallback) {
+    const prepared = await buildManualSmartAccountSelfCallRequest(wallet, tx, paymaster);
+
+    if (!broadcast) {
+      return {
+        walletName: wallet.walletName,
+        walletAddress: resolveExecutionAddress(wallet),
+        chain: wallet.chain,
+        chainId: wallet.chainId,
+        accountKind: wallet.accountKind,
+        mode: 'preview',
+        to: tx.to,
+        data: tx.data,
+        value: tx.value.toString(),
+        paymaster: prepared.policy,
+        preview: prepared.preview
+      };
+    }
+
+    const signer = buildSigner(wallet);
+    let response;
+    try {
+      response = await signer.sendTransaction(prepared.txRequest);
+    } catch (error) {
+      const code =
+        paymaster.mode === 'none' ? 'WRITE_BROADCAST_FAILED' : 'PAYMASTER_BROADCAST_FAILED';
+      const message =
+        paymaster.mode === 'none'
+          ? 'Failed to broadcast the smart-account self-call transaction.'
+          : 'Failed to broadcast the paymaster-backed smart-account self-call transaction.';
+
+      throw new AgentError(code, message, {
+        walletName: wallet.walletName,
+        chain: wallet.chain,
+        accountKind: wallet.accountKind,
+        paymaster: prepared.policy,
+        target: tx.to,
+        cause: formatCause(error)
+      });
+    }
+
+    return {
+      walletName: wallet.walletName,
+      walletAddress: resolveExecutionAddress(wallet),
+      chain: wallet.chain,
+      chainId: wallet.chainId,
+      accountKind: wallet.accountKind,
+      mode: 'broadcast',
+      to: tx.to,
+      data: tx.data,
+      value: tx.value.toString(),
+      txHash: response.hash,
+      explorerUrl: getExplorerUrl(wallet.chain, response.hash),
+      paymaster: prepared.policy,
+      preview: prepared.preview
+    };
+  }
 
   if (paymaster.mode !== 'none') {
     const prepared = await preparePaymasterTransaction(wallet, tx, paymaster);

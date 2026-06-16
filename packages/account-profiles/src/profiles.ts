@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { SmartAccountArtifactInput } from '@zk-agent/agent-core';
 
-export type BuiltinSmartAccountProfileId = 'daily-spend-limit';
+export type BuiltinSmartAccountProfileId = 'daily-spend-limit' | 'sed-lite';
 
 export interface BuiltinSmartAccountProfileContext {
   ownerAddress: string;
@@ -25,7 +25,48 @@ export interface BuiltinSmartAccountProfile {
   resolveArtifact(): SmartAccountArtifactInput;
 }
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PACKAGE_NAME = '@zk-agent/account-profiles';
+
+function isExpectedPackageRoot(candidate: string): boolean {
+  const manifestPath = path.join(candidate, 'package.json');
+  if (!fs.existsSync(manifestPath)) return false;
+
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as { name?: unknown };
+    return manifest.name === PACKAGE_NAME;
+  } catch {
+    return false;
+  }
+}
+
+function resolvePackageRoot(): string {
+  const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const cwd = process.cwd();
+  const candidates = [
+    process.env.ZK_AGENT_ACCOUNT_PROFILES_ROOT,
+    moduleRoot,
+    path.join(cwd, 'packages', 'account-profiles'),
+    path.join(cwd, 'account-profiles'),
+    cwd
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const normalized = path.resolve(candidate);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    if (isExpectedPackageRoot(normalized)) {
+      return normalized;
+    }
+  }
+
+  throw new Error(
+    `Unable to locate ${PACKAGE_NAME} package root. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to the package directory if the CLI is running from an unexpected location.`
+  );
+}
+
+const packageRoot = resolvePackageRoot();
 
 function normalizeHexString(value: string, label: string): string {
   const trimmed = value.trim();
@@ -132,8 +173,42 @@ function createDailySpendLimitProfile(): BuiltinSmartAccountProfile {
   };
 }
 
+function createSedLiteProfile(): BuiltinSmartAccountProfile {
+  const resolvedArtifactPath = artifactPath('sed-lite', 'Account.json');
+  const sourceContracts = [contractPath('sed-lite', 'Account.sol')];
+
+  return {
+    id: 'sed-lite',
+    displayName: 'SED Lite',
+    description:
+      'SED modular zkSync account with direct ECDSA ownership, self-managed modules, validation hooks, and batched execution.',
+    recommendedDeploymentType: 'create2Account',
+    defaultSalt: `0x${'00'.repeat(32)}`,
+    constructorArgsDescription: ['ownerAddress'],
+    sourceContracts,
+    artifactPath: resolvedArtifactPath,
+    artifactReady: fs.existsSync(resolvedArtifactPath),
+    notes: [
+      'SED Lite keeps the current CLI-compatible raw ECDSA signing flow instead of validator-encoded custom signature formats.',
+      'The contract is directly deployable as a single account artifact; it does not require the older proxy + factory stack.',
+      'Owner rotation, module toggling, and validation-hook toggling are self-calls, so they work through the existing smart-account write path.',
+      'SED Lite is the AA base layer for this repository; policy hooks can now be added on top without rebaking account core logic.',
+      'The first standalone policy hook, NativePerTxLimitHook, is now deployed and live-validated on zkSync Sepolia.'
+    ],
+    buildConstructorArgs(context) {
+      return [context.ownerAddress];
+    },
+    resolveArtifact() {
+      if (!fs.existsSync(resolvedArtifactPath)) {
+        throw missingArtifactError('sed-lite', resolvedArtifactPath);
+      }
+      return parseArtifactFile(resolvedArtifactPath);
+    }
+  };
+}
+
 export function listBuiltinSmartAccountProfiles(): BuiltinSmartAccountProfile[] {
-  return [createDailySpendLimitProfile()];
+  return [createSedLiteProfile(), createDailySpendLimitProfile()];
 }
 
 export function getBuiltinSmartAccountProfile(

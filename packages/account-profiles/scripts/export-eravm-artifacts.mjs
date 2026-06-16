@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const staleExportPaths = [path.join(packageRoot, 'artifacts', 'clave-lite')];
 
 const exportsToWrite = [
   {
@@ -16,6 +17,30 @@ const exportsToWrite = [
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'daily-spend-limit', 'Account.json'),
     contractName: 'Account'
+  },
+  {
+    compiledArtifactPath: path.join(
+      packageRoot,
+      'artifacts-zk',
+      'contracts',
+      'sed-lite',
+      'Account.sol',
+      'Account.json'
+    ),
+    outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'Account.json'),
+    contractName: 'Account'
+  },
+  {
+    compiledArtifactPath: path.join(
+      packageRoot,
+      'artifacts-zk',
+      'contracts',
+      'sed-lite',
+      'NativePerTxLimitHook.sol',
+      'NativePerTxLimitHook.json'
+    ),
+    outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'NativePerTxLimitHook.json'),
+    contractName: 'NativePerTxLimitHook'
   }
 ];
 
@@ -71,6 +96,10 @@ function extractFactoryDeps(rawArtifact, artifactPath) {
   }
 
   return undefined;
+}
+
+for (const stalePath of staleExportPaths) {
+  fs.rmSync(stalePath, { recursive: true, force: true });
 }
 
 for (const target of exportsToWrite) {

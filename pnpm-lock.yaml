@@ -23,6 +23,15 @@ importers:
       '@zk-agent/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
+      ethers:
+        specifier: ^6.16.0
+        version: 6.16.0
+      zksync-ethers:
+        specifier: ^6.21.2
+        version: 6.21.2(ethers@6.16.0)
     devDependencies:
       '@matterlabs/hardhat-zksync':
         specifier: ^1.6.2
@@ -68,25 +77,6 @@ importers:
         specifier: workspace:*
         version: link:../agent-core
 
-  packages/plugin-identity: {}
-
-  packages/provider-zksync-defi: {}
-
-  packages/provider-zksync-wallet:
-    dependencies:
-      '@zk-agent/agent-core':
-        specifier: workspace:*
-        version: link:../agent-core
-      '@zk-agent/agent-session-protocol':
-        specifier: workspace:*
-        version: link:../agent-session-protocol
-      ethers:
-        specifier: ^6.16.0
-        version: 6.16.0
-      zksync-ethers:
-        specifier: ^6.21.2
-        version: 6.21.2(ethers@6.16.0)
-
   packages/paymaster-test-assets:
     dependencies:
       dotenv:
@@ -120,6 +110,25 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@22.19.21)(typescript@5.9.3)
+
+  packages/plugin-identity: {}
+
+  packages/provider-zksync-defi: {}
+
+  packages/provider-zksync-wallet:
+    dependencies:
+      '@zk-agent/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@zk-agent/agent-session-protocol':
+        specifier: workspace:*
+        version: link:../agent-session-protocol
+      ethers:
+        specifier: ^6.16.0
+        version: 6.16.0
+      zksync-ethers:
+        specifier: ^6.21.2
+        version: 6.21.2(ethers@6.16.0)
 
   packages/zk-agent-cli:
     dependencies:

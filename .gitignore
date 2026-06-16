@@ -12,6 +12,7 @@ packages/paymaster-test-assets/deployments
 packages/account-profiles/artifacts
 packages/account-profiles/artifacts-zk
 packages/account-profiles/cache-zk
+packages/account-profiles/deployments
 PLANS.md
 PROJECT_STATE.md
 AGENTS.md

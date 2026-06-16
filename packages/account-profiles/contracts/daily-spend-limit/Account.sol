@@ -51,7 +51,7 @@ contract Account is IAccount, IERC1271, SpendLimit {
       txHash = _suggestedSignedHash;
     }
 
-    uint256 totalRequiredBalance = _transaction.totalRequiredBalance();
+    uint256 totalRequiredBalance = _totalRequiredBalance(_transaction);
     require(totalRequiredBalance <= address(this).balance, 'Not enough balance for fee + value');
 
     if (isValidSignature(txHash, _transaction.signature) == EIP1271_SUCCESS_RETURN_VALUE) {
@@ -71,7 +71,7 @@ contract Account is IAccount, IERC1271, SpendLimit {
 
   function _executeTransaction(Transaction calldata _transaction) internal {
     address to = address(uint160(_transaction.to));
-    uint128 value = Utils.safeCastToU128(_transaction.value);
+    uint128 value = _transactionMsgValue(_transaction);
     bytes memory data = _transaction.data;
 
     if (value > 0) {
@@ -154,4 +154,26 @@ contract Account is IAccount, IERC1271, SpendLimit {
   }
 
   receive() external payable {}
+
+  function _transactionMsgValue(Transaction calldata _transaction) internal pure returns (uint128) {
+    uint256 value = _transaction.reserved[1];
+    if (value == 0) {
+      value = _transaction.value;
+    }
+
+    return Utils.safeCastToU128(value);
+  }
+
+  function _totalRequiredBalance(Transaction calldata _transaction) internal pure returns (uint256) {
+    uint256 value = _transaction.reserved[1];
+    if (value == 0) {
+      value = _transaction.value;
+    }
+
+    if (address(uint160(_transaction.paymaster)) != address(0)) {
+      return value;
+    }
+
+    return _transaction.maxFeePerGas * _transaction.gasLimit + value;
+  }
 }

@@ -8,13 +8,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ./scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "compile:eravm": "hardhat compile --config ./hardhat.config.cjs && node ./scripts/export-eravm-artifacts.mjs",
-    "clean:eravm": "hardhat clean --config ./hardhat.config.cjs"
+    "clean:eravm": "hardhat clean --config ./hardhat.config.cjs",
+    "deploy:native-cap-hook": "pnpm run build && node dist/deployNativePerTxLimitHook.js"
   },
   "dependencies": {
-    "@zk-agent/agent-core": "workspace:*"
+    "@zk-agent/agent-core": "workspace:*",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.16.0",
+    "zksync-ethers": "^6.21.2"
   },
   "devDependencies": {
     "@matterlabs/hardhat-zksync": "^1.6.2",
