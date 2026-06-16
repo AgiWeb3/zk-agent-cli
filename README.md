@@ -50,7 +50,7 @@ What is already in place:
   - source checked into the workspace
   - CLI profile discovery via `wallet smart-account profiles`
   - profile-specific account management via
-    `wallet smart-account sed-lite owner|owner-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook|target-allowlist-hook`
+    `wallet smart-account sed-lite owner|owner-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook|target-allowlist-hook|selector-allowlist-hook`
 - second built-in smart-account profile:
   - `daily-spend-limit`
   - source checked into the workspace
@@ -241,6 +241,7 @@ Important:
   - it now also has a minimal validation-hook pipeline for externalized policy contracts
   - `NativePerTxLimitHook` is live-validated on Sepolia
   - `TargetAllowlistHook` is now deployed on Sepolia at `0x7d397543D22a01e38e73c1029af7EbdF6F8D13BD`, and is now live-validated
+  - `TargetSelectorAllowlistHook` is now deployed on Sepolia at `0x06FBe4ddda312311694DB81f9471b20E66101dEe`, and is now live-validated on the base no-paymaster path
 - live Sepolia validation is now complete for the base `sed-lite` path:
   - `predict` works
   - `deploy` works
@@ -264,6 +265,11 @@ Important:
     - the allowlisted target set can be read back onchain
     - a transfer to an allowlisted recipient succeeds
     - a transfer to a non-allowlisted recipient is rejected during account validation with `Target is not allowlisted`
+  - `TargetSelectorAllowlistHook` is now also live-validated on Sepolia:
+    - the hook can be enabled through a smart-account self-call when the account pays ETH directly
+    - the configured `(target, selector)` rule can be read back onchain
+    - an allowlisted selector call succeeds, validated with ERC-20 `approve(address,uint256)`
+    - a non-allowlisted selector call to the same target is rejected during account validation with `Target selector is not allowlisted`
 - `wallet smart-account daily-spend-limit show|set|remove` now drives the
   built-in profile's native spend-limit state through the existing call/write
   pipeline

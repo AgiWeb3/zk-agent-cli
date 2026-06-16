@@ -77,6 +77,15 @@ node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-al
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook add --name <wallet> --hook <hook> --target <target> --broadcast
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook remove --name <wallet> --hook <hook> --target <target> --broadcast
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook disable --name <wallet> --hook <hook> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook show --name <wallet> --hook <hook>
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook target --name <wallet> --hook <hook> --target <target>
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook selector --name <wallet> --hook <hook> --target <target> --selector 0xa9059cbb
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook enable --name <wallet> --hook <hook> --target <target> --selector-rule <target>:0xa9059cbb --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook target-add --name <wallet> --hook <hook> --target <target> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook target-remove --name <wallet> --hook <hook> --target <target> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook selector-add --name <wallet> --hook <hook> --target <target> --selector 0xa9059cbb --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook selector-remove --name <wallet> --hook <hook> --target <target> --selector 0xa9059cbb --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite selector-allowlist-hook disable --name <wallet> --hook <hook> --broadcast
 ```
 
 ## Minimal Hook Layer
@@ -93,6 +102,8 @@ The first hook contract is `NativePerTxLimitHook`.
 
 The second hook contract now implemented locally is `TargetAllowlistHook`.
 
+The third hook contract now implemented locally is `TargetSelectorAllowlistHook`.
+
 What it does:
 
 - stores per-account state inside the hook contract
@@ -100,6 +111,7 @@ What it does:
 - avoids `block.timestamp`, so it stays compatible with the EraVM validation
   restriction that blocked the old `daily-spend-limit` path
 - can restrict an account to an explicit allowlist of destination addresses
+- can separately restrict contract calls to explicit `(target, selector)` pairs
 - always preserves self-calls to the account so owner rotation, module toggles,
   and hook management remain possible
 
@@ -152,6 +164,17 @@ What has been confirmed for it:
 - a transfer to the allowlisted `paymaster-eoa` recipient succeeds
 - a transfer to a non-allowlisted recipient is rejected during account
   validation with `Target is not allowlisted`
+
+`TargetSelectorAllowlistHook` is now also live-validated on `zkSync Sepolia`.
+
+What has been confirmed for it:
+
+- the hook can be enabled through a smart-account self-call
+- the configured `(target, selector)` rule can be read back onchain
+- an allowlisted selector call succeeds, validated with ERC-20
+  `approve(address,uint256)`
+- a non-allowlisted selector call to the same target is rejected during account
+  validation with `Target selector is not allowlisted`
 
 Validated addresses in the current workspace:
 

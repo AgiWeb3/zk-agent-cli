@@ -28,6 +28,16 @@ const targetAllowlistHookInterface = new ethers.Interface([
   'function removeAllowedTarget(address target)'
 ]);
 
+const targetSelectorAllowlistHookInterface = new ethers.Interface([
+  'function state(address account) view returns (bool enabled, address[] targets, tuple(address target, bytes4 selector)[] selectorRules)',
+  'function isTargetAllowed(address account, address target) view returns (bool)',
+  'function isSelectorAllowed(address account, address target, bytes4 selector) view returns (bool)',
+  'function addAllowedTarget(address target)',
+  'function removeAllowedTarget(address target)',
+  'function addAllowedSelector(address target, bytes4 selector)',
+  'function removeAllowedSelector(address target, bytes4 selector)'
+]);
+
 export interface SedLiteNativeSpendCapState {
   maxPerTx: bigint;
   enabled: boolean;
@@ -41,6 +51,17 @@ export interface SedLiteValidationHookState {
 export interface SedLiteTargetAllowlistHookState {
   enabled: boolean;
   targets: string[];
+}
+
+export interface SedLiteTargetSelectorAllowlistRule {
+  target: string;
+  selector: string;
+}
+
+export interface SedLiteTargetSelectorAllowlistHookState {
+  enabled: boolean;
+  targets: string[];
+  selectorRules: SedLiteTargetSelectorAllowlistRule[];
 }
 
 export function encodeSedLiteOwnerRead(): string {
@@ -192,4 +213,128 @@ export function encodeTargetAllowlistHookAdd(targetAddress: string): string {
 
 export function encodeTargetAllowlistHookRemove(targetAddress: string): string {
   return targetAllowlistHookInterface.encodeFunctionData('removeAllowedTarget', [targetAddress]);
+}
+
+function decodeTargetSelectorAllowlistRule(rule: unknown): SedLiteTargetSelectorAllowlistRule {
+  if (!Array.isArray(rule)) {
+    throw new Error('Invalid selector rule entry');
+  }
+
+  const [target, selector] = rule;
+  if (typeof target !== 'string' || typeof selector !== 'string') {
+    throw new Error('Invalid selector rule entry');
+  }
+
+  return { target, selector };
+}
+
+export function encodeTargetSelectorAllowlistHookInit(
+  targets: string[],
+  selectorRules: SedLiteTargetSelectorAllowlistRule[]
+): string {
+  return ethers.AbiCoder.defaultAbiCoder().encode(
+    ['address[]', 'tuple(address target, bytes4 selector)[]'],
+    [targets, selectorRules]
+  );
+}
+
+export function encodeTargetSelectorAllowlistHookStateRead(accountAddress: string): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('state', [accountAddress]);
+}
+
+export function decodeTargetSelectorAllowlistHookStateRead(
+  result: string
+): SedLiteTargetSelectorAllowlistHookState {
+  const [enabled, targets, selectorRules] = targetSelectorAllowlistHookInterface.decodeFunctionResult(
+    'state',
+    result
+  );
+  if (
+    typeof enabled !== 'boolean'
+    || !Array.isArray(targets)
+    || targets.some((target) => typeof target !== 'string')
+    || !Array.isArray(selectorRules)
+  ) {
+    throw new Error('Invalid state(address) response');
+  }
+
+  return {
+    enabled,
+    targets: targets as string[],
+    selectorRules: selectorRules.map((rule) => decodeTargetSelectorAllowlistRule(rule))
+  };
+}
+
+export function encodeTargetSelectorAllowlistHookTargetRead(
+  accountAddress: string,
+  targetAddress: string
+): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('isTargetAllowed', [
+    accountAddress,
+    targetAddress
+  ]);
+}
+
+export function decodeTargetSelectorAllowlistHookTargetRead(result: string): boolean {
+  const [allowed] = targetSelectorAllowlistHookInterface.decodeFunctionResult(
+    'isTargetAllowed',
+    result
+  );
+  if (typeof allowed !== 'boolean') {
+    throw new Error('Invalid isTargetAllowed(address,address) response');
+  }
+
+  return allowed;
+}
+
+export function encodeTargetSelectorAllowlistHookSelectorRead(
+  accountAddress: string,
+  targetAddress: string,
+  selector: string
+): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('isSelectorAllowed', [
+    accountAddress,
+    targetAddress,
+    selector
+  ]);
+}
+
+export function decodeTargetSelectorAllowlistHookSelectorRead(result: string): boolean {
+  const [allowed] = targetSelectorAllowlistHookInterface.decodeFunctionResult(
+    'isSelectorAllowed',
+    result
+  );
+  if (typeof allowed !== 'boolean') {
+    throw new Error('Invalid isSelectorAllowed(address,address,bytes4) response');
+  }
+
+  return allowed;
+}
+
+export function encodeTargetSelectorAllowlistHookAddTarget(targetAddress: string): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('addAllowedTarget', [targetAddress]);
+}
+
+export function encodeTargetSelectorAllowlistHookRemoveTarget(targetAddress: string): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('removeAllowedTarget', [targetAddress]);
+}
+
+export function encodeTargetSelectorAllowlistHookAddSelector(
+  targetAddress: string,
+  selector: string
+): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('addAllowedSelector', [
+    targetAddress,
+    selector
+  ]);
+}
+
+export function encodeTargetSelectorAllowlistHookRemoveSelector(
+  targetAddress: string,
+  selector: string
+): string {
+  return targetSelectorAllowlistHookInterface.encodeFunctionData('removeAllowedSelector', [
+    targetAddress,
+    selector
+  ]);
 }

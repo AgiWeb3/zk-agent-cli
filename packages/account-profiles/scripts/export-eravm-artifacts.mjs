@@ -53,6 +53,23 @@ const exportsToWrite = [
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'TargetAllowlistHook.json'),
     contractName: 'TargetAllowlistHook'
+  },
+  {
+    compiledArtifactPath: path.join(
+      packageRoot,
+      'artifacts-zk',
+      'contracts',
+      'sed-lite',
+      'TargetSelectorAllowlistHook.sol',
+      'TargetSelectorAllowlistHook.json'
+    ),
+    outputPath: path.join(
+      packageRoot,
+      'artifacts',
+      'sed-lite',
+      'TargetSelectorAllowlistHook.json'
+    ),
+    contractName: 'TargetSelectorAllowlistHook'
   }
 ];
 

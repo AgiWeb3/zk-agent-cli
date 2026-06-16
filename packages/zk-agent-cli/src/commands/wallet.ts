@@ -5,6 +5,9 @@ import {
   decodeSedLiteModuleRead,
   decodeSedLiteNativeSpendCapRead,
   decodeSedLiteOwnerRead,
+  decodeTargetSelectorAllowlistHookSelectorRead,
+  decodeTargetSelectorAllowlistHookStateRead,
+  decodeTargetSelectorAllowlistHookTargetRead,
   decodeTargetAllowlistHookStateRead,
   decodeTargetAllowlistHookTargetRead,
   decodeNativePerTxLimitHookRead,
@@ -21,6 +24,14 @@ import {
   encodeSedLiteSetNativeSpendCap,
   encodeSedLiteValidationHookRead,
   encodeSedLiteValidationHooksRead,
+  encodeTargetSelectorAllowlistHookAddSelector,
+  encodeTargetSelectorAllowlistHookAddTarget,
+  encodeTargetSelectorAllowlistHookInit,
+  encodeTargetSelectorAllowlistHookRemoveSelector,
+  encodeTargetSelectorAllowlistHookRemoveTarget,
+  encodeTargetSelectorAllowlistHookSelectorRead,
+  encodeTargetSelectorAllowlistHookStateRead,
+  encodeTargetSelectorAllowlistHookTargetRead,
   encodeTargetAllowlistHookAdd,
   encodeTargetAllowlistHookInit,
   encodeTargetAllowlistHookRemove,
@@ -35,7 +46,8 @@ import {
   listBuiltinSmartAccountProfiles,
   requireBuiltinSmartAccountProfile,
   resolveDailySpendLimitTokenAddress,
-  type BuiltinSmartAccountProfile
+  type BuiltinSmartAccountProfile,
+  type SedLiteTargetSelectorAllowlistRule
 } from '@zk-agent/account-profiles';
 
 import {
@@ -231,6 +243,32 @@ function collectOptionValue(value: string, previous: string[] = []): string[] {
   return previous;
 }
 
+function normalizeFunctionSelector(value: string): string {
+  const trimmed = value.trim();
+  if (!/^0x[a-fA-F0-9]{8}$/.test(trimmed)) {
+    throw new Error('Function selector must be a 4-byte hex value like 0xa9059cbb');
+  }
+
+  return trimmed.toLowerCase();
+}
+
+function parseSelectorRuleValue(value: string): SedLiteTargetSelectorAllowlistRule {
+  const [target, selector, ...rest] = value.split(':');
+  if (!target || !selector || rest.length > 0) {
+    throw new Error(
+      `Selector rule "${value}" must use the format <target>:<selector>, for example 0xabc...:0xa9059cbb`
+    );
+  }
+  if (!isAddress(target)) {
+    throw new Error(`Invalid selector-rule target address: ${target}`);
+  }
+
+  return {
+    target,
+    selector: normalizeFunctionSelector(selector)
+  };
+}
+
 function formatResetTime(resetTime: bigint): string {
   if (resetTime === 0n) return 'not scheduled';
   if (resetTime > BigInt(Number.MAX_SAFE_INTEGER)) return resetTime.toString();
@@ -381,6 +419,63 @@ function targetAllowlistHookTargetLines(
     ['chain', `${wallet.chain} (${wallet.chainId})`],
     ['hook', hookAddress],
     ['target', targetAddress],
+    ['allowed', allowed ? 'yes' : 'no']
+  ];
+}
+
+function selectorAllowlistHookStateLines(
+  wallet: WalletSessionRecord,
+  hookAddress: string,
+  state: ReturnType<typeof decodeTargetSelectorAllowlistHookStateRead>
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['hook', hookAddress],
+    ['enabled', state.enabled ? 'yes' : 'no'],
+    ['target count', String(state.targets.length)],
+    ['targets', state.targets.length > 0 ? state.targets.join(', ') : 'none'],
+    ['selector count', String(state.selectorRules.length)],
+    [
+      'selectors',
+      state.selectorRules.length > 0
+        ? state.selectorRules.map((rule) => `${rule.target}:${rule.selector}`).join(', ')
+        : 'none'
+    ]
+  ];
+}
+
+function selectorAllowlistHookTargetLines(
+  wallet: WalletSessionRecord,
+  hookAddress: string,
+  targetAddress: string,
+  allowed: boolean
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['hook', hookAddress],
+    ['target', targetAddress],
+    ['allowed', allowed ? 'yes' : 'no']
+  ];
+}
+
+function selectorAllowlistHookSelectorLines(
+  wallet: WalletSessionRecord,
+  hookAddress: string,
+  targetAddress: string,
+  selector: string,
+  allowed: boolean
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['hook', hookAddress],
+    ['target', targetAddress],
+    ['selector', selector],
     ['allowed', allowed ? 'yes' : 'no']
   ];
 }
@@ -683,6 +778,9 @@ export function createWalletCommand(): Command {
   );
   const targetAllowlistHook = new Command('target-allowlist-hook').description(
     'Inspect and manage the SED Lite validation-hook policy that restricts transactions to an allowlisted target set'
+  );
+  const selectorAllowlistHook = new Command('selector-allowlist-hook').description(
+    'Inspect and manage the SED Lite validation-hook policy that restricts contract calls to allowlisted target and selector pairs'
   );
   const dailySpendLimit = new Command('daily-spend-limit').description(
     'Read and update the native-token daily spend limit used by the built-in daily-spend-limit smart-account profile'
@@ -1991,6 +2089,474 @@ export function createWalletCommand(): Command {
     }
   );
 
+  selectorAllowlistHook
+    .command('show')
+    .description(
+      'Read the current target and selector allowlist state stored for this account in a TargetSelectorAllowlistHook'
+    )
+    .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { hook: string; name: string }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookStateRead(walletRecord.walletAddress)
+      });
+      const state = decodeTargetSelectorAllowlistHookStateRead(result.result);
+
+      printResult(selectorAllowlistHookStateLines(walletRecord, options.hook, state), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        hookAddress: options.hook,
+        state: {
+          enabled: state.enabled,
+          targetCount: state.targets.length,
+          targets: state.targets,
+          selectorRuleCount: state.selectorRules.length,
+          selectorRules: state.selectorRules
+        }
+      });
+    });
+
+  selectorAllowlistHook
+    .command('target')
+    .description(
+      'Read whether a target address is currently allowlisted for empty-calldata/native sends in a TargetSelectorAllowlistHook'
+    )
+    .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+    .requiredOption('--target <address>', 'Target address to inspect')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { hook: string; target: string; name: string }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      if (!isAddress(options.target)) {
+        throw new Error('--target must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookTargetRead(
+          walletRecord.walletAddress,
+          options.target
+        )
+      });
+      const allowed = decodeTargetSelectorAllowlistHookTargetRead(result.result);
+
+      printResult(
+        selectorAllowlistHookTargetLines(walletRecord, options.hook, options.target, allowed),
+        {
+          ok: true,
+          walletName: walletRecord.walletName,
+          walletAddress: walletRecord.walletAddress,
+          chain: result.chain,
+          chainId: result.chainId,
+          hookAddress: options.hook,
+          targetAddress: options.target,
+          allowed
+        }
+      );
+    });
+
+  selectorAllowlistHook
+    .command('selector')
+    .description(
+      'Read whether a specific target and function selector pair is currently allowlisted in a TargetSelectorAllowlistHook'
+    )
+    .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+    .requiredOption('--target <address>', 'Target address to inspect')
+    .requiredOption('--selector <selector>', 'Function selector to inspect, for example 0xa9059cbb')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { hook: string; target: string; selector: string; name: string }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      if (!isAddress(options.target)) {
+        throw new Error('--target must be a valid 20-byte hex address');
+      }
+
+      const selector = normalizeFunctionSelector(options.selector);
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookSelectorRead(
+          walletRecord.walletAddress,
+          options.target,
+          selector
+        )
+      });
+      const allowed = decodeTargetSelectorAllowlistHookSelectorRead(result.result);
+
+      printResult(
+        selectorAllowlistHookSelectorLines(
+          walletRecord,
+          options.hook,
+          options.target,
+          selector,
+          allowed
+        ),
+        {
+          ok: true,
+          walletName: walletRecord.walletName,
+          walletAddress: walletRecord.walletAddress,
+          chain: result.chain,
+          chainId: result.chainId,
+          hookAddress: options.hook,
+          targetAddress: options.target,
+          selector,
+          allowed
+        }
+      );
+    });
+
+  withPaymasterOptions(
+    selectorAllowlistHook
+      .command('enable')
+      .description(
+        'Enable a TargetSelectorAllowlistHook for this SED Lite account and initialize its target and selector allowlists'
+      )
+      .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+      .option('--target <address>', 'Allowed target for empty-calldata/native sends', collectOptionValue, [])
+      .option(
+        '--selector-rule <target:selector>',
+        'Allowed contract-call pair in the format <target>:<selector>',
+        collectOptionValue,
+        []
+      )
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      target: string[];
+      selectorRule: string[];
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      options.target.forEach((target) => {
+        if (!isAddress(target)) {
+          throw new Error(`Invalid --target address: ${target}`);
+        }
+      });
+
+      const selectorRules = options.selectorRule.map((value) => parseSelectorRuleValue(value));
+      if (options.target.length === 0 && selectorRules.length === 0) {
+        throw new Error('Provide at least one --target or --selector-rule entry');
+      }
+
+      const initData = encodeTargetSelectorAllowlistHookInit(options.target, selectorRules);
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteAddValidationHook(options.hook, initData),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['targets', options.target.length > 0 ? options.target.join(', ') : 'none']);
+      lines.splice(
+        7,
+        0,
+        [
+          'selectors',
+          selectorRules.length > 0
+            ? selectorRules.map((rule) => `${rule.target}:${rule.selector}`).join(', ')
+            : 'none'
+        ]
+      );
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'selector-allowlist-hook-enable',
+          hookAddress: options.hook,
+          targets: options.target,
+          selectorRules
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    selectorAllowlistHook
+      .command('target-add')
+      .description(
+        'Add one allowlisted target for empty-calldata/native sends inside a TargetSelectorAllowlistHook'
+      )
+      .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+      .requiredOption('--target <address>', 'Target address to allowlist')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      target: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      if (!isAddress(options.target)) {
+        throw new Error('--target must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookAddTarget(options.target),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['target', options.target]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'selector-allowlist-hook-target-add',
+          hookAddress: options.hook,
+          targetAddress: options.target
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    selectorAllowlistHook
+      .command('target-remove')
+      .description(
+        'Remove one allowlisted target for empty-calldata/native sends from a TargetSelectorAllowlistHook'
+      )
+      .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+      .requiredOption('--target <address>', 'Target address to remove from the allowlist')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      target: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      if (!isAddress(options.target)) {
+        throw new Error('--target must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookRemoveTarget(options.target),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['target', options.target]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'selector-allowlist-hook-target-remove',
+          hookAddress: options.hook,
+          targetAddress: options.target
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    selectorAllowlistHook
+      .command('selector-add')
+      .description('Add one allowlisted target and selector pair inside a TargetSelectorAllowlistHook')
+      .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+      .requiredOption('--target <address>', 'Target contract address to allowlist')
+      .requiredOption('--selector <selector>', 'Function selector to allowlist, for example 0xa9059cbb')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      target: string;
+      selector: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      if (!isAddress(options.target)) {
+        throw new Error('--target must be a valid 20-byte hex address');
+      }
+
+      const selector = normalizeFunctionSelector(options.selector);
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookAddSelector(options.target, selector),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['target', options.target]);
+      lines.splice(7, 0, ['selector', selector]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'selector-allowlist-hook-selector-add',
+          hookAddress: options.hook,
+          targetAddress: options.target,
+          selector
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    selectorAllowlistHook
+      .command('selector-remove')
+      .description(
+        'Remove one allowlisted target and selector pair from a TargetSelectorAllowlistHook while keeping the hook enabled'
+      )
+      .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+      .requiredOption('--target <address>', 'Target contract address to remove from the allowlist')
+      .requiredOption('--selector <selector>', 'Function selector to remove, for example 0xa9059cbb')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      target: string;
+      selector: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+      if (!isAddress(options.target)) {
+        throw new Error('--target must be a valid 20-byte hex address');
+      }
+
+      const selector = normalizeFunctionSelector(options.selector);
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: options.hook,
+        data: encodeTargetSelectorAllowlistHookRemoveSelector(options.target, selector),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+      lines.splice(6, 0, ['target', options.target]);
+      lines.splice(7, 0, ['selector', selector]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'selector-allowlist-hook-selector-remove',
+          hookAddress: options.hook,
+          targetAddress: options.target,
+          selector
+        },
+        ...result
+      });
+    }
+  );
+
+  withPaymasterOptions(
+    selectorAllowlistHook
+      .command('disable')
+      .description('Disable a TargetSelectorAllowlistHook for this SED Lite account')
+      .requiredOption('--hook <address>', 'TargetSelectorAllowlistHook address')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      hook: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.hook)) {
+        throw new Error('--hook must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteRemoveValidationHook(options.hook),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['hook', options.hook]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'selector-allowlist-hook-disable',
+          hookAddress: options.hook
+        },
+        ...result
+      });
+    }
+  );
+
   dailySpendLimit
     .command('show')
     .description(
@@ -2233,6 +2799,7 @@ export function createWalletCommand(): Command {
 
   sedLite.addCommand(nativeCapHook);
   sedLite.addCommand(targetAllowlistHook);
+  sedLite.addCommand(selectorAllowlistHook);
   smartAccount.addCommand(sedLite);
   smartAccount.addCommand(dailySpendLimit);
   wallet.addCommand(smartAccount);
