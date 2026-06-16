@@ -33,8 +33,16 @@ export function getNativePerTxLimitHookArtifactPath(): string {
   return path.join(packageRoot(), 'artifacts', 'sed-lite', 'NativePerTxLimitHook.json');
 }
 
+export function getTargetAllowlistHookArtifactPath(): string {
+  return path.join(packageRoot(), 'artifacts', 'sed-lite', 'TargetAllowlistHook.json');
+}
+
 export function getLatestNativePerTxLimitHookDeploymentPath(): string {
   return path.join(packageRoot(), 'deployments', 'zksync-sepolia.native-cap-hook.latest.json');
+}
+
+export function getLatestTargetAllowlistHookDeploymentPath(): string {
+  return path.join(packageRoot(), 'deployments', 'zksync-sepolia.target-allowlist-hook.latest.json');
 }
 
 export function readGeneratedArtifact(artifactPath: string): GeneratedContractArtifact {

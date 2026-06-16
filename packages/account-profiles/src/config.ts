@@ -16,6 +16,13 @@ export interface NativeCapHookDeployConfig {
   existingHookAddress?: string;
 }
 
+export interface TargetAllowlistHookDeployConfig {
+  rpcUrl: string;
+  privateKey: string;
+  walletAddress: string;
+  existingHookAddress?: string;
+}
+
 export function getWorkspaceRoot(): string {
   return workspaceRoot;
 }
@@ -56,6 +63,33 @@ export function readNativeCapHookDeployConfig(): NativeCapHookDeployConfig {
       : requireAddress(
           existingHookAddress,
           'ZKSYNC_SEPOLIA_SED_NATIVE_CAP_HOOK_ADDRESS'
+        );
+
+  return {
+    rpcUrl,
+    privateKey,
+    walletAddress,
+    existingHookAddress: normalizedExistingHookAddress
+  };
+}
+
+export function readTargetAllowlistHookDeployConfig(): TargetAllowlistHookDeployConfig {
+  const privateKey = normalizePrivateKey(process.env.ZKSYNC_SEPOLIA_WALLET_PRIVATE_KEY || '');
+  const walletAddress = process.env.ZKSYNC_SEPOLIA_WALLET_ADDRESS || '';
+  const rpcUrl = process.env.ZKSYNC_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev';
+  const existingHookAddress = process.env.ZKSYNC_SEPOLIA_SED_TARGET_ALLOWLIST_HOOK_ADDRESS || '';
+
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
+    throw new Error(`Missing or invalid ZKSYNC_SEPOLIA_WALLET_PRIVATE_KEY in ${envPath}`);
+  }
+
+  requireAddress(walletAddress, 'ZKSYNC_SEPOLIA_WALLET_ADDRESS');
+  const normalizedExistingHookAddress =
+    existingHookAddress.trim() === ''
+      ? undefined
+      : requireAddress(
+          existingHookAddress,
+          'ZKSYNC_SEPOLIA_SED_TARGET_ALLOWLIST_HOOK_ADDRESS'
         );
 
   return {

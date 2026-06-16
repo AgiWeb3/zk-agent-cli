@@ -41,6 +41,18 @@ const exportsToWrite = [
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'NativePerTxLimitHook.json'),
     contractName: 'NativePerTxLimitHook'
+  },
+  {
+    compiledArtifactPath: path.join(
+      packageRoot,
+      'artifacts-zk',
+      'contracts',
+      'sed-lite',
+      'TargetAllowlistHook.sol',
+      'TargetAllowlistHook.json'
+    ),
+    outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'TargetAllowlistHook.json'),
+    contractName: 'TargetAllowlistHook'
   }
 ];
 

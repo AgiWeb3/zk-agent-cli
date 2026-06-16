@@ -71,6 +71,12 @@ node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite native-ca
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite native-cap-hook set --name <wallet> --hook <hook> --amount 0.00005 --broadcast
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite native-cap-hook remove --name <wallet> --hook <hook> --broadcast
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite native-cap-hook disable --name <wallet> --hook <hook> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook show --name <wallet> --hook <hook>
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook target --name <wallet> --hook <hook> --target <target>
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook enable --name <wallet> --hook <hook> --target <target> --target <target> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook add --name <wallet> --hook <hook> --target <target> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook remove --name <wallet> --hook <hook> --target <target> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite target-allowlist-hook disable --name <wallet> --hook <hook> --broadcast
 ```
 
 ## Minimal Hook Layer
@@ -85,12 +91,17 @@ What that means in this repository:
 
 The first hook contract is `NativePerTxLimitHook`.
 
+The second hook contract now implemented locally is `TargetAllowlistHook`.
+
 What it does:
 
 - stores per-account state inside the hook contract
 - rejects native transfers above a configured per-transaction cap
 - avoids `block.timestamp`, so it stays compatible with the EraVM validation
   restriction that blocked the old `daily-spend-limit` path
+- can restrict an account to an explicit allowlist of destination addresses
+- always preserves self-calls to the account so owner rotation, module toggles,
+  and hook management remain possible
 
 What it does not do yet:
 
@@ -131,6 +142,16 @@ Why this matters:
 - this gives the repository one real EraVM-safe account-policy hook to build on
 
 The new minimal hook layer is now also live-validated on `zkSync Sepolia`.
+
+`TargetAllowlistHook` is now also live-validated on `zkSync Sepolia`.
+
+What has been confirmed for it:
+
+- the hook can be enabled through a smart-account self-call
+- the allowlisted target set can be read back onchain
+- a transfer to the allowlisted `paymaster-eoa` recipient succeeds
+- a transfer to a non-allowlisted recipient is rejected during account
+  validation with `Target is not allowlisted`
 
 Validated addresses in the current workspace:
 

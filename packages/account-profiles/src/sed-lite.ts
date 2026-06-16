@@ -21,6 +21,13 @@ const nativePerTxLimitHookInterface = new ethers.Interface([
   'function removeMaxPerTx()'
 ]);
 
+const targetAllowlistHookInterface = new ethers.Interface([
+  'function state(address account) view returns (bool enabled, address[] targets)',
+  'function isTargetAllowed(address account, address target) view returns (bool)',
+  'function addAllowedTarget(address target)',
+  'function removeAllowedTarget(address target)'
+]);
+
 export interface SedLiteNativeSpendCapState {
   maxPerTx: bigint;
   enabled: boolean;
@@ -29,6 +36,11 @@ export interface SedLiteNativeSpendCapState {
 export interface SedLiteValidationHookState {
   maxPerTx: bigint;
   enabled: boolean;
+}
+
+export interface SedLiteTargetAllowlistHookState {
+  enabled: boolean;
+  targets: string[];
 }
 
 export function encodeSedLiteOwnerRead(): string {
@@ -139,4 +151,45 @@ export function encodeNativePerTxLimitHookSet(maxPerTx: bigint): string {
 
 export function encodeNativePerTxLimitHookRemove(): string {
   return nativePerTxLimitHookInterface.encodeFunctionData('removeMaxPerTx');
+}
+
+export function encodeTargetAllowlistHookInit(targets: string[]): string {
+  return ethers.AbiCoder.defaultAbiCoder().encode(['address[]'], [targets]);
+}
+
+export function encodeTargetAllowlistHookStateRead(accountAddress: string): string {
+  return targetAllowlistHookInterface.encodeFunctionData('state', [accountAddress]);
+}
+
+export function decodeTargetAllowlistHookStateRead(result: string): SedLiteTargetAllowlistHookState {
+  const [enabled, targets] = targetAllowlistHookInterface.decodeFunctionResult('state', result);
+  if (typeof enabled !== 'boolean' || !Array.isArray(targets) || targets.some((target) => typeof target !== 'string')) {
+    throw new Error('Invalid state(address) response');
+  }
+
+  return {
+    enabled,
+    targets: targets as string[]
+  };
+}
+
+export function encodeTargetAllowlistHookTargetRead(accountAddress: string, targetAddress: string): string {
+  return targetAllowlistHookInterface.encodeFunctionData('isTargetAllowed', [accountAddress, targetAddress]);
+}
+
+export function decodeTargetAllowlistHookTargetRead(result: string): boolean {
+  const [allowed] = targetAllowlistHookInterface.decodeFunctionResult('isTargetAllowed', result);
+  if (typeof allowed !== 'boolean') {
+    throw new Error('Invalid isTargetAllowed(address,address) response');
+  }
+
+  return allowed;
+}
+
+export function encodeTargetAllowlistHookAdd(targetAddress: string): string {
+  return targetAllowlistHookInterface.encodeFunctionData('addAllowedTarget', [targetAddress]);
+}
+
+export function encodeTargetAllowlistHookRemove(targetAddress: string): string {
+  return targetAllowlistHookInterface.encodeFunctionData('removeAllowedTarget', [targetAddress]);
 }

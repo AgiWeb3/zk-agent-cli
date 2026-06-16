@@ -31,6 +31,7 @@ This writes:
 - `artifacts-zk/` as the raw Hardhat zkSync output
 - `artifacts/sed-lite/Account.json` as the minimal CLI-readable export
 - `artifacts/sed-lite/NativePerTxLimitHook.json` as the first SED Lite policy-hook export
+- `artifacts/sed-lite/TargetAllowlistHook.json` as the second SED Lite policy-hook export
 - `artifacts/daily-spend-limit/Account.json` as the minimal CLI-readable export
 
 Why this package exists:
@@ -54,6 +55,11 @@ Current `sed-lite` notes:
 - live Sepolia validation now covers deploy, native transfer, validation-time
   rejection for over-cap native transfers, and the first standalone
   `NativePerTxLimitHook` deployment / enablement path
+- `TargetAllowlistHook` is now also compiled/exported and exposed through the
+  CLI hook-management surface; it is deployed on Sepolia at
+  `0x7d397543D22a01e38e73c1029af7EbdF6F8D13BD`, and live validation now confirms
+  that allowlisted recipients succeed while non-allowlisted recipients are
+  rejected during account validation with `Target is not allowlisted`
 - the same hook is now also validated on the approval-based paymaster path:
   below-cap transfers succeed and over-cap transfers fail during fee estimation
   with the hook-specific validation reason

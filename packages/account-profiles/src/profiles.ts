@@ -193,7 +193,8 @@ function createSedLiteProfile(): BuiltinSmartAccountProfile {
       'The contract is directly deployable as a single account artifact; it does not require the older proxy + factory stack.',
       'Owner rotation, module toggling, and validation-hook toggling are self-calls, so they work through the existing smart-account write path.',
       'SED Lite is the AA base layer for this repository; policy hooks can now be added on top without rebaking account core logic.',
-      'The first standalone policy hook, NativePerTxLimitHook, is now deployed and live-validated on zkSync Sepolia.'
+      'The first standalone policy hook, NativePerTxLimitHook, is now deployed and live-validated on zkSync Sepolia.',
+      'The second standalone policy hook, TargetAllowlistHook, is now deployed and live-validated on zkSync Sepolia.'
     ],
     buildConstructorArgs(context) {
       return [context.ownerAddress];

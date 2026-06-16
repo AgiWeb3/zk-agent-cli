@@ -50,7 +50,7 @@ What is already in place:
   - source checked into the workspace
   - CLI profile discovery via `wallet smart-account profiles`
   - profile-specific account management via
-    `wallet smart-account sed-lite owner|owner-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook`
+    `wallet smart-account sed-lite owner|owner-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook|target-allowlist-hook`
 - second built-in smart-account profile:
   - `daily-spend-limit`
   - source checked into the workspace
@@ -239,6 +239,8 @@ Important:
   - it takes the modular owner/self/module shape from Clave instead of hardcoding policy into the account core
   - it can already rotate owner, toggle modules, and manage a native per-transaction cap through self-calls
   - it now also has a minimal validation-hook pipeline for externalized policy contracts
+  - `NativePerTxLimitHook` is live-validated on Sepolia
+  - `TargetAllowlistHook` is now deployed on Sepolia at `0x7d397543D22a01e38e73c1029af7EbdF6F8D13BD`, and is now live-validated
 - live Sepolia validation is now complete for the base `sed-lite` path:
   - `predict` works
   - `deploy` works
@@ -257,6 +259,11 @@ Important:
   - the same hook also works with the approval-based paymaster path:
     - a below-cap transaction succeeds with fee-token payment
     - an over-cap transaction is rejected during paymaster fee estimation with the same hook-specific reason
+  - `TargetAllowlistHook` is now also live-validated on Sepolia:
+    - the hook can be enabled through a smart-account self-call when the account pays ETH directly
+    - the allowlisted target set can be read back onchain
+    - a transfer to an allowlisted recipient succeeds
+    - a transfer to a non-allowlisted recipient is rejected during account validation with `Target is not allowlisted`
 - `wallet smart-account daily-spend-limit show|set|remove` now drives the
   built-in profile's native spend-limit state through the existing call/write
   pipeline
