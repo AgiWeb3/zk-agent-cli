@@ -1,3 +1,6 @@
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
 import { Command } from 'commander';
 import {
   decodeSedLiteValidationHookRead,
@@ -5,6 +8,7 @@ import {
   decodeSedLiteModuleRead,
   decodeSedLiteNativeSpendCapRead,
   decodeSedLiteOwnerRead,
+  decodeSedLiteValidatorRead,
   decodeTargetSelectorAllowlistHookSelectorRead,
   decodeTargetSelectorAllowlistHookStateRead,
   decodeTargetSelectorAllowlistHookTargetRead,
@@ -22,8 +26,10 @@ import {
   encodeSedLiteRemoveNativeSpendCap,
   encodeSedLiteRemoveModule,
   encodeSedLiteSetNativeSpendCap,
+  encodeSedLiteSetValidator,
   encodeSedLiteValidationHookRead,
   encodeSedLiteValidationHooksRead,
+  encodeSedLiteValidatorRead,
   encodeTargetSelectorAllowlistHookAddSelector,
   encodeTargetSelectorAllowlistHookAddTarget,
   encodeTargetSelectorAllowlistHookInit,
@@ -52,7 +58,9 @@ import {
 
 import {
   type PaymasterSelectionInput,
+  deleteWalletRequest,
   deleteWalletSession,
+  listWalletRequestIds,
   listWalletNames,
   renameWalletSession,
   loadProjectConfig,
@@ -65,6 +73,7 @@ import {
   type SmartAccountDeploymentResult,
   type TransactionExecutionResult,
   type WalletInspectionResult,
+  type WalletRequestRecord,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
 import {
@@ -76,10 +85,17 @@ import { ethers } from 'ethers';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
-import { parseJsonInput, printResult, shouldJsonOutput } from '../lib/io.js';
+import {
+  formatErrorPayload,
+  humanLine,
+  parseJsonInput,
+  printResult,
+  shouldJsonOutput
+} from '../lib/io.js';
 
 const provider = new ZkSyncWalletProvider();
 const NATIVE_TOKEN_DECIMALS = 18;
+const LOCAL_APPROVAL_BODY_LIMIT_BYTES = 512 * 1024;
 
 function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
   if (!payload) return undefined;
@@ -94,8 +110,7 @@ function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unkno
   };
 }
 
-async function sanitizeWalletRequest(requestId: string): Promise<Record<string, unknown>> {
-  const request = await requireWalletRequest(requestId);
+function sanitizeWalletRequestRecord(request: WalletRequestRecord): Record<string, unknown> {
   const { sessionSecretKey: _sessionSecretKey, ...rest } = request;
   return rest;
 }
@@ -303,6 +318,18 @@ function sedLiteOwnerLines(
     ['address', wallet.walletAddress],
     ['chain', `${wallet.chain} (${wallet.chainId})`],
     ['owner', ownerAddress]
+  ];
+}
+
+function sedLiteValidatorLines(
+  wallet: WalletSessionRecord,
+  validatorAddress: string
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['validator', validatorAddress]
   ];
 }
 
@@ -700,10 +727,14 @@ async function requireWalletRecord(walletName: string): Promise<WalletSessionRec
   return walletRecord;
 }
 
-function assertRequestActive(expiresAt: string): void {
+function isRequestExpired(expiresAt: string): boolean {
   const expires = Date.parse(expiresAt);
-  if (!Number.isFinite(expires)) return;
-  if (Date.now() > expires) throw new Error('Wallet request has expired');
+  if (!Number.isFinite(expires)) return false;
+  return Date.now() > expires;
+}
+
+function assertRequestActive(expiresAt: string): void {
+  if (isRequestExpired(expiresAt)) throw new Error('Wallet request has expired');
 }
 
 function connectorOriginFromUrl(value?: string): string | undefined {
@@ -713,6 +744,366 @@ function connectorOriginFromUrl(value?: string): string | undefined {
     return new URL(value).origin;
   } catch {
     return undefined;
+  }
+}
+
+function buildWalletApprovalLines(
+  status: string,
+  requestId: string,
+  walletRecord: WalletSessionRecord
+): Array<[string, string]> {
+  return [
+    ['status', status],
+    ['request', requestId],
+    ['wallet', walletRecord.walletName],
+    ['address', walletRecord.walletAddress],
+    ...(displayOwnerAddress(walletRecord)
+      ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
+      : []),
+    ['account', displayAccountKind(walletRecord)],
+    ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
+    ['paymaster', displayPaymasterMode(walletRecord)],
+    ['next', 'zk-agent balances --wallet ' + walletRecord.walletName]
+  ];
+}
+
+async function importApprovedWalletSession(
+  walletName: string,
+  payload: SessionPayload
+): Promise<WalletSessionRecord> {
+  const walletRecord = await provider.importSession(walletName, payload);
+  await saveWalletSession(walletRecord);
+  return walletRecord;
+}
+
+function ensureSessionPayload(value: unknown): SessionPayload {
+  if (!isRecord(value)) {
+    throw new Error('Approved callback payload must include a payload object.');
+  }
+
+  return value as unknown as SessionPayload;
+}
+
+function requestStatusLabel(request: WalletRequestRecord): 'pending' | 'expired' {
+  return isRequestExpired(request.expiresAt) ? 'expired' : 'pending';
+}
+
+function formatWalletRequestSummary(request: WalletRequestRecord): string {
+  return `${request.requestId}  ${request.walletName}  ${request.requestedAccountKind}  ${request.chain} (${request.chainId})  ${requestStatusLabel(request)}  expires=${request.expiresAt}`;
+}
+
+async function loadPendingWalletRequests(): Promise<{
+  requests: WalletRequestRecord[];
+  removedExpiredRequestIds: string[];
+}> {
+  const requestIds = await listWalletRequestIds();
+  const requests: WalletRequestRecord[] = [];
+  const removedExpiredRequestIds: string[] = [];
+
+  for (const requestId of requestIds) {
+    const request = await loadWalletRequest(requestId);
+    if (!request) continue;
+
+    if (isRequestExpired(request.expiresAt)) {
+      await deleteWalletRequest(request.requestId);
+      removedExpiredRequestIds.push(request.requestId);
+      continue;
+    }
+
+    requests.push(request);
+  }
+
+  requests.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+  return {
+    requests,
+    removedExpiredRequestIds
+  };
+}
+
+async function requireActiveWalletRequest(requestId: string): Promise<WalletRequestRecord> {
+  const request = await requireWalletRequest(requestId);
+  if (!isRequestExpired(request.expiresAt)) {
+    return request;
+  }
+
+  await deleteWalletRequest(request.requestId);
+  throw new Error(`Wallet request has expired and was removed from local storage: ${requestId}`);
+}
+
+function assertApprovedPayloadMatchesRequest(
+  payload: SessionPayload,
+  walletRequest: Awaited<ReturnType<typeof requireWalletRequest>>
+): void {
+  if (payload.chain !== walletRequest.chain || payload.chainId !== walletRequest.chainId) {
+    throw new Error('Approved callback payload does not match the requested chain.');
+  }
+
+  if (payload.account?.kind !== walletRequest.requestedAccountKind) {
+    throw new Error('Approved callback payload does not match the requested account kind.');
+  }
+
+  const paymasterMode = payload.paymaster?.mode || 'none';
+  if (paymasterMode !== walletRequest.requestedPaymasterMode) {
+    throw new Error('Approved callback payload does not match the requested paymaster mode.');
+  }
+
+  if (payload.sessionPublicKey !== walletRequest.sessionPublicKey) {
+    throw new Error('Approved callback payload does not match the active session request.');
+  }
+}
+
+function writeLocalApprovalJson(
+  response: ServerResponse,
+  statusCode: number,
+  payload: unknown
+): void {
+  response.statusCode = statusCode;
+  response.setHeader('Connection', 'close');
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  response.end(JSON.stringify(payload, null, 2));
+}
+
+async function closeLocalApprovalServer(server: ReturnType<typeof createServer>): Promise<void> {
+  if (!server.listening) return;
+
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+
+    server.closeIdleConnections?.();
+    server.closeAllConnections?.();
+  });
+}
+
+async function readLocalApprovalBody(request: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  return new Promise<unknown>((resolve, reject) => {
+    request.on('data', (chunk: Buffer | string) => {
+      const normalized = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += normalized.length;
+      if (totalBytes > LOCAL_APPROVAL_BODY_LIMIT_BYTES) {
+        reject(new Error('Approved callback body is too large.'));
+        request.destroy();
+        return;
+      }
+
+      chunks.push(normalized);
+    });
+
+    request.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks).toString('utf8').trim();
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+
+    request.on('error', reject);
+  });
+}
+
+interface LocalApprovalListenerOptions {
+  host: string;
+  requestedPort: number;
+  timeoutSeconds: number;
+}
+
+function resolveLocalApprovalListenerOptions(options: {
+  host?: string;
+  port?: string;
+  timeoutSeconds?: string;
+}): LocalApprovalListenerOptions {
+  const host = (options.host || '127.0.0.1').trim();
+  if (!host) {
+    throw new Error('--host must not be empty');
+  }
+
+  const requestedPort = Number.parseInt(options.port || '0', 10);
+  if (!Number.isInteger(requestedPort) || requestedPort < 0 || requestedPort > 65535) {
+    throw new Error('--port must be an integer between 0 and 65535');
+  }
+
+  const timeoutSeconds = Number.parseInt(options.timeoutSeconds || '600', 10);
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
+    throw new Error('--timeout-seconds must be a positive integer');
+  }
+
+  return {
+    host,
+    requestedPort,
+    timeoutSeconds
+  };
+}
+
+function buildCallbackUrl(host: string, port: number): URL {
+  const callbackUrl = new URL('http://127.0.0.1');
+  callbackUrl.hostname = host;
+  callbackUrl.port = String(port);
+  callbackUrl.pathname = '/approve';
+  callbackUrl.search = '';
+  callbackUrl.hash = '';
+  return callbackUrl;
+}
+
+async function awaitLocalWalletApproval(options: {
+  walletRequest: WalletRequestRecord;
+  walletName: string;
+  host: string;
+  requestedPort: number;
+  timeoutSeconds: number;
+}): Promise<{
+  walletRecord: WalletSessionRecord;
+  payload: SessionPayload;
+  callbackUrl: string;
+  approvalUrl: string;
+}> {
+  const { walletRequest, walletName, host, requestedPort, timeoutSeconds } = options;
+
+  assertRequestActive(walletRequest.expiresAt);
+
+  const server = createServer();
+  let settled = false;
+
+  const completion = new Promise<{
+    walletRecord: WalletSessionRecord;
+    payload: SessionPayload;
+  }>((resolve, reject) => {
+    server.on('error', reject);
+
+    server.on('request', (requestMessage, response) => {
+      void (async () => {
+        if (requestMessage.method === 'OPTIONS') {
+          writeLocalApprovalJson(response, 204, {});
+          return;
+        }
+
+        const requestUrl = new URL(requestMessage.url || '/', 'http://127.0.0.1');
+        if (requestUrl.pathname !== '/approve') {
+          writeLocalApprovalJson(response, 404, {
+            ok: false,
+            error: 'Local approval callback endpoint not found.'
+          });
+          return;
+        }
+
+        if (requestMessage.method !== 'POST') {
+          writeLocalApprovalJson(response, 405, {
+            ok: false,
+            error: 'Local approval callback only accepts POST.'
+          });
+          return;
+        }
+
+        if (settled) {
+          writeLocalApprovalJson(response, 409, {
+            ok: false,
+            error: 'This local approval listener has already completed.'
+          });
+          return;
+        }
+
+        try {
+          assertRequestActive(walletRequest.expiresAt);
+          const body = await readLocalApprovalBody(requestMessage);
+          if (!isRecord(body)) {
+            throw new Error('Approved callback body must be a JSON object.');
+          }
+
+          const callbackRequestId =
+            typeof body.requestId === 'string' ? body.requestId : undefined;
+          if (callbackRequestId && callbackRequestId !== walletRequest.requestId) {
+            throw new Error('Approved callback requestId does not match the active wallet request.');
+          }
+
+          const payload = ensureSessionPayload(body.payload);
+          assertApprovedPayloadMatchesRequest(payload, walletRequest);
+
+          const walletRecord = await importApprovedWalletSession(walletName, payload);
+          await deleteWalletRequest(walletRequest.requestId);
+          settled = true;
+
+          writeLocalApprovalJson(response, 200, {
+            ok: true,
+            requestId: walletRequest.requestId,
+            wallet: sanitizeWalletRecord(walletRecord)
+          });
+
+          resolve({ walletRecord, payload });
+        } catch (error) {
+          const errorPayload = formatErrorPayload(error);
+          writeLocalApprovalJson(response, 400, errorPayload);
+        }
+      })();
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.listen(requestedPort, host, () => resolve());
+    server.once('error', reject);
+  });
+
+  const addressInfo = server.address();
+  if (!addressInfo || typeof addressInfo === 'string') {
+    server.close();
+    throw new Error('Failed to resolve local approval listener address.');
+  }
+
+  const callbackUrl = buildCallbackUrl(host, (addressInfo as AddressInfo).port);
+  const approvalUrl = new URL(walletRequest.approvalUrl);
+  approvalUrl.searchParams.set('callbackUrl', callbackUrl.toString());
+
+  if (!shouldJsonOutput()) {
+    humanLine('status', 'Waiting for local connector approval');
+    humanLine('request', walletRequest.requestId);
+    humanLine('wallet', walletName);
+    humanLine('callback', callbackUrl.toString());
+    humanLine('approval url', approvalUrl.toString());
+    humanLine('expires', walletRequest.expiresAt);
+  }
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          server.close();
+        }
+
+        reject(
+          new Error(
+            `Timed out waiting for local connector approval after ${timeoutSeconds} seconds.`
+          )
+        );
+      }, timeoutSeconds * 1000);
+    });
+
+    const { walletRecord, payload } = await Promise.race([completion, timeoutPromise]);
+    return {
+      walletRecord,
+      payload,
+      callbackUrl: callbackUrl.toString(),
+      approvalUrl: approvalUrl.toString()
+    };
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+    await closeLocalApprovalServer(server);
   }
 }
 
@@ -742,6 +1133,41 @@ async function printWalletList(): Promise<void> {
 
   for (const wallet of wallets) {
     process.stdout.write(`${formatWalletSummary(wallet)}\n`);
+  }
+}
+
+async function printWalletRequestList(): Promise<void> {
+  const { requests, removedExpiredRequestIds } = await loadPendingWalletRequests();
+
+  if (shouldJsonOutput()) {
+    printResult([], {
+      ok: true,
+      requests: requests.map((request) => sanitizeWalletRequestRecord(request)),
+      removedExpiredRequestIds
+    });
+    return;
+  }
+
+  if (requests.length === 0) {
+    printResult(
+      [
+        ['status', 'No pending wallet requests'],
+        ...(removedExpiredRequestIds.length > 0
+          ? [['expired removed', String(removedExpiredRequestIds.length)] as [string, string]]
+          : []),
+        ['next', 'zk-agent wallet create --await-local']
+      ],
+      { ok: true, requests: [], removedExpiredRequestIds }
+    );
+    return;
+  }
+
+  for (const request of requests) {
+    process.stdout.write(`${formatWalletRequestSummary(request)}\n`);
+  }
+
+  if (removedExpiredRequestIds.length > 0) {
+    process.stdout.write(`expired removed: ${removedExpiredRequestIds.length}\n`);
   }
 }
 
@@ -797,6 +1223,10 @@ export function createWalletCommand(): Command {
     .option('--connector-url <url>', 'Connector UI base URL override')
     .option('--account-kind <kind>', 'Requested account kind', 'smart-account')
     .option('--paymaster-mode <mode>', 'Requested paymaster mode', 'none')
+    .option('--await-local', 'Immediately wait for a local connector approval callback')
+    .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
+    .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
+    .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local', '600')
     .action(
       async (options: {
         name: string;
@@ -804,10 +1234,16 @@ export function createWalletCommand(): Command {
         connectorUrl?: string;
         accountKind?: 'eoa' | 'smart-account' | 'session-key';
         paymasterMode?: 'none' | 'sponsored' | 'approval-based';
+        awaitLocal?: boolean;
+        host?: string;
+        port?: string;
+        timeoutSeconds?: string;
       }) => {
       const config = await loadProjectConfig();
       const chain = options.chain || config?.defaultChain || 'zksync-era';
       const connectorUrl = options.connectorUrl || config?.connectorUrl || 'http://localhost:4444';
+
+      await loadPendingWalletRequests();
 
       const request = await provider.createSessionRequest({
         walletName: options.name,
@@ -822,6 +1258,33 @@ export function createWalletCommand(): Command {
 
       await saveWalletRequest(request);
 
+      if (options.awaitLocal) {
+        const listenerOptions = resolveLocalApprovalListenerOptions(options);
+        const { walletRecord, payload, callbackUrl, approvalUrl } =
+          await awaitLocalWalletApproval({
+            walletRequest: request,
+            walletName: request.walletName,
+            ...listenerOptions
+          });
+
+        printResult(
+          buildWalletApprovalLines(
+            'Wallet request created and approved via local connector callback',
+            request.requestId,
+            walletRecord
+          ),
+          {
+            ok: true,
+            request: sanitizeWalletRequestRecord(request),
+            payload: sanitizeSessionPayload(payload),
+            wallet: sanitizeWalletRecord(walletRecord),
+            callbackUrl,
+            approvalUrl
+          }
+        );
+        return;
+      }
+
       printResult(
         [
           ['wallet', request.walletName],
@@ -831,7 +1294,8 @@ export function createWalletCommand(): Command {
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ['expires', request.expiresAt],
-          ['note', 'Scaffold mode created a local smart-account session request. Browser approval lands next.']
+          ['note', 'A local smart-account session request was created. Run the await-local flow before approving in the connector.'],
+          ['next', `zk-agent wallet request await-local --request-id ${request.requestId}`]
         ],
         {
           ok: true,
@@ -960,25 +1424,83 @@ export function createWalletCommand(): Command {
     });
 
   request
+    .command('list')
+    .description('List locally pending wallet requests and prune expired entries')
+    .action(async () => printWalletRequestList());
+
+  request
     .command('show')
     .description('Show a stored wallet request')
     .requiredOption('--request-id <id>', 'Wallet request id')
     .action(async (options: { requestId: string }) => {
       const walletRequest = await requireWalletRequest(options.requestId);
+      const status = requestStatusLabel(walletRequest);
+
+      if (status === 'expired') {
+        await deleteWalletRequest(walletRequest.requestId);
+      }
 
       printResult(
         [
+          ['status', status === 'expired' ? 'Expired request removed from local storage' : 'Pending wallet request'],
           ['request', walletRequest.requestId],
           ['wallet', walletRequest.walletName],
           ['chain', `${walletRequest.chain} (${walletRequest.chainId})`],
           ['account', walletRequest.requestedAccountKind],
           ['paymaster', walletRequest.requestedPaymasterMode],
           ['expires', walletRequest.expiresAt],
-          ['approval url', walletRequest.approvalUrl]
+          ['approval url', walletRequest.approvalUrl],
+          ...(status === 'pending'
+            ? [['next', `zk-agent wallet request await-local --request-id ${walletRequest.requestId}`] as [string, string]]
+            : [])
         ],
-        { ok: true, request: await sanitizeWalletRequest(walletRequest.requestId) }
+        {
+          ok: true,
+          request: sanitizeWalletRequestRecord(walletRequest),
+          requestStatus: status,
+          removed: status === 'expired'
+        }
       );
     });
+
+  request
+    .command('await-local')
+    .description(
+      'Listen for a local connector approval callback and automatically save the resulting wallet session'
+    )
+    .requiredOption('--request-id <id>', 'Wallet request id')
+    .option('--name <name>', 'Override saved wallet name')
+    .option('--host <host>', 'Loopback host to bind', '127.0.0.1')
+    .option('--port <port>', 'Loopback port to bind (0 = choose a free port)', '0')
+    .option('--timeout-seconds <seconds>', 'How long to wait for approval', '600')
+    .action(
+      async (options: {
+        requestId: string;
+        name?: string;
+        host?: string;
+        port?: string;
+        timeoutSeconds?: string;
+      }) => {
+        const walletRequest = await requireActiveWalletRequest(options.requestId);
+        const walletName = options.name || walletRequest.walletName;
+        const listenerOptions = resolveLocalApprovalListenerOptions(options);
+        const { walletRecord, payload, callbackUrl, approvalUrl } =
+          await awaitLocalWalletApproval({
+            walletRequest,
+            walletName,
+            ...listenerOptions
+          });
+
+        printResult(buildWalletApprovalLines('Wallet request approved via local connector callback', walletRequest.requestId, walletRecord), {
+          ok: true,
+          request: sanitizeWalletRequestRecord(walletRequest),
+          payload: sanitizeSessionPayload(payload),
+          wallet: sanitizeWalletRecord(walletRecord),
+          callbackUrl,
+          approvalUrl
+        });
+      }
+    );
 
   request
     .command('approve-local')
@@ -1006,7 +1528,7 @@ export function createWalletCommand(): Command {
         paymasterToken?: string;
         signerType?: 'local' | 'connector' | 'external';
       }) => {
-        const walletRequest = await requireWalletRequest(options.requestId);
+        const walletRequest = await requireActiveWalletRequest(options.requestId);
         assertRequestActive(walletRequest.expiresAt);
         const derivedOwnerAddress = deriveAddressFromPrivateKey(options.sessionPrivateKey);
         const ownerAddress = options.ownerAddress || derivedOwnerAddress;
@@ -1035,26 +1557,14 @@ export function createWalletCommand(): Command {
         });
 
         const walletName = options.name || walletRequest.walletName;
-        const walletRecord = await provider.importSession(walletName, payload);
-        await saveWalletSession(walletRecord);
+        const walletRecord = await importApprovedWalletSession(walletName, payload);
+        await deleteWalletRequest(walletRequest.requestId);
 
         printResult(
-          [
-            ['status', 'Wallet request approved locally'],
-            ['request', walletRequest.requestId],
-            ['wallet', walletRecord.walletName],
-            ['address', walletRecord.walletAddress],
-            ...(displayOwnerAddress(walletRecord)
-              ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
-              : []),
-            ['account', displayAccountKind(walletRecord)],
-            ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
-            ['paymaster', displayPaymasterMode(walletRecord)],
-            ['next', 'zk-agent balances --wallet ' + walletRecord.walletName]
-          ],
+          buildWalletApprovalLines('Wallet request approved locally', walletRequest.requestId, walletRecord),
           {
             ok: true,
-            request: await sanitizeWalletRequest(walletRequest.requestId),
+            request: sanitizeWalletRequestRecord(walletRequest),
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(walletRecord)
           }
@@ -1363,6 +1873,74 @@ export function createWalletCommand(): Command {
         sedLite: {
           operation: 'owner-set',
           ownerAddress: options.address
+        },
+        ...result
+      });
+    }
+  );
+
+  sedLite
+    .command('validator')
+    .description('Read the current validator for the SED Lite profile')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.call({
+        chain: walletRecord.chain,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteValidatorRead()
+      });
+      const validatorAddress = decodeSedLiteValidatorRead(
+        requireNonEmptyCallResult(result.result, 'sed-lite validator', 'validator reads')
+      );
+
+      printResult(sedLiteValidatorLines(walletRecord, validatorAddress), {
+        ok: true,
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: result.chain,
+        chainId: result.chainId,
+        validatorAddress
+      });
+    });
+
+  withPaymasterOptions(
+    sedLite
+      .command('validator-set')
+      .description('Rotate the validator for the SED Lite profile via a self-call')
+      .requiredOption('--address <address>', 'New validator address')
+      .option('--name <name>', 'Wallet name', 'main')
+      .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+  ).action(
+    async (options: {
+      address: string;
+      name: string;
+      broadcast?: boolean;
+      paymasterMode?: string;
+      paymasterAddress?: string;
+      paymasterToken?: string;
+    }) => {
+      if (!isAddress(options.address)) {
+        throw new Error('--address must be a valid 20-byte hex address');
+      }
+
+      const walletRecord = requireSmartAccountWallet(await requireWalletRecord(options.name));
+      const result = await provider.writeContract({
+        wallet: walletRecord,
+        to: walletRecord.walletAddress,
+        data: encodeSedLiteSetValidator(options.address),
+        broadcast: Boolean(options.broadcast),
+        paymaster: resolvePaymasterInput(options)
+      });
+
+      const lines = linesForWriteResult(result);
+      lines.splice(5, 0, ['new validator', options.address]);
+
+      printResult(lines, {
+        ok: true,
+        sedLite: {
+          operation: 'validator-set',
+          validatorAddress: options.address
         },
         ...result
       });

@@ -175,13 +175,21 @@ function createDailySpendLimitProfile(): BuiltinSmartAccountProfile {
 
 function createSedLiteProfile(): BuiltinSmartAccountProfile {
   const resolvedArtifactPath = artifactPath('sed-lite', 'Account.json');
-  const sourceContracts = [contractPath('sed-lite', 'Account.sol')];
+  const sourceContracts = [
+    contractPath('sed-lite', 'Account.sol'),
+    contractPath('sed-lite', 'EOAValidator.sol'),
+    contractPath('sed-lite', 'Auth.sol'),
+    contractPath('sed-lite', 'OwnerManager.sol'),
+    contractPath('sed-lite', 'ValidatorManager.sol'),
+    contractPath('sed-lite', 'ModuleManager.sol'),
+    contractPath('sed-lite', 'ValidationHookManager.sol')
+  ];
 
   return {
     id: 'sed-lite',
     displayName: 'SED Lite',
     description:
-      'SED modular zkSync account with direct ECDSA ownership, self-managed modules, validation hooks, and batched execution.',
+      'SED modular zkSync account with a dedicated K1 validator, a single owner, self-managed modules, validation hooks, and batched execution.',
     recommendedDeploymentType: 'create2Account',
     defaultSalt: `0x${'00'.repeat(32)}`,
     constructorArgsDescription: ['ownerAddress'],
@@ -189,7 +197,10 @@ function createSedLiteProfile(): BuiltinSmartAccountProfile {
     artifactPath: resolvedArtifactPath,
     artifactReady: fs.existsSync(resolvedArtifactPath),
     notes: [
-      'SED Lite keeps the current CLI-compatible raw ECDSA signing flow instead of validator-encoded custom signature formats.',
+      'SED Lite now separates account state from signature verification by bootstrapping a dedicated K1 validator contract for each deployed account.',
+      'It still keeps the current CLI-compatible raw ECDSA signature format instead of validator-encoded custom signature payloads.',
+      'The constructor still only takes ownerAddress; the default EOA validator is created during account construction and can be rotated later through a self-call.',
+      'The account core is now split across lightweight Auth and Manager layers so future owner, validator, module, and hook upgrades do not need another monolithic account rewrite.',
       'The contract is directly deployable as a single account artifact; it does not require the older proxy + factory stack.',
       'Owner rotation, module toggling, and validation-hook toggling are self-calls, so they work through the existing smart-account write path.',
       'SED Lite is the AA base layer for this repository; policy hooks can now be added on top without rebaking account core logic.',

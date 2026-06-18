@@ -139,6 +139,13 @@ export async function loadWalletRequest(requestId: string): Promise<WalletReques
   return readEncryptedJson<WalletRequestRecord>(filePath);
 }
 
+export async function deleteWalletRequest(requestId: string): Promise<boolean> {
+  const filePath = path.join(STORAGE_DIR, 'requests', `${requestId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  fs.unlinkSync(filePath);
+  return true;
+}
+
 export interface WalletRenameResult {
   wallet: WalletSessionRecord;
   updatedRequestIds: string[];

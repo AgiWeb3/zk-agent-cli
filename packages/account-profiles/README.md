@@ -30,6 +30,7 @@ This writes:
 
 - `artifacts-zk/` as the raw Hardhat zkSync output
 - `artifacts/sed-lite/Account.json` as the minimal CLI-readable export
+- `artifacts/sed-lite/EOAValidator.json` as the standalone K1 validator export used by the upgraded SED Lite auth path
 - `artifacts/sed-lite/NativePerTxLimitHook.json` as the first SED Lite policy-hook export
 - `artifacts/sed-lite/TargetAllowlistHook.json` as the second SED Lite policy-hook export
 - `artifacts/sed-lite/TargetSelectorAllowlistHook.json` as the third SED Lite policy-hook export
@@ -48,6 +49,13 @@ Current `sed-lite` notes:
 - default salt is `0x00...00` for deterministic first-pass prediction
 - it is inspired by Clave's account architecture, but intentionally keeps the
   current repository's raw ECDSA smart-account signing flow
+- account validation is now routed through a dedicated K1 validator contract
+  instead of being hardcoded inside the account core
+- each new account bootstraps its own default `EOAValidator` during
+  construction, and the validator can be rotated later through a self-call
+- the account internals are now split into lightweight `Auth` and `*Manager`
+  contracts, borrowing Clave's separation of concerns without copying its full
+  linked-list storage and proxy stack
 - it is a better AA base profile than `daily-spend-limit` for general account
   lifecycle work because owner rotation and module toggling are first-class
   self-calls instead of hardcoded policy branches

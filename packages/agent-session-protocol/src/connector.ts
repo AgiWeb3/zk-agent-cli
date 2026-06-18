@@ -1,5 +1,6 @@
 import type { SessionApprovalInput, SessionApprovalRequest, SessionPayload } from './types.js';
 
+import { deriveEthereumAddressFromPrivateKey } from './crypto.js';
 import { b64urlDecode, b64urlEncode } from './encoding.js';
 
 const textEncoder = new TextEncoder();
@@ -19,7 +20,12 @@ export function decodeSessionApprovalRequest(value: string): SessionApprovalRequ
 
 export function buildApprovedSessionPayload(input: SessionApprovalInput): SessionPayload {
   if (!isAddress(input.walletAddress)) throw new Error('walletAddress must be a valid address');
-  if (input.ownerAddress && !isAddress(input.ownerAddress)) {
+  const derivedOwnerAddress = input.sessionPrivateKey
+    ? deriveEthereumAddressFromPrivateKey(input.sessionPrivateKey)
+    : undefined;
+  const ownerAddress = input.ownerAddress || derivedOwnerAddress;
+
+  if (ownerAddress && !isAddress(ownerAddress)) {
     throw new Error('ownerAddress must be a valid address');
   }
   if (input.sessionAddress && !isAddress(input.sessionAddress)) {
@@ -37,6 +43,11 @@ export function buildApprovedSessionPayload(input: SessionApprovalInput): Sessio
   if (input.paymasterToken && !isAddress(input.paymasterToken)) {
     throw new Error('paymasterToken must be a valid address');
   }
+  if (input.request.requestedAccountKind === 'smart-account' && !ownerAddress) {
+    throw new Error(
+      'Smart-account approval requires ownerAddress or a sessionPrivateKey that can be used to derive it'
+    );
+  }
 
   return {
     version: 1,
@@ -47,7 +58,7 @@ export function buildApprovedSessionPayload(input: SessionApprovalInput): Sessio
     account: {
       kind: input.request.requestedAccountKind,
       address: input.walletAddress,
-      ownerAddress: input.ownerAddress,
+      ownerAddress,
       sessionAddress: input.sessionAddress,
       validatorAddress: input.validatorAddress,
       signerType: input.signerType || 'connector'

@@ -14,8 +14,19 @@ function readFallbackParams(): Record<string, string> {
     wallet: params.get('wallet') || '',
     chain: params.get('chain') || '',
     chainId: params.get('chainId') || '',
-    provider: params.get('provider') || ''
+    provider: params.get('provider') || '',
+    callbackUrl: params.get('callbackUrl') || ''
   };
+}
+
+function normalizeCallbackUrl(value: string): string {
+  if (!value) return '';
+
+  try {
+    return new URL(value).toString();
+  } catch {
+    return '';
+  }
 }
 
 function readEncodedRequest(): SessionApprovalRequest | null {
@@ -45,37 +56,52 @@ async function copyText(value: string): Promise<boolean> {
 export function App() {
   const fallback = readFallbackParams();
   const request = useMemo(() => readEncodedRequest(), []);
+  const callbackUrl = useMemo(() => normalizeCallbackUrl(fallback.callbackUrl), [fallback.callbackUrl]);
   const [walletAddress, setWalletAddress] = useState('');
+  const [ownerAddress, setOwnerAddress] = useState('');
   const [sessionAddress, setSessionAddress] = useState('');
   const [sessionPrivateKey, setSessionPrivateKey] = useState('');
   const [validatorAddress, setValidatorAddress] = useState('');
   const [paymasterAddress, setPaymasterAddress] = useState('');
   const [paymasterToken, setPaymasterToken] = useState('');
   const [copyStatus, setCopyStatus] = useState('');
+  const [submitStatus, setSubmitStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const generatedPayload = useMemo(() => {
-    if (!request || !walletAddress) return '';
+  const approvedPayload = useMemo(() => {
+    if (!request || !walletAddress) return null;
 
     try {
-      return JSON.stringify(
-        buildApprovedSessionPayload({
-          request,
-          walletAddress,
-          sessionAddress: sessionAddress || undefined,
-          sessionPrivateKey: sessionPrivateKey || undefined,
-          validatorAddress: validatorAddress || undefined,
-          paymasterAddress: paymasterAddress || undefined,
-          paymasterToken: paymasterToken || undefined,
-          connectorOrigin: window.location.origin,
-          connectorUrl: `${window.location.origin}${window.location.pathname}`
-        }),
-        null,
-        2
-      );
+      return buildApprovedSessionPayload({
+        request,
+        walletAddress,
+        ownerAddress: ownerAddress || undefined,
+        sessionAddress: sessionAddress || undefined,
+        sessionPrivateKey: sessionPrivateKey || undefined,
+        validatorAddress: validatorAddress || undefined,
+        paymasterAddress: paymasterAddress || undefined,
+        paymasterToken: paymasterToken || undefined,
+        connectorOrigin: window.location.origin,
+        connectorUrl: `${window.location.origin}${window.location.pathname}`
+      });
     } catch {
-      return '';
+      return null;
     }
-  }, [paymasterAddress, paymasterToken, request, sessionAddress, sessionPrivateKey, validatorAddress, walletAddress]);
+  }, [
+    ownerAddress,
+    paymasterAddress,
+    paymasterToken,
+    request,
+    sessionAddress,
+    sessionPrivateKey,
+    validatorAddress,
+    walletAddress
+  ]);
+
+  const generatedPayload = useMemo(() => {
+    if (!approvedPayload) return '';
+    return JSON.stringify(approvedPayload, null, 2);
+  }, [approvedPayload]);
 
   return (
     <main className="page">
@@ -151,6 +177,14 @@ export function App() {
                   />
                 </label>
                 <label>
+                  <span>Owner address</span>
+                  <input
+                    value={ownerAddress}
+                    onChange={(event) => setOwnerAddress(event.target.value.trim())}
+                    placeholder="Optional 0x... if session private key is provided"
+                  />
+                </label>
+                <label>
                   <span>Session address</span>
                   <input
                     value={sessionAddress}
@@ -192,17 +226,70 @@ export function App() {
                 </label>
               </div>
               <p className="helper">
-                Paste the generated JSON into the CLI with `zk-agent wallet import --payload ...`.
+                {callbackUrl
+                  ? 'Approve in the connector to return the session directly to the waiting CLI process. Copy payload remains available as a fallback.'
+                  : 'Paste the generated JSON into the CLI with `zk-agent wallet import --payload ...`.'}
               </p>
               <textarea
                 className="payload"
                 readOnly
                 value={
                   generatedPayload ||
-                  'Enter a valid wallet address to generate an importable session payload.'
+                  'Enter a valid wallet address and, for smart-account approval, either an owner address or a session private key.'
                 }
               />
               <div className="actions">
+                {callbackUrl ? (
+                  <button
+                    type="button"
+                    disabled={!approvedPayload || isSubmitting}
+                    onClick={async () => {
+                      if (!request || !approvedPayload || !callbackUrl) return;
+
+                      setIsSubmitting(true);
+                      setSubmitStatus('');
+
+                      try {
+                        const response = await fetch(callbackUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({
+                            requestId: request.requestId,
+                            payload: approvedPayload
+                          })
+                        });
+
+                        const body = (await response.json().catch(() => null)) as
+                          | { error?: string; wallet?: { walletName?: string } }
+                          | null;
+
+                        if (!response.ok) {
+                          throw new Error(
+                            body?.error ||
+                              `Local approval callback failed with status ${response.status}`
+                          );
+                        }
+
+                        const approvedWalletName = body?.wallet?.walletName;
+                        setSubmitStatus(
+                          approvedWalletName
+                            ? `Approved and returned to CLI for wallet ${approvedWalletName}.`
+                            : 'Approved and returned to the waiting CLI process.'
+                        );
+                      } catch (error) {
+                        setSubmitStatus(
+                          error instanceof Error ? error.message : 'Failed to return approval to CLI.'
+                        );
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                  >
+                    {isSubmitting ? 'Approving...' : 'Approve In CLI'}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   disabled={!generatedPayload}
@@ -214,6 +301,7 @@ export function App() {
                   Copy payload
                 </button>
                 {copyStatus ? <p className="status">{copyStatus}</p> : null}
+                {submitStatus ? <p className="status">{submitStatus}</p> : null}
               </div>
             </section>
           </>

@@ -9,9 +9,13 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run build && tsx --test ./tests/*.test.ts",
+    "smoke:readonly": "tsx ./src/smoke-readonly.ts",
+    "tool:run": "tsx ./src/run-tool.ts"
   },
   "dependencies": {
-    "@zk-agent/agent-core": "workspace:*"
+    "@zk-agent/agent-core": "workspace:*",
+    "@zk-agent/provider-zksync-wallet": "workspace:*"
   }
 }

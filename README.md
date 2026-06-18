@@ -39,6 +39,25 @@ What is already in place:
   - session signer consistency
   - deployed vs undeployed smart-account state
   - local write readiness blockers
+- local connector approval loop support via:
+  - `wallet create --await-local`
+  - auto-consume of approved local requests
+  - `wallet request await-local`
+  - `wallet request list` with expired-request pruning
+  - connector callback handoff back into the waiting CLI process
+- first agent-facing tool surface in `packages/agent-tools` for:
+  - create wallet request
+  - wallet status
+  - balances
+  - contract read
+  - native send
+  - token send
+  - contract write
+  - smart-account plan/deploy wrappers
+  - default `createZkSyncAgentTools()` / `createZkSyncAgentToolContext()` factories
+  - `pnpm --filter @zk-agent/agent-tools tool:run -- --list`
+  - `pnpm --filter @zk-agent/agent-tools tool:run -- --tool <toolName> --input <json|@file>`
+  - `pnpm --filter @zk-agent/agent-tools smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
 - `wallet paymaster set` for updating saved default paymaster metadata on a
   stored wallet
 - generic `wallet smart-account predict|deploy` flow for:
@@ -50,7 +69,7 @@ What is already in place:
   - source checked into the workspace
   - CLI profile discovery via `wallet smart-account profiles`
   - profile-specific account management via
-    `wallet smart-account sed-lite owner|owner-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook|target-allowlist-hook|selector-allowlist-hook`
+    `wallet smart-account sed-lite owner|owner-set|validator|validator-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook|target-allowlist-hook|selector-allowlist-hook`
 - second built-in smart-account profile:
   - `daily-spend-limit`
   - source checked into the workspace
@@ -77,7 +96,7 @@ What is already in place:
 
 What is next:
 
- - push policy work onto the `sed-lite` hook path instead of hardcoding it into account core
+- push policy work onto the `sed-lite` hook path instead of hardcoding it into account core
 - validate smart-account writes through paymaster mode once the base no-paymaster path is stable
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
@@ -236,6 +255,9 @@ Important:
 - `wallet smart-account predict|deploy` now exists, and it can now resolve built-in profiles such as `sed-lite` and `daily-spend-limit`
 - `sed-lite` is now the better general-purpose AA base profile in this repository:
   - it keeps the current raw ECDSA signing compatibility of the CLI/provider
+    while moving signature checks behind a dedicated K1 validator contract
+  - it now also splits account internals into lightweight Auth/Manager layers,
+    so future AA upgrades do not need to keep expanding one monolithic account contract
   - it takes the modular owner/self/module shape from Clave instead of hardcoding policy into the account core
   - it can already rotate owner, toggle modules, and manage a native per-transaction cap through self-calls
   - it now also has a minimal validation-hook pipeline for externalized policy contracts

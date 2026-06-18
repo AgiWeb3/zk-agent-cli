@@ -30,6 +30,8 @@ forcing a full wallet-stack rewrite first.
   - execution
   - fee payment
   - paymaster preparation
+- signature validation now lives behind a dedicated K1 validator contract
+  instead of hardcoded `ecrecover` inside the account
 - owner changes are explicit self-calls
 - modules are explicit account state instead of ad-hoc contract branches
 - module execution is a first-class path
@@ -37,12 +39,13 @@ forcing a full wallet-stack rewrite first.
 
 ## What `sed-lite` Deliberately Simplifies
 
-- constructor is still `Account(address owner)`
-- owner validation is direct ECDSA, not validator-address encoded signature payloads
-- deployment is direct account deployment, not proxy + initializer through a custom factory
-- modules are simple enabled addresses for now
-- upgrade managers are deferred
-- hook pipelines are intentionally minimal for now:
+ - constructor is still `Account(address owner)`
+ - signature format is still raw ECDSA bytes, not validator-address encoded custom payloads
+ - the owner model is still a single K1 owner, not Clave's richer multi-owner manager
+ - deployment is direct account deployment, not proxy + initializer through a custom factory
+ - modules are simple enabled addresses for now
+ - upgrade managers are deferred
+ - hook pipelines are intentionally minimal for now:
   - validation hooks only
   - no validator-encoded hook data
   - no execution-hook context store yet
@@ -56,6 +59,8 @@ node packages/zk-agent-cli/dist/index.js wallet smart-account deploy --name <wal
 
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite owner --name <wallet>
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite owner-set --name <wallet> --address <owner> --broadcast
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite validator --name <wallet>
+node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite validator-set --name <wallet> --address <validator> --broadcast
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite module --name <wallet> --module <module>
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite module-add --name <wallet> --module <module> --broadcast
 node packages/zk-agent-cli/dist/index.js wallet smart-account sed-lite module-remove --name <wallet> --module <module> --broadcast
@@ -122,6 +127,29 @@ What it does not do yet:
 - hook-specific signed payloads
 - generic module-triggered hook installation flows
 
+## Current Migration Step
+
+The first concrete extraction from `clave-contracts` is now the validator
+boundary, not a full manager-by-manager port.
+
+What changed locally:
+
+- `sed-lite` no longer keeps secp256k1 recovery logic hardcoded in the account
+  core
+- the account now boots with a dedicated `EOAValidator`
+- validator rotation is a self-call, just like owner rotation and module toggles
+- the account internals are now split into lightweight `Auth`, `OwnerManager`,
+  `ValidatorManager`, `ModuleManager`, and `ValidationHookManager` layers
+- that split preserves the current ABI, but removes the need to keep adding new
+  AA features directly into one giant `Account.sol`
+
+What is still intentionally deferred:
+
+- multiple validators
+- passkey / `secp256r1` validation
+- owner-manager and validator-manager linked-list storage
+- proxy/factory lifecycle and custom signature envelopes
+
 ## Live Validation Status
 
 The base `sed-lite` path is now live-validated on `zkSync Sepolia`.
@@ -186,6 +214,8 @@ One deployment caveat is now confirmed:
 - older `sed-lite` accounts that were deployed before hook support was added do
   not expose the new hook methods
 - the CLI now tells you to redeploy instead of returning a raw decode failure
+- the same redeploy rule applies to the new validator read path, because older
+  deployments do not expose `validator()`
 
 ## Why This Is Better Than `daily-spend-limit` As A Base
 

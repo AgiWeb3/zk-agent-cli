@@ -2,11 +2,13 @@ import { ethers } from 'ethers';
 
 const sedLiteInterface = new ethers.Interface([
   'function owner() view returns (address)',
+  'function validator() view returns (address)',
   'function modules(address module) view returns (bool)',
   'function validationHooks(address hook) view returns (bool)',
   'function listValidationHooks() view returns (address[])',
   'function nativeSpendCap() view returns (uint256 maxPerTx, bool enabled)',
   'function changeOwner(address newOwner)',
+  'function setValidator(address newValidator)',
   'function addModule(address module)',
   'function removeModule(address module)',
   'function addValidationHook(address hook, bytes initData)',
@@ -76,6 +78,18 @@ export function decodeSedLiteOwnerRead(result: string): string {
   return owner;
 }
 
+export function encodeSedLiteValidatorRead(): string {
+  return sedLiteInterface.encodeFunctionData('validator');
+}
+
+export function decodeSedLiteValidatorRead(result: string): string {
+  const [validator] = sedLiteInterface.decodeFunctionResult('validator', result);
+  if (typeof validator !== 'string') {
+    throw new Error('Invalid validator() response');
+  }
+  return validator;
+}
+
 export function encodeSedLiteModuleRead(moduleAddress: string): string {
   return sedLiteInterface.encodeFunctionData('modules', [moduleAddress]);
 }
@@ -127,6 +141,10 @@ export function decodeSedLiteNativeSpendCapRead(result: string): SedLiteNativeSp
 
 export function encodeSedLiteChangeOwner(newOwner: string): string {
   return sedLiteInterface.encodeFunctionData('changeOwner', [newOwner]);
+}
+
+export function encodeSedLiteSetValidator(newValidator: string): string {
+  return sedLiteInterface.encodeFunctionData('setValidator', [newValidator]);
 }
 
 export function encodeSedLiteAddModule(moduleAddress: string): string {

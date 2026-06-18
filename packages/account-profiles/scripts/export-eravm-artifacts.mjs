@@ -16,7 +16,8 @@ const exportsToWrite = [
       'Account.json'
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'daily-spend-limit', 'Account.json'),
-    contractName: 'Account'
+    contractName: 'Account',
+    sourceName: 'daily-spend-limit/Account.sol'
   },
   {
     compiledArtifactPath: path.join(
@@ -28,7 +29,21 @@ const exportsToWrite = [
       'Account.json'
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'Account.json'),
-    contractName: 'Account'
+    contractName: 'Account',
+    sourceName: 'sed-lite/Account.sol'
+  },
+  {
+    compiledArtifactPath: path.join(
+      packageRoot,
+      'artifacts-zk',
+      'contracts',
+      'sed-lite',
+      'EOAValidator.sol',
+      'EOAValidator.json'
+    ),
+    outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'EOAValidator.json'),
+    contractName: 'EOAValidator',
+    sourceName: 'sed-lite/EOAValidator.sol'
   },
   {
     compiledArtifactPath: path.join(
@@ -40,7 +55,8 @@ const exportsToWrite = [
       'NativePerTxLimitHook.json'
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'NativePerTxLimitHook.json'),
-    contractName: 'NativePerTxLimitHook'
+    contractName: 'NativePerTxLimitHook',
+    sourceName: 'sed-lite/NativePerTxLimitHook.sol'
   },
   {
     compiledArtifactPath: path.join(
@@ -52,7 +68,8 @@ const exportsToWrite = [
       'TargetAllowlistHook.json'
     ),
     outputPath: path.join(packageRoot, 'artifacts', 'sed-lite', 'TargetAllowlistHook.json'),
-    contractName: 'TargetAllowlistHook'
+    contractName: 'TargetAllowlistHook',
+    sourceName: 'sed-lite/TargetAllowlistHook.sol'
   },
   {
     compiledArtifactPath: path.join(
@@ -69,7 +86,8 @@ const exportsToWrite = [
       'sed-lite',
       'TargetSelectorAllowlistHook.json'
     ),
-    contractName: 'TargetSelectorAllowlistHook'
+    contractName: 'TargetSelectorAllowlistHook',
+    sourceName: 'sed-lite/TargetSelectorAllowlistHook.sol'
   }
 ];
 
@@ -107,19 +125,57 @@ function extractBytecode(rawArtifact, artifactPath) {
   throw new Error(`Compiled artifact at ${artifactPath} does not contain deployable bytecode.`);
 }
 
+function resolveFactoryDepBytecode(entry, label) {
+  if (typeof entry !== 'string') {
+    throw new Error(`${label} must be a hex string or compiled artifact reference`);
+  }
+
+  const trimmed = entry.trim();
+  if (/^0x([a-fA-F0-9]{2})+$/.test(trimmed)) {
+    return normalizeHexString(trimmed, label);
+  }
+
+  const separatorIndex = trimmed.lastIndexOf(':');
+  if (separatorIndex <= 0 || separatorIndex === trimmed.length - 1) {
+    throw new Error(`${label} must be a hex string or <sourceName>:<contractName> reference`);
+  }
+
+  const sourceName = trimmed.slice(0, separatorIndex);
+  const contractName = trimmed.slice(separatorIndex + 1);
+  const dependencyArtifactPath = path.join(
+    packageRoot,
+    'artifacts-zk',
+    sourceName,
+    `${contractName}.json`
+  );
+
+  if (!fs.existsSync(dependencyArtifactPath)) {
+    throw new Error(
+      `Missing compiled artifact for ${label} at ${dependencyArtifactPath}`
+    );
+  }
+
+  const rawDependencyArtifact = JSON.parse(fs.readFileSync(dependencyArtifactPath, 'utf8'));
+  if (!isRecord(rawDependencyArtifact)) {
+    throw new Error(`Compiled artifact at ${dependencyArtifactPath} must be a JSON object.`);
+  }
+
+  return extractBytecode(rawDependencyArtifact, dependencyArtifactPath);
+}
+
 function extractFactoryDeps(rawArtifact, artifactPath) {
   const candidates = [rawArtifact.factoryDeps, rawArtifact.factoryDependencies, rawArtifact.factory_deps];
 
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) {
       return candidate.map((entry, index) =>
-        normalizeHexString(entry, `factoryDeps[${index}] in ${artifactPath}`)
+        resolveFactoryDepBytecode(entry, `factoryDeps[${index}] in ${artifactPath}`)
       );
     }
 
     if (isRecord(candidate)) {
       return Object.values(candidate).map((entry, index) =>
-        normalizeHexString(entry, `factoryDeps value ${index} in ${artifactPath}`)
+        resolveFactoryDepBytecode(entry, `factoryDeps value ${index} in ${artifactPath}`)
       );
     }
   }
@@ -150,7 +206,7 @@ for (const target of exportsToWrite) {
     contractName:
       typeof rawArtifact.contractName === 'string' ? rawArtifact.contractName : target.contractName,
     sourceName:
-      typeof rawArtifact.sourceName === 'string' ? rawArtifact.sourceName : 'daily-spend-limit/Account.sol',
+      typeof rawArtifact.sourceName === 'string' ? rawArtifact.sourceName : target.sourceName,
     abi: rawArtifact.abi,
     bytecode: extractBytecode(rawArtifact, target.compiledArtifactPath)
   };

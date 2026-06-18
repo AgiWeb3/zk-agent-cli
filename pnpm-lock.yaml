@@ -76,6 +76,9 @@ importers:
       '@zk-agent/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      '@zk-agent/provider-zksync-wallet':
+        specifier: workspace:*
+        version: link:../provider-zksync-wallet
 
   packages/paymaster-test-assets:
     dependencies:

@@ -1,13 +1,14 @@
 import type { ContractCallInput, ContractCallResult } from '@zk-agent/agent-core';
 
-import type { AgentTool } from './types.js';
+import { createAgentTool } from './tool-helpers.js';
+import type { AgentToolContext } from './types.js';
 
 export function createCallContractTool(
-  execute: (input: ContractCallInput) => Promise<ContractCallResult>
-): AgentTool<ContractCallInput, ContractCallResult> {
-  return {
+  context: AgentToolContext
+) {
+  return createAgentTool<ContractCallInput, ContractCallResult>({
     name: 'callContractTool',
     description: 'Execute a read-only contract call on zkSync using structured tool input.',
-    execute
-  };
+    execute: async (input) => context.provider.call(input)
+  });
 }

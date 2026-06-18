@@ -1,7 +1,9 @@
 import { xchacha20poly1305 } from '@noble/ciphers/chacha';
 import { x25519 } from '@noble/curves/ed25519';
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { hkdf } from '@noble/hashes/hkdf';
 import { sha256 } from '@noble/hashes/sha2';
+import { keccak_256 } from '@noble/hashes/sha3';
 import { randomBytes } from '@noble/hashes/utils';
 
 import type { EncryptedPayload, SessionPayload } from './types.js';
@@ -12,6 +14,17 @@ import { b64urlDecode, b64urlEncode, bytesToHex, hexToBytes } from './encoding.j
 export interface X25519Keypair {
   secretKey: Uint8Array;
   publicKey: Uint8Array;
+}
+
+export function deriveEthereumAddressFromPrivateKey(privateKeyHex: string): string {
+  const normalized = privateKeyHex.startsWith('0x') ? privateKeyHex.slice(2) : privateKeyHex;
+  if (!/^[0-9a-fA-F]{64}$/.test(normalized)) {
+    throw new Error('sessionPrivateKey must be a 32-byte hex string');
+  }
+
+  const publicKey = secp256k1.getPublicKey(hexToBytes(normalized), false);
+  const digest = keccak_256(publicKey.slice(1));
+  return `0x${bytesToHex(digest.slice(-20))}`;
 }
 
 export function generateX25519Keypair(): X25519Keypair {
