@@ -2,6 +2,13 @@ import fs from 'node:fs';
 
 import { isAgentError } from '@zk-agent/agent-core';
 
+export interface CliErrorPayload {
+  ok: false;
+  error: string;
+  code?: string;
+  details?: Record<string, unknown>;
+}
+
 export function isTTY(): boolean {
   return Boolean(process.stdout.isTTY);
 }
@@ -41,7 +48,7 @@ export function formatErrorMessage(error: unknown): string {
   return String(error);
 }
 
-export function formatErrorPayload(error: unknown): { ok: false; error: string; code?: string; details?: Record<string, unknown> } {
+export function formatErrorPayload(error: unknown): CliErrorPayload {
   if (isAgentError(error)) {
     return {
       ok: false,
@@ -55,6 +62,50 @@ export function formatErrorPayload(error: unknown): { ok: false; error: string; 
     ok: false,
     error: formatErrorMessage(error)
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function pushDetailLine(
+  lines: string[],
+  label: string,
+  value: unknown
+): void {
+  if (typeof value === 'string' && value.length > 0) {
+    lines.push(`${label}: ${value}`);
+  }
+}
+
+export function formatHumanErrorMessage(error: unknown): string {
+  const payload = formatErrorPayload(error);
+  const lines = [payload.error];
+
+  pushDetailLine(lines, 'code', payload.code);
+
+  const details = asRecord(payload.details);
+  if (!details) {
+    return lines.join('\n');
+  }
+
+  pushDetailLine(lines, 'validation stage', details.validationStage);
+
+  const validation = asRecord(details.validation);
+  if (!validation) {
+    return lines.join('\n');
+  }
+
+  pushDetailLine(lines, 'validation source', validation.source);
+  pushDetailLine(lines, 'policy hook', validation.policyHook);
+  pushDetailLine(lines, 'hook contract', validation.hookContract);
+  pushDetailLine(lines, 'validation kind', validation.kind);
+  pushDetailLine(lines, 'validation reason', validation.reason);
+  pushDetailLine(lines, 'system contract', validation.systemContract);
+  pushDetailLine(lines, 'note', validation.note);
+
+  return lines.join('\n');
 }
 
 export function plannedCommandMessage(command: string, milestone: string): never {

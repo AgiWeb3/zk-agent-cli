@@ -13,7 +13,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --test ./tests/*.test.mjs"
+    "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import tsx --test ./tests/*.test.mjs ./tests/*.test.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^1.2.1",
@@ -22,6 +22,7 @@
     "@zk-agent/account-profiles": "workspace:*",
     "@zk-agent/agent-core": "workspace:*",
     "@zk-agent/agent-session-protocol": "workspace:*",
+    "@zk-agent/provider-zksync-defi": "workspace:*",
     "@zk-agent/provider-zksync-wallet": "workspace:*",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",

@@ -8,6 +8,7 @@ export * from './send-native-tool.js';
 export * from './send-token-tool.js';
 export * from './write-contract-tool.js';
 export * from './smart-account-tools.js';
+export * from './wallet-lifecycle-tools.js';
 export * from './create-toolset.js';
 export * from './create-zksync-toolset.js';
 export * from './run-standard-tool.js';

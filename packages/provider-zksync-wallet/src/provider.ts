@@ -36,6 +36,8 @@ import {
 import { ethers } from 'ethers';
 import { ContractFactory, ECDSASmartAccount, Provider, Wallet, utils } from 'zksync-ethers';
 
+import { classifyKnownPaymasterValidationFailure } from './paymaster-errors.js';
+
 const providers = new Map<string, Provider>();
 const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 const APPROVAL_BASED_ALLOWANCE_STORAGE_GAS_HEADROOM = 400_000n;
@@ -198,10 +200,39 @@ function formatCause(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function isSystemContextValidationFailure(cause: string): boolean {
-  return (
-    cause.includes('Touched disallowed storage slots') &&
-    cause.toLowerCase().includes(SYSTEM_CONTEXT_ADDRESS.slice(2))
+function resolveKnownPaymasterValidationFailure(cause: string) {
+  return classifyKnownPaymasterValidationFailure(cause, {
+    systemContextAddress: SYSTEM_CONTEXT_ADDRESS
+  });
+}
+
+function buildPaymasterValidationError(
+  stage: 'estimation' | 'broadcast',
+  wallet: WalletSessionRecord,
+  paymaster: ResolvedPaymasterPolicy,
+  target: string,
+  cause: string
+): AgentError | undefined {
+  const validation = resolveKnownPaymasterValidationFailure(cause);
+  if (!validation) return undefined;
+
+  return new AgentError(
+    stage === 'estimation'
+      ? 'PAYMASTER_ESTIMATION_VALIDATION_FAILED'
+      : 'PAYMASTER_BROADCAST_VALIDATION_FAILED',
+    stage === 'estimation'
+      ? 'Paymaster transaction preparation was rejected during transaction validation.'
+      : 'Paymaster transaction broadcast was rejected during transaction validation.',
+    {
+      walletName: wallet.walletName,
+      chain: wallet.chain,
+      accountKind: wallet.accountKind,
+      paymaster,
+      target,
+      cause,
+      validationStage: stage,
+      validation
+    }
   );
 }
 
@@ -628,6 +659,19 @@ async function preparePaymasterTransaction(
         })
       };
     } catch (error) {
+      const cause = formatCause(error);
+      const validationError = buildPaymasterValidationError(
+        'estimation',
+        wallet,
+        {
+          ...paymaster,
+          address: paymasterAddress
+        },
+        tx.to,
+        cause
+      );
+      if (validationError) throw validationError;
+
       throw new AgentError(
         'PAYMASTER_ESTIMATION_FAILED',
         'Failed to estimate a sponsored paymaster transaction.',
@@ -638,7 +682,7 @@ async function preparePaymasterTransaction(
             ...paymaster,
             address: paymasterAddress
           },
-          cause: error instanceof Error ? error.message : String(error)
+          cause
         }
       );
     }
@@ -721,6 +765,19 @@ async function preparePaymasterTransaction(
       })
     };
   } catch (error) {
+    const cause = formatCause(error);
+    const validationError = buildPaymasterValidationError(
+      'estimation',
+      wallet,
+      {
+        ...paymaster,
+        address: paymasterAddress
+      },
+      tx.to,
+      cause
+    );
+    if (validationError) throw validationError;
+
     throw new AgentError(
       'PAYMASTER_ESTIMATION_FAILED',
       'Failed to estimate an approval-based paymaster transaction.',
@@ -731,7 +788,7 @@ async function preparePaymasterTransaction(
           ...paymaster,
           address: paymasterAddress
         },
-        cause: error instanceof Error ? error.message : String(error)
+        cause
       }
     );
   }
@@ -1112,6 +1169,18 @@ async function executeWriteTransaction(
     try {
       response = await signer.sendTransaction(prepared.txRequest);
     } catch (error) {
+      const cause = formatCause(error);
+      if (paymaster.mode !== 'none') {
+        const validationError = buildPaymasterValidationError(
+          'broadcast',
+          wallet,
+          prepared.policy,
+          tx.to,
+          cause
+        );
+        if (validationError) throw validationError;
+      }
+
       const code =
         paymaster.mode === 'none' ? 'WRITE_BROADCAST_FAILED' : 'PAYMASTER_BROADCAST_FAILED';
       const message =
@@ -1125,7 +1194,7 @@ async function executeWriteTransaction(
         accountKind: wallet.accountKind,
         paymaster: prepared.policy,
         target: tx.to,
-        cause: formatCause(error)
+        cause
       });
     }
 
@@ -1171,27 +1240,14 @@ async function executeWriteTransaction(
       response = await signer.sendTransaction(prepared.txRequest);
     } catch (error) {
       const cause = formatCause(error);
-
-      if (isSystemContextValidationFailure(cause)) {
-        throw new AgentError(
-          'PAYMASTER_BROADCAST_VALIDATION_FAILED',
-          'Paymaster preview succeeded, but zkSync Sepolia rejected the broadcast during transaction validation.',
-          {
-            walletName: wallet.walletName,
-            chain: wallet.chain,
-            accountKind: wallet.accountKind,
-            paymaster: prepared.policy,
-            target: tx.to,
-            cause,
-            validation: {
-              systemContract: 'SystemContext',
-              systemContractAddress: SYSTEM_CONTEXT_ADDRESS,
-              note:
-                'Local Sepolia testing reproduces this rejection for approval-based live broadcast when the fee token is the EVM-interpreter ERC20 path. The same approval-based flow succeeds once the fee token is deployed as native EraVM bytecode, so treat this as a fee-token compatibility boundary rather than a generic paymaster broadcast failure.'
-            }
-          }
-        );
-      }
+      const validationError = buildPaymasterValidationError(
+        'broadcast',
+        wallet,
+        prepared.policy,
+        tx.to,
+        cause
+      );
+      if (validationError) throw validationError;
 
       throw new AgentError(
         'PAYMASTER_BROADCAST_FAILED',

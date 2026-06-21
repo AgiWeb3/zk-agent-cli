@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test ./tests/*.test.ts"
   },
   "dependencies": {
     "@zk-agent/agent-core": "workspace:*",

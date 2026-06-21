@@ -73,12 +73,22 @@ importers:
 
   packages/agent-tools:
     dependencies:
+      '@zk-agent/account-profiles':
+        specifier: workspace:*
+        version: link:../account-profiles
       '@zk-agent/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      '@zk-agent/agent-session-protocol':
+        specifier: workspace:*
+        version: link:../agent-session-protocol
       '@zk-agent/provider-zksync-wallet':
         specifier: workspace:*
         version: link:../provider-zksync-wallet
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.0
+        version: 0.28.1
 
   packages/paymaster-test-assets:
     dependencies:
@@ -116,7 +126,17 @@ importers:
 
   packages/plugin-identity: {}
 
-  packages/provider-zksync-defi: {}
+  packages/provider-zksync-defi:
+    dependencies:
+      '@zk-agent/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      ethers:
+        specifier: ^6.16.0
+        version: 6.16.0
+      zksync-ethers:
+        specifier: ^6.21.2
+        version: 6.21.2(ethers@6.16.0)
 
   packages/provider-zksync-wallet:
     dependencies:
@@ -153,6 +173,9 @@ importers:
       '@zk-agent/agent-session-protocol':
         specifier: workspace:*
         version: link:../agent-session-protocol
+      '@zk-agent/provider-zksync-defi':
+        specifier: workspace:*
+        version: link:../provider-zksync-defi
       '@zk-agent/provider-zksync-wallet':
         specifier: workspace:*
         version: link:../provider-zksync-wallet

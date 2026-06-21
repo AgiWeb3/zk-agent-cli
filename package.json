@@ -8,8 +8,8 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r --if-present run test",
-    "zk-agent": "tsx packages/zk-agent-cli/src/index.ts",
-    "zksync-agent": "tsx packages/zk-agent-cli/src/index.ts"
+    "zk-agent": "node --import tsx packages/zk-agent-cli/src/index.ts",
+    "zksync-agent": "node --import tsx packages/zk-agent-cli/src/index.ts"
   },
   "engines": {
     "node": ">=24"

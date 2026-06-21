@@ -39,6 +39,9 @@ What is already in place:
   - session signer consistency
   - deployed vs undeployed smart-account state
   - local write readiness blockers
+- `wallet sync` for refreshing local smart-account metadata from deployed onchain state, including saved built-in profile context such as `sed-lite`
+- `wallet export|restore` for portable local wallet backups and recovery across machines, with optional post-restore resync against deployed onchain state
+- `wallet reapprove --await-local` for reacquiring a writable local session after restore without dropping recovered smart-account metadata
 - local connector approval loop support via:
   - `wallet create --await-local`
   - auto-consume of approved local requests
@@ -47,7 +50,13 @@ What is already in place:
   - connector callback handoff back into the waiting CLI process
 - first agent-facing tool surface in `packages/agent-tools` for:
   - create wallet request
+  - create stored wallet approval request
+  - approve stored wallet request
+  - wallet reapprove
   - wallet status
+  - wallet sync
+  - wallet export
+  - wallet restore
   - balances
   - contract read
   - native send
@@ -58,6 +67,13 @@ What is already in place:
   - `pnpm --filter @zk-agent/agent-tools tool:run -- --list`
   - `pnpm --filter @zk-agent/agent-tools tool:run -- --tool <toolName> --input <json|@file>`
   - `pnpm --filter @zk-agent/agent-tools smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
+  - `pnpm --filter @zk-agent/agent-tools smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
+  - `pnpm --filter @zk-agent/agent-tools smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
+  - `pnpm --filter @zk-agent/agent-tools smoke:broadcast -- --wallet <name> --execute` for the opt-in live legacy fee-token incompatibility smoke, which may now fail during estimation or broadcast depending on current Sepolia behavior
+  - built `dist` entrypoints now also run directly, for example `node packages/agent-tools/dist/run-tool.js --list`
+  - tool errors now also expose normalized paymaster validation `classification`
+    and `suggestedAction` fields when the provider returns a known structured
+    validation rejection
 - `wallet paymaster set` for updating saved default paymaster metadata on a
   stored wallet
 - generic `wallet smart-account predict|deploy` flow for:
@@ -85,6 +101,16 @@ What is already in place:
 - live paymaster transaction preparation for:
   - General flow (`sponsored`)
   - zkSync testnet ApprovalBased flow with automatic testnet paymaster resolution
+- preview-only `withdraw` support through `packages/provider-zksync-defi`, including:
+  - default bridge discovery
+  - L2 -> L1 withdraw transaction preview
+  - gas estimation for the withdraw path
+- structured paymaster validation errors now classify known zkSync Sepolia
+  SystemContext failures and known SED Lite hook rejections during estimation /
+  broadcast, and surface the key validation fields in both JSON and TTY output
+- generic `Target is not allowlisted` validation failures are now reported as an
+  address-allowlist policy rejection instead of over-claiming which exact hook
+  implementation produced the revert
 - Sepolia validation result:
   - `send-token` preview works with `--paymaster-mode none`
   - approval-based paymaster still requires explicit fee-token validation and cannot assume that any ERC-20 is usable
@@ -100,7 +126,8 @@ What is next:
 - validate smart-account writes through paymaster mode once the base no-paymaster path is stable
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
-- bridge / deposit / withdraw / swap implementations
+- withdraw broadcast/finalization follow-up
+- bridge / deposit / swap implementations
 
 ## Development Environment Strategy
 

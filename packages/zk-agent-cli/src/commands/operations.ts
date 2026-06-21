@@ -1,11 +1,13 @@
 import { Command } from 'commander';
 
 import { type PaymasterSelectionInput, loadProjectConfig, loadWalletSession } from '@zk-agent/agent-core';
+import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { plannedCommandMessage, printResult } from '../lib/io.js';
 
 const provider = new ZkSyncWalletProvider();
+const defiProvider = new ZkSyncDefiProvider();
 
 async function requireWallet(walletName: string) {
   const wallet = await loadWalletSession(walletName);
@@ -51,6 +53,29 @@ function requireTokenDecimals(value: string | undefined): number {
   }
 
   return parsed;
+}
+
+function linesForWithdrawPreview(result: Awaited<ReturnType<ZkSyncDefiProvider['previewWithdraw']>>): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['mode', 'preview'],
+    ['wallet', result.walletName],
+    ['from', result.from],
+    ['recipient', result.recipient],
+    ['chain', `${result.chain} (${result.chainId})`],
+    ['l1 chain', String(result.l1ChainId)],
+    ['amount', result.token.amount],
+    ['token', result.token.symbol],
+    ['token address', result.token.address],
+    ['estimated gas', result.estimatedGas],
+    ['default shared bridge (l2)', result.bridgeAddresses.sharedL2],
+    ['default erc20 bridge (l2)', result.bridgeAddresses.erc20L2]
+  ];
+
+  if (result.bridgeAddress) lines.push(['bridge override', result.bridgeAddress]);
+  if (result.preview.to) lines.push(['tx target', result.preview.to]);
+  for (const note of result.notes) lines.push(['note', note]);
+
+  return lines;
 }
 
 function withPaymasterOptions(command: Command): Command {
@@ -287,6 +312,42 @@ export function createCallCommand(): Command {
     );
 }
 
+export function createWithdrawCommand(): Command {
+  return new Command('withdraw')
+    .description('Preview an L2 to L1 withdraw transaction through the active zkSync wallet session')
+    .requiredOption('--amount <value>', 'Amount in human-readable token units')
+    .option('--to <address>', 'L1 recipient address. Defaults to owner address when available')
+    .option('--token <address>', 'L2 token contract address. Omit for the native token path')
+    .option('--symbol <symbol>', 'Optional token symbol for display')
+    .option('--decimals <value>', 'Token decimals. Required when --token is supplied')
+    .option('--bridge-address <address>', 'Explicit bridge contract override')
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .action(
+      async (options: {
+        amount: string;
+        to?: string;
+        token?: string;
+        symbol?: string;
+        decimals?: string;
+        bridgeAddress?: string;
+        wallet: string;
+      }) => {
+        const wallet = await requireWallet(options.wallet);
+        const result = await defiProvider.previewWithdraw({
+          wallet,
+          amount: options.amount,
+          to: options.to,
+          tokenAddress: options.token,
+          symbol: options.symbol,
+          decimals: options.token ? requireTokenDecimals(options.decimals) : undefined,
+          bridgeAddress: options.bridgeAddress
+        });
+
+        printResult(linesForWithdrawPreview(result), { ok: true, mode: 'preview', ...result });
+      }
+    );
+}
+
 function planned(command: string, milestone: string): Command {
   return new Command(command)
     .description(`${command} is planned for milestone ${milestone}`)
@@ -297,7 +358,6 @@ export function createPlannedCommands(): Command[] {
   return [
     planned('swap', '3'),
     planned('bridge', '3'),
-    planned('deposit', '3'),
-    planned('withdraw', '3')
+    planned('deposit', '3')
   ];
 }

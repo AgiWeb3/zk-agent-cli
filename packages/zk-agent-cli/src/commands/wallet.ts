@@ -52,6 +52,7 @@ import {
   listBuiltinSmartAccountProfiles,
   requireBuiltinSmartAccountProfile,
   resolveDailySpendLimitTokenAddress,
+  type BuiltinSmartAccountProfileId,
   type BuiltinSmartAccountProfile,
   type SedLiteTargetSelectorAllowlistRule
 } from '@zk-agent/account-profiles';
@@ -72,12 +73,14 @@ import {
   type SmartAccountDeploymentPlan,
   type SmartAccountDeploymentResult,
   type TransactionExecutionResult,
+  type WalletExportRecord,
   type WalletInspectionResult,
   type WalletRequestRecord,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
 import {
   buildApprovedSessionPayload,
+  type AccountKind,
   type SessionPayload,
   type PaymasterMode
 } from '@zk-agent/agent-session-protocol';
@@ -103,9 +106,21 @@ function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknow
   return rest;
 }
 
-function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unknown> {
+function stripSensitiveWalletRecord(wallet: WalletSessionRecord): WalletSessionRecord {
   return {
     ...wallet,
+    sessionPayload: wallet.sessionPayload
+      ? {
+          ...wallet.sessionPayload,
+          sessionPrivateKey: undefined
+        }
+      : wallet.sessionPayload
+  };
+}
+
+function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unknown> {
+  return {
+    ...stripSensitiveWalletRecord(wallet),
     sessionPayload: sanitizeSessionPayload(wallet.sessionPayload)
   };
 }
@@ -113,6 +128,19 @@ function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unkno
 function sanitizeWalletRequestRecord(request: WalletRequestRecord): Record<string, unknown> {
   const { sessionSecretKey: _sessionSecretKey, ...rest } = request;
   return rest;
+}
+
+function exportWalletRecord(
+  wallet: WalletSessionRecord,
+  includeSensitiveData: boolean
+): WalletExportRecord {
+  return {
+    format: 'zk-agent-wallet-export',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    sensitiveDataIncluded: includeSensitiveData,
+    wallet: includeSensitiveData ? { ...wallet } : stripSensitiveWalletRecord(wallet)
+  };
 }
 
 function displayAccountKind(wallet: WalletSessionRecord): string {
@@ -185,6 +213,151 @@ function requireSmartAccountWallet(wallet: WalletSessionRecord): WalletSessionRe
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cloneWalletSessionRecord(wallet: WalletSessionRecord): WalletSessionRecord {
+  return {
+    ...wallet,
+    validationHookAddresses: wallet.validationHookAddresses
+      ? [...wallet.validationHookAddresses]
+      : wallet.validationHookAddresses,
+    sessionScope: wallet.sessionScope
+      ? {
+          ...wallet.sessionScope,
+          chainKeys: wallet.sessionScope.chainKeys ? [...wallet.sessionScope.chainKeys] : undefined,
+          chainIds: wallet.sessionScope.chainIds ? [...wallet.sessionScope.chainIds] : undefined
+        }
+      : wallet.sessionScope,
+    capabilities: wallet.capabilities ? { ...wallet.capabilities } : wallet.capabilities,
+    sessionPayload: wallet.sessionPayload
+      ? {
+          ...wallet.sessionPayload,
+          account: wallet.sessionPayload.account ? { ...wallet.sessionPayload.account } : wallet.sessionPayload.account,
+          sessionScope: wallet.sessionPayload.sessionScope
+            ? {
+                ...wallet.sessionPayload.sessionScope,
+                chainKeys: wallet.sessionPayload.sessionScope.chainKeys
+                  ? [...wallet.sessionPayload.sessionScope.chainKeys]
+                  : undefined,
+                chainIds: wallet.sessionPayload.sessionScope.chainIds
+                  ? [...wallet.sessionPayload.sessionScope.chainIds]
+                  : undefined
+              }
+            : wallet.sessionPayload.sessionScope,
+          capabilities: wallet.sessionPayload.capabilities
+            ? { ...wallet.sessionPayload.capabilities }
+            : wallet.sessionPayload.capabilities,
+          paymaster: wallet.sessionPayload.paymaster
+            ? { ...wallet.sessionPayload.paymaster }
+            : wallet.sessionPayload.paymaster,
+          permissions: {
+            ...wallet.sessionPayload.permissions,
+            transfers: wallet.sessionPayload.permissions.transfers
+              ? [...wallet.sessionPayload.permissions.transfers]
+              : wallet.sessionPayload.permissions.transfers,
+            contractCalls: wallet.sessionPayload.permissions.contractCalls
+              ? [...wallet.sessionPayload.permissions.contractCalls]
+              : wallet.sessionPayload.permissions.contractCalls
+          },
+          metadata: wallet.sessionPayload.metadata
+            ? { ...wallet.sessionPayload.metadata }
+            : wallet.sessionPayload.metadata
+        }
+      : wallet.sessionPayload
+  };
+}
+
+function isWalletExportRecord(value: unknown): value is WalletExportRecord {
+  return (
+    isRecord(value) &&
+    value.format === 'zk-agent-wallet-export' &&
+    value.version === 1 &&
+    typeof value.exportedAt === 'string' &&
+    typeof value.sensitiveDataIncluded === 'boolean' &&
+    isRecord(value.wallet)
+  );
+}
+
+function parseWalletExportRecord(value: string): WalletExportRecord {
+  const raw = parseJsonInput<unknown>(value);
+  const candidate =
+    isRecord(raw) && isRecord(raw.export)
+      ? raw.export
+      : raw;
+
+  if (!isWalletExportRecord(candidate)) {
+    throw new Error(
+      'Restore payload must be a wallet export bundle created by "wallet export". You can pass either the raw export bundle or the full JSON output from "wallet export --json".'
+    );
+  }
+
+  const wallet = candidate.wallet as WalletSessionRecord;
+  if (typeof wallet.walletName !== 'string' || wallet.walletName.trim().length === 0) {
+    throw new Error('Restore payload walletName is missing.');
+  }
+  if (typeof wallet.walletAddress !== 'string' || !isAddress(wallet.walletAddress)) {
+    throw new Error('Restore payload walletAddress must be a valid 20-byte hex address.');
+  }
+  if (wallet.ownerAddress && !isAddress(wallet.ownerAddress)) {
+    throw new Error('Restore payload ownerAddress must be a valid 20-byte hex address.');
+  }
+  if (wallet.validatorAddress && !isAddress(wallet.validatorAddress)) {
+    throw new Error('Restore payload validatorAddress must be a valid 20-byte hex address.');
+  }
+  if (
+    wallet.validationHookAddresses &&
+    wallet.validationHookAddresses.some((hookAddress) => !isAddress(hookAddress))
+  ) {
+    throw new Error('Restore payload validationHookAddresses must contain valid 20-byte hex addresses.');
+  }
+  if (typeof wallet.chain !== 'string' || wallet.chain.trim().length === 0) {
+    throw new Error('Restore payload chain is missing.');
+  }
+  if (!Number.isInteger(wallet.chainId)) {
+    throw new Error('Restore payload chainId must be an integer.');
+  }
+  if (wallet.provider !== 'zksync-sso' && wallet.provider !== 'manual') {
+    throw new Error('Restore payload provider is invalid.');
+  }
+  if (
+    wallet.accountKind !== 'eoa' &&
+    wallet.accountKind !== 'smart-account' &&
+    wallet.accountKind !== 'session-key'
+  ) {
+    throw new Error('Restore payload accountKind is invalid.');
+  }
+  if (typeof wallet.createdAt !== 'string' || wallet.createdAt.trim().length === 0) {
+    throw new Error('Restore payload createdAt is missing.');
+  }
+  if (
+    wallet.sessionPayload?.walletAddress &&
+    !isAddress(wallet.sessionPayload.walletAddress)
+  ) {
+    throw new Error('Restore payload sessionPayload.walletAddress must be a valid 20-byte hex address.');
+  }
+  if (
+    wallet.sessionPayload?.account?.address &&
+    !isAddress(wallet.sessionPayload.account.address)
+  ) {
+    throw new Error('Restore payload sessionPayload.account.address must be a valid 20-byte hex address.');
+  }
+  if (
+    wallet.sessionPayload?.account?.ownerAddress &&
+    !isAddress(wallet.sessionPayload.account.ownerAddress)
+  ) {
+    throw new Error('Restore payload sessionPayload.account.ownerAddress must be a valid 20-byte hex address.');
+  }
+  if (
+    wallet.sessionPayload?.account?.validatorAddress &&
+    !isAddress(wallet.sessionPayload.account.validatorAddress)
+  ) {
+    throw new Error('Restore payload sessionPayload.account.validatorAddress must be a valid 20-byte hex address.');
+  }
+
+  return {
+    ...candidate,
+    wallet: cloneWalletSessionRecord(wallet)
+  };
 }
 
 function normalizeHexString(value: string, label: string): string {
@@ -265,6 +438,96 @@ function normalizeFunctionSelector(value: string): string {
   }
 
   return trimmed.toLowerCase();
+}
+
+function normalizeAddressKey(value: string): string {
+  return value.toLowerCase();
+}
+
+function uniqueAddressList(addresses: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const address of addresses) {
+    const key = normalizeAddressKey(address);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(address);
+  }
+
+  return unique;
+}
+
+interface ValidationHookMetadataComparison {
+  savedHooks?: string[];
+  onchainHooks: string[];
+  status: 'missing' | 'synced' | 'stale';
+  missingFromLocalMetadata: string[];
+  missingOnchainMetadata: string[];
+}
+
+function compareValidationHookMetadata(
+  savedHooks: string[] | undefined,
+  onchainHooks: string[]
+): ValidationHookMetadataComparison {
+  const normalizedOnchainHooks = uniqueAddressList(onchainHooks);
+
+  if (savedHooks === undefined) {
+    return {
+      savedHooks: undefined,
+      onchainHooks: normalizedOnchainHooks,
+      status: 'missing',
+      missingFromLocalMetadata: [],
+      missingOnchainMetadata: []
+    };
+  }
+
+  const normalizedSavedHooks = uniqueAddressList(savedHooks);
+  const savedHookSet = new Set(normalizedSavedHooks.map((address) => normalizeAddressKey(address)));
+  const onchainHookSet = new Set(normalizedOnchainHooks.map((address) => normalizeAddressKey(address)));
+
+  const missingFromLocalMetadata = normalizedOnchainHooks.filter(
+    (address) => !savedHookSet.has(normalizeAddressKey(address))
+  );
+  const missingOnchainMetadata = normalizedSavedHooks.filter(
+    (address) => !onchainHookSet.has(normalizeAddressKey(address))
+  );
+
+  return {
+    savedHooks: normalizedSavedHooks,
+    onchainHooks: normalizedOnchainHooks,
+    status:
+      missingFromLocalMetadata.length === 0 && missingOnchainMetadata.length === 0
+        ? 'synced'
+        : 'stale',
+    missingFromLocalMetadata,
+    missingOnchainMetadata
+  };
+}
+
+function compareSingleValidationHookMetadata(
+  savedHooks: string[] | undefined,
+  hookAddress: string,
+  enabled: boolean
+): {
+  savedLocally?: boolean;
+  status: 'missing' | 'synced' | 'stale';
+} {
+  if (savedHooks === undefined) {
+    return {
+      savedLocally: undefined,
+      status: 'missing'
+    };
+  }
+
+  const savedLocally = savedHooks.some(
+    (savedHookAddress) => normalizeAddressKey(savedHookAddress) === normalizeAddressKey(hookAddress)
+  );
+
+  return {
+    savedLocally,
+    status: savedLocally === enabled ? 'synced' : 'stale'
+  };
 }
 
 function parseSelectorRuleValue(value: string): SedLiteTargetSelectorAllowlistRule {
@@ -378,28 +641,55 @@ function requireNonEmptyCallResult(
 function sedLiteValidationHookLines(
   wallet: WalletSessionRecord,
   hookAddress: string,
-  enabled: boolean
+  enabled: boolean,
+  metadata: ReturnType<typeof compareSingleValidationHookMetadata>
 ): Array<[string, string]> {
   return [
     ['wallet', wallet.walletName],
     ['address', wallet.walletAddress],
     ['chain', `${wallet.chain} (${wallet.chainId})`],
     ['hook', hookAddress],
-    ['enabled', enabled ? 'yes' : 'no']
+    ['enabled', enabled ? 'yes' : 'no'],
+    [
+      'saved locally',
+      metadata.savedLocally === undefined ? 'missing metadata' : metadata.savedLocally ? 'yes' : 'no'
+    ],
+    [
+      'metadata sync',
+      metadata.status === 'missing' ? 'missing' : metadata.status === 'synced' ? 'yes' : 'no'
+    ]
   ];
 }
 
 function sedLiteValidationHooksLines(
   wallet: WalletSessionRecord,
-  hooks: string[]
+  metadata: ValidationHookMetadataComparison
 ): Array<[string, string]> {
-  return [
+  const lines: Array<[string, string]> = [
     ['wallet', wallet.walletName],
     ['address', wallet.walletAddress],
     ['chain', `${wallet.chain} (${wallet.chainId})`],
-    ['count', String(hooks.length)],
-    ['hooks', hooks.length > 0 ? hooks.join(', ') : 'none']
+    ['onchain count', String(metadata.onchainHooks.length)],
+    [
+      'saved count',
+      metadata.savedHooks === undefined ? 'missing metadata' : String(metadata.savedHooks.length)
+    ],
+    [
+      'metadata sync',
+      metadata.status === 'missing' ? 'missing' : metadata.status === 'synced' ? 'yes' : 'no'
+    ],
+    ['hooks', metadata.onchainHooks.length > 0 ? metadata.onchainHooks.join(', ') : 'none']
   ];
+
+  if (metadata.missingFromLocalMetadata.length > 0) {
+    lines.push(['onchain only', metadata.missingFromLocalMetadata.join(', ')]);
+  }
+
+  if (metadata.missingOnchainMetadata.length > 0) {
+    lines.push(['saved only', metadata.missingOnchainMetadata.join(', ')]);
+  }
+
+  return lines;
 }
 
 function nativePerTxLimitHookLines(
@@ -646,6 +936,214 @@ function applyExecutionAddress(wallet: WalletSessionRecord, executionAddress: st
   };
 }
 
+interface WalletSyncMetadataUpdates {
+  executionAddress?: string;
+  ownerAddress?: string;
+  validatorAddress?: string;
+  validationHookAddresses?: string[];
+  smartAccountProfileId?: BuiltinSmartAccountProfileId;
+  syncedAt?: string;
+}
+
+interface WalletSyncResult {
+  wallet: WalletSessionRecord;
+  inspection: WalletInspectionResult;
+  profileId?: BuiltinSmartAccountProfileId;
+  notes: string[];
+}
+
+function resolveBuiltinProfileId(value?: string): BuiltinSmartAccountProfileId | undefined {
+  if (!value) return undefined;
+  return requireBuiltinSmartAccountProfile(value).id;
+}
+
+function tryResolveBuiltinProfileId(value?: string): BuiltinSmartAccountProfileId | undefined {
+  if (!value) return undefined;
+
+  try {
+    return resolveBuiltinProfileId(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function applyWalletSyncMetadata(
+  wallet: WalletSessionRecord,
+  updates: WalletSyncMetadataUpdates
+): WalletSessionRecord {
+  const nextWallet =
+    'executionAddress' in updates && updates.executionAddress
+      ? applyExecutionAddress(wallet, updates.executionAddress)
+      : {
+          ...wallet
+        };
+
+  const nextAccount = nextWallet.sessionPayload?.account
+    ? {
+        ...nextWallet.sessionPayload.account
+      }
+    : nextWallet.sessionPayload?.account;
+
+  if ('ownerAddress' in updates) {
+    nextWallet.ownerAddress = updates.ownerAddress;
+    if (nextAccount) {
+      nextAccount.ownerAddress = updates.ownerAddress;
+    }
+  }
+
+  if ('validatorAddress' in updates) {
+    nextWallet.validatorAddress = updates.validatorAddress;
+    if (nextAccount) {
+      nextAccount.validatorAddress = updates.validatorAddress;
+    }
+  }
+
+  if ('validationHookAddresses' in updates) {
+    nextWallet.validationHookAddresses = updates.validationHookAddresses;
+  }
+
+  if ('smartAccountProfileId' in updates) {
+    nextWallet.smartAccountProfileId = updates.smartAccountProfileId;
+  }
+
+  if ('syncedAt' in updates) {
+    nextWallet.syncedAt = updates.syncedAt;
+  }
+
+  if (nextWallet.sessionPayload) {
+    nextWallet.sessionPayload = {
+      ...nextWallet.sessionPayload,
+      walletAddress: nextWallet.walletAddress,
+      account: nextAccount
+    };
+  }
+
+  return nextWallet;
+}
+
+async function readWalletContract(
+  wallet: WalletSessionRecord,
+  data: string
+): Promise<string | undefined> {
+  const result = await provider.call({
+    chain: wallet.chain,
+    to: wallet.walletAddress,
+    data
+  });
+
+  return result.result === '0x' ? undefined : result.result;
+}
+
+async function syncWalletRecord(
+  wallet: WalletSessionRecord,
+  profileOverride?: BuiltinSmartAccountProfileId
+): Promise<WalletSyncResult> {
+  const inspection = await provider.inspectWallet(wallet);
+  const notes: string[] = [];
+  const syncedAt = new Date().toISOString();
+  const storedProfileId = tryResolveBuiltinProfileId(wallet.smartAccountProfileId);
+
+  if (wallet.smartAccountProfileId && !storedProfileId) {
+    notes.push(
+      `Stored smart-account profile "${wallet.smartAccountProfileId}" is not a known built-in profile, so profile-aware sync was skipped.`
+    );
+  }
+
+  const profileId = profileOverride ?? storedProfileId;
+  const baseUpdates: WalletSyncMetadataUpdates = {
+    executionAddress: inspection.executionAddress,
+    syncedAt
+  };
+  if (profileOverride) {
+    baseUpdates.smartAccountProfileId = profileOverride;
+  } else if (storedProfileId) {
+    baseUpdates.smartAccountProfileId = storedProfileId;
+  }
+
+  let nextWallet = applyWalletSyncMetadata(wallet, baseUpdates);
+
+  if (inspection.ownerAddress && wallet.accountKind === 'smart-account') {
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      ownerAddress: inspection.ownerAddress
+    });
+  }
+
+  if (wallet.accountKind !== 'smart-account') {
+    if (wallet.accountKind === 'session-key') {
+      notes.push('Session-key records currently only support generic sync metadata updates.');
+    }
+
+    return {
+      wallet: nextWallet,
+      inspection,
+      profileId,
+      notes
+    };
+  }
+
+  if (inspection.deploymentStatus !== 'deployed') {
+    notes.push('Smart-account profile reads were skipped because the account is not deployed yet.');
+
+    return {
+      wallet: nextWallet,
+      inspection,
+      profileId,
+      notes
+    };
+  }
+
+  if (!profileId) {
+    notes.push('No smart-account profile is stored locally. Re-run wallet sync with --profile <id> to enable profile-aware reads.');
+
+    return {
+      wallet: nextWallet,
+      inspection,
+      notes
+    };
+  }
+
+  const ownerResult = await readWalletContract(nextWallet, encodeSedLiteOwnerRead());
+  if (!ownerResult) {
+    notes.push(`Profile-aware owner read returned empty data for ${profileId}.`);
+  } else {
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      ownerAddress: decodeSedLiteOwnerRead(ownerResult)
+    });
+  }
+
+  if (profileId === 'sed-lite') {
+    const validatorResult = await readWalletContract(nextWallet, encodeSedLiteValidatorRead());
+    const hooksResult = await readWalletContract(nextWallet, encodeSedLiteValidationHooksRead());
+
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      validatorAddress: validatorResult ? decodeSedLiteValidatorRead(validatorResult) : undefined,
+      validationHookAddresses: hooksResult ? decodeSedLiteValidationHooksRead(hooksResult) : []
+    });
+
+    if (!validatorResult) {
+      notes.push('sed-lite validator() returned empty data, so validator metadata was cleared locally.');
+    }
+    if (!hooksResult) {
+      notes.push('sed-lite listValidationHooks() returned empty data, so hook metadata was reset locally.');
+    }
+  }
+
+  if (profileId === 'daily-spend-limit') {
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      validatorAddress: undefined,
+      validationHookAddresses: undefined
+    });
+    notes.push('daily-spend-limit currently syncs owner metadata only; validator and hook fields are not used for this profile.');
+  }
+
+  return {
+    wallet: nextWallet,
+    inspection,
+    profileId,
+    notes
+  };
+}
+
 function formatDeploymentStatus(inspection: WalletInspectionResult): string {
   if (inspection.deploymentStatus === 'not-applicable') return 'n/a';
   return inspection.deploymentStatus;
@@ -686,6 +1184,149 @@ function inspectionLines(inspection: WalletInspectionResult): Array<[string, str
   }
 
   return lines;
+}
+
+function walletSyncLines(result: WalletSyncResult): Array<[string, string]> {
+  const lines = inspectionLines(result.inspection);
+
+  if (result.profileId) {
+    lines.splice(3, 0, ['profile', result.profileId]);
+  }
+
+  if (result.wallet.validatorAddress) {
+    lines.push(['validator', result.wallet.validatorAddress]);
+  }
+
+  if (result.wallet.validationHookAddresses) {
+    lines.push(['hook count', String(result.wallet.validationHookAddresses.length)]);
+    lines.push([
+      'hooks',
+      result.wallet.validationHookAddresses.length > 0
+        ? result.wallet.validationHookAddresses.join(', ')
+        : 'none'
+    ]);
+  }
+
+  if (result.wallet.syncedAt) {
+    lines.push(['synced', result.wallet.syncedAt]);
+  }
+
+  for (const note of result.notes) {
+    lines.push(['sync note', note]);
+  }
+
+  return lines;
+}
+
+function walletExportLines(
+  wallet: WalletSessionRecord,
+  bundle: WalletExportRecord
+): Array<[string, string]> {
+  return [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ...(displayOwnerAddress(wallet)
+      ? [['owner', displayOwnerAddress(wallet) as string] as [string, string]]
+      : []),
+    ['account', displayAccountKind(wallet)],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['profile', wallet.smartAccountProfileId || 'none'],
+    ['sensitive data', bundle.sensitiveDataIncluded ? 'included' : 'removed'],
+    ['exported', bundle.exportedAt]
+  ];
+}
+
+function walletRestoreLines(
+  wallet: WalletSessionRecord,
+  restoredFrom: WalletExportRecord,
+  syncResult?: WalletSyncResult
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['wallet', wallet.walletName],
+    ['address', wallet.walletAddress],
+    ...(displayOwnerAddress(wallet)
+      ? [['owner', displayOwnerAddress(wallet) as string] as [string, string]]
+      : []),
+    ['account', displayAccountKind(wallet)],
+    ['chain', `${wallet.chain} (${wallet.chainId})`],
+    ['profile', wallet.smartAccountProfileId || 'none'],
+    ['source export', restoredFrom.exportedAt],
+    ['sensitive data', restoredFrom.sensitiveDataIncluded ? 'included in backup' : 'not included in backup']
+  ];
+
+  if (!wallet.sessionPayload?.sessionPrivateKey) {
+    lines.push([
+      'note',
+      `No sessionPrivateKey was present in the backup. The restored wallet can be inspected and synced, but local write execution will stay blocked until you re-import or re-approve a writable session, for example: zk-agent wallet reapprove --name ${wallet.walletName} --await-local`
+    ]);
+  }
+
+  if (syncResult) {
+    lines.push(['sync', 'completed']);
+    lines.push(['deployment', formatDeploymentStatus(syncResult.inspection)]);
+    lines.push(['write', syncResult.inspection.writeReady ? 'ready' : 'blocked']);
+    if (wallet.syncedAt) {
+      lines.push(['synced', wallet.syncedAt]);
+    }
+    if (wallet.validatorAddress) {
+      lines.push(['validator', wallet.validatorAddress]);
+    }
+    if (wallet.validationHookAddresses) {
+      lines.push([
+        'hooks',
+        wallet.validationHookAddresses.length > 0
+          ? wallet.validationHookAddresses.join(', ')
+          : 'none'
+      ]);
+    }
+    for (const note of syncResult.notes) {
+      lines.push(['sync note', note]);
+    }
+  }
+
+  return lines;
+}
+
+function preserveExistingWalletMetadata(
+  importedWallet: WalletSessionRecord,
+  existingWallet?: WalletSessionRecord | null
+): WalletSessionRecord {
+  if (!existingWallet) {
+    return importedWallet;
+  }
+
+  if (
+    existingWallet.chain !== importedWallet.chain ||
+    existingWallet.chainId !== importedWallet.chainId ||
+    existingWallet.walletAddress.toLowerCase() !== importedWallet.walletAddress.toLowerCase()
+  ) {
+    return importedWallet;
+  }
+
+  const metadataUpdates: WalletSyncMetadataUpdates = {};
+
+  if (existingWallet.smartAccountProfileId) {
+    const profileId = tryResolveBuiltinProfileId(existingWallet.smartAccountProfileId);
+    if (profileId) {
+      metadataUpdates.smartAccountProfileId = profileId;
+    }
+  }
+
+  if (existingWallet.syncedAt) {
+    metadataUpdates.syncedAt = existingWallet.syncedAt;
+  }
+
+  if ('validationHookAddresses' in existingWallet) {
+    metadataUpdates.validationHookAddresses = existingWallet.validationHookAddresses
+      ? [...existingWallet.validationHookAddresses]
+      : existingWallet.validationHookAddresses;
+  }
+
+  if (existingWallet.validatorAddress) {
+    metadataUpdates.validatorAddress = existingWallet.validatorAddress;
+  }
+
+  return applyWalletSyncMetadata(importedWallet, metadataUpdates);
 }
 
 function linesForWriteResult(result: TransactionExecutionResult): Array<[string, string]> {
@@ -771,9 +1412,39 @@ async function importApprovedWalletSession(
   walletName: string,
   payload: SessionPayload
 ): Promise<WalletSessionRecord> {
-  const walletRecord = await provider.importSession(walletName, payload);
+  const existingWallet = await loadWalletSession(walletName);
+  const importedWallet = await provider.importSession(walletName, payload);
+  const walletRecord = preserveExistingWalletMetadata(importedWallet, existingWallet);
   await saveWalletSession(walletRecord);
   return walletRecord;
+}
+
+async function createWalletReapprovalRequest(options: {
+  walletRecord: WalletSessionRecord;
+  connectorUrl?: string;
+}): Promise<WalletRequestRecord> {
+  const config = await loadProjectConfig();
+  const connectorUrl =
+    options.connectorUrl ||
+    options.walletRecord.sessionPayload?.connectorUrl ||
+    config?.connectorUrl ||
+    'http://localhost:4444';
+
+  await loadPendingWalletRequests();
+
+  const request = await provider.createSessionRequest({
+    walletName: options.walletRecord.walletName,
+    chain: options.walletRecord.chain,
+    connectorUrl,
+    accountKind: displayAccountKind(options.walletRecord) as AccountKind,
+    paymasterMode: displayPaymasterMode(options.walletRecord) as PaymasterMode,
+    policies: {
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    }
+  });
+
+  await saveWalletRequest(request);
+  return request;
 }
 
 function ensureSessionPayload(value: unknown): SessionPayload {
@@ -1315,13 +1986,90 @@ export function createWalletCommand(): Command {
     );
 
   wallet
+    .command('reapprove')
+    .description('Request a fresh local approval for an existing wallet so it can regain or rotate its stored session')
+    .option('--name <name>', 'Wallet name', 'main')
+    .option('--connector-url <url>', 'Connector UI base URL override')
+    .option('--await-local', 'Immediately wait for a local connector approval callback')
+    .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
+    .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
+    .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local', '600')
+    .action(
+      async (options: {
+        name: string;
+        connectorUrl?: string;
+        awaitLocal?: boolean;
+        host?: string;
+        port?: string;
+        timeoutSeconds?: string;
+      }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+      const request = await createWalletReapprovalRequest({
+        walletRecord,
+        connectorUrl: options.connectorUrl
+      });
+
+      if (options.awaitLocal) {
+        const listenerOptions = resolveLocalApprovalListenerOptions(options);
+        const { walletRecord: approvedWallet, payload, callbackUrl, approvalUrl } =
+          await awaitLocalWalletApproval({
+            walletRequest: request,
+            walletName: request.walletName,
+            ...listenerOptions
+          });
+
+        printResult(
+          buildWalletApprovalLines(
+            'Wallet reapproval completed via local connector callback',
+            request.requestId,
+            approvedWallet
+          ),
+          {
+            ok: true,
+            request: sanitizeWalletRequestRecord(request),
+            payload: sanitizeSessionPayload(payload),
+            wallet: sanitizeWalletRecord(approvedWallet),
+            callbackUrl,
+            approvalUrl
+          }
+        );
+        return;
+      }
+
+      printResult(
+        [
+          ['wallet', request.walletName],
+          ['address', walletRecord.walletAddress],
+          ...(displayOwnerAddress(walletRecord)
+            ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
+            : []),
+          ['account', displayAccountKind(walletRecord)],
+          ['paymaster', displayPaymasterMode(walletRecord)],
+          ['request', request.requestId],
+          ['approval url', request.approvalUrl],
+          ['expires', request.expiresAt],
+          ['note', 'A fresh local session approval request was created for the existing wallet.'],
+          ['next', `zk-agent wallet request await-local --request-id ${request.requestId}`]
+        ],
+        {
+          ok: true,
+          wallet: sanitizeWalletRecord(walletRecord),
+          request: sanitizeWalletRequestRecord(request)
+        }
+      );
+    }
+    );
+
+  wallet
     .command('import')
     .description('Import a wallet session payload from JSON or @file')
     .requiredOption('--payload <payload>', 'JSON payload or @file path')
     .option('--name <name>', 'Wallet name', 'main')
     .action(async (options: { name: string; payload: string }) => {
       const payload = parseJsonInput<SessionPayload>(options.payload);
-      const walletRecord = await provider.importSession(options.name, payload);
+      const existingWallet = await loadWalletSession(options.name);
+      const importedWallet = await provider.importSession(options.name, payload);
+      const walletRecord = preserveExistingWalletMetadata(importedWallet, existingWallet);
       await saveWalletSession(walletRecord);
 
       printResult(
@@ -1395,6 +2143,21 @@ export function createWalletCommand(): Command {
     });
 
   wallet
+    .command('export')
+    .description('Export one stored wallet as a portable backup bundle for later restore')
+    .option('--name <name>', 'Wallet name', 'main')
+    .option('--include-sensitive-data', 'Include sessionPrivateKey in the exported bundle', false)
+    .action(async (options: { name: string; includeSensitiveData?: boolean }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+      const bundle = exportWalletRecord(walletRecord, Boolean(options.includeSensitiveData));
+
+      printResult(walletExportLines(walletRecord, bundle), {
+        ok: true,
+        export: bundle
+      });
+    });
+
+  wallet
     .command('status')
     .description('Inspect whether a stored wallet is actually ready for local write execution')
     .option('--name <name>', 'Wallet name', 'main')
@@ -1405,6 +2168,105 @@ export function createWalletCommand(): Command {
       const inspection = await provider.inspectWallet(walletRecord);
       printResult(inspectionLines(inspection), { ok: true, inspection });
     });
+
+  wallet
+    .command('sync')
+    .description('Refresh local wallet metadata from chain state and saved smart-account profile context')
+    .option('--name <name>', 'Wallet name', 'main')
+    .option('--profile <id>', 'Built-in smart-account profile id override for older local records')
+    .action(async (options: { name: string; profile?: string }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+      const profileId = resolveBuiltinProfileId(options.profile);
+      const result = await syncWalletRecord(walletRecord, profileId);
+      await saveWalletSession(result.wallet);
+
+      printResult(walletSyncLines(result), {
+        ok: true,
+        inspection: result.inspection,
+        wallet: sanitizeWalletRecord(result.wallet),
+        sync: {
+          profileId: result.profileId,
+          ownerAddress: result.wallet.ownerAddress,
+          validatorAddress: result.wallet.validatorAddress,
+          validationHookAddresses: result.wallet.validationHookAddresses,
+          syncedAt: result.wallet.syncedAt,
+          notes: result.notes
+        }
+      });
+    });
+
+  wallet
+    .command('restore')
+    .description('Restore a stored wallet from a bundle previously created by wallet export')
+    .requiredOption('--payload <payload>', 'Wallet export JSON or @file path')
+    .option('--name <name>', 'Override wallet name stored inside the export bundle')
+    .option('--profile <id>', 'Built-in smart-account profile id override to persist on the restored wallet')
+    .option('--sync', 'Immediately refresh the restored wallet from chain state', false)
+    .option('--overwrite', 'Replace an existing local wallet with the same name', false)
+    .action(
+      async (options: {
+        payload: string;
+        name?: string;
+        profile?: string;
+        sync?: boolean;
+        overwrite?: boolean;
+      }) => {
+      const bundle = parseWalletExportRecord(options.payload);
+      const walletRecord = cloneWalletSessionRecord(bundle.wallet);
+      const restoredWalletName = options.name?.trim() || walletRecord.walletName;
+      const profileId = resolveBuiltinProfileId(options.profile);
+
+      if (!restoredWalletName) {
+        throw new Error('Wallet name is required.');
+      }
+
+      walletRecord.walletName = restoredWalletName;
+      if (profileId) {
+        walletRecord.smartAccountProfileId = profileId;
+      }
+
+      const existingWallet = await loadWalletSession(restoredWalletName);
+      if (existingWallet && !options.overwrite) {
+        throw new Error(
+          `Wallet already exists: ${restoredWalletName}. Re-run with --overwrite to replace it.`
+        );
+      }
+
+      let restoredWallet = walletRecord;
+      let syncResult: WalletSyncResult | undefined;
+
+      await saveWalletSession(restoredWallet);
+
+      if (options.sync) {
+        syncResult = await syncWalletRecord(restoredWallet, profileId);
+        restoredWallet = syncResult.wallet;
+        await saveWalletSession(restoredWallet);
+      }
+
+      printResult(walletRestoreLines(restoredWallet, bundle, syncResult), {
+        ok: true,
+        wallet: sanitizeWalletRecord(restoredWallet),
+        inspection: syncResult?.inspection,
+        restoredFrom: {
+          format: bundle.format,
+          version: bundle.version,
+          exportedAt: bundle.exportedAt,
+          sensitiveDataIncluded: bundle.sensitiveDataIncluded,
+          originalWalletName: bundle.wallet.walletName
+        },
+        sync: syncResult
+          ? {
+              profileId: syncResult.profileId,
+              ownerAddress: restoredWallet.ownerAddress,
+              validatorAddress: restoredWallet.validatorAddress,
+              validationHookAddresses: restoredWallet.validationHookAddresses,
+              syncedAt: restoredWallet.syncedAt,
+              notes: syncResult.notes
+            }
+          : undefined
+      });
+    }
+    );
 
   wallet
     .command('remove')
@@ -1680,14 +2542,20 @@ export function createWalletCommand(): Command {
       const hooks = decodeSedLiteValidationHooksRead(
         requireNonEmptyCallResult(result.result, 'sed-lite hooks', 'validation-hook listing')
       );
+      const metadata = compareValidationHookMetadata(walletRecord.validationHookAddresses, hooks);
 
-      printResult(sedLiteValidationHooksLines(walletRecord, hooks), {
+      printResult(sedLiteValidationHooksLines(walletRecord, metadata), {
         ok: true,
         walletName: walletRecord.walletName,
         walletAddress: walletRecord.walletAddress,
         chain: result.chain,
         chainId: result.chainId,
-        hooks
+        hooks: metadata.onchainHooks,
+        savedHooks: metadata.savedHooks ?? null,
+        metadataStatus: metadata.status,
+        matchesSavedMetadata: metadata.status === 'synced',
+        missingFromLocalMetadata: metadata.missingFromLocalMetadata,
+        missingOnchainMetadata: metadata.missingOnchainMetadata
       });
     });
 
@@ -1710,15 +2578,23 @@ export function createWalletCommand(): Command {
       const enabled = decodeSedLiteValidationHookRead(
         requireNonEmptyCallResult(result.result, 'sed-lite hook', 'validation-hook reads')
       );
+      const metadata = compareSingleValidationHookMetadata(
+        walletRecord.validationHookAddresses,
+        options.hook,
+        enabled
+      );
 
-      printResult(sedLiteValidationHookLines(walletRecord, options.hook, enabled), {
+      printResult(sedLiteValidationHookLines(walletRecord, options.hook, enabled, metadata), {
         ok: true,
         walletName: walletRecord.walletName,
         walletAddress: walletRecord.walletAddress,
         chain: result.chain,
         chainId: result.chainId,
         hookAddress: options.hook,
-        enabled
+        enabled,
+        savedLocally: metadata.savedLocally ?? null,
+        metadataStatus: metadata.status,
+        matchesSavedMetadata: metadata.status === 'synced'
       });
     });
 
@@ -3348,7 +4224,10 @@ export function createWalletCommand(): Command {
 
         let savedWallet: WalletSessionRecord | undefined;
         if (options.save !== false) {
-          savedWallet = applyExecutionAddress(walletRecord, result.deployedAddress);
+          savedWallet = applyWalletSyncMetadata(walletRecord, {
+            executionAddress: result.deployedAddress,
+            smartAccountProfileId: resolved.profile?.id
+          });
           await saveWalletSession(savedWallet);
         }
 

@@ -7,11 +7,17 @@ import {
   createFundCommand,
   createPlannedCommands,
   createSendCommand,
-  createSendTokenCommand
+  createSendTokenCommand,
+  createWithdrawCommand
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
 import { createWalletCommand } from './commands/wallet.js';
-import { formatErrorMessage, formatErrorPayload, jsonOut, shouldJsonOutput } from './lib/io.js';
+import {
+  formatErrorPayload,
+  formatHumanErrorMessage,
+  jsonOut,
+  shouldJsonOutput
+} from './lib/io.js';
 
 function createProgram(): Command {
   const program = new Command()
@@ -30,6 +36,7 @@ function createProgram(): Command {
   program.addCommand(createSendCommand());
   program.addCommand(createSendTokenCommand());
   program.addCommand(createCallCommand());
+  program.addCommand(createWithdrawCommand());
 
   for (const command of createPlannedCommands()) {
     program.addCommand(command);
@@ -49,11 +56,10 @@ export async function runCli(argv: string[]): Promise<void> {
   } catch (error) {
     if (error instanceof CommanderError && error.code === 'commander.helpDisplayed') return;
 
-    const message = formatErrorMessage(error);
     if (shouldJsonOutput()) {
       jsonOut(formatErrorPayload(error));
     } else {
-      process.stderr.write(`${message}\n`);
+      process.stderr.write(`${formatHumanErrorMessage(error)}\n`);
     }
 
     process.exitCode = 1;

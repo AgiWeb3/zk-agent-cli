@@ -6,6 +6,7 @@ import {
 import type {
   AgentTool,
   AgentToolContext,
+  AgentToolErrorClassification,
   AgentToolError,
   WalletNameInput
 } from './types.js';
@@ -18,12 +19,76 @@ function normalizeErrorDetails(details: unknown): Record<string, unknown> | unde
   return details as Record<string, unknown>;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function normalizeValidationStage(
+  value: unknown
+): AgentToolErrorClassification['stage'] | undefined {
+  return value === 'estimation' || value === 'broadcast' ? value : undefined;
+}
+
+function normalizePaymasterValidationClassification(
+  details: Record<string, unknown> | undefined
+): AgentToolErrorClassification | undefined {
+  if (!details) return undefined;
+
+  const validation = asRecord(details.validation);
+  if (!validation) return undefined;
+
+  const kind = typeof validation.kind === 'string' ? validation.kind : undefined;
+  if (!kind) return undefined;
+
+  return {
+    domain: 'paymaster-validation',
+    stage: normalizeValidationStage(details.validationStage),
+    policyHook: typeof validation.policyHook === 'string' ? validation.policyHook : undefined,
+    validationKind: kind
+  };
+}
+
+function resolveSuggestedAction(details: Record<string, unknown> | undefined): string | undefined {
+  if (!details) return undefined;
+
+  const validation = asRecord(details.validation);
+  if (!validation) return undefined;
+
+  const kind = typeof validation.kind === 'string' ? validation.kind : undefined;
+  if (!kind) return undefined;
+
+  switch (kind) {
+    case 'paymaster-invalid-token':
+      return 'Use a fee token that is explicitly accepted by the paymaster, or switch back to the validated EraVM fee-token path before retrying.';
+    case 'hook-native-per-tx-cap-exceeded':
+      return 'Lower the native transfer amount or raise the wallet native spend cap before retrying.';
+    case 'hook-target-not-allowlisted':
+      return 'Use an allowlisted target address or update the wallet address-allowlist policy before retrying.';
+    case 'hook-target-selector-not-allowlisted':
+      return 'Use an allowlisted target and selector pair or update the wallet selector allowlist before retrying.';
+    case 'system-context-storage-access':
+      return 'Switch to a validated EraVM fee-token path or avoid the incompatible approval-based paymaster configuration before retrying.';
+    case 'account-native-per-tx-cap-exceeded':
+      return 'Lower the native transfer amount or raise the account-level per-transaction cap before retrying.';
+    default:
+      return undefined;
+  }
+}
+
 export function normalizeAgentToolError(error: unknown): AgentToolError {
   if (error instanceof AgentError) {
+    const details = normalizeErrorDetails(error.details);
+
     return {
       code: error.code,
       message: error.message,
-      details: normalizeErrorDetails(error.details)
+      details,
+      classification: normalizePaymasterValidationClassification(details),
+      suggestedAction: resolveSuggestedAction(details)
     };
   }
 

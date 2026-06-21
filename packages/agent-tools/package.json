@@ -8,14 +8,22 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ./scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm run build && tsx --test ./tests/*.test.ts",
-    "smoke:readonly": "tsx ./src/smoke-readonly.ts",
-    "tool:run": "tsx ./src/run-tool.ts"
+    "test": "pnpm run build && node --import tsx --test ./tests/*.test.ts",
+    "smoke:readonly": "node --import tsx ./src/smoke-readonly.ts",
+    "smoke:lifecycle": "node --import tsx ./src/smoke-lifecycle.ts",
+    "smoke:policy": "node --import tsx ./src/smoke-policy.ts",
+    "smoke:broadcast": "node --import tsx ./src/smoke-broadcast.ts",
+    "tool:run": "node --import tsx ./src/run-tool.ts"
   },
   "dependencies": {
+    "@zk-agent/account-profiles": "workspace:*",
     "@zk-agent/agent-core": "workspace:*",
+    "@zk-agent/agent-session-protocol": "workspace:*",
     "@zk-agent/provider-zksync-wallet": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
   }
 }

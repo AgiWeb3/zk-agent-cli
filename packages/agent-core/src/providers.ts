@@ -20,6 +20,10 @@ export interface WalletSessionRecord {
   walletName: string;
   walletAddress: string;
   ownerAddress?: string;
+  validatorAddress?: string;
+  validationHookAddresses?: string[];
+  smartAccountProfileId?: string;
+  syncedAt?: string;
   chain: string;
   chainId: number;
   provider: 'zksync-sso' | 'manual';
@@ -31,6 +35,14 @@ export interface WalletSessionRecord {
   paymasterMode?: PaymasterMode;
   createdAt: string;
   sessionPayload?: SessionPayload;
+}
+
+export interface WalletExportRecord {
+  format: 'zk-agent-wallet-export';
+  version: 1;
+  exportedAt: string;
+  sensitiveDataIncluded: boolean;
+  wallet: WalletSessionRecord;
 }
 
 export interface PaymasterSelectionInput {
@@ -164,6 +176,47 @@ export interface TransactionExecutionResult {
   preview: TransactionPreview;
 }
 
+export interface BridgeAddresses {
+  erc20L1: string;
+  erc20L2: string;
+  wethL1: string;
+  wethL2: string;
+  sharedL1: string;
+  sharedL2: string;
+}
+
+export interface WithdrawPreviewInput {
+  wallet: WalletSessionRecord;
+  amount: string;
+  to?: string;
+  tokenAddress?: string;
+  symbol?: string;
+  decimals?: number;
+  bridgeAddress?: string;
+}
+
+export interface WithdrawPreviewResult {
+  walletName: string;
+  walletAddress: string;
+  chain: string;
+  chainId: number;
+  l1ChainId: number;
+  from: string;
+  recipient: string;
+  bridgeAddress?: string;
+  bridgeAddresses: BridgeAddresses;
+  estimatedGas: string;
+  token: {
+    address: string;
+    symbol: string;
+    amount: string;
+    decimals: number;
+    isNative: boolean;
+  };
+  preview: TransactionPreview;
+  notes: string[];
+}
+
 export interface FundingInfo {
   walletName: string;
   walletAddress: string;
@@ -248,4 +301,9 @@ export interface WalletProvider {
   sendToken(input: TokenTransferInput): Promise<TransactionExecutionResult>;
   writeContract(input: WriteContractInput): Promise<TransactionExecutionResult>;
   getFundingInfo(input: GetBalancesInput): Promise<FundingInfo>;
+}
+
+export interface DefiProvider {
+  readonly name: 'zksync-defi';
+  previewWithdraw(input: WithdrawPreviewInput): Promise<WithdrawPreviewResult>;
 }

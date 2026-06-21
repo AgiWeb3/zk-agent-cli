@@ -1,0 +1,704 @@
+import {
+  decodeSedLiteOwnerRead,
+  decodeSedLiteValidationHooksRead,
+  decodeSedLiteValidatorRead,
+  encodeSedLiteOwnerRead,
+  encodeSedLiteValidationHooksRead,
+  encodeSedLiteValidatorRead,
+  requireBuiltinSmartAccountProfile,
+  type BuiltinSmartAccountProfileId
+} from '@zk-agent/account-profiles';
+import {
+  AgentError,
+  type CreateSessionRequestInput,
+  type CreateSessionRequestResult,
+  type WalletExportRecord,
+  type WalletInspectionResult,
+  type WalletRequestRecord,
+  type WalletSessionRecord
+} from '@zk-agent/agent-core';
+
+import { createAgentTool, withWalletRecord } from './tool-helpers.js';
+import type { AgentToolContext, WalletNameInput } from './types.js';
+
+type SessionPayload = NonNullable<WalletSessionRecord['sessionPayload']>;
+type SanitizedSessionPayload = Omit<SessionPayload, 'sessionPrivateKey'>;
+type SanitizedWalletRequestRecord = Omit<WalletRequestRecord, 'sessionSecretKey'>;
+
+export interface WalletSyncToolInput extends WalletNameInput {
+  profileId?: string;
+}
+
+export interface WalletExportToolInput extends WalletNameInput {
+  includeSensitiveData?: boolean;
+}
+
+export interface WalletRestoreToolInput {
+  exportRecord: unknown;
+  walletName?: string;
+  profileId?: string;
+  sync?: boolean;
+  overwrite?: boolean;
+}
+
+export interface WalletReapproveToolInput extends WalletNameInput {
+  connectorUrl?: string;
+}
+
+export interface ApproveWalletRequestToolInput {
+  requestId: string;
+  payload: SessionPayload;
+}
+
+export interface WalletSyncToolOutput {
+  wallet: WalletSessionRecord;
+  inspection: WalletInspectionResult;
+  sync: {
+    profileId?: BuiltinSmartAccountProfileId;
+    ownerAddress?: string;
+    validatorAddress?: string;
+    validationHookAddresses?: string[];
+    syncedAt?: string;
+    notes: string[];
+  };
+}
+
+export interface WalletRestoreToolOutput {
+  wallet: WalletSessionRecord;
+  inspection?: WalletInspectionResult;
+  restoredFrom: {
+    format: WalletExportRecord['format'];
+    version: WalletExportRecord['version'];
+    exportedAt: string;
+    sensitiveDataIncluded: boolean;
+    originalWalletName: string;
+  };
+  sync?: WalletSyncToolOutput['sync'];
+}
+
+export interface WalletReapproveToolOutput {
+  wallet: WalletSessionRecord;
+  request: SanitizedWalletRequestRecord;
+}
+
+export interface ApproveWalletRequestToolOutput {
+  requestId: string;
+  wallet: WalletSessionRecord;
+  payload: SanitizedSessionPayload;
+}
+
+interface WalletSyncMetadataUpdates {
+  executionAddress?: string;
+  ownerAddress?: string;
+  validatorAddress?: string;
+  validationHookAddresses?: string[];
+  smartAccountProfileId?: BuiltinSmartAccountProfileId;
+  syncedAt?: string;
+}
+
+interface WalletSyncInternalResult {
+  wallet: WalletSessionRecord;
+  inspection: WalletInspectionResult;
+  profileId?: BuiltinSmartAccountProfileId;
+  notes: string[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isAddress(value: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function cloneWalletSessionRecord(wallet: WalletSessionRecord): WalletSessionRecord {
+  return {
+    ...wallet,
+    validationHookAddresses: wallet.validationHookAddresses
+      ? [...wallet.validationHookAddresses]
+      : wallet.validationHookAddresses,
+    sessionScope: wallet.sessionScope
+      ? {
+          ...wallet.sessionScope,
+          chainKeys: wallet.sessionScope.chainKeys ? [...wallet.sessionScope.chainKeys] : undefined,
+          chainIds: wallet.sessionScope.chainIds ? [...wallet.sessionScope.chainIds] : undefined
+        }
+      : wallet.sessionScope,
+    capabilities: wallet.capabilities ? { ...wallet.capabilities } : wallet.capabilities,
+    sessionPayload: wallet.sessionPayload
+      ? {
+          ...wallet.sessionPayload,
+          account: wallet.sessionPayload.account ? { ...wallet.sessionPayload.account } : wallet.sessionPayload.account,
+          sessionScope: wallet.sessionPayload.sessionScope
+            ? {
+                ...wallet.sessionPayload.sessionScope,
+                chainKeys: wallet.sessionPayload.sessionScope.chainKeys
+                  ? [...wallet.sessionPayload.sessionScope.chainKeys]
+                  : undefined,
+                chainIds: wallet.sessionPayload.sessionScope.chainIds
+                  ? [...wallet.sessionPayload.sessionScope.chainIds]
+                  : undefined
+              }
+            : wallet.sessionPayload.sessionScope,
+          capabilities: wallet.sessionPayload.capabilities
+            ? { ...wallet.sessionPayload.capabilities }
+            : wallet.sessionPayload.capabilities,
+          paymaster: wallet.sessionPayload.paymaster
+            ? { ...wallet.sessionPayload.paymaster }
+            : wallet.sessionPayload.paymaster,
+          permissions: {
+            ...wallet.sessionPayload.permissions,
+            transfers: wallet.sessionPayload.permissions.transfers
+              ? [...wallet.sessionPayload.permissions.transfers]
+              : wallet.sessionPayload.permissions.transfers,
+            contractCalls: wallet.sessionPayload.permissions.contractCalls
+              ? [...wallet.sessionPayload.permissions.contractCalls]
+              : wallet.sessionPayload.permissions.contractCalls
+          },
+          metadata: wallet.sessionPayload.metadata
+            ? { ...wallet.sessionPayload.metadata }
+            : wallet.sessionPayload.metadata
+        }
+      : wallet.sessionPayload
+  };
+}
+
+function sanitizeSessionPayload(payload: SessionPayload): SanitizedSessionPayload {
+  const { sessionPrivateKey: _sessionPrivateKey, ...rest } = payload;
+  return rest;
+}
+
+function sanitizeWalletRequestRecord(request: WalletRequestRecord): SanitizedWalletRequestRecord {
+  const { sessionSecretKey: _sessionSecretKey, ...rest } = request;
+  return rest;
+}
+
+function stripSensitiveWalletRecord(wallet: WalletSessionRecord): WalletSessionRecord {
+  return {
+    ...wallet,
+    sessionPayload: wallet.sessionPayload
+      ? {
+          ...wallet.sessionPayload,
+          sessionPrivateKey: undefined
+        }
+      : wallet.sessionPayload
+  };
+}
+
+function displayAccountKind(wallet: WalletSessionRecord): WalletSessionRecord['accountKind'] {
+  return wallet.accountKind || wallet.sessionPayload?.account?.kind || 'smart-account';
+}
+
+function displayPaymasterMode(wallet: WalletSessionRecord): 'none' | 'sponsored' | 'approval-based' {
+  return wallet.paymasterMode || wallet.sessionPayload?.paymaster?.mode || 'none';
+}
+
+function resolveBuiltinProfileId(value?: string): BuiltinSmartAccountProfileId | undefined {
+  if (!value) return undefined;
+  return requireBuiltinSmartAccountProfile(value).id;
+}
+
+function tryResolveBuiltinProfileId(value?: string): BuiltinSmartAccountProfileId | undefined {
+  if (!value) return undefined;
+
+  try {
+    return resolveBuiltinProfileId(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function applyExecutionAddress(wallet: WalletSessionRecord, executionAddress: string): WalletSessionRecord {
+  return {
+    ...wallet,
+    walletAddress: executionAddress,
+    sessionPayload: wallet.sessionPayload
+      ? {
+          ...wallet.sessionPayload,
+          walletAddress: executionAddress,
+          account: wallet.sessionPayload.account
+            ? {
+                ...wallet.sessionPayload.account,
+                address: executionAddress
+              }
+            : wallet.sessionPayload.account
+        }
+      : wallet.sessionPayload
+  };
+}
+
+function applyWalletSyncMetadata(
+  wallet: WalletSessionRecord,
+  updates: WalletSyncMetadataUpdates
+): WalletSessionRecord {
+  const nextWallet =
+    'executionAddress' in updates && updates.executionAddress
+      ? applyExecutionAddress(wallet, updates.executionAddress)
+      : {
+          ...wallet
+        };
+
+  const nextAccount = nextWallet.sessionPayload?.account
+    ? {
+        ...nextWallet.sessionPayload.account
+      }
+    : nextWallet.sessionPayload?.account;
+
+  if ('ownerAddress' in updates) {
+    nextWallet.ownerAddress = updates.ownerAddress;
+    if (nextAccount) nextAccount.ownerAddress = updates.ownerAddress;
+  }
+
+  if ('validatorAddress' in updates) {
+    nextWallet.validatorAddress = updates.validatorAddress;
+    if (nextAccount) nextAccount.validatorAddress = updates.validatorAddress;
+  }
+
+  if ('validationHookAddresses' in updates) {
+    nextWallet.validationHookAddresses = updates.validationHookAddresses;
+  }
+
+  if ('smartAccountProfileId' in updates) {
+    nextWallet.smartAccountProfileId = updates.smartAccountProfileId;
+  }
+
+  if ('syncedAt' in updates) {
+    nextWallet.syncedAt = updates.syncedAt;
+  }
+
+  if (nextWallet.sessionPayload) {
+    nextWallet.sessionPayload = {
+      ...nextWallet.sessionPayload,
+      walletAddress: nextWallet.walletAddress,
+      account: nextAccount
+    };
+  }
+
+  return nextWallet;
+}
+
+function preserveExistingWalletMetadata(
+  importedWallet: WalletSessionRecord,
+  existingWallet?: WalletSessionRecord | null
+): WalletSessionRecord {
+  if (!existingWallet) return importedWallet;
+
+  if (
+    existingWallet.chain !== importedWallet.chain ||
+    existingWallet.chainId !== importedWallet.chainId ||
+    existingWallet.walletAddress.toLowerCase() !== importedWallet.walletAddress.toLowerCase()
+  ) {
+    return importedWallet;
+  }
+
+  const metadataUpdates: WalletSyncMetadataUpdates = {};
+
+  if (existingWallet.smartAccountProfileId) {
+    const profileId = tryResolveBuiltinProfileId(existingWallet.smartAccountProfileId);
+    if (profileId) {
+      metadataUpdates.smartAccountProfileId = profileId;
+    }
+  }
+
+  if (existingWallet.syncedAt) {
+    metadataUpdates.syncedAt = existingWallet.syncedAt;
+  }
+
+  if ('validationHookAddresses' in existingWallet) {
+    metadataUpdates.validationHookAddresses = existingWallet.validationHookAddresses
+      ? [...existingWallet.validationHookAddresses]
+      : existingWallet.validationHookAddresses;
+  }
+
+  if (existingWallet.validatorAddress) {
+    metadataUpdates.validatorAddress = existingWallet.validatorAddress;
+  }
+
+  return applyWalletSyncMetadata(importedWallet, metadataUpdates);
+}
+
+function isWalletExportRecord(value: unknown): value is WalletExportRecord {
+  return (
+    isRecord(value) &&
+    value.format === 'zk-agent-wallet-export' &&
+    value.version === 1 &&
+    typeof value.exportedAt === 'string' &&
+    typeof value.sensitiveDataIncluded === 'boolean' &&
+    isRecord(value.wallet)
+  );
+}
+
+function resolveWalletExportRecord(value: unknown): WalletExportRecord {
+  const candidate =
+    isRecord(value) && isRecord(value.export)
+      ? value.export
+      : value;
+
+  if (!isWalletExportRecord(candidate)) {
+    throw new AgentError(
+      'INVALID_WALLET_EXPORT',
+      'Restore input must be a wallet export bundle created by wallet export.',
+      { acceptedFormats: ['wallet export bundle', 'wallet export --json output'] }
+    );
+  }
+
+  const wallet = candidate.wallet as WalletSessionRecord;
+  if (typeof wallet.walletName !== 'string' || wallet.walletName.trim().length === 0) {
+    throw new AgentError('INVALID_WALLET_EXPORT', 'Restore payload walletName is missing.');
+  }
+  if (typeof wallet.walletAddress !== 'string' || !isAddress(wallet.walletAddress)) {
+    throw new AgentError('INVALID_WALLET_EXPORT', 'Restore payload walletAddress must be a valid address.');
+  }
+
+  return {
+    ...candidate,
+    wallet: cloneWalletSessionRecord(wallet)
+  };
+}
+
+function buildWalletExportRecord(
+  wallet: WalletSessionRecord,
+  includeSensitiveData: boolean
+): WalletExportRecord {
+  return {
+    format: 'zk-agent-wallet-export',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    sensitiveDataIncluded: includeSensitiveData,
+    wallet: includeSensitiveData ? cloneWalletSessionRecord(wallet) : stripSensitiveWalletRecord(wallet)
+  };
+}
+
+function assertRequestActive(expiresAt: string): void {
+  const expires = Date.parse(expiresAt);
+  if (Number.isFinite(expires) && Date.now() > expires) {
+    throw new AgentError('WALLET_REQUEST_EXPIRED', 'Wallet request has expired.', {
+      expiresAt
+    });
+  }
+}
+
+function assertApprovedPayloadMatchesRequest(
+  payload: SessionPayload,
+  walletRequest: WalletRequestRecord
+): void {
+  if (payload.chain !== walletRequest.chain || payload.chainId !== walletRequest.chainId) {
+    throw new AgentError('WALLET_REQUEST_CHAIN_MISMATCH', 'Approved payload does not match the requested chain.', {
+      requestId: walletRequest.requestId
+    });
+  }
+
+  if (payload.account?.kind !== walletRequest.requestedAccountKind) {
+    throw new AgentError(
+      'WALLET_REQUEST_ACCOUNT_KIND_MISMATCH',
+      'Approved payload does not match the requested account kind.',
+      { requestId: walletRequest.requestId }
+    );
+  }
+
+  const paymasterMode = payload.paymaster?.mode || 'none';
+  if (paymasterMode !== walletRequest.requestedPaymasterMode) {
+    throw new AgentError(
+      'WALLET_REQUEST_PAYMASTER_MISMATCH',
+      'Approved payload does not match the requested paymaster mode.',
+      { requestId: walletRequest.requestId }
+    );
+  }
+
+  if (payload.sessionPublicKey !== walletRequest.sessionPublicKey) {
+    throw new AgentError(
+      'WALLET_REQUEST_SESSION_KEY_MISMATCH',
+      'Approved payload does not match the active wallet request.',
+      { requestId: walletRequest.requestId }
+    );
+  }
+}
+
+async function importApprovedWalletSession(
+  context: AgentToolContext,
+  walletName: string,
+  payload: SessionPayload
+): Promise<WalletSessionRecord> {
+  const existingWallet = await context.loadWallet(walletName);
+  const importedWallet = await context.provider.importSession(walletName, payload);
+  const walletRecord = preserveExistingWalletMetadata(importedWallet, existingWallet);
+  await context.saveWallet(walletRecord);
+  return walletRecord;
+}
+
+async function readWalletContract(
+  context: AgentToolContext,
+  wallet: WalletSessionRecord,
+  data: string
+): Promise<string | undefined> {
+  const result = await context.provider.call({
+    chain: wallet.chain,
+    to: wallet.walletAddress,
+    data
+  });
+
+  return result.result === '0x' ? undefined : result.result;
+}
+
+async function syncWalletRecord(
+  context: AgentToolContext,
+  wallet: WalletSessionRecord,
+  profileOverride?: BuiltinSmartAccountProfileId
+): Promise<WalletSyncInternalResult> {
+  const inspection = await context.provider.inspectWallet(wallet);
+  const notes: string[] = [];
+  const syncedAt = new Date().toISOString();
+  const storedProfileId = tryResolveBuiltinProfileId(wallet.smartAccountProfileId);
+
+  if (wallet.smartAccountProfileId && !storedProfileId) {
+    notes.push(
+      `Stored smart-account profile "${wallet.smartAccountProfileId}" is not a known built-in profile, so profile-aware sync was skipped.`
+    );
+  }
+
+  const profileId = profileOverride ?? storedProfileId;
+  const baseUpdates: WalletSyncMetadataUpdates = {
+    executionAddress: inspection.executionAddress,
+    syncedAt
+  };
+  if (profileOverride) {
+    baseUpdates.smartAccountProfileId = profileOverride;
+  } else if (storedProfileId) {
+    baseUpdates.smartAccountProfileId = storedProfileId;
+  }
+
+  let nextWallet = applyWalletSyncMetadata(wallet, baseUpdates);
+
+  if (inspection.ownerAddress && wallet.accountKind === 'smart-account') {
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      ownerAddress: inspection.ownerAddress
+    });
+  }
+
+  if (wallet.accountKind !== 'smart-account') {
+    if (wallet.accountKind === 'session-key') {
+      notes.push('Session-key records currently only support generic sync metadata updates.');
+    }
+
+    return { wallet: nextWallet, inspection, profileId, notes };
+  }
+
+  if (inspection.deploymentStatus !== 'deployed') {
+    notes.push('Smart-account profile reads were skipped because the account is not deployed yet.');
+    return { wallet: nextWallet, inspection, profileId, notes };
+  }
+
+  if (!profileId) {
+    notes.push('No smart-account profile is stored locally. Re-run sync with a profileId to enable profile-aware reads.');
+    return { wallet: nextWallet, inspection, notes };
+  }
+
+  const ownerResult = await readWalletContract(context, nextWallet, encodeSedLiteOwnerRead());
+  if (!ownerResult) {
+    notes.push(`Profile-aware owner read returned empty data for ${profileId}.`);
+  } else {
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      ownerAddress: decodeSedLiteOwnerRead(ownerResult)
+    });
+  }
+
+  if (profileId === 'sed-lite') {
+    const validatorResult = await readWalletContract(context, nextWallet, encodeSedLiteValidatorRead());
+    const hooksResult = await readWalletContract(context, nextWallet, encodeSedLiteValidationHooksRead());
+
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      validatorAddress: validatorResult ? decodeSedLiteValidatorRead(validatorResult) : undefined,
+      validationHookAddresses: hooksResult ? decodeSedLiteValidationHooksRead(hooksResult) : []
+    });
+
+    if (!validatorResult) {
+      notes.push('sed-lite validator() returned empty data, so validator metadata was cleared locally.');
+    }
+    if (!hooksResult) {
+      notes.push('sed-lite listValidationHooks() returned empty data, so hook metadata was reset locally.');
+    }
+  }
+
+  if (profileId === 'daily-spend-limit') {
+    nextWallet = applyWalletSyncMetadata(nextWallet, {
+      validatorAddress: undefined,
+      validationHookAddresses: undefined
+    });
+    notes.push('daily-spend-limit currently syncs owner metadata only; validator and hook fields are not used for this profile.');
+  }
+
+  return {
+    wallet: nextWallet,
+    inspection,
+    profileId,
+    notes
+  };
+}
+
+function normalizeSyncOutput(result: WalletSyncInternalResult): WalletSyncToolOutput {
+  return {
+    wallet: stripSensitiveWalletRecord(result.wallet),
+    inspection: result.inspection,
+    sync: {
+      profileId: result.profileId,
+      ownerAddress: result.wallet.ownerAddress,
+      validatorAddress: result.wallet.validatorAddress,
+      validationHookAddresses: result.wallet.validationHookAddresses,
+      syncedAt: result.wallet.syncedAt,
+      notes: result.notes
+    }
+  };
+}
+
+async function createWalletRequest(
+  context: AgentToolContext,
+  input: CreateSessionRequestInput
+): Promise<CreateSessionRequestResult> {
+  const request = await context.provider.createSessionRequest(input);
+  await context.saveWalletRequest(request);
+  return request;
+}
+
+export function createStoredWalletRequestTool(context: AgentToolContext) {
+  return createAgentTool<CreateSessionRequestInput, SanitizedWalletRequestRecord>({
+    name: 'createWalletRequestTool',
+    description: 'Create and persist a wallet approval request for later local approval.',
+    execute: async (input) => sanitizeWalletRequestRecord(await createWalletRequest(context, input))
+  });
+}
+
+export function createWalletReapproveTool(context: AgentToolContext) {
+  return createAgentTool<WalletReapproveToolInput, WalletReapproveToolOutput>({
+    name: 'walletReapproveTool',
+    description: 'Create a fresh local approval request for an existing wallet so it can regain or rotate its stored session.',
+    execute: async (input) =>
+      withWalletRecord(context, input, async (wallet, currentInput) => {
+        const request = await createWalletRequest(context, {
+          walletName: wallet.walletName,
+          chain: wallet.chain,
+          connectorUrl: currentInput.connectorUrl || wallet.sessionPayload?.connectorUrl || 'http://localhost:4444',
+          accountKind: displayAccountKind(wallet),
+          paymasterMode: displayPaymasterMode(wallet),
+          policies: {
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }
+        });
+
+        return {
+          wallet: stripSensitiveWalletRecord(wallet),
+          request: sanitizeWalletRequestRecord(request)
+        };
+      })
+  });
+}
+
+export function createApproveWalletRequestTool(context: AgentToolContext) {
+  return createAgentTool<ApproveWalletRequestToolInput, ApproveWalletRequestToolOutput>({
+    name: 'approveWalletRequestTool',
+    description: 'Finalize a stored wallet approval request from an approved session payload.',
+    execute: async (input) => {
+      const walletRequest = await context.loadWalletRequest(input.requestId);
+      if (!walletRequest) {
+        throw new AgentError('WALLET_REQUEST_NOT_FOUND', `Wallet request not found: ${input.requestId}`, {
+          requestId: input.requestId
+        });
+      }
+
+      assertRequestActive(walletRequest.expiresAt);
+      assertApprovedPayloadMatchesRequest(input.payload, walletRequest);
+
+      const walletRecord = await importApprovedWalletSession(
+        context,
+        walletRequest.walletName,
+        input.payload
+      );
+      await context.deleteWalletRequest(walletRequest.requestId);
+
+      return {
+        requestId: walletRequest.requestId,
+        wallet: stripSensitiveWalletRecord(walletRecord),
+        payload: sanitizeSessionPayload(input.payload)
+      };
+    }
+  });
+}
+
+export function createWalletSyncTool(context: AgentToolContext) {
+  return createAgentTool<WalletSyncToolInput, WalletSyncToolOutput>({
+    name: 'walletSyncTool',
+    description: 'Refresh a locally stored wallet from deployed onchain state and saved smart-account profile metadata.',
+    execute: async (input) =>
+      withWalletRecord(context, input, async (wallet, currentInput) => {
+        const profileId = resolveBuiltinProfileId(currentInput.profileId);
+        const result = await syncWalletRecord(context, wallet, profileId);
+        await context.saveWallet(result.wallet);
+        return normalizeSyncOutput(result);
+      })
+  });
+}
+
+export function createWalletExportTool(context: AgentToolContext) {
+  return createAgentTool<WalletExportToolInput, WalletExportRecord>({
+    name: 'walletExportTool',
+    description: 'Export a locally stored wallet into a portable backup bundle.',
+    execute: async (input) =>
+      withWalletRecord(context, input, async (wallet, currentInput) =>
+        buildWalletExportRecord(wallet, Boolean(currentInput.includeSensitiveData))
+      )
+  });
+}
+
+export function createWalletRestoreTool(context: AgentToolContext) {
+  return createAgentTool<WalletRestoreToolInput, WalletRestoreToolOutput>({
+    name: 'walletRestoreTool',
+    description: 'Restore a wallet from an export bundle, with optional profile override and immediate onchain sync.',
+    execute: async (input) => {
+      const bundle = resolveWalletExportRecord(input.exportRecord);
+      let walletRecord = cloneWalletSessionRecord(bundle.wallet);
+      const restoredWalletName = input.walletName?.trim() || walletRecord.walletName;
+      const profileId = resolveBuiltinProfileId(input.profileId);
+
+      if (!restoredWalletName) {
+        throw new AgentError('INVALID_WALLET_NAME', 'Wallet name is required for restore.');
+      }
+
+      walletRecord.walletName = restoredWalletName;
+      if (profileId) {
+        walletRecord.smartAccountProfileId = profileId;
+      }
+
+      const existingWallet = await context.loadWallet(restoredWalletName);
+      if (existingWallet && !input.overwrite) {
+        throw new AgentError('WALLET_ALREADY_EXISTS', `Wallet already exists: ${restoredWalletName}`, {
+          walletName: restoredWalletName
+        });
+      }
+
+      let restoredWallet = walletRecord;
+      let syncResult: WalletSyncInternalResult | undefined;
+
+      await context.saveWallet(restoredWallet);
+
+      if (input.sync) {
+        syncResult = await syncWalletRecord(context, restoredWallet, profileId);
+        restoredWallet = syncResult.wallet;
+        await context.saveWallet(restoredWallet);
+      }
+
+      return {
+        wallet: stripSensitiveWalletRecord(restoredWallet),
+        inspection: syncResult?.inspection,
+        restoredFrom: {
+          format: bundle.format,
+          version: bundle.version,
+          exportedAt: bundle.exportedAt,
+          sensitiveDataIncluded: bundle.sensitiveDataIncluded,
+          originalWalletName: bundle.wallet.walletName
+        },
+        sync: syncResult
+          ? normalizeSyncOutput(syncResult).sync
+          : undefined
+      };
+    }
+  });
+}
