@@ -1,3 +1,4 @@
+import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { createAgentToolContext, createStandardAgentTools } from './create-toolset.js';
@@ -12,6 +13,7 @@ export function createZkSyncAgentToolContext(options: {
 } = {}): AgentToolContext {
   return createAgentToolContext({
     provider: new ZkSyncWalletProvider(),
+    defiProvider: new ZkSyncDefiProvider(),
     loadWallet: options.loadWallet,
     saveWallet: options.saveWallet,
     loadWalletRequest: options.loadWalletRequest,

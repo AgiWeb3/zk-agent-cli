@@ -6,7 +6,7 @@ import {
   encodeSedLiteValidationHooksRead,
   encodeSedLiteValidatorRead
 } from '@zk-agent/account-profiles';
-import { AgentError, type WalletSessionRecord } from '@zk-agent/agent-core';
+import { AgentError, resolveChain, type WalletSessionRecord } from '@zk-agent/agent-core';
 
 import {
   createAgentToolContext,
@@ -166,16 +166,17 @@ function createProviderStub() {
       };
     },
     async getBalances(input) {
+      const chain = resolveChain(input.chain);
       return {
         walletName: input.walletName,
         walletAddress: input.walletAddress,
-        chain: input.chain,
-        chainId: 300,
+        chain: chain.key,
+        chainId: chain.chainId,
         balances: [
           {
             type: 'native',
-            symbol: 'ETH',
-            balance: '1.0',
+            symbol: chain.nativeSymbol,
+            balance: chain.key === 'zksync-era' ? '2.0' : '1.0',
             decimals: 18
           }
         ]
@@ -186,6 +187,101 @@ function createProviderStub() {
         ...input,
         chainId: 300,
         result: '0x'
+      };
+    },
+    async previewDeposit(input) {
+      const result = await this.deposit({
+        wallet: sampleWallet,
+        ...input,
+        broadcast: false
+      });
+      const { mode: _mode, txHash: _txHash, explorerUrl: _explorerUrl, ...preview } = result;
+      return preview;
+    },
+    async deposit(input) {
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: input.wallet.chain,
+        chainId: input.wallet.chainId,
+        l1ChainId: 11155111,
+        from: input.wallet.ownerAddress || input.wallet.walletAddress,
+        recipient: input.to || input.wallet.walletAddress,
+        bridgeAddress: input.bridgeAddress,
+        bridgeAddresses: {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        },
+        estimatedGas: '210000',
+        token: {
+          address: input.tokenAddress || '0x0000000000000000000000000000000000000000',
+          symbol: input.symbol || 'ETH',
+          amount: input.amount,
+          decimals: input.decimals ?? 18,
+          isNative: !input.tokenAddress
+        },
+        preview: {
+          to: '0x5000000000000000000000000000000000000005',
+          type: '2'
+        },
+        mode: input.broadcast ? 'broadcast' : 'preview',
+        txHash: input.broadcast ? '0x' + '99'.repeat(32) : undefined,
+        explorerUrl: input.broadcast
+          ? 'https://sepolia.etherscan.io/tx/' + '0x' + '99'.repeat(32)
+          : undefined,
+        notes: []
+      };
+    },
+    async depositStatus(input) {
+      return {
+        txHash: input.txHash,
+        chain: resolveChain(input.chain).key,
+        chainId: resolveChain(input.chain).chainId,
+        l1ChainId: 11155111,
+        explorerUrl: 'https://sepolia.etherscan.io/tx/' + input.txHash,
+        l2TxHash: '0x' + 'aa'.repeat(32),
+        l2ExplorerUrl: 'https://explorer.test/tx/' + '0x' + 'aa'.repeat(32),
+        status: 'finalized',
+        l1Included: true,
+        l2Finalized: true,
+        finalizedBlockNumber: 120,
+        l1Transaction: {
+          from: sampleWallet.ownerAddress,
+          to: '0x5000000000000000000000000000000000000005',
+          nonce: 4,
+          blockNumber: 11112636
+        },
+        l1Receipt: {
+          blockNumber: 11112636,
+          blockHash: '0x' + '55'.repeat(32),
+          status: 1,
+          gasUsed: '241133'
+        },
+        l2Transaction: {
+          from: sampleWallet.ownerAddress,
+          to: '0x0000000000000000000000000000000000008008',
+          nonce: 7,
+          blockNumber: 100
+        },
+        l2Receipt: {
+          blockNumber: 100,
+          blockHash: '0x' + '66'.repeat(32),
+          status: 1,
+          gasUsed: '123456',
+          l1BatchNumber: 88,
+          l1BatchTxIndex: 3
+        },
+        l1Batch: {
+          number: 88,
+          status: 'executed',
+          executeTxHash: '0x' + '77'.repeat(32),
+          executedAt: '2026-06-21T00:20:00.000Z'
+        },
+        notes: []
       };
     },
     async sendNative(input) {
@@ -254,13 +350,140 @@ function createProviderStub() {
         fundingUrl: 'https://example.invalid/faucet',
         notes: []
       };
+    },
+    async previewWithdraw(input) {
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: input.wallet.chain,
+        chainId: input.wallet.chainId,
+        l1ChainId: 11155111,
+        from: input.wallet.walletAddress,
+        recipient: input.to || input.wallet.ownerAddress || input.wallet.walletAddress,
+        bridgeAddresses: {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        },
+        estimatedGas: '123456',
+        token: {
+          address: input.tokenAddress || '0x0000000000000000000000000000000000000000',
+          symbol: input.symbol || 'ETH',
+          amount: input.amount,
+          decimals: input.decimals ?? 18,
+          isNative: !input.tokenAddress
+        },
+        preview: {
+          to: '0x000000000000000000000000000000000000800a',
+          type: '113'
+        },
+        notes: []
+      };
+    },
+    async withdraw(input) {
+      const preview = await this.previewWithdraw(input);
+      return {
+        ...preview,
+        mode: input.broadcast ? 'broadcast' : 'preview',
+        txHash: input.broadcast ? '0x' + '55'.repeat(32) : undefined,
+        explorerUrl: input.broadcast
+          ? 'https://explorer.test/tx/' + '0x' + '55'.repeat(32)
+          : undefined
+      };
+    },
+    async previewWithdrawFinalize(input) {
+      const result = await this.finalizeWithdraw({
+        wallet: sampleWallet,
+        ...input,
+        broadcast: false
+      });
+      const {
+        mode: _mode,
+        l1ChainId: _l1ChainId,
+        finalizeTxHash: _finalizeTxHash,
+        finalizeExplorerUrl: _finalizeExplorerUrl,
+        signerAddress: _signerAddress,
+        ...preview
+      } = result;
+      return preview;
+    },
+    async finalizeWithdraw(input) {
+      return {
+        txHash: input.txHash,
+        chain: resolveChain(input.chain).key,
+        chainId: resolveChain(input.chain).chainId,
+        explorerUrl: 'https://explorer.test/tx/' + input.txHash,
+        index: input.index ?? 0,
+        mode: input.broadcast ? 'broadcast' : 'preview',
+        l1ChainId: 11155111,
+        finalizeTxHash: input.broadcast ? '0x' + '88'.repeat(32) : undefined,
+        finalizeExplorerUrl: input.broadcast
+          ? 'https://sepolia.etherscan.io/tx/' + '0x' + '88'.repeat(32)
+          : undefined,
+        signerAddress: '0x2222222222222222222222222222222222222222',
+        finalizeDepositParams: {
+          chainId: '300',
+          l2BatchNumber: '88',
+          l2MessageIndex: '5',
+          l2Sender: '0x1111111111111111111111111111111111111111',
+          l2TxNumberInBatch: '3',
+          message: '0x1234',
+          merkleProof: ['0x' + 'aa'.repeat(32)]
+        },
+        legacyFinalizeParams: {
+          l1BatchNumber: 88,
+          l2MessageIndex: 5,
+          l2TxNumberInBlock: 3,
+          sender: '0x1111111111111111111111111111111111111111',
+          message: '0x1234',
+          proof: ['0x' + 'aa'.repeat(32)]
+        },
+        notes: []
+      };
+    },
+    async withdrawStatus(input) {
+      return {
+        txHash: input.txHash,
+        chain: resolveChain(input.chain).key,
+        chainId: resolveChain(input.chain).chainId,
+        explorerUrl: 'https://explorer.test/tx/' + input.txHash,
+        status: 'finalized',
+        l2Finalized: true,
+        finalizedBlockNumber: 120,
+        transaction: {
+          from: sampleWallet.walletAddress,
+          to: '0x000000000000000000000000000000000000800a',
+          nonce: 7,
+          blockNumber: 100
+        },
+        receipt: {
+          blockNumber: 100,
+          blockHash: '0x' + '66'.repeat(32),
+          status: 1,
+          gasUsed: '123456',
+          l1BatchNumber: 88,
+          l1BatchTxIndex: 3
+        },
+        l1Batch: {
+          number: 88,
+          status: 'executed',
+          executeTxHash: '0x' + '77'.repeat(32),
+          executedAt: '2026-06-21T00:20:00.000Z'
+        },
+        notes: []
+      };
     }
   };
 }
 
 test('createStandardAgentTools resolves wallet-scoped operations', async () => {
+  const provider = createProviderStub();
   const context = createAgentToolContext({
-    provider: createProviderStub(),
+    provider,
+    defiProvider: provider,
     loadWallet: async (walletName) => (walletName === sampleWallet.walletName ? sampleWallet : null)
   });
   const tools = createStandardAgentTools(context);
@@ -287,6 +510,126 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
   assert.equal(sendNative.ok, true);
   if (sendNative.ok) {
     assert.equal(sendNative.data.mode, 'preview');
+  }
+
+  const deposit = await tools.depositPreviewTool.execute({
+    walletName: 'main',
+    amount: '0.05',
+    broadcast: false
+  });
+  assert.equal(deposit.ok, true);
+  if (deposit.ok) {
+    assert.equal(deposit.data.mode, 'preview');
+    assert.equal(deposit.data.l1ChainId, 11155111);
+    assert.equal(deposit.data.token.symbol, 'ETH');
+  }
+
+  const depositStatus = await tools.depositStatusTool.execute({
+    walletName: 'main',
+    txHash: '0x' + '21'.repeat(32)
+  });
+  assert.equal(depositStatus.ok, true);
+  if (depositStatus.ok) {
+    assert.equal(depositStatus.data.status, 'finalized');
+    assert.equal(depositStatus.data.l2TxHash, '0x' + 'aa'.repeat(32));
+  }
+
+  const withdraw = await tools.withdrawPreviewTool.execute({
+    walletName: 'main',
+    amount: '0.05',
+    broadcast: false
+  });
+  assert.equal(withdraw.ok, true);
+  if (withdraw.ok) {
+    assert.equal(withdraw.data.mode, 'preview');
+    assert.equal(withdraw.data.l1ChainId, 11155111);
+    assert.equal(withdraw.data.token.symbol, 'ETH');
+  }
+
+  const withdrawStatus = await tools.withdrawStatusTool.execute({
+    walletName: 'main',
+    txHash: '0x' + '12'.repeat(32)
+  });
+  assert.equal(withdrawStatus.ok, true);
+  if (withdrawStatus.ok) {
+    assert.equal(withdrawStatus.data.status, 'finalized');
+    assert.equal(withdrawStatus.data.l1Batch?.number, 88);
+  }
+
+  const withdrawFinalizePreview = await tools.withdrawFinalizePreviewTool.execute({
+    walletName: 'main',
+    txHash: '0x' + '12'.repeat(32),
+    broadcast: false
+  });
+  assert.equal(withdrawFinalizePreview.ok, true);
+  if (withdrawFinalizePreview.ok) {
+    assert.equal(withdrawFinalizePreview.data.mode, 'preview');
+    assert.equal(withdrawFinalizePreview.data.finalizeDepositParams.l2BatchNumber, '88');
+  }
+});
+
+test('deposit status tool can wait until the mapped deposit finalizes', async () => {
+  let callCount = 0;
+  const context = createAgentToolContext({
+    provider: createProviderStub(),
+    defiProvider: {
+      ...createProviderStub(),
+      async depositStatus(input) {
+        callCount += 1;
+        return {
+          txHash: input.txHash,
+          chain: resolveChain(input.chain).key,
+          chainId: resolveChain(input.chain).chainId,
+          l1ChainId: 11155111,
+          status: callCount === 1 ? 'committed' : 'finalized',
+          l1Included: true,
+          l2Finalized: callCount > 1,
+          l2TxHash: '0x' + 'aa'.repeat(32),
+          notes: []
+        };
+      }
+    },
+    loadWallet: async () => sampleWallet
+  });
+  const tools = createStandardAgentTools(context);
+
+  const result = await tools.depositStatusTool.execute({
+    walletName: 'main',
+    txHash: '0x' + '21'.repeat(32),
+    wait: true,
+    pollIntervalMs: 1,
+    timeoutMs: 50
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.status, 'finalized');
+  assert.equal(callCount, 2);
+});
+
+test('get balances tool aggregates supported zkSync chains when chains are requested', async () => {
+  const provider = createProviderStub();
+  const context = createAgentToolContext({
+    provider,
+    defiProvider: provider,
+    loadWallet: async () => sampleWallet
+  });
+  const tools = createStandardAgentTools(context);
+
+  const result = await tools.getBalancesTool.execute({
+    walletName: 'main',
+    chains: ['zksync-era', 'zksync-sepolia']
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal('multiChain' in result.data ? result.data.multiChain : false, true);
+  if ('multiChain' in result.data) {
+    assert.equal(result.data.chains.length, 2);
+    assert.equal(result.data.chains[0]?.chain, 'zksync-era');
+    assert.equal(result.data.chains[0]?.balances[0]?.balance, '2.0');
+    assert.equal(result.data.chains[1]?.chain, 'zksync-sepolia');
+    assert.equal(result.data.chains[1]?.balances[0]?.balance, '1.0');
   }
 });
 
@@ -472,12 +815,81 @@ test('write contract tool exposes invalid fee-token remediation hints', async ()
   }
 });
 
+test('withdraw preview tool exposes structured transaction validation classification', async () => {
+  const context = createAgentToolContext({
+    provider: createProviderStub(),
+    defiProvider: {
+      name: 'zksync-defi',
+      async previewDeposit() {
+        throw new Error('previewDeposit should not be called in this test');
+      },
+      async deposit() {
+        throw new Error('deposit should not be called in this test');
+      },
+      async depositStatus() {
+        throw new Error('depositStatus should not be called in this test');
+      },
+      async previewWithdraw() {
+        throw new Error('previewWithdraw should not be called by withdrawPreviewTool');
+      },
+      async withdraw() {
+        throw new AgentError(
+          'WITHDRAW_ESTIMATION_VALIDATION_FAILED',
+          'Withdraw transaction preparation was rejected during transaction validation.',
+          {
+            validationDomain: 'transaction-validation',
+            validationStage: 'estimation',
+            validation: {
+              kind: 'hook-native-per-tx-cap-exceeded',
+              source: 'validation-hook',
+              reason: 'native-transfer-exceeds-per-tx-cap',
+              policyHook: 'native-per-tx-limit'
+            }
+          }
+        );
+      },
+      async finalizeWithdraw() {
+        throw new Error('finalizeWithdraw should not be called in this test');
+      },
+      async previewWithdrawFinalize() {
+        throw new Error('previewWithdrawFinalize should not be called in this test');
+      },
+      async withdrawStatus() {
+        throw new Error('withdrawStatus should not be called in this test');
+      }
+    },
+    loadWallet: async () => sampleWallet
+  });
+  const tools = createStandardAgentTools(context);
+
+  const result = await tools.withdrawPreviewTool.execute({
+    walletName: 'main',
+    amount: '0.1',
+    broadcast: false
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.deepEqual(result.error.classification, {
+      domain: 'transaction-validation',
+      stage: 'estimation',
+      policyHook: 'native-per-tx-limit',
+      validationKind: 'hook-native-per-tx-cap-exceeded'
+    });
+    assert.equal(
+      result.error.suggestedAction,
+      'Lower the native transfer amount or raise the wallet native spend cap before retrying.'
+    );
+  }
+});
+
 test('createZkSyncAgentToolContext wires a real zkSync provider', async () => {
   const context = createZkSyncAgentToolContext({
     loadWallet: async () => sampleWallet
   });
 
   assert.equal(context.provider.name, 'zksync-sso');
+  assert.equal(context.defiProvider?.name, 'zksync-defi');
 
   const requestTool = createZkSyncAgentTools({
     loadWallet: async () => sampleWallet
@@ -500,8 +912,10 @@ test('createZkSyncAgentToolContext wires a real zkSync provider', async () => {
 });
 
 test('standard tool registry lists stable tool names and descriptions', async () => {
+  const provider = createProviderStub();
   const context = createAgentToolContext({
-    provider: createProviderStub(),
+    provider,
+    defiProvider: provider,
     loadWallet: async () => sampleWallet
   });
 
@@ -516,22 +930,29 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletRestoreTool',
     'getBalancesTool',
     'callContractTool',
+    'depositPreviewTool',
+    'depositStatusTool',
     'sendNativeTool',
     'sendTokenTool',
+    'withdrawPreviewTool',
+    'withdrawFinalizePreviewTool',
+    'withdrawStatusTool',
     'writeContractTool',
     'planSmartAccountDeploymentTool',
     'deploySmartAccountTool'
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 15);
+  assert.equal(listed.length, 20);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
 });
 
 test('runStandardAgentTool dispatches by name and normalizes unknown tool errors', async () => {
+  const provider = createProviderStub();
   const context = createAgentToolContext({
-    provider: createProviderStub(),
+    provider,
+    defiProvider: provider,
     loadWallet: async () => sampleWallet
   });
 
@@ -541,6 +962,72 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   assert.equal(success.ok, true);
   if (success.ok) {
     assert.equal((success.data as { walletName: string }).walletName, 'main');
+  }
+
+  const deposit = await runStandardAgentTool(context, 'depositPreviewTool', {
+    walletName: 'main',
+    amount: '0.05',
+    broadcast: false
+  });
+  assert.equal(deposit.ok, true);
+  if (deposit.ok) {
+    assert.equal((deposit.data as { mode: string }).mode, 'preview');
+    assert.equal((deposit.data as { l1ChainId: number }).l1ChainId, 11155111);
+  }
+
+  const depositStatus = await runStandardAgentTool(context, 'depositStatusTool', {
+    walletName: 'main',
+    txHash: '0x' + '21'.repeat(32)
+  });
+  assert.equal(depositStatus.ok, true);
+  if (depositStatus.ok) {
+    assert.equal((depositStatus.data as { status: string }).status, 'finalized');
+    assert.equal(
+      (depositStatus.data as { l2TxHash: string }).l2TxHash,
+      '0x' + 'aa'.repeat(32)
+    );
+  }
+
+  const withdraw = await runStandardAgentTool(context, 'withdrawPreviewTool', {
+    walletName: 'main',
+    amount: '0.05',
+    broadcast: false
+  });
+  assert.equal(withdraw.ok, true);
+  if (withdraw.ok) {
+    assert.equal((withdraw.data as { mode: string }).mode, 'preview');
+    assert.equal((withdraw.data as { l1ChainId: number }).l1ChainId, 11155111);
+  }
+
+  const withdrawStatus = await runStandardAgentTool(context, 'withdrawStatusTool', {
+    walletName: 'main',
+    txHash: '0x' + '12'.repeat(32)
+  });
+  assert.equal(withdrawStatus.ok, true);
+  if (withdrawStatus.ok) {
+    assert.equal((withdrawStatus.data as { status: string }).status, 'finalized');
+  }
+
+  const withdrawFinalizePreview = await runStandardAgentTool(
+    context,
+    'withdrawFinalizePreviewTool',
+    {
+      walletName: 'main',
+      txHash: '0x' + '12'.repeat(32),
+      broadcast: false
+    }
+  );
+  assert.equal(withdrawFinalizePreview.ok, true);
+  if (withdrawFinalizePreview.ok) {
+    assert.equal((withdrawFinalizePreview.data as { mode: string }).mode, 'preview');
+    assert.equal(
+      (
+        withdrawFinalizePreview.data as {
+          finalizeDepositParams: { l2BatchNumber: string };
+        }
+      ).finalizeDepositParams.l2BatchNumber,
+      '88'
+    );
   }
 
   const failure = await runStandardAgentTool(context, 'missingTool', {});

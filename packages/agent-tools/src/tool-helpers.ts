@@ -33,7 +33,8 @@ function normalizeValidationStage(
   return value === 'estimation' || value === 'broadcast' ? value : undefined;
 }
 
-function normalizePaymasterValidationClassification(
+function normalizeValidationClassification(
+  errorCode: string | undefined,
   details: Record<string, unknown> | undefined
 ): AgentToolErrorClassification | undefined {
   if (!details) return undefined;
@@ -44,8 +45,15 @@ function normalizePaymasterValidationClassification(
   const kind = typeof validation.kind === 'string' ? validation.kind : undefined;
   if (!kind) return undefined;
 
+  const domain =
+    details.validationDomain === 'transaction-validation'
+      ? 'transaction-validation'
+      : errorCode?.startsWith('PAYMASTER_')
+        ? 'paymaster-validation'
+        : 'transaction-validation';
+
   return {
-    domain: 'paymaster-validation',
+    domain,
     stage: normalizeValidationStage(details.validationStage),
     policyHook: typeof validation.policyHook === 'string' ? validation.policyHook : undefined,
     validationKind: kind
@@ -87,7 +95,7 @@ export function normalizeAgentToolError(error: unknown): AgentToolError {
       code: error.code,
       message: error.message,
       details,
-      classification: normalizePaymasterValidationClassification(details),
+      classification: normalizeValidationClassification(error.code, details),
       suggestedAction: resolveSuggestedAction(details)
     };
   }

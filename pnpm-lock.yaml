@@ -82,6 +82,9 @@ importers:
       '@zk-agent/agent-session-protocol':
         specifier: workspace:*
         version: link:../agent-session-protocol
+      '@zk-agent/provider-zksync-defi':
+        specifier: workspace:*
+        version: link:../provider-zksync-defi
       '@zk-agent/provider-zksync-wallet':
         specifier: workspace:*
         version: link:../provider-zksync-wallet

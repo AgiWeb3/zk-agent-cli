@@ -1,4 +1,5 @@
 import type {
+  DefiProvider,
   WalletRequestRecord,
   WalletProvider,
   WalletSessionRecord
@@ -13,7 +14,7 @@ export interface AgentToolError {
 }
 
 export interface AgentToolErrorClassification {
-  domain: 'paymaster-validation';
+  domain: 'paymaster-validation' | 'transaction-validation';
   stage?: 'estimation' | 'broadcast';
   policyHook?: string;
   validationKind?: string;
@@ -33,6 +34,7 @@ export type AgentToolResult<Output> = AgentToolSuccess<Output> | AgentToolFailur
 
 export interface AgentToolContext {
   provider: WalletProvider;
+  defiProvider?: DefiProvider;
   loadWallet(walletName: string): Promise<WalletSessionRecord | null>;
   saveWallet(wallet: WalletSessionRecord): Promise<void>;
   loadWalletRequest(requestId: string): Promise<WalletRequestRecord | null>;

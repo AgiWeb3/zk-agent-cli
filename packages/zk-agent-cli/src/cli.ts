@@ -4,11 +4,15 @@ import { config as loadEnv } from 'dotenv';
 import {
   createBalancesCommand,
   createCallCommand,
+  createDepositCommand,
+  createDepositStatusCommand,
   createFundCommand,
   createPlannedCommands,
   createSendCommand,
   createSendTokenCommand,
-  createWithdrawCommand
+  createWithdrawCommand,
+  createWithdrawFinalizeCommand,
+  createWithdrawStatusCommand
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
 import { createWalletCommand } from './commands/wallet.js';
@@ -36,7 +40,11 @@ function createProgram(): Command {
   program.addCommand(createSendCommand());
   program.addCommand(createSendTokenCommand());
   program.addCommand(createCallCommand());
+  program.addCommand(createDepositCommand());
+  program.addCommand(createDepositStatusCommand());
   program.addCommand(createWithdrawCommand());
+  program.addCommand(createWithdrawFinalizeCommand());
+  program.addCommand(createWithdrawStatusCommand());
 
   for (const command of createPlannedCommands()) {
     program.addCommand(command);

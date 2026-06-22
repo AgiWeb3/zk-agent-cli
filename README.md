@@ -30,6 +30,10 @@ What is already in place:
 - local wallet record maintenance via `wallet rename`
 - local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
 - `zksync-ethers` read path for balances and contract calls
+- `balances` now supports:
+  - stored-wallet default chain reads
+  - single-chain override
+  - multi-chain aggregation across the built-in zkSync chain registry
 - thin AA-oriented transaction commands for:
   - `send`
   - `send-token`
@@ -59,8 +63,10 @@ What is already in place:
   - wallet restore
   - balances
   - contract read
+  - deposit preview / broadcast / status
   - native send
   - token send
+  - withdraw preview / broadcast / status / finalize preview / finalize broadcast
   - contract write
   - smart-account plan/deploy wrappers
   - default `createZkSyncAgentTools()` / `createZkSyncAgentToolContext()` factories
@@ -71,9 +77,11 @@ What is already in place:
   - `pnpm --filter @zk-agent/agent-tools smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm --filter @zk-agent/agent-tools smoke:broadcast -- --wallet <name> --execute` for the opt-in live legacy fee-token incompatibility smoke, which may now fail during estimation or broadcast depending on current Sepolia behavior
   - built `dist` entrypoints now also run directly, for example `node packages/agent-tools/dist/run-tool.js --list`
-  - tool errors now also expose normalized paymaster validation `classification`
-    and `suggestedAction` fields when the provider returns a known structured
-    validation rejection
+  - tool errors now also expose normalized validation `classification` and
+    `suggestedAction` fields when the provider returns a known structured
+    rejection, including:
+    - paymaster validation failures
+    - direct transaction validation failures such as SED native-cap hook rejects
 - `wallet paymaster set` for updating saved default paymaster metadata on a
   stored wallet
 - generic `wallet smart-account predict|deploy` flow for:
@@ -101,10 +109,19 @@ What is already in place:
 - live paymaster transaction preparation for:
   - General flow (`sponsored`)
   - zkSync testnet ApprovalBased flow with automatic testnet paymaster resolution
-- preview-only `withdraw` support through `packages/provider-zksync-defi`, including:
+- `deposit` support through `packages/provider-zksync-defi`, including:
+  - L1 -> L2 deposit transaction preview
+  - gas estimation for the deposit path
+  - opt-in L1 deposit broadcast for locally writable sessions
+  - post-broadcast L1 and mapped L2 lifecycle inspection, including wait-mode polling in the CLI
+  - explicit L1 signer and RPC requirements for the deposit path
+- `withdraw` support through `packages/provider-zksync-defi`, including:
   - default bridge discovery
   - L2 -> L1 withdraw transaction preview
   - gas estimation for the withdraw path
+  - opt-in L2 withdraw broadcast for locally writable sessions
+  - post-broadcast L2 and batch status inspection
+  - L1 finalize-parameter preview and opt-in L1 finalize broadcast for later nullifier finalization
 - structured paymaster validation errors now classify known zkSync Sepolia
   SystemContext failures and known SED Lite hook rejections during estimation /
   broadcast, and surface the key validation fields in both JSON and TTY output
@@ -126,8 +143,8 @@ What is next:
 - validate smart-account writes through paymaster mode once the base no-paymaster path is stable
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
-- withdraw broadcast/finalization follow-up
-- bridge / deposit / swap implementations
+- withdraw finalization follow-up
+- deposit lifecycle follow-up beyond status / bridge / swap implementations
 
 ## Development Environment Strategy
 

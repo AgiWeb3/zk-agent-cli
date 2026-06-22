@@ -100,6 +100,19 @@ export interface GetBalancesResult {
   balances: WalletBalance[];
 }
 
+export interface ChainBalancesResult {
+  chain: string;
+  chainId: number;
+  balances: WalletBalance[];
+}
+
+export interface MultiChainBalancesResult {
+  walletName: string;
+  walletAddress: string;
+  multiChain: true;
+  chains: ChainBalancesResult[];
+}
+
 export interface ContractCallInput {
   chain: string;
   to: string;
@@ -185,6 +198,95 @@ export interface BridgeAddresses {
   sharedL2: string;
 }
 
+export interface DepositPreviewInput {
+  wallet: WalletSessionRecord;
+  amount: string;
+  to?: string;
+  tokenAddress?: string;
+  symbol?: string;
+  decimals?: number;
+  bridgeAddress?: string;
+}
+
+export interface DepositPreviewResult {
+  walletName: string;
+  walletAddress: string;
+  chain: string;
+  chainId: number;
+  l1ChainId: number;
+  from: string;
+  recipient: string;
+  bridgeAddress?: string;
+  bridgeAddresses: BridgeAddresses;
+  estimatedGas: string;
+  token: {
+    address: string;
+    symbol: string;
+    amount: string;
+    decimals: number;
+    isNative: boolean;
+  };
+  preview: TransactionPreview;
+  notes: string[];
+}
+
+export interface DepositExecutionInput extends DepositPreviewInput {
+  broadcast: boolean;
+}
+
+export interface DepositExecutionResult extends DepositPreviewResult {
+  mode: 'preview' | 'broadcast';
+  txHash?: string;
+  explorerUrl?: string;
+}
+
+export interface DepositStatusInput {
+  chain: string;
+  txHash: string;
+}
+
+export interface DepositStatusResult {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  l1ChainId: number;
+  explorerUrl?: string;
+  l2TxHash?: string;
+  l2ExplorerUrl?: string;
+  status: 'not-found' | 'pending' | 'failed' | 'included' | 'committed' | 'finalized';
+  l1Included: boolean;
+  l2Finalized: boolean;
+  finalizedBlockNumber?: number;
+  l1Transaction?: {
+    from?: string;
+    to?: string;
+    nonce?: number;
+    blockNumber?: number | null;
+  };
+  l1Receipt?: {
+    blockNumber?: number;
+    blockHash?: string;
+    status?: number | null;
+    gasUsed?: string;
+  };
+  l2Transaction?: {
+    from?: string;
+    to?: string;
+    nonce?: number;
+    blockNumber?: number | null;
+  };
+  l2Receipt?: {
+    blockNumber?: number;
+    blockHash?: string;
+    status?: number | null;
+    gasUsed?: string;
+    l1BatchNumber?: number | null;
+    l1BatchTxIndex?: number | null;
+  };
+  l1Batch?: WithdrawBatchResult;
+  notes: string[];
+}
+
 export interface WithdrawPreviewInput {
   wallet: WalletSessionRecord;
   amount: string;
@@ -215,6 +317,104 @@ export interface WithdrawPreviewResult {
   };
   preview: TransactionPreview;
   notes: string[];
+}
+
+export interface WithdrawExecutionInput extends WithdrawPreviewInput {
+  broadcast: boolean;
+}
+
+export interface WithdrawExecutionResult extends WithdrawPreviewResult {
+  mode: 'preview' | 'broadcast';
+  txHash?: string;
+  explorerUrl?: string;
+}
+
+export interface WithdrawStatusInput {
+  chain: string;
+  txHash: string;
+}
+
+export interface WithdrawBatchResult {
+  number: number;
+  status: string;
+  commitTxHash?: string;
+  proveTxHash?: string;
+  executeTxHash?: string;
+  committedAt?: string;
+  provenAt?: string;
+  executedAt?: string;
+}
+
+export interface WithdrawStatusResult {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  explorerUrl?: string;
+  status: 'not-found' | 'pending' | 'included' | 'finalized';
+  l2Finalized: boolean;
+  finalizedBlockNumber?: number;
+  transaction?: {
+    from?: string;
+    to?: string;
+    nonce?: number;
+    blockNumber?: number | null;
+  };
+  receipt?: {
+    blockNumber?: number;
+    blockHash?: string;
+    status?: number | null;
+    gasUsed?: string;
+    l1BatchNumber?: number | null;
+    l1BatchTxIndex?: number | null;
+  };
+  l1Batch?: WithdrawBatchResult;
+  notes: string[];
+}
+
+export interface WithdrawFinalizePreviewInput {
+  chain: string;
+  txHash: string;
+  index?: number;
+}
+
+export interface WithdrawFinalizeExecutionInput extends WithdrawFinalizePreviewInput {
+  wallet: WalletSessionRecord;
+  broadcast: boolean;
+}
+
+export interface WithdrawFinalizePreviewResult {
+  txHash: string;
+  chain: string;
+  chainId: number;
+  explorerUrl?: string;
+  index: number;
+  finalizeDepositParams: {
+    chainId: string;
+    l2BatchNumber: string;
+    l2MessageIndex: string;
+    l2Sender: string;
+    l2TxNumberInBatch: string;
+    message: string;
+    merkleProof: string[];
+  };
+  legacyFinalizeParams: {
+    l1BatchNumber?: number | null;
+    l2MessageIndex: number;
+    l2TxNumberInBlock?: number | null;
+    sender: string;
+    message: string;
+    proof: string[];
+  };
+  notes: string[];
+}
+
+export interface WithdrawFinalizeExecutionResult
+  extends WithdrawFinalizePreviewResult {
+  mode: 'preview' | 'broadcast';
+  l1ChainId: number;
+  finalizeTxHash?: string;
+  finalizeExplorerUrl?: string;
+  signerAddress?: string;
 }
 
 export interface FundingInfo {
@@ -305,5 +505,16 @@ export interface WalletProvider {
 
 export interface DefiProvider {
   readonly name: 'zksync-defi';
+  previewDeposit(input: DepositPreviewInput): Promise<DepositPreviewResult>;
+  deposit(input: DepositExecutionInput): Promise<DepositExecutionResult>;
+  depositStatus(input: DepositStatusInput): Promise<DepositStatusResult>;
   previewWithdraw(input: WithdrawPreviewInput): Promise<WithdrawPreviewResult>;
+  withdraw(input: WithdrawExecutionInput): Promise<WithdrawExecutionResult>;
+  withdrawStatus(input: WithdrawStatusInput): Promise<WithdrawStatusResult>;
+  previewWithdrawFinalize(
+    input: WithdrawFinalizePreviewInput
+  ): Promise<WithdrawFinalizePreviewResult>;
+  finalizeWithdraw(
+    input: WithdrawFinalizeExecutionInput
+  ): Promise<WithdrawFinalizeExecutionResult>;
 }

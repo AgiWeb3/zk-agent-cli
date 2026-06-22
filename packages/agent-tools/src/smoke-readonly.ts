@@ -108,10 +108,16 @@ async function main(): Promise<void> {
     | undefined;
 
   if (options.callTo && options.callData) {
+    const balancesChain =
+      balances.ok
+        ? 'multiChain' in balances.data
+          ? balances.data.chains[0]?.chain
+          : balances.data.chain
+        : undefined;
     const chain =
       options.callChain ||
       (walletStatus.ok ? walletStatus.data.chain : undefined) ||
-      (balances.ok ? balances.data.chain : undefined);
+      balancesChain;
 
     if (!chain) {
       throw new Error(
