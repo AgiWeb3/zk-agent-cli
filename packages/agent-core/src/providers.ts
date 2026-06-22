@@ -198,6 +198,106 @@ export interface BridgeAddresses {
   sharedL2: string;
 }
 
+export interface BridgePreviewInput {
+  wallet: WalletSessionRecord;
+  amount: string;
+  fromChain?: string;
+  toChain: string;
+  to?: string;
+  tokenAddress?: string;
+  symbol?: string;
+  decimals?: number;
+  bridgeAddress?: string;
+}
+
+export interface BridgeExecutionInput extends BridgePreviewInput {
+  broadcast: boolean;
+}
+
+export interface BridgeExecutionResult {
+  walletName: string;
+  walletAddress: string;
+  route: 'l1-to-l2' | 'l2-to-l1';
+  operation: 'deposit' | 'withdraw';
+  mode: 'preview' | 'broadcast';
+  fromChain: string;
+  fromChainId: number;
+  toChain: string;
+  toChainId: number;
+  sender: string;
+  recipient: string;
+  bridgeAddress?: string;
+  bridgeAddresses: BridgeAddresses;
+  estimatedGas: string;
+  token: {
+    address: string;
+    symbol: string;
+    amount: string;
+    decimals: number;
+    isNative: boolean;
+  };
+  preview: TransactionPreview;
+  txHash?: string;
+  explorerUrl?: string;
+  statusCommand?: string;
+  notes: string[];
+}
+
+export interface BridgeStatusInput {
+  wallet: WalletSessionRecord;
+  txHash: string;
+  fromChain?: string;
+  toChain: string;
+}
+
+export interface BridgeStatusResult {
+  walletName: string;
+  walletAddress: string;
+  route: 'l1-to-l2' | 'l2-to-l1';
+  operation: 'deposit' | 'withdraw';
+  fromChain: string;
+  fromChainId: number;
+  toChain: string;
+  toChainId: number;
+  txHash: string;
+  explorerUrl?: string;
+  relatedTxHash?: string;
+  relatedExplorerUrl?: string;
+  status: 'not-found' | 'pending' | 'failed' | 'included' | 'committed' | 'finalized';
+  l1Included?: boolean;
+  l2Finalized: boolean;
+  finalizedBlockNumber?: number;
+  l1Transaction?: {
+    from?: string;
+    to?: string;
+    nonce?: number;
+    blockNumber?: number | null;
+  };
+  l1Receipt?: {
+    blockNumber?: number;
+    blockHash?: string;
+    status?: number | null;
+    gasUsed?: string;
+  };
+  l2Transaction?: {
+    from?: string;
+    to?: string;
+    nonce?: number;
+    blockNumber?: number | null;
+  };
+  l2Receipt?: {
+    blockNumber?: number;
+    blockHash?: string;
+    status?: number | null;
+    gasUsed?: string;
+    l1BatchNumber?: number | null;
+    l1BatchTxIndex?: number | null;
+  };
+  l1Batch?: WithdrawBatchResult;
+  nextCommand?: string;
+  notes: string[];
+}
+
 export interface DepositPreviewInput {
   wallet: WalletSessionRecord;
   amount: string;
@@ -505,6 +605,8 @@ export interface WalletProvider {
 
 export interface DefiProvider {
   readonly name: 'zksync-defi';
+  bridge(input: BridgeExecutionInput): Promise<BridgeExecutionResult>;
+  bridgeStatus(input: BridgeStatusInput): Promise<BridgeStatusResult>;
   previewDeposit(input: DepositPreviewInput): Promise<DepositPreviewResult>;
   deposit(input: DepositExecutionInput): Promise<DepositExecutionResult>;
   depositStatus(input: DepositStatusInput): Promise<DepositStatusResult>;

@@ -189,6 +189,138 @@ function createProviderStub() {
         result: '0x'
       };
     },
+    async bridge(input) {
+      const isDeposit = (input.fromChain || '').toLowerCase() === 'ethereum-sepolia';
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        route: isDeposit ? 'l1-to-l2' : 'l2-to-l1',
+        operation: isDeposit ? 'deposit' : 'withdraw',
+        mode: input.broadcast ? 'broadcast' : 'preview',
+        fromChain: isDeposit ? 'ethereum-sepolia' : input.wallet.chain,
+        fromChainId: isDeposit ? 11155111 : input.wallet.chainId,
+        toChain: isDeposit ? input.toChain : 'ethereum-sepolia',
+        toChainId: isDeposit ? resolveChain(input.toChain).chainId : 11155111,
+        sender: input.wallet.ownerAddress || input.wallet.walletAddress,
+        recipient: input.to || input.wallet.walletAddress,
+        bridgeAddress: input.bridgeAddress,
+        bridgeAddresses: {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        },
+        estimatedGas: isDeposit ? '210000' : '123456',
+        token: {
+          address: input.tokenAddress || '0x0000000000000000000000000000000000000000',
+          symbol: input.symbol || 'ETH',
+          amount: input.amount,
+          decimals: input.decimals ?? 18,
+          isNative: !input.tokenAddress
+        },
+        preview: {
+          to: isDeposit
+            ? '0x5000000000000000000000000000000000000005'
+            : '0x6000000000000000000000000000000000000006',
+          type: isDeposit ? '2' : '113'
+        },
+        txHash: input.broadcast ? '0x' + '98'.repeat(32) : undefined,
+        explorerUrl: input.broadcast
+          ? (isDeposit
+              ? 'https://sepolia.etherscan.io/tx/'
+              : 'https://explorer.test/tx/') + '0x' + '98'.repeat(32)
+          : undefined,
+        statusCommand: input.broadcast
+          ? (isDeposit
+              ? 'zk-agent bridge-status --wallet main --to-chain zksync-sepolia --tx-hash 0x' +
+                '98'.repeat(32) +
+                ' --from-chain ethereum-sepolia'
+              : 'zk-agent bridge-status --wallet main --to-chain ethereum-sepolia --tx-hash 0x' +
+                '98'.repeat(32))
+          : undefined,
+        notes: []
+      };
+    },
+    async bridgeStatus(input) {
+      const isDeposit = (input.toChain || '').toLowerCase() === 'zksync-sepolia';
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        route: isDeposit ? 'l1-to-l2' : 'l2-to-l1',
+        operation: isDeposit ? 'deposit' : 'withdraw',
+        fromChain: isDeposit ? (input.fromChain || 'ethereum-sepolia') : input.wallet.chain,
+        fromChainId: isDeposit ? 11155111 : input.wallet.chainId,
+        toChain: isDeposit ? 'zksync-sepolia' : 'ethereum-sepolia',
+        toChainId: isDeposit ? 300 : 11155111,
+        txHash: input.txHash,
+        explorerUrl: isDeposit
+          ? 'https://sepolia.etherscan.io/tx/' + input.txHash
+          : 'https://explorer.test/tx/' + input.txHash,
+        relatedTxHash: isDeposit ? '0x' + 'aa'.repeat(32) : undefined,
+        relatedExplorerUrl: isDeposit
+          ? 'https://explorer.test/tx/' + '0x' + 'aa'.repeat(32)
+          : undefined,
+        status: 'finalized',
+        l1Included: isDeposit ? true : undefined,
+        l2Finalized: true,
+        finalizedBlockNumber: 120,
+        l1Transaction: isDeposit
+          ? {
+              from: sampleWallet.ownerAddress,
+              to: '0x5000000000000000000000000000000000000005',
+              nonce: 4,
+              blockNumber: 11112636
+            }
+          : undefined,
+        l1Receipt: isDeposit
+          ? {
+              blockNumber: 11112636,
+              blockHash: '0x' + '55'.repeat(32),
+              status: 1,
+              gasUsed: '241133'
+            }
+          : undefined,
+        l2Transaction: {
+          from: sampleWallet.walletAddress,
+          to: isDeposit
+            ? '0x0000000000000000000000000000000000008008'
+            : '0x000000000000000000000000000000000000800a',
+          nonce: 7,
+          blockNumber: 100
+        },
+        l2Receipt: isDeposit
+          ? {
+              blockNumber: 100,
+              blockHash: '0x' + '66'.repeat(32),
+              status: 1,
+              gasUsed: '123456',
+              l1BatchNumber: 88,
+              l1BatchTxIndex: 3
+            }
+          : {
+              blockNumber: 100,
+              blockHash: '0x' + '66'.repeat(32),
+              status: 1,
+              gasUsed: '123456',
+              l1BatchNumber: 88,
+              l1BatchTxIndex: 3
+            },
+        l1Batch: {
+          number: 88,
+          status: 'executed',
+          executeTxHash: '0x' + '77'.repeat(32),
+          executedAt: '2026-06-21T00:20:00.000Z'
+        },
+        nextCommand: isDeposit
+          ? undefined
+          : 'zk-agent withdraw-finalize --wallet main --tx-hash ' + input.txHash,
+        notes: isDeposit
+          ? []
+          : ['For L2 -> L1 withdraws, bridge-status finalization means the L2 withdrawal is finalized. L1 claiming still uses withdraw-finalize.']
+      };
+    },
     async previewDeposit(input) {
       const result = await this.deposit({
         wallet: sampleWallet,
@@ -524,6 +656,30 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
     assert.equal(deposit.data.token.symbol, 'ETH');
   }
 
+  const bridge = await tools.bridgePreviewTool.execute({
+    walletName: 'main',
+    amount: '0.05',
+    fromChain: 'ethereum-sepolia',
+    toChain: 'zksync-sepolia',
+    broadcast: false
+  });
+  assert.equal(bridge.ok, true);
+  if (bridge.ok) {
+    assert.equal(bridge.data.operation, 'deposit');
+    assert.equal(bridge.data.route, 'l1-to-l2');
+  }
+
+  const bridgeStatus = await tools.bridgeStatusTool.execute({
+    walletName: 'main',
+    txHash: '0x' + '98'.repeat(32),
+    toChain: 'zksync-sepolia'
+  });
+  assert.equal(bridgeStatus.ok, true);
+  if (bridgeStatus.ok) {
+    assert.equal(bridgeStatus.data.operation, 'deposit');
+    assert.equal(bridgeStatus.data.relatedTxHash, '0x' + 'aa'.repeat(32));
+  }
+
   const depositStatus = await tools.depositStatusTool.execute({
     walletName: 'main',
     txHash: '0x' + '21'.repeat(32)
@@ -820,6 +976,9 @@ test('withdraw preview tool exposes structured transaction validation classifica
     provider: createProviderStub(),
     defiProvider: {
       name: 'zksync-defi',
+      async bridge() {
+        throw new Error('bridge should not be called in this test');
+      },
       async previewDeposit() {
         throw new Error('previewDeposit should not be called in this test');
       },
@@ -828,6 +987,9 @@ test('withdraw preview tool exposes structured transaction validation classifica
       },
       async depositStatus() {
         throw new Error('depositStatus should not be called in this test');
+      },
+      async bridgeStatus() {
+        throw new Error('bridgeStatus should not be called in this test');
       },
       async previewWithdraw() {
         throw new Error('previewWithdraw should not be called by withdrawPreviewTool');
@@ -930,6 +1092,8 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletRestoreTool',
     'getBalancesTool',
     'callContractTool',
+    'bridgePreviewTool',
+    'bridgeStatusTool',
     'depositPreviewTool',
     'depositStatusTool',
     'sendNativeTool',
@@ -943,7 +1107,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 20);
+  assert.equal(listed.length, 22);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
 });
@@ -973,6 +1137,33 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   if (deposit.ok) {
     assert.equal((deposit.data as { mode: string }).mode, 'preview');
     assert.equal((deposit.data as { l1ChainId: number }).l1ChainId, 11155111);
+  }
+
+  const bridge = await runStandardAgentTool(context, 'bridgePreviewTool', {
+    walletName: 'main',
+    amount: '0.05',
+    fromChain: 'ethereum-sepolia',
+    toChain: 'zksync-sepolia',
+    broadcast: false
+  });
+  assert.equal(bridge.ok, true);
+  if (bridge.ok) {
+    assert.equal((bridge.data as { operation: string }).operation, 'deposit');
+    assert.equal((bridge.data as { route: string }).route, 'l1-to-l2');
+  }
+
+  const bridgeStatus = await runStandardAgentTool(context, 'bridgeStatusTool', {
+    walletName: 'main',
+    txHash: '0x' + '98'.repeat(32),
+    toChain: 'zksync-sepolia'
+  });
+  assert.equal(bridgeStatus.ok, true);
+  if (bridgeStatus.ok) {
+    assert.equal((bridgeStatus.data as { operation: string }).operation, 'deposit');
+    assert.equal(
+      (bridgeStatus.data as { relatedTxHash: string }).relatedTxHash,
+      '0x' + 'aa'.repeat(32)
+    );
   }
 
   const depositStatus = await runStandardAgentTool(context, 'depositStatusTool', {

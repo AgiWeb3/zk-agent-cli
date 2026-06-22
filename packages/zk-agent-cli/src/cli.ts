@@ -3,6 +3,8 @@ import { config as loadEnv } from 'dotenv';
 
 import {
   createBalancesCommand,
+  createBridgeCommand,
+  createBridgeStatusCommand,
   createCallCommand,
   createDepositCommand,
   createDepositStatusCommand,
@@ -40,6 +42,8 @@ function createProgram(): Command {
   program.addCommand(createSendCommand());
   program.addCommand(createSendTokenCommand());
   program.addCommand(createCallCommand());
+  program.addCommand(createBridgeCommand());
+  program.addCommand(createBridgeStatusCommand());
   program.addCommand(createDepositCommand());
   program.addCommand(createDepositStatusCommand());
   program.addCommand(createWithdrawCommand());

@@ -2,6 +2,8 @@ export * from './types.js';
 export * from './tool-helpers.js';
 export * from './create-wallet-tool.js';
 export * from './wallet-status-tool.js';
+export * from './bridge-preview-tool.js';
+export * from './bridge-status-tool.js';
 export * from './deposit-preview-tool.js';
 export * from './deposit-status-tool.js';
 export * from './get-balances-tool.js';

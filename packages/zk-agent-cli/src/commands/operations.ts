@@ -86,6 +86,12 @@ function isDepositStatusTerminal(
   return status === 'finalized' || status === 'failed';
 }
 
+function isBridgeStatusTerminal(
+  status: Awaited<ReturnType<ZkSyncDefiProvider['bridgeStatus']>>['status']
+): boolean {
+  return status === 'finalized' || status === 'failed';
+}
+
 function linesForWithdrawResult(result: Awaited<ReturnType<ZkSyncDefiProvider['withdraw']>>): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
@@ -139,6 +145,37 @@ function linesForDepositResult(
   for (const note of result.notes) lines.push(['note', note]);
   if (result.mode === 'preview') {
     lines.push(['next', 'Re-run with --broadcast to submit the L1 deposit transaction']);
+  }
+
+  return lines;
+}
+
+function linesForBridgeResult(
+  result: Awaited<ReturnType<ZkSyncDefiProvider['bridge']>>
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['mode', result.mode],
+    ['wallet', result.walletName],
+    ['operation', result.operation],
+    ['route', result.route],
+    ['from chain', `${result.fromChain} (${result.fromChainId})`],
+    ['to chain', `${result.toChain} (${result.toChainId})`],
+    ['sender', result.sender],
+    ['recipient', result.recipient],
+    ['amount', result.token.amount],
+    ['token', result.token.symbol],
+    ['token address', result.token.address],
+    ['estimated gas', result.estimatedGas]
+  ];
+
+  if (result.bridgeAddress) lines.push(['bridge override', result.bridgeAddress]);
+  if (result.preview.to) lines.push(['tx target', result.preview.to]);
+  if (result.txHash) lines.push(['txHash', result.txHash]);
+  if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
+  if (result.statusCommand) lines.push(['status', result.statusCommand]);
+  for (const note of result.notes) lines.push(['note', note]);
+  if (result.mode === 'preview') {
+    lines.push(['next', 'Re-run with --broadcast to submit the bridge transaction']);
   }
 
   return lines;
@@ -200,6 +237,72 @@ function linesForDepositStatusResult(
   if (result.l1Batch?.commitTxHash) lines.push(['batch commit tx', result.l1Batch.commitTxHash]);
   if (result.l1Batch?.proveTxHash) lines.push(['batch prove tx', result.l1Batch.proveTxHash]);
   if (result.l1Batch?.executeTxHash) lines.push(['batch execute tx', result.l1Batch.executeTxHash]);
+
+  for (const note of result.notes) lines.push(['note', note]);
+  return lines;
+}
+
+function linesForBridgeStatusResult(
+  result: Awaited<ReturnType<ZkSyncDefiProvider['bridgeStatus']>>,
+  walletName?: string
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [];
+
+  if (walletName) lines.push(['wallet', walletName]);
+  lines.push(
+    ['operation', result.operation],
+    ['route', result.route],
+    ['from chain', `${result.fromChain} (${result.fromChainId})`],
+    ['to chain', `${result.toChain} (${result.toChainId})`],
+    ['txHash', result.txHash],
+    ['status', result.status],
+    ['l2 finalized', result.l2Finalized ? 'yes' : 'no']
+  );
+
+  if (result.l1Included !== undefined) {
+    lines.push(['l1 included', result.l1Included ? 'yes' : 'no']);
+  }
+  if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
+  if (result.relatedTxHash) lines.push(['related txHash', result.relatedTxHash]);
+  if (result.relatedExplorerUrl) lines.push(['related explorer', result.relatedExplorerUrl]);
+  if (result.finalizedBlockNumber !== undefined) {
+    lines.push(['finalized L2 head', String(result.finalizedBlockNumber)]);
+  }
+  if (result.l1Transaction?.from) lines.push(['l1 from', result.l1Transaction.from]);
+  if (result.l1Transaction?.to) lines.push(['l1 to', result.l1Transaction.to]);
+  if (result.l1Transaction?.nonce !== undefined) {
+    lines.push(['l1 nonce', String(result.l1Transaction.nonce)]);
+  }
+  if (result.l1Receipt?.blockNumber !== undefined) {
+    lines.push(['l1 receipt block', String(result.l1Receipt.blockNumber)]);
+  }
+  if (result.l1Receipt?.status !== undefined && result.l1Receipt.status !== null) {
+    lines.push(['l1 receipt status', String(result.l1Receipt.status)]);
+  }
+  if (result.l1Receipt?.gasUsed) lines.push(['l1 gas used', result.l1Receipt.gasUsed]);
+  if (result.l2Transaction?.from) lines.push(['l2 from', result.l2Transaction.from]);
+  if (result.l2Transaction?.to) lines.push(['l2 to', result.l2Transaction.to]);
+  if (result.l2Transaction?.nonce !== undefined) {
+    lines.push(['l2 nonce', String(result.l2Transaction.nonce)]);
+  }
+  if (result.l2Receipt?.blockNumber !== undefined) {
+    lines.push(['l2 receipt block', String(result.l2Receipt.blockNumber)]);
+  }
+  if (result.l2Receipt?.status !== undefined && result.l2Receipt.status !== null) {
+    lines.push(['l2 receipt status', String(result.l2Receipt.status)]);
+  }
+  if (result.l2Receipt?.gasUsed) lines.push(['l2 gas used', result.l2Receipt.gasUsed]);
+  if (result.l2Receipt?.l1BatchNumber !== undefined && result.l2Receipt.l1BatchNumber !== null) {
+    lines.push(['l2 batch', String(result.l2Receipt.l1BatchNumber)]);
+  }
+  if (result.l2Receipt?.l1BatchTxIndex !== undefined && result.l2Receipt.l1BatchTxIndex !== null) {
+    lines.push(['l2 batch tx index', String(result.l2Receipt.l1BatchTxIndex)]);
+  }
+  if (result.l1Batch?.status) lines.push(['batch status', result.l1Batch.status]);
+  if (result.l1Batch?.commitTxHash) lines.push(['batch commit tx', result.l1Batch.commitTxHash]);
+  if (result.l1Batch?.proveTxHash) lines.push(['batch prove tx', result.l1Batch.proveTxHash]);
+  if (result.l1Batch?.executeTxHash) lines.push(['batch execute tx', result.l1Batch.executeTxHash]);
+  if (result.nextCommand) lines.push(['next', result.nextCommand]);
 
   for (const note of result.notes) lines.push(['note', note]);
   return lines;
@@ -671,6 +774,130 @@ export function createDepositCommand(): Command {
     );
 }
 
+export function createBridgeCommand(): Command {
+  return new Command('bridge')
+    .description('Preview or broadcast a supported L1 <-> zkSync bridge route')
+    .requiredOption('--amount <value>', 'Token amount in decimal form')
+    .requiredOption('--to-chain <chain>', 'Destination chain key or id')
+    .option('--from-chain <chain>', 'Source chain key or id. Defaults to the stored wallet chain')
+    .option('--to <address>', 'Recipient override')
+    .option('--token <address>', 'L1 token address for deposits or L2 token address for withdraws')
+    .option('--symbol <symbol>', 'Optional token symbol label')
+    .option('--decimals <value>', 'Required for ERC-20 bridging until registry lookup is implemented')
+    .option('--bridge-address <address>', 'Explicit bridge contract override')
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option('--broadcast', 'Broadcast the bridge transaction instead of returning a preview', false)
+    .action(
+      async (options: {
+        amount: string;
+        fromChain?: string;
+        toChain: string;
+        to?: string;
+        token?: string;
+        symbol?: string;
+        decimals?: string;
+        bridgeAddress?: string;
+        wallet: string;
+        broadcast?: boolean;
+      }) => {
+        const wallet = await requireWallet(options.wallet);
+        const result = await defiProvider.bridge({
+          wallet,
+          amount: options.amount,
+          fromChain: options.fromChain,
+          toChain: options.toChain,
+          to: options.to,
+          tokenAddress: options.token,
+          symbol: options.symbol,
+          decimals: options.token ? requireTokenDecimals(options.decimals) : undefined,
+          bridgeAddress: options.bridgeAddress,
+          broadcast: Boolean(options.broadcast)
+        });
+
+        printResult(linesForBridgeResult(result), {
+          ok: true,
+          ...result
+        });
+      }
+    );
+}
+
+export function createBridgeStatusCommand(): Command {
+  return new Command('bridge-status')
+    .description('Inspect the unified lifecycle of a previously broadcast supported bridge transaction')
+    .requiredOption('--tx-hash <hash>', 'Previously broadcast bridge transaction hash')
+    .requiredOption('--to-chain <chain>', 'Destination chain key or id')
+    .option('--from-chain <chain>', 'Optional source chain key or id')
+    .option('--wallet <name>', 'Wallet name used to resolve the zkSync side of the route', 'main')
+    .option('--wait', 'Poll until the bridge reaches a terminal status', false)
+    .option('--interval-seconds <seconds>', 'Polling interval when using --wait', '10')
+    .option('--timeout-seconds <seconds>', 'Maximum time to wait when using --wait', '600')
+    .action(
+      async (options: {
+        txHash: string;
+        toChain: string;
+        fromChain?: string;
+        wallet: string;
+        wait?: boolean;
+        intervalSeconds?: string;
+        timeoutSeconds?: string;
+      }) => {
+        const wallet = await requireWallet(options.wallet);
+        const wait = Boolean(options.wait);
+        const intervalSeconds = wait
+          ? requirePositiveInteger(options.intervalSeconds, '--interval-seconds')
+          : 0;
+        const timeoutSeconds = wait
+          ? requirePositiveInteger(options.timeoutSeconds, '--timeout-seconds')
+          : 0;
+
+        let result = await defiProvider.bridgeStatus({
+          wallet,
+          txHash: options.txHash,
+          fromChain: options.fromChain,
+          toChain: options.toChain
+        });
+
+        if (wait && !isBridgeStatusTerminal(result.status)) {
+          const startedAt = Date.now();
+          const deadline = startedAt + timeoutSeconds * 1000;
+
+          if (!shouldJsonOutput()) {
+            humanLine(
+              'wait',
+              `Polling every ${intervalSeconds}s for up to ${timeoutSeconds}s until status becomes finalized or failed`
+            );
+          }
+
+          while (!isBridgeStatusTerminal(result.status)) {
+            if (Date.now() >= deadline) {
+              throw new Error(
+                `Timed out waiting for bridge finalization after ${timeoutSeconds} seconds. Last status: ${result.status}`
+              );
+            }
+
+            await delay(intervalSeconds * 1000);
+            result = await defiProvider.bridgeStatus({
+              wallet,
+              txHash: options.txHash,
+              fromChain: options.fromChain,
+              toChain: options.toChain
+            });
+
+            if (!shouldJsonOutput()) {
+              humanLine('wait', `Observed status: ${result.status}`);
+            }
+          }
+        }
+
+        printResult(linesForBridgeStatusResult(result, wallet.walletName), {
+          ok: true,
+          ...result
+        });
+      }
+    );
+}
+
 export function createDepositStatusCommand(): Command {
   return new Command('deposit-status')
     .description('Inspect the L1 and mapped L2 lifecycle of a previously broadcast zkSync deposit transaction')
@@ -823,7 +1050,6 @@ function planned(command: string, milestone: string): Command {
 
 export function createPlannedCommands(): Command[] {
   return [
-    planned('swap', '3'),
-    planned('bridge', '3')
+    planned('swap', '3')
   ];
 }

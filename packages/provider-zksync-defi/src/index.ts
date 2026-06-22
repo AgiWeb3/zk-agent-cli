@@ -1,7 +1,11 @@
 import {
   AgentError,
+  type BridgeStatusInput,
+  type BridgeStatusResult,
   classifyKnownTransactionValidationFailure,
   resolveChain,
+  type BridgeExecutionInput,
+  type BridgeExecutionResult,
   type DepositStatusInput,
   type DepositStatusResult,
   type DepositExecutionInput,
@@ -60,6 +64,25 @@ const l1Providers = new Map<number, ethers.JsonRpcProvider>();
 const READONLY_HELPER_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
+interface BridgeChainRef {
+  kind: 'l1' | 'zksync';
+  key: string;
+  chainId: number;
+}
+
+interface ResolvedBridgeRoute {
+  source: BridgeChainRef;
+  destination: BridgeChainRef;
+  operation: 'deposit' | 'withdraw';
+  route: BridgeExecutionResult['route'];
+}
+
+interface BridgeRouteInput {
+  wallet: WalletSessionRecord;
+  fromChain?: string;
+  toChain: string;
+}
+
 function getDefaultProvider(chainKey: string): WithdrawProviderLike {
   const chain = resolveChain(chainKey);
   const existing = providers.get(chain.key);
@@ -68,6 +91,38 @@ function getDefaultProvider(chainKey: string): WithdrawProviderLike {
   const provider = new Provider(chain.rpcUrl);
   providers.set(chain.key, provider);
   return provider;
+}
+
+function resolveBridgeChainRef(chainOrId: string): BridgeChainRef {
+  const raw = chainOrId.trim().toLowerCase();
+
+  if (raw === '1' || raw === 'ethereum-mainnet' || raw === 'eth-mainnet' || raw === 'mainnet') {
+    return {
+      kind: 'l1',
+      key: 'ethereum-mainnet',
+      chainId: 1
+    };
+  }
+
+  if (
+    raw === '11155111' ||
+    raw === 'ethereum-sepolia' ||
+    raw === 'eth-sepolia' ||
+    raw === 'sepolia'
+  ) {
+    return {
+      kind: 'l1',
+      key: 'ethereum-sepolia',
+      chainId: 11155111
+    };
+  }
+
+  const chain = resolveChain(chainOrId);
+  return {
+    kind: 'zksync',
+    key: chain.key,
+    chainId: chain.chainId
+  };
 }
 
 function parseUnits(value: string, decimals: number): bigint {
@@ -220,6 +275,14 @@ function getL1ChainLabel(l1ChainId: number): string {
     default:
       return `l1-${l1ChainId}`;
   }
+}
+
+function getL1BridgeChainRef(l1ChainId: number): BridgeChainRef {
+  return {
+    kind: 'l1',
+    key: getL1ChainLabel(l1ChainId),
+    chainId: l1ChainId
+  };
 }
 
 function getL1ExplorerUrl(l1ChainId: number, txHash?: string): string | undefined {
@@ -908,6 +971,175 @@ function buildDepositResult(
   };
 }
 
+async function resolveBridgeRoute(
+  input: BridgeRouteInput,
+  providerFactory: (chainKey: string) => WithdrawProviderLike
+): Promise<ResolvedBridgeRoute> {
+  const walletChain = resolveChain(input.wallet.chain);
+  const destination = resolveBridgeChainRef(input.toChain);
+  const provider = providerFactory(walletChain.key);
+  const expectedL1ChainId = await provider.l1ChainId();
+  const inferredSource = input.fromChain
+    ? resolveBridgeChainRef(input.fromChain)
+    : destination.kind === 'zksync' && destination.key === walletChain.key
+      ? getL1BridgeChainRef(expectedL1ChainId)
+      : {
+          kind: 'zksync' as const,
+          key: walletChain.key,
+          chainId: walletChain.chainId
+        };
+  const source = inferredSource;
+
+  if (source.kind === destination.kind) {
+    throw new AgentError(
+      'BRIDGE_ROUTE_UNSUPPORTED',
+      'Bridge currently supports only L1 <-> zkSync routes.',
+      {
+        fromChain: source.key,
+        toChain: destination.key
+      }
+    );
+  }
+
+  const zksyncSide = source.kind === 'zksync' ? source : destination;
+  const l1Side = source.kind === 'l1' ? source : destination;
+
+  if (zksyncSide.key !== walletChain.key) {
+    throw new AgentError(
+      'BRIDGE_WALLET_CHAIN_MISMATCH',
+      'Bridge currently requires the stored wallet chain to match the zkSync side of the route.',
+      {
+        walletChain: walletChain.key,
+        routeZkSyncChain: zksyncSide.key
+      }
+    );
+  }
+
+  if (l1Side.chainId !== expectedL1ChainId) {
+    throw new AgentError(
+      'BRIDGE_L1_CHAIN_MISMATCH',
+      'The requested L1 side does not match the selected zkSync chain bridge environment.',
+      {
+        routeL1Chain: l1Side.key,
+        expectedL1Chain: getL1ChainLabel(expectedL1ChainId),
+        routeZkSyncChain: zksyncSide.key
+      }
+    );
+  }
+
+  return {
+    source,
+    destination,
+    operation: source.kind === 'l1' ? 'deposit' : 'withdraw',
+    route: source.kind === 'l1' ? 'l1-to-l2' : 'l2-to-l1'
+  };
+}
+
+function buildBridgeNotes(
+  baseNotes: string[],
+  route: ResolvedBridgeRoute,
+  mode: 'preview' | 'broadcast',
+  walletName: string,
+  txHash?: string
+): { notes: string[]; statusCommand?: string } {
+  const notes = [...baseNotes];
+  let statusCommand: string | undefined;
+
+  if (mode === 'broadcast' && txHash) {
+    statusCommand = `zk-agent bridge-status --wallet ${walletName} --to-chain ${route.destination.key} --tx-hash ${txHash}`;
+    if (route.source.kind === 'l1') {
+      statusCommand += ` --from-chain ${route.source.key}`;
+    }
+    notes.push(`Track this bridge with: ${statusCommand}`);
+  }
+
+  return {
+    notes,
+    statusCommand
+  };
+}
+
+function buildBridgeResult(
+  route: ResolvedBridgeRoute,
+  result: DepositExecutionResult | WithdrawExecutionResult
+): BridgeExecutionResult {
+  const bridgeMeta = buildBridgeNotes(
+    result.notes,
+    route,
+    result.mode,
+    result.walletName,
+    result.txHash
+  );
+
+  if (route.operation === 'deposit') {
+    const depositResult = result as DepositExecutionResult;
+    return {
+      walletName: depositResult.walletName,
+      walletAddress: depositResult.walletAddress,
+      route: route.route,
+      operation: 'deposit',
+      mode: depositResult.mode,
+      fromChain: route.source.key,
+      fromChainId: route.source.chainId,
+      toChain: route.destination.key,
+      toChainId: route.destination.chainId,
+      sender: depositResult.from,
+      recipient: depositResult.recipient,
+      bridgeAddress: depositResult.bridgeAddress,
+      bridgeAddresses: depositResult.bridgeAddresses,
+      estimatedGas: depositResult.estimatedGas,
+      token: depositResult.token,
+      preview: depositResult.preview,
+      txHash: depositResult.txHash,
+      explorerUrl: depositResult.explorerUrl,
+      statusCommand: bridgeMeta.statusCommand,
+      notes: bridgeMeta.notes
+    };
+  }
+
+  const withdrawResult = result as WithdrawExecutionResult;
+  return {
+    walletName: withdrawResult.walletName,
+    walletAddress: withdrawResult.walletAddress,
+    route: route.route,
+    operation: 'withdraw',
+    mode: withdrawResult.mode,
+    fromChain: route.source.key,
+    fromChainId: route.source.chainId,
+    toChain: route.destination.key,
+    toChainId: route.destination.chainId,
+    sender: withdrawResult.from,
+    recipient: withdrawResult.recipient,
+    bridgeAddress: withdrawResult.bridgeAddress,
+    bridgeAddresses: withdrawResult.bridgeAddresses,
+    estimatedGas: withdrawResult.estimatedGas,
+    token: withdrawResult.token,
+    preview: withdrawResult.preview,
+    txHash: withdrawResult.txHash,
+    explorerUrl: withdrawResult.explorerUrl,
+    statusCommand: bridgeMeta.statusCommand,
+    notes: bridgeMeta.notes
+  };
+}
+
+function buildBridgeStatusNotes(
+  route: ResolvedBridgeRoute,
+  baseNotes: string[],
+  nextCommand?: string
+): string[] {
+  const notes = [...baseNotes];
+
+  if (route.operation === 'withdraw') {
+    notes.push('For L2 -> L1 withdraws, bridge-status finalization means the L2 withdrawal is finalized. L1 claiming still uses withdraw-finalize.');
+  }
+
+  if (nextCommand) {
+    notes.push(`Next step: ${nextCommand}`);
+  }
+
+  return notes;
+}
+
 function validateWithdrawTxHash(txHash: string): string {
   if (!ethers.isHexString(txHash, 32)) {
     throw new AgentError(
@@ -1227,6 +1459,102 @@ export class ZkSyncDefiProvider implements DefiProvider {
 
   constructor(options: ZkSyncDefiProviderOptions = {}) {
     this.providerFactory = options.providerFactory || getDefaultProvider;
+  }
+
+  async bridge(input: BridgeExecutionInput): Promise<BridgeExecutionResult> {
+    const route = await resolveBridgeRoute(input, this.providerFactory);
+
+    if (route.operation === 'deposit') {
+      const result = await this.deposit({
+        wallet: input.wallet,
+        amount: input.amount,
+        to: input.to,
+        tokenAddress: input.tokenAddress,
+        symbol: input.symbol,
+        decimals: input.decimals,
+        bridgeAddress: input.bridgeAddress,
+        broadcast: input.broadcast
+      });
+      return buildBridgeResult(route, result);
+    }
+
+    const result = await this.withdraw({
+      wallet: input.wallet,
+      amount: input.amount,
+      to: input.to,
+      tokenAddress: input.tokenAddress,
+      symbol: input.symbol,
+      decimals: input.decimals,
+      bridgeAddress: input.bridgeAddress,
+      broadcast: input.broadcast
+    });
+    return buildBridgeResult(route, result);
+  }
+
+  async bridgeStatus(input: BridgeStatusInput): Promise<BridgeStatusResult> {
+    const route = await resolveBridgeRoute(input, this.providerFactory);
+
+    if (route.operation === 'deposit') {
+      const result = await this.depositStatus({
+        chain: route.destination.key,
+        txHash: input.txHash
+      });
+
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        route: route.route,
+        operation: 'deposit',
+        fromChain: route.source.key,
+        fromChainId: route.source.chainId,
+        toChain: route.destination.key,
+        toChainId: route.destination.chainId,
+        txHash: result.txHash,
+        explorerUrl: result.explorerUrl,
+        relatedTxHash: result.l2TxHash,
+        relatedExplorerUrl: result.l2ExplorerUrl,
+        status: result.status,
+        l1Included: result.l1Included,
+        l2Finalized: result.l2Finalized,
+        finalizedBlockNumber: result.finalizedBlockNumber,
+        l1Transaction: result.l1Transaction,
+        l1Receipt: result.l1Receipt,
+        l2Transaction: result.l2Transaction,
+        l2Receipt: result.l2Receipt,
+        l1Batch: result.l1Batch,
+        notes: buildBridgeStatusNotes(route, result.notes)
+      };
+    }
+
+    const result = await this.withdrawStatus({
+      chain: route.source.key,
+      txHash: input.txHash
+    });
+    const nextCommand =
+      result.status === 'finalized'
+        ? `zk-agent withdraw-finalize --wallet ${input.wallet.walletName} --tx-hash ${result.txHash}`
+        : undefined;
+
+    return {
+      walletName: input.wallet.walletName,
+      walletAddress: input.wallet.walletAddress,
+      route: route.route,
+      operation: 'withdraw',
+      fromChain: route.source.key,
+      fromChainId: route.source.chainId,
+      toChain: route.destination.key,
+      toChainId: route.destination.chainId,
+      txHash: result.txHash,
+      explorerUrl: result.explorerUrl,
+      status: result.status,
+      l2Finalized: result.l2Finalized,
+      finalizedBlockNumber: result.finalizedBlockNumber,
+      l2Transaction: result.transaction,
+      l2Receipt: result.receipt,
+      l1Batch: result.l1Batch,
+      nextCommand,
+      notes: buildBridgeStatusNotes(route, result.notes, nextCommand)
+    };
   }
 
   async previewDeposit(input: DepositPreviewInput): Promise<DepositPreviewResult> {

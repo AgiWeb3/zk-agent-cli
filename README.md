@@ -63,6 +63,7 @@ What is already in place:
   - wallet restore
   - balances
   - contract read
+  - bridge preview / broadcast / status for the supported Sepolia L1 <-> zkSync route
   - deposit preview / broadcast / status
   - native send
   - token send
@@ -115,6 +116,11 @@ What is already in place:
   - opt-in L1 deposit broadcast for locally writable sessions
   - post-broadcast L1 and mapped L2 lifecycle inspection, including wait-mode polling in the CLI
   - explicit L1 signer and RPC requirements for the deposit path
+- `bridge` support through `packages/provider-zksync-defi`, including:
+  - route-aware dispatch onto the validated `deposit` / `withdraw` paths
+  - the currently supported `ethereum-sepolia <-> zksync-sepolia` bridge pair
+  - machine-readable route metadata and post-broadcast status-command hints
+  - unified `bridge-status` inspection on top of the deposit / withdraw lifecycle trackers
 - `withdraw` support through `packages/provider-zksync-defi`, including:
   - default bridge discovery
   - L2 -> L1 withdraw transaction preview
@@ -144,7 +150,7 @@ What is next:
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
 - withdraw finalization follow-up
-- deposit lifecycle follow-up beyond status / bridge / swap implementations
+- deposit lifecycle follow-up beyond status / broader bridge / swap implementations
 
 ## Development Environment Strategy
 

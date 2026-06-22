@@ -8,6 +8,8 @@ import {
 } from '@zk-agent/agent-core';
 
 import { createCallContractTool } from './call-contract-tool.js';
+import { createBridgePreviewTool } from './bridge-preview-tool.js';
+import { createBridgeStatusTool } from './bridge-status-tool.js';
 import { createWalletTool } from './create-wallet-tool.js';
 import { createDepositPreviewTool } from './deposit-preview-tool.js';
 import { createDepositStatusTool } from './deposit-status-tool.js';
@@ -66,6 +68,8 @@ export function createStandardAgentTools(context: AgentToolContext) {
     walletRestoreTool: createWalletRestoreTool(context),
     getBalancesTool: createGetBalancesTool(context),
     callContractTool: createCallContractTool(context),
+    bridgePreviewTool: createBridgePreviewTool(context),
+    bridgeStatusTool: createBridgeStatusTool(context),
     depositPreviewTool: createDepositPreviewTool(context),
     depositStatusTool: createDepositStatusTool(context),
     sendNativeTool: createSendNativeTool(context),
@@ -94,6 +98,8 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'walletRestoreTool',
     'getBalancesTool',
     'callContractTool',
+    'bridgePreviewTool',
+    'bridgeStatusTool',
     'depositPreviewTool',
     'depositStatusTool',
     'sendNativeTool',

@@ -559,6 +559,400 @@ test('depositStatus reports pending when the L1 transaction has no receipt yet',
   }
 });
 
+test('bridge routes ethereum-sepolia to zksync-sepolia through deposit', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached in this route-only test');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  const originalDeposit = provider.deposit.bind(provider);
+  const originalWithdraw = provider.withdraw.bind(provider);
+  let calledDeposit = false;
+  let calledWithdraw = false;
+
+  provider.deposit = (async (input) => {
+    calledDeposit = true;
+    assert.equal(input.broadcast, false);
+    assert.equal(input.amount, '0.01');
+    return {
+      walletName: input.wallet.walletName,
+      walletAddress: input.wallet.walletAddress,
+      chain: input.wallet.chain,
+      chainId: input.wallet.chainId,
+      l1ChainId: 11155111,
+      from: '0x523226698d86a8696D90C1fbfd3DFFfeBA5ccD28',
+      recipient: input.to || input.wallet.walletAddress,
+      bridgeAddress: input.bridgeAddress,
+      bridgeAddresses: {
+        erc20L1: '0x1000000000000000000000000000000000000001',
+        erc20L2: '0x2000000000000000000000000000000000000002',
+        wethL1: '0x3000000000000000000000000000000000000003',
+        wethL2: '0x4000000000000000000000000000000000000004',
+        sharedL1: '0x5000000000000000000000000000000000000005',
+        sharedL2: '0x6000000000000000000000000000000000000006'
+      },
+      estimatedGas: '210000',
+      token: {
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'ETH',
+        amount: input.amount,
+        decimals: 18,
+        isNative: true
+      },
+      preview: {
+        to: '0x5000000000000000000000000000000000000005',
+        type: '2'
+      },
+      mode: 'preview',
+      notes: ['deposit-preview']
+    };
+  }) as typeof provider.deposit;
+  provider.withdraw = (async () => {
+    calledWithdraw = true;
+    throw new Error('withdraw should not be called');
+  }) as typeof provider.withdraw;
+
+  try {
+    const result = await provider.bridge({
+      wallet: writableEoaWallet(),
+      amount: '0.01',
+      fromChain: 'ethereum-sepolia',
+      toChain: 'zksync-sepolia',
+      broadcast: false
+    });
+
+    assert.equal(result.operation, 'deposit');
+    assert.equal(result.route, 'l1-to-l2');
+    assert.equal(result.fromChain, 'ethereum-sepolia');
+    assert.equal(result.toChain, 'zksync-sepolia');
+    assert.equal(calledDeposit, true);
+    assert.equal(calledWithdraw, false);
+  } finally {
+    provider.deposit = originalDeposit;
+    provider.withdraw = originalWithdraw;
+  }
+});
+
+test('bridge routes zksync-sepolia to ethereum-sepolia through withdraw', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached in this route-only test');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  const originalDeposit = provider.deposit.bind(provider);
+  const originalWithdraw = provider.withdraw.bind(provider);
+  let calledDeposit = false;
+  let calledWithdraw = false;
+
+  provider.deposit = (async () => {
+    calledDeposit = true;
+    throw new Error('deposit should not be called');
+  }) as typeof provider.deposit;
+  provider.withdraw = (async (input) => {
+    calledWithdraw = true;
+    assert.equal(input.broadcast, true);
+    assert.equal(input.amount, '0.02');
+    return {
+      walletName: input.wallet.walletName,
+      walletAddress: input.wallet.walletAddress,
+      chain: input.wallet.chain,
+      chainId: input.wallet.chainId,
+      l1ChainId: 11155111,
+      from: input.wallet.walletAddress,
+      recipient: input.to || input.wallet.ownerAddress || input.wallet.walletAddress,
+      bridgeAddress: input.bridgeAddress,
+      bridgeAddresses: {
+        erc20L1: '0x1000000000000000000000000000000000000001',
+        erc20L2: '0x2000000000000000000000000000000000000002',
+        wethL1: '0x3000000000000000000000000000000000000003',
+        wethL2: '0x4000000000000000000000000000000000000004',
+        sharedL1: '0x5000000000000000000000000000000000000005',
+        sharedL2: '0x6000000000000000000000000000000000000006'
+      },
+      estimatedGas: '123456',
+      token: {
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'ETH',
+        amount: input.amount,
+        decimals: 18,
+        isNative: true
+      },
+      preview: {
+        to: '0x6000000000000000000000000000000000000006',
+        type: '113'
+      },
+      mode: 'broadcast',
+      txHash: '0x' + '99'.repeat(32),
+      explorerUrl: 'https://sepolia.explorer.zksync.io/tx/' + '0x' + '99'.repeat(32),
+      notes: ['withdraw-broadcast']
+    };
+  }) as typeof provider.withdraw;
+
+  try {
+    const result = await provider.bridge({
+      wallet: sampleWallet(),
+      amount: '0.02',
+      toChain: 'ethereum-sepolia',
+      broadcast: true
+    });
+
+    assert.equal(result.operation, 'withdraw');
+    assert.equal(result.route, 'l2-to-l1');
+    assert.equal(result.fromChain, 'zksync-sepolia');
+    assert.equal(result.toChain, 'ethereum-sepolia');
+    assert.match(result.statusCommand || '', /bridge-status/);
+    assert.equal(calledDeposit, false);
+    assert.equal(calledWithdraw, true);
+  } finally {
+    provider.deposit = originalDeposit;
+    provider.withdraw = originalWithdraw;
+  }
+});
+
+test('bridge rejects routes whose zkSync side does not match the stored wallet chain', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  await assert.rejects(
+    () =>
+      provider.bridge({
+        wallet: writableEoaWallet(),
+        amount: '0.01',
+        fromChain: 'ethereum-sepolia',
+        toChain: 'zksync-era',
+        broadcast: false
+      }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'BRIDGE_WALLET_CHAIN_MISMATCH');
+      return true;
+    }
+  );
+});
+
+test('bridgeStatus routes deposit tracking through depositStatus and infers the L1 source from the destination chain', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  const originalDepositStatus = provider.depositStatus.bind(provider);
+  const originalWithdrawStatus = provider.withdrawStatus.bind(provider);
+  let calledDepositStatus = false;
+  let calledWithdrawStatus = false;
+
+  provider.depositStatus = (async (input) => {
+    calledDepositStatus = true;
+    assert.equal(input.chain, 'zksync-sepolia');
+    return {
+      txHash: input.txHash,
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      l1ChainId: 11155111,
+      explorerUrl: 'https://sepolia.etherscan.io/tx/' + input.txHash,
+      l2TxHash: '0x' + 'aa'.repeat(32),
+      l2ExplorerUrl: 'https://sepolia.explorer.zksync.io/tx/' + '0x' + 'aa'.repeat(32),
+      status: 'committed',
+      l1Included: true,
+      l2Finalized: false,
+      finalizedBlockNumber: 120,
+      notes: ['deposit-status']
+    };
+  }) as typeof provider.depositStatus;
+  provider.withdrawStatus = (async () => {
+    calledWithdrawStatus = true;
+    throw new Error('withdrawStatus should not be called');
+  }) as typeof provider.withdrawStatus;
+
+  try {
+    const result = await provider.bridgeStatus({
+      wallet: writableEoaWallet(),
+      txHash: '0x' + '12'.repeat(32),
+      toChain: 'zksync-sepolia'
+    });
+
+    assert.equal(result.operation, 'deposit');
+    assert.equal(result.route, 'l1-to-l2');
+    assert.equal(result.fromChain, 'ethereum-sepolia');
+    assert.equal(result.toChain, 'zksync-sepolia');
+    assert.equal(result.relatedTxHash, '0x' + 'aa'.repeat(32));
+    assert.equal(calledDepositStatus, true);
+    assert.equal(calledWithdrawStatus, false);
+  } finally {
+    provider.depositStatus = originalDepositStatus;
+    provider.withdrawStatus = originalWithdrawStatus;
+  }
+});
+
+test('bridgeStatus routes withdraw tracking through withdrawStatus and suggests finalize when ready', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  const originalDepositStatus = provider.depositStatus.bind(provider);
+  const originalWithdrawStatus = provider.withdrawStatus.bind(provider);
+  let calledDepositStatus = false;
+  let calledWithdrawStatus = false;
+
+  provider.depositStatus = (async () => {
+    calledDepositStatus = true;
+    throw new Error('depositStatus should not be called');
+  }) as typeof provider.depositStatus;
+  provider.withdrawStatus = (async (input) => {
+    calledWithdrawStatus = true;
+    assert.equal(input.chain, 'zksync-sepolia');
+    return {
+      txHash: input.txHash,
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      explorerUrl: 'https://sepolia.explorer.zksync.io/tx/' + input.txHash,
+      status: 'finalized',
+      l2Finalized: true,
+      finalizedBlockNumber: 120,
+      transaction: {
+        from: writableEoaWallet().walletAddress,
+        to: '0x000000000000000000000000000000000000800a'
+      },
+      receipt: {
+        blockNumber: 100,
+        status: 1,
+        l1BatchNumber: 88,
+        l1BatchTxIndex: 3
+      },
+      l1Batch: {
+        number: 88,
+        status: 'executed'
+      },
+      notes: ['withdraw-status']
+    };
+  }) as typeof provider.withdrawStatus;
+
+  try {
+    const result = await provider.bridgeStatus({
+      wallet: writableEoaWallet(),
+      txHash: '0x' + '34'.repeat(32),
+      toChain: 'ethereum-sepolia'
+    });
+
+    assert.equal(result.operation, 'withdraw');
+    assert.equal(result.route, 'l2-to-l1');
+    assert.match(result.nextCommand || '', /withdraw-finalize/);
+    assert.equal(result.l2Finalized, true);
+    assert.equal(calledDepositStatus, false);
+    assert.equal(calledWithdrawStatus, true);
+  } finally {
+    provider.depositStatus = originalDepositStatus;
+    provider.withdrawStatus = originalWithdrawStatus;
+  }
+});
+
 test('previewWithdraw returns native bridge metadata and defaults recipient to owner address', async () => {
   const provider = new ZkSyncDefiProvider({
     providerFactory: () => ({
