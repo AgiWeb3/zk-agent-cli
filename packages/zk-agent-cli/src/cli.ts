@@ -12,6 +12,7 @@ import {
   createPlannedCommands,
   createSendCommand,
   createSendTokenCommand,
+  createSwapCommand,
   createWithdrawCommand,
   createWithdrawFinalizeCommand,
   createWithdrawStatusCommand
@@ -42,6 +43,7 @@ function createProgram(): Command {
   program.addCommand(createSendCommand());
   program.addCommand(createSendTokenCommand());
   program.addCommand(createCallCommand());
+  program.addCommand(createSwapCommand());
   program.addCommand(createBridgeCommand());
   program.addCommand(createBridgeStatusCommand());
   program.addCommand(createDepositCommand());

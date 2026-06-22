@@ -14,7 +14,9 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 
 const provider = new ZkSyncWalletProvider();
-const defiProvider = new ZkSyncDefiProvider();
+const defiProvider = new ZkSyncDefiProvider({
+  walletWriter: provider
+});
 const BALANCES_MAX_CHAINS = 20;
 
 function delay(ms: number): Promise<void> {
@@ -176,6 +178,49 @@ function linesForBridgeResult(
   for (const note of result.notes) lines.push(['note', note]);
   if (result.mode === 'preview') {
     lines.push(['next', 'Re-run with --broadcast to submit the bridge transaction']);
+  }
+
+  return lines;
+}
+
+function linesForSwapResult(
+  result: Awaited<ReturnType<ZkSyncDefiProvider['swap']>>
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['mode', result.mode],
+    ['wallet', result.walletName],
+    ['chain', `${result.chain} (${result.chainId})`],
+    ['protocol', result.protocol],
+    ['router', result.routerAddress],
+    ['sender', result.sender],
+    ['recipient', result.recipient],
+    ['token in', result.tokenIn.symbol],
+    ['token in address', result.tokenIn.address],
+    ['amount in', result.tokenIn.amount],
+    ['token out', result.tokenOut.symbol],
+    ['token out address', result.tokenOut.address],
+    ['min amount out', result.tokenOut.minAmountOut],
+    ['fee tier', String(result.feeTier)],
+    ['sqrt price limit x96', result.sqrtPriceLimitX96],
+    ['allowance current', result.approval.currentAllowance],
+    ['allowance required', result.approval.requiredAmount],
+    ['approval mode', result.approval.mode]
+  ];
+
+  lines.push(['paymaster', result.paymaster.mode]);
+  if (result.paymaster.address) lines.push(['paymaster address', result.paymaster.address]);
+  if (result.paymaster.token) lines.push(['paymaster token', result.paymaster.token]);
+  if (result.paymaster.minimalAllowance) {
+    lines.push(['paymaster allowance', result.paymaster.minimalAllowance]);
+  }
+  if (result.paymaster.note) lines.push(['paymaster note', result.paymaster.note]);
+  if (result.approval.txHash) lines.push(['approval txHash', result.approval.txHash]);
+  if (result.approval.explorerUrl) lines.push(['approval explorer', result.approval.explorerUrl]);
+  if (result.txHash) lines.push(['txHash', result.txHash]);
+  if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
+  for (const note of result.notes) lines.push(['note', note]);
+  if (result.mode === 'preview') {
+    lines.push(['next', 'Re-run with --broadcast to submit the swap transaction']);
   }
 
   return lines;
@@ -774,6 +819,76 @@ export function createDepositCommand(): Command {
     );
 }
 
+export function createSwapCommand(): Command {
+  return withPaymasterOptions(new Command('swap'))
+    .description('Preview or broadcast a same-chain Uniswap V3 exactInputSingle swap')
+    .requiredOption('--router <address>', 'Swap router contract address')
+    .requiredOption('--token-in <address>', 'Input ERC-20 token contract address')
+    .requiredOption('--token-out <address>', 'Output ERC-20 token contract address')
+    .requiredOption('--amount-in <value>', 'Input amount in human-readable token units')
+    .requiredOption('--amount-out-min <value>', 'Minimum output amount in human-readable token units')
+    .requiredOption('--token-in-decimals <value>', 'Input token decimals')
+    .requiredOption('--token-out-decimals <value>', 'Output token decimals')
+    .requiredOption('--fee-tier <value>', 'Uniswap V3 pool fee tier, for example 500 or 3000')
+    .option('--token-in-symbol <symbol>', 'Optional input token symbol label')
+    .option('--token-out-symbol <symbol>', 'Optional output token symbol label')
+    .option('--recipient <address>', 'Recipient override. Defaults to the wallet execution address')
+    .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
+    .option('--auto-approve', 'If allowance is insufficient, send an approval transaction before the swap', false)
+    .option('--approve-max', 'When auto-approving, approve MaxUint256 instead of the exact input amount', false)
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
+    .action(
+      async (options: {
+        router: string;
+        tokenIn: string;
+        tokenOut: string;
+        amountIn: string;
+        amountOutMin: string;
+        tokenInDecimals: string;
+        tokenOutDecimals: string;
+        feeTier: string;
+        tokenInSymbol?: string;
+        tokenOutSymbol?: string;
+        recipient?: string;
+        sqrtPriceLimitX96?: string;
+        autoApprove?: boolean;
+        approveMax?: boolean;
+        wallet: string;
+        broadcast?: boolean;
+        paymasterMode?: string;
+        paymasterAddress?: string;
+        paymasterToken?: string;
+      }) => {
+        const wallet = await requireWallet(options.wallet);
+        const result = await defiProvider.swap({
+          wallet,
+          routerAddress: options.router,
+          tokenInAddress: options.tokenIn,
+          tokenOutAddress: options.tokenOut,
+          amountIn: options.amountIn,
+          amountOutMin: options.amountOutMin,
+          tokenInDecimals: requireTokenDecimals(options.tokenInDecimals),
+          tokenOutDecimals: requireTokenDecimals(options.tokenOutDecimals),
+          tokenInSymbol: options.tokenInSymbol,
+          tokenOutSymbol: options.tokenOutSymbol,
+          recipient: options.recipient,
+          feeTier: requirePositiveInteger(options.feeTier, '--fee-tier'),
+          sqrtPriceLimitX96: options.sqrtPriceLimitX96,
+          autoApprove: Boolean(options.autoApprove),
+          approveMax: Boolean(options.approveMax),
+          broadcast: Boolean(options.broadcast),
+          paymaster: resolvePaymasterInput(options)
+        });
+
+        printResult(linesForSwapResult(result), {
+          ok: true,
+          ...result
+        });
+      }
+    );
+}
+
 export function createBridgeCommand(): Command {
   return new Command('bridge')
     .description('Preview or broadcast a supported L1 <-> zkSync bridge route')
@@ -1049,7 +1164,5 @@ function planned(command: string, milestone: string): Command {
 }
 
 export function createPlannedCommands(): Command[] {
-  return [
-    planned('swap', '3')
-  ];
+  return [];
 }

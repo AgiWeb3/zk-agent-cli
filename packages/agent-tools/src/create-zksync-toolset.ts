@@ -11,9 +11,12 @@ export function createZkSyncAgentToolContext(options: {
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
 } = {}): AgentToolContext {
+  const provider = new ZkSyncWalletProvider();
   return createAgentToolContext({
-    provider: new ZkSyncWalletProvider(),
-    defiProvider: new ZkSyncDefiProvider(),
+    provider,
+    defiProvider: new ZkSyncDefiProvider({
+      walletWriter: provider
+    }),
     loadWallet: options.loadWallet,
     saveWallet: options.saveWallet,
     loadWalletRequest: options.loadWalletRequest,

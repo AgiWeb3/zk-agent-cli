@@ -63,6 +63,7 @@ What is already in place:
   - wallet restore
   - balances
   - contract read
+  - same-chain swap preview / broadcast for explicit-router Uniswap V3 exactInputSingle paths
   - bridge preview / broadcast / status for the supported Sepolia L1 <-> zkSync route
   - deposit preview / broadcast / status
   - native send
@@ -121,6 +122,11 @@ What is already in place:
   - the currently supported `ethereum-sepolia <-> zksync-sepolia` bridge pair
   - machine-readable route metadata and post-broadcast status-command hints
   - unified `bridge-status` inspection on top of the deposit / withdraw lifecycle trackers
+- `swap` support through `packages/provider-zksync-defi`, including:
+  - same-chain `Uniswap V3 exactInputSingle` request shaping
+  - explicit router / token / fee-tier input instead of hidden quote aggregation
+  - allowance preflight with optional auto-approve before swap broadcast
+  - reuse of the existing zkSync AA-aware `writeContract` path for preview and execution
 - `withdraw` support through `packages/provider-zksync-defi`, including:
   - default bridge discovery
   - L2 -> L1 withdraw transaction preview
@@ -150,7 +156,7 @@ What is next:
 - connector approval flow
 - funded paymaster broadcast validation on zkSync Sepolia
 - withdraw finalization follow-up
-- deposit lifecycle follow-up beyond status / broader bridge / swap implementations
+- deposit lifecycle follow-up beyond status / broader bridge / richer swap routing and quote resolution
 
 ## Development Environment Strategy
 

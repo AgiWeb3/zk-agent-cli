@@ -189,6 +189,62 @@ function createProviderStub() {
         result: '0x'
       };
     },
+    async swap(input) {
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: input.wallet.chain,
+        chainId: input.wallet.chainId,
+        protocol: 'uniswap-v3-exact-input-single',
+        mode: input.broadcast ? 'broadcast' : 'preview',
+        routerAddress: input.routerAddress,
+        sender: input.wallet.walletAddress,
+        recipient: input.recipient || input.wallet.walletAddress,
+        feeTier: input.feeTier,
+        sqrtPriceLimitX96: input.sqrtPriceLimitX96 || '0',
+        tokenIn: {
+          address: input.tokenInAddress,
+          symbol: input.tokenInSymbol || 'WETH',
+          amount: input.amountIn,
+          decimals: input.tokenInDecimals
+        },
+        tokenOut: {
+          address: input.tokenOutAddress,
+          symbol: input.tokenOutSymbol || 'USDC',
+          minAmountOut: input.amountOutMin,
+          decimals: input.tokenOutDecimals
+        },
+        approval: {
+          needed: Boolean(input.autoApprove),
+          spender: input.routerAddress,
+          currentAllowance: input.autoApprove ? '0' : input.amountIn,
+          currentAllowanceRaw: input.autoApprove ? '0' : '1',
+          requiredAmount: input.amountIn,
+          requiredAmountRaw: '1',
+          mode: input.autoApprove ? (input.approveMax ? 'max' : 'exact') : 'none',
+          preview: input.autoApprove
+            ? {
+                to: input.tokenInAddress,
+                type: '113'
+              }
+            : undefined
+        },
+        paymaster: {
+          mode: input.paymaster?.mode || 'none',
+          source: 'none',
+          supported: true
+        },
+        preview: {
+          to: input.routerAddress,
+          type: '113'
+        },
+        txHash: input.broadcast ? '0x' + '97'.repeat(32) : undefined,
+        explorerUrl: input.broadcast
+          ? 'https://explorer.test/tx/' + '0x' + '97'.repeat(32)
+          : undefined,
+        notes: []
+      };
+    },
     async bridge(input) {
       const isDeposit = (input.fromChain || '').toLowerCase() === 'ethereum-sepolia';
       return {
@@ -656,6 +712,24 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
     assert.equal(deposit.data.token.symbol, 'ETH');
   }
 
+  const swap = await tools.swapPreviewTool.execute({
+    walletName: 'main',
+    routerAddress: '0x9000000000000000000000000000000000000009',
+    tokenInAddress: '0x7000000000000000000000000000000000000007',
+    tokenOutAddress: '0x8000000000000000000000000000000000000008',
+    amountIn: '1.5',
+    amountOutMin: '1200',
+    tokenInDecimals: 18,
+    tokenOutDecimals: 6,
+    feeTier: 3000,
+    broadcast: false
+  });
+  assert.equal(swap.ok, true);
+  if (swap.ok) {
+    assert.equal(swap.data.protocol, 'uniswap-v3-exact-input-single');
+    assert.equal(swap.data.preview.to, '0x9000000000000000000000000000000000000009');
+  }
+
   const bridge = await tools.bridgePreviewTool.execute({
     walletName: 'main',
     amount: '0.05',
@@ -976,6 +1050,9 @@ test('withdraw preview tool exposes structured transaction validation classifica
     provider: createProviderStub(),
     defiProvider: {
       name: 'zksync-defi',
+      async swap() {
+        throw new Error('swap should not be called in this test');
+      },
       async bridge() {
         throw new Error('bridge should not be called in this test');
       },
@@ -1092,6 +1169,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletRestoreTool',
     'getBalancesTool',
     'callContractTool',
+    'swapPreviewTool',
     'bridgePreviewTool',
     'bridgeStatusTool',
     'depositPreviewTool',
@@ -1107,7 +1185,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 22);
+  assert.equal(listed.length, 23);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
 });
@@ -1137,6 +1215,23 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   if (deposit.ok) {
     assert.equal((deposit.data as { mode: string }).mode, 'preview');
     assert.equal((deposit.data as { l1ChainId: number }).l1ChainId, 11155111);
+  }
+
+  const swap = await runStandardAgentTool(context, 'swapPreviewTool', {
+    walletName: 'main',
+    routerAddress: '0x9000000000000000000000000000000000000009',
+    tokenInAddress: '0x7000000000000000000000000000000000000007',
+    tokenOutAddress: '0x8000000000000000000000000000000000000008',
+    amountIn: '1.5',
+    amountOutMin: '1200',
+    tokenInDecimals: 18,
+    tokenOutDecimals: 6,
+    feeTier: 3000,
+    broadcast: false
+  });
+  assert.equal(swap.ok, true);
+  if (swap.ok) {
+    assert.equal((swap.data as { protocol: string }).protocol, 'uniswap-v3-exact-input-single');
   }
 
   const bridge = await runStandardAgentTool(context, 'bridgePreviewTool', {

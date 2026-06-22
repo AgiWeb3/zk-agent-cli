@@ -189,6 +189,72 @@ export interface TransactionExecutionResult {
   preview: TransactionPreview;
 }
 
+export interface SwapPreviewInput {
+  wallet: WalletSessionRecord;
+  routerAddress: string;
+  tokenInAddress: string;
+  tokenOutAddress: string;
+  amountIn: string;
+  amountOutMin: string;
+  tokenInDecimals: number;
+  tokenOutDecimals: number;
+  tokenInSymbol?: string;
+  tokenOutSymbol?: string;
+  recipient?: string;
+  feeTier: number;
+  sqrtPriceLimitX96?: string;
+  autoApprove?: boolean;
+  approveMax?: boolean;
+  paymaster?: PaymasterSelectionInput;
+}
+
+export interface SwapExecutionInput extends SwapPreviewInput {
+  broadcast: boolean;
+}
+
+export interface SwapExecutionResult {
+  walletName: string;
+  walletAddress: string;
+  chain: string;
+  chainId: number;
+  protocol: 'uniswap-v3-exact-input-single';
+  mode: 'preview' | 'broadcast';
+  routerAddress: string;
+  sender: string;
+  recipient: string;
+  feeTier: number;
+  sqrtPriceLimitX96: string;
+  tokenIn: {
+    address: string;
+    symbol: string;
+    amount: string;
+    decimals: number;
+  };
+  tokenOut: {
+    address: string;
+    symbol: string;
+    minAmountOut: string;
+    decimals: number;
+  };
+  approval: {
+    needed: boolean;
+    spender: string;
+    currentAllowance: string;
+    currentAllowanceRaw: string;
+    requiredAmount: string;
+    requiredAmountRaw: string;
+    mode: 'none' | 'exact' | 'max';
+    txHash?: string;
+    explorerUrl?: string;
+    preview?: TransactionPreview;
+  };
+  paymaster: ResolvedPaymasterPolicy;
+  preview: TransactionPreview;
+  txHash?: string;
+  explorerUrl?: string;
+  notes: string[];
+}
+
 export interface BridgeAddresses {
   erc20L1: string;
   erc20L2: string;
@@ -605,6 +671,7 @@ export interface WalletProvider {
 
 export interface DefiProvider {
   readonly name: 'zksync-defi';
+  swap(input: SwapExecutionInput): Promise<SwapExecutionResult>;
   bridge(input: BridgeExecutionInput): Promise<BridgeExecutionResult>;
   bridgeStatus(input: BridgeStatusInput): Promise<BridgeStatusResult>;
   previewDeposit(input: DepositPreviewInput): Promise<DepositPreviewResult>;

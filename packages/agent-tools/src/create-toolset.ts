@@ -23,6 +23,7 @@ import {
   createWalletSyncTool
 } from './wallet-lifecycle-tools.js';
 import { createPlanSmartAccountDeploymentTool, createDeploySmartAccountTool } from './smart-account-tools.js';
+import { createSwapPreviewTool } from './swap-preview-tool.js';
 import { createSendNativeTool } from './send-native-tool.js';
 import { createSendTokenTool } from './send-token-tool.js';
 import { createWithdrawFinalizePreviewTool } from './withdraw-finalize-preview-tool.js';
@@ -68,6 +69,7 @@ export function createStandardAgentTools(context: AgentToolContext) {
     walletRestoreTool: createWalletRestoreTool(context),
     getBalancesTool: createGetBalancesTool(context),
     callContractTool: createCallContractTool(context),
+    swapPreviewTool: createSwapPreviewTool(context),
     bridgePreviewTool: createBridgePreviewTool(context),
     bridgeStatusTool: createBridgeStatusTool(context),
     depositPreviewTool: createDepositPreviewTool(context),
@@ -98,6 +100,7 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'walletRestoreTool',
     'getBalancesTool',
     'callContractTool',
+    'swapPreviewTool',
     'bridgePreviewTool',
     'bridgeStatusTool',
     'depositPreviewTool',

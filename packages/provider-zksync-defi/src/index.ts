@@ -1,5 +1,6 @@
 import {
   AgentError,
+  type WalletProvider,
   type BridgeStatusInput,
   type BridgeStatusResult,
   classifyKnownTransactionValidationFailure,
@@ -13,6 +14,8 @@ import {
   type DepositPreviewInput,
   type DepositPreviewResult,
   type DefiProvider,
+  type SwapExecutionInput,
+  type SwapExecutionResult,
   type TransactionPreview,
   type WalletSessionRecord,
   type WithdrawBatchResult,
@@ -30,7 +33,7 @@ import {
 import { ethers } from 'ethers';
 import { ECDSASmartAccount, Provider, Wallet, utils } from 'zksync-ethers';
 
-type WithdrawProviderLike = Pick<
+type DefiProviderLike = Pick<
   Provider,
   | 'getCode'
   | 'getNetwork'
@@ -47,6 +50,7 @@ type WithdrawProviderLike = Pick<
       | 'getBlock'
       | 'getL1BatchDetails'
       | 'getMainContractAddress'
+      | 'call'
     >
   >;
 
@@ -56,13 +60,21 @@ type WithdrawSigner =
 type WalletL1Provider = ConstructorParameters<typeof Wallet>[2];
 
 export interface ZkSyncDefiProviderOptions {
-  providerFactory?: (chainKey: string) => WithdrawProviderLike;
+  providerFactory?: (chainKey: string) => DefiProviderLike;
+  walletWriter?: Pick<WalletProvider, 'writeContract'>;
 }
 
-const providers = new Map<string, WithdrawProviderLike>();
+const providers = new Map<string, DefiProviderLike>();
 const l1Providers = new Map<number, ethers.JsonRpcProvider>();
 const READONLY_HELPER_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+const UNISWAP_V3_ROUTER_INTERFACE = new ethers.Interface([
+  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)'
+]);
+const ERC20_INTERFACE = new ethers.Interface([
+  'function allowance(address owner,address spender) view returns (uint256)',
+  'function approve(address spender,uint256 amount) returns (bool)'
+]);
 
 interface BridgeChainRef {
   kind: 'l1' | 'zksync';
@@ -83,7 +95,7 @@ interface BridgeRouteInput {
   toChain: string;
 }
 
-function getDefaultProvider(chainKey: string): WithdrawProviderLike {
+function getDefaultProvider(chainKey: string): DefiProviderLike {
   const chain = resolveChain(chainKey);
   const existing = providers.get(chain.key);
   if (existing) return existing;
@@ -236,6 +248,306 @@ function getExplorerUrl(chainKey: string, txHash?: string): string | undefined {
   if (!txHash) return undefined;
   const chain = resolveChain(chainKey);
   return chain.explorerUrl ? `${chain.explorerUrl}/tx/${txHash}` : undefined;
+}
+
+function formatUnits(value: bigint, decimals: number): string {
+  if (decimals <= 0) return value.toString();
+
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  const base = 10n ** BigInt(decimals);
+  const whole = absolute / base;
+  const fraction = absolute % base;
+
+  if (fraction === 0n) return `${negative ? '-' : ''}${whole}`;
+
+  const fractionText = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+  return `${negative ? '-' : ''}${whole}.${fractionText}`;
+}
+
+function validateUint24(value: number, label: string): number {
+  if (!Number.isInteger(value) || value <= 0 || value > 0xffffff) {
+    throw new AgentError(
+      'INVALID_SWAP_FEE_TIER',
+      `${label} must be a positive uint24 integer.`,
+      {
+        label,
+        value
+      }
+    );
+  }
+
+  return value;
+}
+
+function parseNonNegativeBigInt(value: string | undefined, label: string): bigint {
+  if (!value) return 0n;
+
+  try {
+    const parsed = BigInt(value);
+    if (parsed < 0n) {
+      throw new AgentError(
+        'INVALID_SWAP_PARAMETER',
+        `${label} must be a non-negative integer.`,
+        {
+          label,
+          value
+        }
+      );
+    }
+
+    return parsed;
+  } catch (error) {
+    if (error instanceof AgentError) throw error;
+    throw new AgentError('INVALID_SWAP_PARAMETER', `${label} must be a valid integer string.`, {
+      label,
+      value
+    });
+  }
+}
+
+function resolveSwapRecipient(wallet: WalletSessionRecord, explicit?: string): {
+  recipient: string;
+  note?: string;
+} {
+  if (explicit) {
+    if (!ethers.isAddress(explicit)) {
+      throw new AgentError('INVALID_SWAP_RECIPIENT', 'Swap recipient must be a valid address.', {
+        recipient: explicit
+      });
+    }
+
+    return {
+      recipient: ethers.getAddress(explicit)
+    };
+  }
+
+  return {
+    recipient: ethers.getAddress(resolveExecutionAddress(wallet)),
+    note: 'Recipient defaulted to the wallet execution address because no --recipient override was supplied.'
+  };
+}
+
+function resolveSwapToken(options: {
+  address: string;
+  decimals: number;
+  symbol?: string;
+  label: 'tokenIn' | 'tokenOut';
+}): {
+  address: string;
+  decimals: number;
+  symbol: string;
+} {
+  if (!ethers.isAddress(options.address)) {
+    throw new AgentError(
+      options.label === 'tokenIn' ? 'INVALID_SWAP_TOKEN_IN' : 'INVALID_SWAP_TOKEN_OUT',
+      `${options.label} must be a valid token contract address.`,
+      {
+        token: options.address,
+        label: options.label
+      }
+    );
+  }
+
+  if (!Number.isInteger(options.decimals) || options.decimals < 0) {
+    throw new AgentError(
+      options.label === 'tokenIn'
+        ? 'INVALID_SWAP_TOKEN_IN_DECIMALS'
+        : 'INVALID_SWAP_TOKEN_OUT_DECIMALS',
+      `${options.label} decimals must be a non-negative integer.`,
+      {
+        token: options.address,
+        label: options.label,
+        decimals: options.decimals
+      }
+    );
+  }
+
+  const normalizedAddress = ethers.getAddress(options.address);
+  if (normalizedAddress.toLowerCase() === utils.ETH_ADDRESS.toLowerCase()) {
+    throw new AgentError(
+      'SWAP_NATIVE_TOKEN_UNSUPPORTED',
+      'Swap currently requires ERC-20 token addresses. Native ETH wrapping is not implemented yet.',
+      {
+        label: options.label,
+        token: normalizedAddress
+      }
+    );
+  }
+
+  return {
+    address: normalizedAddress,
+    decimals: options.decimals,
+    symbol: options.symbol || 'ERC20'
+  };
+}
+
+function buildSwapNotes(options: {
+  recipientNote?: string;
+  approvalNeeded: boolean;
+  approvalMode: SwapExecutionResult['approval']['mode'];
+  mode: 'preview' | 'broadcast';
+}): string[] {
+  const notes: string[] = [];
+
+  if (options.recipientNote) notes.push(options.recipientNote);
+  notes.push('Swap currently supports same-chain Uniswap V3 exactInputSingle only. Cross-chain routing and quote aggregation are not implemented yet.');
+
+  if (options.approvalNeeded) {
+    if (options.approvalMode === 'none') {
+      notes.push('Router allowance is currently below the required input amount. Re-run with --auto-approve or approve the router before broadcasting the swap.');
+    } else if (options.approvalMode === 'exact') {
+      notes.push('Router allowance is below the required input amount, so an exact approval step will be executed before the swap.');
+    } else {
+      notes.push('Router allowance is below the required input amount, so a max approval step will be executed before the swap.');
+    }
+  }
+
+  if (options.mode === 'preview') {
+    notes.push('This is a preview only. Re-run with --broadcast to submit the swap transaction.');
+  } else {
+    notes.push('Broadcast succeeded on the swap path. If an approval was needed, it was sent before the router call.');
+  }
+
+  return notes;
+}
+
+interface ResolvedSwapContext {
+  chain: ReturnType<typeof resolveChain>;
+  provider: DefiProviderLike;
+  routerAddress: string;
+  sender: string;
+  recipient: string;
+  recipientNote?: string;
+  tokenIn: SwapExecutionResult['tokenIn'];
+  tokenOut: SwapExecutionResult['tokenOut'];
+  amountInRaw: bigint;
+  amountOutMinRaw: bigint;
+  feeTier: number;
+  sqrtPriceLimitX96: bigint;
+  approvalMode: SwapExecutionResult['approval']['mode'];
+  paymaster?: SwapExecutionInput['paymaster'];
+}
+
+async function readAllowance(
+  provider: DefiProviderLike,
+  tokenAddress: string,
+  ownerAddress: string,
+  spenderAddress: string
+): Promise<bigint> {
+  if (!provider.call) {
+    throw new AgentError(
+      'SWAP_ALLOWANCE_READ_UNAVAILABLE',
+      'The selected provider cannot read ERC-20 allowance state for swap preflight.',
+      {
+        tokenAddress,
+        ownerAddress,
+        spenderAddress
+      }
+    );
+  }
+
+  const result = await provider.call({
+    to: tokenAddress,
+    data: ERC20_INTERFACE.encodeFunctionData('allowance', [ownerAddress, spenderAddress])
+  });
+
+  const [allowance] = ERC20_INTERFACE.decodeFunctionResult('allowance', result);
+  return allowance as bigint;
+}
+
+function buildSwapCallData(context: ResolvedSwapContext): string {
+  return UNISWAP_V3_ROUTER_INTERFACE.encodeFunctionData('exactInputSingle', [
+    {
+      tokenIn: context.tokenIn.address,
+      tokenOut: context.tokenOut.address,
+      fee: context.feeTier,
+      recipient: context.recipient,
+      amountIn: context.amountInRaw,
+      amountOutMinimum: context.amountOutMinRaw,
+      sqrtPriceLimitX96: context.sqrtPriceLimitX96
+    }
+  ]);
+}
+
+function buildApprovalCallData(spender: string, amount: bigint): string {
+  return ERC20_INTERFACE.encodeFunctionData('approve', [spender, amount]);
+}
+
+function resolveSwapContext(input: SwapExecutionInput, providerFactory: (chainKey: string) => DefiProviderLike): ResolvedSwapContext {
+  const chain = resolveChain(input.wallet.chain);
+  const provider = providerFactory(chain.key);
+  const sender = ethers.getAddress(resolveExecutionAddress(input.wallet));
+  const { recipient, note: recipientNote } = resolveSwapRecipient(input.wallet, input.recipient);
+
+  if (!ethers.isAddress(input.routerAddress)) {
+    throw new AgentError('INVALID_SWAP_ROUTER', 'Swap router must be a valid address.', {
+      routerAddress: input.routerAddress
+    });
+  }
+
+  const tokenIn = resolveSwapToken({
+    address: input.tokenInAddress,
+    decimals: input.tokenInDecimals,
+    symbol: input.tokenInSymbol,
+    label: 'tokenIn'
+  });
+  const tokenOut = resolveSwapToken({
+    address: input.tokenOutAddress,
+    decimals: input.tokenOutDecimals,
+    symbol: input.tokenOutSymbol,
+    label: 'tokenOut'
+  });
+
+  if (tokenIn.address.toLowerCase() === tokenOut.address.toLowerCase()) {
+    throw new AgentError(
+      'SWAP_TOKEN_PAIR_INVALID',
+      'Swap tokenIn and tokenOut must be different token addresses.',
+      {
+        tokenIn: tokenIn.address,
+        tokenOut: tokenOut.address
+      }
+    );
+  }
+
+  const amountInRaw = parseUnits(input.amountIn, tokenIn.decimals);
+  const amountOutMinRaw = parseUnits(input.amountOutMin, tokenOut.decimals);
+  if (amountInRaw <= 0n) {
+    throw new AgentError('INVALID_SWAP_AMOUNT_IN', 'Swap amountIn must be greater than zero.', {
+      value: input.amountIn
+    });
+  }
+
+  const feeTier = validateUint24(input.feeTier, 'feeTier');
+  const sqrtPriceLimitX96 = parseNonNegativeBigInt(
+    input.sqrtPriceLimitX96,
+    'sqrtPriceLimitX96'
+  );
+  const approvalMode =
+    input.autoApprove === true ? (input.approveMax === true ? 'max' : 'exact') : 'none';
+
+  return {
+    chain,
+    provider,
+    routerAddress: ethers.getAddress(input.routerAddress),
+    sender,
+    recipient,
+    recipientNote,
+    tokenIn: {
+      ...tokenIn,
+      amount: input.amountIn
+    },
+    tokenOut: {
+      ...tokenOut,
+      minAmountOut: input.amountOutMin
+    },
+    amountInRaw,
+    amountOutMinRaw,
+    feeTier,
+    sqrtPriceLimitX96,
+    approvalMode,
+    paymaster: input.paymaster
+  };
 }
 
 function normalizeDate(value: Date | undefined): string | undefined {
@@ -398,7 +710,7 @@ function resolveWritableSignerAddress(wallet: WalletSessionRecord, privateKey: s
 
 async function buildSigner(
   wallet: WalletSessionRecord,
-  provider: WithdrawProviderLike
+  provider: DefiProviderLike
 ): Promise<WithdrawSigner> {
   const executionAddress = ethers.getAddress(resolveExecutionAddress(wallet));
   const privateKey = requireWritableSession(wallet);
@@ -609,7 +921,7 @@ function buildDepositNotes(options: {
 
 interface ResolvedDepositContext {
   chain: ReturnType<typeof resolveChain>;
-  provider: WithdrawProviderLike;
+  provider: DefiProviderLike;
   signerAddress: string;
   recipient: string;
   token: DepositPreviewResult['token'];
@@ -626,7 +938,7 @@ interface ResolvedDepositContext {
 
 async function resolveDepositContext(
   input: DepositPreviewInput,
-  providerFactory: (chainKey: string) => WithdrawProviderLike
+  providerFactory: (chainKey: string) => DefiProviderLike
 ): Promise<ResolvedDepositContext> {
   const chain = resolveChain(input.wallet.chain);
   const provider = providerFactory(chain.key);
@@ -674,7 +986,7 @@ async function resolveDepositContext(
 
 interface PreparedDepositPreview extends ResolvedDepositContext {
   walletAddress: string;
-  bridgeAddresses: Awaited<ReturnType<WithdrawProviderLike['getDefaultBridgeAddresses']>>;
+  bridgeAddresses: Awaited<ReturnType<DefiProviderLike['getDefaultBridgeAddresses']>>;
   l1ChainId: number;
   txRequest: unknown;
   estimatedGas: bigint;
@@ -753,7 +1065,7 @@ function buildWithdrawNotes(options: {
 
 interface ResolvedWithdrawContext {
   chain: ReturnType<typeof resolveChain>;
-  provider: WithdrawProviderLike;
+  provider: DefiProviderLike;
   from: string;
   recipient: string;
   token: WithdrawPreviewResult['token'];
@@ -771,7 +1083,7 @@ interface ResolvedWithdrawContext {
 
 async function resolveWithdrawContext(
   input: WithdrawPreviewInput,
-  providerFactory: (chainKey: string) => WithdrawProviderLike
+  providerFactory: (chainKey: string) => DefiProviderLike
 ): Promise<ResolvedWithdrawContext> {
   const chain = resolveChain(input.wallet.chain);
   const provider = providerFactory(chain.key);
@@ -818,15 +1130,15 @@ async function resolveWithdrawContext(
 }
 
 interface PreparedWithdraw extends ResolvedWithdrawContext {
-  bridgeAddresses: Awaited<ReturnType<WithdrawProviderLike['getDefaultBridgeAddresses']>>;
+  bridgeAddresses: Awaited<ReturnType<DefiProviderLike['getDefaultBridgeAddresses']>>;
   l1ChainId: number;
-  txRequest: Awaited<ReturnType<WithdrawProviderLike['getWithdrawTx']>>;
+  txRequest: Awaited<ReturnType<DefiProviderLike['getWithdrawTx']>>;
   estimatedGas: bigint;
 }
 
 async function prepareWithdraw(
   input: WithdrawPreviewInput,
-  providerFactory: (chainKey: string) => WithdrawProviderLike
+  providerFactory: (chainKey: string) => DefiProviderLike
 ): Promise<PreparedWithdraw> {
   const resolved = await resolveWithdrawContext(input, providerFactory);
 
@@ -902,7 +1214,7 @@ function buildWithdrawResult(
 
 async function prepareDepositPreview(
   input: DepositPreviewInput,
-  providerFactory: (chainKey: string) => WithdrawProviderLike
+  providerFactory: (chainKey: string) => DefiProviderLike
 ): Promise<PreparedDepositPreview> {
   const resolved = await resolveDepositContext(input, providerFactory);
   const walletAddress = ethers.getAddress(resolveExecutionAddress(input.wallet));
@@ -973,7 +1285,7 @@ function buildDepositResult(
 
 async function resolveBridgeRoute(
   input: BridgeRouteInput,
-  providerFactory: (chainKey: string) => WithdrawProviderLike
+  providerFactory: (chainKey: string) => DefiProviderLike
 ): Promise<ResolvedBridgeRoute> {
   const walletChain = resolveChain(input.wallet.chain);
   const destination = resolveBridgeChainRef(input.toChain);
@@ -1183,7 +1495,7 @@ function validateWithdrawIndex(index: number | undefined): number {
   return index;
 }
 
-function createReadonlyL2Wallet(provider: WithdrawProviderLike): Wallet {
+function createReadonlyL2Wallet(provider: DefiProviderLike): Wallet {
   return new Wallet(READONLY_HELPER_PRIVATE_KEY, provider as Provider);
 }
 
@@ -1215,7 +1527,7 @@ function getL1Provider(l1ChainId: number, purpose: string): ethers.JsonRpcProvid
 
 function createL1ConnectedWallet(
   wallet: WalletSessionRecord,
-  provider: WithdrawProviderLike,
+  provider: DefiProviderLike,
   l1ChainId: number,
   purpose: string
 ): { wallet: Wallet; signerAddress: string } {
@@ -1405,7 +1717,7 @@ function buildWithdrawFinalizeNotes(options: {
 }
 
 async function resolveFinalizePreview(
-  provider: WithdrawProviderLike,
+  provider: DefiProviderLike,
   chainKey: string,
   chainId: number,
   txHash: string,
@@ -1455,10 +1767,160 @@ async function resolveFinalizePreview(
 export class ZkSyncDefiProvider implements DefiProvider {
   readonly name = 'zksync-defi' as const;
 
-  private readonly providerFactory: (chainKey: string) => WithdrawProviderLike;
+  private readonly providerFactory: (chainKey: string) => DefiProviderLike;
+  private readonly walletWriter?: Pick<WalletProvider, 'writeContract'>;
 
   constructor(options: ZkSyncDefiProviderOptions = {}) {
     this.providerFactory = options.providerFactory || getDefaultProvider;
+    this.walletWriter = options.walletWriter;
+  }
+
+  async swap(input: SwapExecutionInput): Promise<SwapExecutionResult> {
+    if (!this.walletWriter) {
+      throw new AgentError(
+        'SWAP_WALLET_WRITER_REQUIRED',
+        'Swap execution requires a walletWriter that can submit contract writes.',
+        {
+          walletName: input.wallet.walletName,
+          chain: input.wallet.chain
+        }
+      );
+    }
+
+    const resolved = resolveSwapContext(input, this.providerFactory);
+    const currentAllowanceRaw = await readAllowance(
+      resolved.provider,
+      resolved.tokenIn.address,
+      resolved.sender,
+      resolved.routerAddress
+    );
+    const approvalNeeded = currentAllowanceRaw < resolved.amountInRaw;
+    const approvalAmountRaw =
+      resolved.approvalMode === 'max' ? ethers.MaxUint256 : resolved.amountInRaw;
+    const approvalPreview =
+      approvalNeeded && resolved.approvalMode !== 'none'
+        ? await this.walletWriter.writeContract({
+            wallet: input.wallet,
+            to: resolved.tokenIn.address,
+            data: buildApprovalCallData(resolved.routerAddress, approvalAmountRaw),
+            broadcast: false,
+            paymaster: resolved.paymaster
+          })
+        : undefined;
+    const swapResult = await this.walletWriter.writeContract({
+      wallet: input.wallet,
+      to: resolved.routerAddress,
+      data: buildSwapCallData(resolved),
+      broadcast: false,
+      paymaster: resolved.paymaster
+    });
+
+    if (!input.broadcast) {
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: resolved.chain.key,
+        chainId: resolved.chain.chainId,
+        protocol: 'uniswap-v3-exact-input-single',
+        mode: 'preview',
+        routerAddress: resolved.routerAddress,
+        sender: resolved.sender,
+        recipient: resolved.recipient,
+        feeTier: resolved.feeTier,
+        sqrtPriceLimitX96: resolved.sqrtPriceLimitX96.toString(),
+        tokenIn: resolved.tokenIn,
+        tokenOut: resolved.tokenOut,
+        approval: {
+          needed: approvalNeeded,
+          spender: resolved.routerAddress,
+          currentAllowance: formatUnits(currentAllowanceRaw, resolved.tokenIn.decimals),
+          currentAllowanceRaw: currentAllowanceRaw.toString(),
+          requiredAmount: resolved.tokenIn.amount,
+          requiredAmountRaw: resolved.amountInRaw.toString(),
+          mode: approvalNeeded ? resolved.approvalMode : 'none',
+          preview: approvalPreview?.preview
+        },
+        paymaster: swapResult.paymaster,
+        preview: swapResult.preview,
+        notes: buildSwapNotes({
+          recipientNote: resolved.recipientNote,
+          approvalNeeded,
+          approvalMode: approvalNeeded ? resolved.approvalMode : 'none',
+          mode: 'preview'
+        })
+      };
+    }
+
+    if (approvalNeeded && resolved.approvalMode === 'none') {
+      throw new AgentError(
+        'SWAP_ALLOWANCE_REQUIRED',
+        'Router allowance is below the required input amount. Enable auto-approve or approve the router before broadcasting the swap.',
+        {
+          walletName: input.wallet.walletName,
+          chain: resolved.chain.key,
+          tokenIn: resolved.tokenIn.address,
+          routerAddress: resolved.routerAddress,
+          currentAllowanceRaw: currentAllowanceRaw.toString(),
+          requiredAmountRaw: resolved.amountInRaw.toString()
+        }
+      );
+    }
+
+    const approvalBroadcast =
+      approvalNeeded && resolved.approvalMode !== 'none'
+        ? await this.walletWriter.writeContract({
+            wallet: input.wallet,
+            to: resolved.tokenIn.address,
+            data: buildApprovalCallData(resolved.routerAddress, approvalAmountRaw),
+            broadcast: true,
+            paymaster: resolved.paymaster
+          })
+        : undefined;
+    const swapBroadcast = await this.walletWriter.writeContract({
+      wallet: input.wallet,
+      to: resolved.routerAddress,
+      data: buildSwapCallData(resolved),
+      broadcast: true,
+      paymaster: resolved.paymaster
+    });
+
+    return {
+      walletName: input.wallet.walletName,
+      walletAddress: input.wallet.walletAddress,
+      chain: resolved.chain.key,
+      chainId: resolved.chain.chainId,
+      protocol: 'uniswap-v3-exact-input-single',
+      mode: 'broadcast',
+      routerAddress: resolved.routerAddress,
+      sender: resolved.sender,
+      recipient: resolved.recipient,
+      feeTier: resolved.feeTier,
+      sqrtPriceLimitX96: resolved.sqrtPriceLimitX96.toString(),
+      tokenIn: resolved.tokenIn,
+      tokenOut: resolved.tokenOut,
+      approval: {
+        needed: approvalNeeded,
+        spender: resolved.routerAddress,
+        currentAllowance: formatUnits(currentAllowanceRaw, resolved.tokenIn.decimals),
+        currentAllowanceRaw: currentAllowanceRaw.toString(),
+        requiredAmount: resolved.tokenIn.amount,
+        requiredAmountRaw: resolved.amountInRaw.toString(),
+        mode: approvalNeeded ? resolved.approvalMode : 'none',
+        txHash: approvalBroadcast?.txHash,
+        explorerUrl: approvalBroadcast?.explorerUrl,
+        preview: approvalPreview?.preview
+      },
+      paymaster: swapBroadcast.paymaster,
+      preview: swapBroadcast.preview,
+      txHash: swapBroadcast.txHash,
+      explorerUrl: swapBroadcast.explorerUrl,
+      notes: buildSwapNotes({
+        recipientNote: resolved.recipientNote,
+        approvalNeeded,
+        approvalMode: approvalNeeded ? resolved.approvalMode : 'none',
+        mode: 'broadcast'
+      })
+    };
   }
 
   async bridge(input: BridgeExecutionInput): Promise<BridgeExecutionResult> {
@@ -1654,9 +2116,9 @@ export class ZkSyncDefiProvider implements DefiProvider {
 
     let l2TxHash: string | undefined;
     let l2ResolutionError: string | undefined;
-    let l2Tx: Awaited<ReturnType<NonNullable<WithdrawProviderLike['getTransaction']>>> | undefined;
+    let l2Tx: Awaited<ReturnType<NonNullable<DefiProviderLike['getTransaction']>>> | undefined;
     let l2Receipt:
-      | Awaited<ReturnType<NonNullable<WithdrawProviderLike['getTransactionReceipt']>>>
+      | Awaited<ReturnType<NonNullable<DefiProviderLike['getTransactionReceipt']>>>
       | undefined;
     let finalizedBlockNumber: number | undefined;
     let l1Batch: WithdrawBatchResult | undefined;
