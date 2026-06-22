@@ -63,6 +63,10 @@ function normalizeValidationClassification(
 function resolveSuggestedAction(details: Record<string, unknown> | undefined): string | undefined {
   if (!details) return undefined;
 
+  if (typeof details.suggestedAction === 'string' && details.suggestedAction.length > 0) {
+    return details.suggestedAction;
+  }
+
   const validation = asRecord(details.validation);
   if (!validation) return undefined;
 

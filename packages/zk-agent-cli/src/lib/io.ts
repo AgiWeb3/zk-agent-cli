@@ -90,6 +90,7 @@ export function formatHumanErrorMessage(error: unknown): string {
     return lines.join('\n');
   }
 
+  pushDetailLine(lines, 'suggested action', details.suggestedAction);
   pushDetailLine(lines, 'validation stage', details.validationStage);
 
   const validation = asRecord(details.validation);

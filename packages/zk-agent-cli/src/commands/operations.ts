@@ -82,6 +82,34 @@ function requirePositiveInteger(value: string | undefined, label: string): numbe
   return parsed;
 }
 
+function resolveRequiredOptionWithEnv(
+  value: string | undefined,
+  label: string,
+  envName: string
+): string {
+  const direct = value?.trim();
+  if (direct) return direct;
+
+  const fromEnv = process.env[envName]?.trim();
+  if (fromEnv) return fromEnv;
+
+  throw new Error(`${label} is required (or set ${envName} in .env)`);
+}
+
+function resolvePositiveIntegerWithEnv(
+  value: string | undefined,
+  label: string,
+  envName: string
+): number {
+  const direct = value?.trim();
+  if (direct) return requirePositiveInteger(direct, label);
+
+  const fromEnv = process.env[envName]?.trim();
+  if (fromEnv) return requirePositiveInteger(fromEnv, envName);
+
+  throw new Error(`${label} is required (or set ${envName} in .env)`);
+}
+
 function isDepositStatusTerminal(
   status: Awaited<ReturnType<ZkSyncDefiProvider['depositStatus']>>['status']
 ): boolean {
@@ -822,14 +850,14 @@ export function createDepositCommand(): Command {
 export function createSwapCommand(): Command {
   return withPaymasterOptions(new Command('swap'))
     .description('Preview or broadcast a same-chain Uniswap V3 exactInputSingle swap')
-    .requiredOption('--router <address>', 'Swap router contract address')
+    .option('--router <address>', 'Swap router contract address. Falls back to ZKSYNC_SWAP_ROUTER_ADDRESS')
     .requiredOption('--token-in <address>', 'Input ERC-20 token contract address')
     .requiredOption('--token-out <address>', 'Output ERC-20 token contract address')
     .requiredOption('--amount-in <value>', 'Input amount in human-readable token units')
     .requiredOption('--amount-out-min <value>', 'Minimum output amount in human-readable token units')
     .requiredOption('--token-in-decimals <value>', 'Input token decimals')
     .requiredOption('--token-out-decimals <value>', 'Output token decimals')
-    .requiredOption('--fee-tier <value>', 'Uniswap V3 pool fee tier, for example 500 or 3000')
+    .option('--fee-tier <value>', 'Uniswap V3 pool fee tier. Falls back to ZKSYNC_SWAP_FEE_TIER')
     .option('--token-in-symbol <symbol>', 'Optional input token symbol label')
     .option('--token-out-symbol <symbol>', 'Optional output token symbol label')
     .option('--recipient <address>', 'Recipient override. Defaults to the wallet execution address')
@@ -861,9 +889,19 @@ export function createSwapCommand(): Command {
         paymasterToken?: string;
       }) => {
         const wallet = await requireWallet(options.wallet);
+        const routerAddress = resolveRequiredOptionWithEnv(
+          options.router,
+          '--router',
+          'ZKSYNC_SWAP_ROUTER_ADDRESS'
+        );
+        const feeTier = resolvePositiveIntegerWithEnv(
+          options.feeTier,
+          '--fee-tier',
+          'ZKSYNC_SWAP_FEE_TIER'
+        );
         const result = await defiProvider.swap({
           wallet,
-          routerAddress: options.router,
+          routerAddress,
           tokenInAddress: options.tokenIn,
           tokenOutAddress: options.tokenOut,
           amountIn: options.amountIn,
@@ -873,7 +911,7 @@ export function createSwapCommand(): Command {
           tokenInSymbol: options.tokenInSymbol,
           tokenOutSymbol: options.tokenOutSymbol,
           recipient: options.recipient,
-          feeTier: requirePositiveInteger(options.feeTier, '--fee-tier'),
+          feeTier,
           sqrtPriceLimitX96: options.sqrtPriceLimitX96,
           autoApprove: Boolean(options.autoApprove),
           approveMax: Boolean(options.approveMax),

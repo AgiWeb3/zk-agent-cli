@@ -43,3 +43,22 @@ test('formatHumanErrorMessage renders structured paymaster validation details', 
     /note: The requested native value exceeds the configured SED Lite per-transaction cap for this wallet\./
   );
 });
+
+test('formatHumanErrorMessage renders top-level suggested actions', () => {
+  const error = new AgentError(
+    'PAYMASTER_ESTIMATION_FAILED',
+    'Failed to estimate an approval-based paymaster transaction.',
+    {
+      suggestedAction:
+        'Retry with paymaster mode set to none (CLI: --paymaster-mode none) to bypass the current approval-based paymaster.'
+    }
+  );
+
+  const message = formatHumanErrorMessage(error);
+
+  assert.match(message, /code: PAYMASTER_ESTIMATION_FAILED/);
+  assert.match(
+    message,
+    /suggested action: Retry with paymaster mode set to none \(CLI: --paymaster-mode none\) to bypass the current approval-based paymaster\./
+  );
+});

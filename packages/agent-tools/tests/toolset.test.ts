@@ -1045,6 +1045,51 @@ test('write contract tool exposes invalid fee-token remediation hints', async ()
   }
 });
 
+test('swap preview tool preserves direct paymaster remediation hints', async () => {
+  const provider = createProviderStub();
+  const context = createAgentToolContext({
+    provider,
+    defiProvider: {
+      ...provider,
+      async swap() {
+        throw new AgentError(
+          'PAYMASTER_ESTIMATION_FAILED',
+          'Failed to estimate an approval-based paymaster transaction.',
+          {
+            suggestedAction:
+              'Retry with paymaster mode set to none (CLI: --paymaster-mode none) to bypass the current approval-based paymaster, or switch back to a validated EraVM fee-token path before retrying.'
+          }
+        );
+      }
+    },
+    loadWallet: async () => sampleWallet
+  });
+  const tools = createStandardAgentTools(context);
+
+  const result = await tools.swapPreviewTool.execute({
+    walletName: 'main',
+    routerAddress: '0x9000000000000000000000000000000000000009',
+    tokenInAddress: '0x7000000000000000000000000000000000000007',
+    tokenOutAddress: '0x8000000000000000000000000000000000000008',
+    amountIn: '1',
+    amountOutMin: '1',
+    tokenInDecimals: 18,
+    tokenOutDecimals: 18,
+    feeTier: 3000,
+    broadcast: false
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.code, 'PAYMASTER_ESTIMATION_FAILED');
+    assert.equal(result.error.classification, undefined);
+    assert.equal(
+      result.error.suggestedAction,
+      'Retry with paymaster mode set to none (CLI: --paymaster-mode none) to bypass the current approval-based paymaster, or switch back to a validated EraVM fee-token path before retrying.'
+    );
+  }
+});
+
 test('withdraw preview tool exposes structured transaction validation classification', async () => {
   const context = createAgentToolContext({
     provider: createProviderStub(),

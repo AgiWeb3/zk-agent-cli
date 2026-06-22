@@ -127,6 +127,8 @@ What is already in place:
   - explicit router / token / fee-tier input instead of hidden quote aggregation
   - allowance preflight with optional auto-approve before swap broadcast
   - reuse of the existing zkSync AA-aware `writeContract` path for preview and execution
+  - optional CLI defaults through `ZKSYNC_SWAP_ROUTER_ADDRESS` and `ZKSYNC_SWAP_FEE_TIER`
+  - explicit paymaster override support, so Sepolia swap preview can fall back to `--paymaster-mode none` when the saved approval-based session default is incompatible
 - `withdraw` support through `packages/provider-zksync-defi`, including:
   - default bridge discovery
   - L2 -> L1 withdraw transaction preview
@@ -265,6 +267,8 @@ Relevant fields:
 - `ZKSYNC_SEPOLIA_WALLET_PRIVATE_KEY`
 - `ZKSYNC_SEPOLIA_WALLET_ADDRESS`
 - `ZKSYNC_SEPOLIA_RPC_URL`
+- `ZKSYNC_SWAP_ROUTER_ADDRESS`
+- `ZKSYNC_SWAP_FEE_TIER`
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_NAME`
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_SYMBOL`
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_DECIMALS`
@@ -289,6 +293,7 @@ So for `approval-based` testing, do not assume "standard ERC-20" automatically m
 For now:
 
 - use `--paymaster-mode none` to validate the base transaction path
+- if `swap` fails during approval-based paymaster estimation on Sepolia, re-run it with `--paymaster-mode none` first to separate swap-path issues from fee-token / paymaster-path issues
 - only use `approval-based` with tokens that have been explicitly validated for the active paymaster path
 
 Latest local result:

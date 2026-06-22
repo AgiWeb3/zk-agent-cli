@@ -788,6 +788,8 @@ async function preparePaymasterTransaction(
           ...paymaster,
           address: paymasterAddress
         },
+        suggestedAction:
+          'Retry with paymaster mode set to none (CLI: --paymaster-mode none) to bypass the current approval-based paymaster, or switch back to a validated EraVM fee-token path before retrying.',
         cause
       }
     );
