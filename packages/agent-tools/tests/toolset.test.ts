@@ -1167,6 +1167,86 @@ test('withdraw preview tool exposes structured transaction validation classifica
   }
 });
 
+test('withdraw preview tool preserves structured bridge-router classification', async () => {
+  const context = createAgentToolContext({
+    provider: createProviderStub(),
+    defiProvider: {
+      name: 'zksync-defi',
+      async swap() {
+        throw new Error('swap should not be called in this test');
+      },
+      async bridge() {
+        throw new Error('bridge should not be called in this test');
+      },
+      async previewDeposit() {
+        throw new Error('previewDeposit should not be called in this test');
+      },
+      async deposit() {
+        throw new Error('deposit should not be called in this test');
+      },
+      async depositStatus() {
+        throw new Error('depositStatus should not be called in this test');
+      },
+      async bridgeStatus() {
+        throw new Error('bridgeStatus should not be called in this test');
+      },
+      async previewWithdraw() {
+        throw new Error('previewWithdraw should not be called by withdrawPreviewTool');
+      },
+      async withdraw() {
+        throw new AgentError(
+          'WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED',
+          'Withdraw transaction preparation was rejected by the zkSync bridge router.',
+          {
+            validationDomain: 'bridge-router',
+            validationStage: 'estimation',
+            suggestedAction:
+              'Use ETH or an ERC20 that has a canonical shared-bridge mapping to the selected L1 network. Locally deployed zkSync test tokens generally cannot be withdrawn to L1 through the shared bridge.',
+            validation: {
+              kind: 'asset-id-mismatch',
+              source: 'shared-bridge',
+              reason: 'asset-id-mismatch'
+            }
+          }
+        );
+      },
+      async finalizeWithdraw() {
+        throw new Error('finalizeWithdraw should not be called in this test');
+      },
+      async previewWithdrawFinalize() {
+        throw new Error('previewWithdrawFinalize should not be called in this test');
+      },
+      async withdrawStatus() {
+        throw new Error('withdrawStatus should not be called in this test');
+      }
+    },
+    loadWallet: async () => sampleWallet
+  });
+  const tools = createStandardAgentTools(context);
+
+  const result = await tools.withdrawPreviewTool.execute({
+    walletName: 'main',
+    amount: '0.1',
+    tokenAddress: '0x4444444444444444444444444444444444444444',
+    decimals: 18,
+    broadcast: false
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.deepEqual(result.error.classification, {
+      domain: 'bridge-router',
+      stage: 'estimation',
+      policyHook: undefined,
+      validationKind: 'asset-id-mismatch'
+    });
+    assert.equal(
+      result.error.suggestedAction,
+      'Use ETH or an ERC20 that has a canonical shared-bridge mapping to the selected L1 network. Locally deployed zkSync test tokens generally cannot be withdrawn to L1 through the shared bridge.'
+    );
+  }
+});
+
 test('createZkSyncAgentToolContext wires a real zkSync provider', async () => {
   const context = createZkSyncAgentToolContext({
     loadWallet: async () => sampleWallet

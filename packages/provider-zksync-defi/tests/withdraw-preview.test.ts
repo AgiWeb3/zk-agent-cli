@@ -86,6 +86,26 @@ function createPriorityOpLog(mainContractAddress: string, l2TxHash: string) {
   };
 }
 
+function createAssetIdMismatchBridgeError() {
+  const errorInterface = new ethers.Interface([
+    'error AssetIdMismatch(bytes32 expected, bytes32 supplied)'
+  ]);
+  const expectedAssetId = '0x' + '11'.repeat(32);
+  const suppliedAssetId = '0x' + '22'.repeat(32);
+  const data = errorInterface.encodeErrorResult('AssetIdMismatch', [
+    expectedAssetId,
+    suppliedAssetId
+  ]);
+
+  return {
+    error: new Error(
+      `execution reverted (unknown custom error) (action="estimateGas", data="${data}")`
+    ),
+    expectedAssetId,
+    suppliedAssetId
+  };
+}
+
 test('previewDeposit returns native bridge metadata and defaults recipient to execution address', async () => {
   const previousRpcUrl = process.env.ETHEREUM_SEPOLIA_RPC_URL;
   const originalGetDepositTx = Wallet.prototype.getDepositTx;
@@ -1106,6 +1126,89 @@ test('previewWithdraw normalizes known validation failures into AgentError detai
   );
 });
 
+test('previewWithdraw classifies shared-bridge asset mismatches into a structured AgentError', async () => {
+  const { error: bridgeError, expectedAssetId, suppliedAssetId } =
+    createAssetIdMismatchBridgeError();
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        return {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        };
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw bridgeError;
+      },
+      async estimateGasWithdraw() {
+        throw bridgeError;
+      }
+    })
+  });
+
+  await assert.rejects(
+    () =>
+      provider.previewWithdraw({
+        wallet: sampleWallet(),
+        amount: '1',
+        tokenAddress: '0x7000000000000000000000000000000000000007',
+        decimals: 18,
+        symbol: 'ZKAT'
+      }),
+    (error: unknown) => {
+      assert.equal(
+        (error as { code?: string }).code,
+        'WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED'
+      );
+      assert.equal(
+        (error as { details?: { validationDomain?: string } }).details?.validationDomain,
+        'bridge-router'
+      );
+      assert.equal(
+        (error as { details?: { validation?: { kind?: string } } }).details?.validation?.kind,
+        'asset-id-mismatch'
+      );
+      assert.equal(
+        (
+          error as {
+            details?: { validation?: { expectedAssetId?: string; suppliedAssetId?: string } };
+          }
+        ).details?.validation?.expectedAssetId,
+        expectedAssetId
+      );
+      assert.equal(
+        (
+          error as {
+            details?: { validation?: { expectedAssetId?: string; suppliedAssetId?: string } };
+          }
+        ).details?.validation?.suppliedAssetId,
+        suppliedAssetId
+      );
+      assert.match(
+        (error as { details?: { suggestedAction?: string } }).details?.suggestedAction || '',
+        /canonical shared-bridge mapping/i
+      );
+      return true;
+    }
+  );
+});
+
 test('withdraw broadcasts through a writable local EOA session', async () => {
   const provider = new ZkSyncDefiProvider({
     providerFactory: () => ({
@@ -1243,6 +1346,104 @@ test('withdraw normalizes known broadcast validation failures into AgentError de
         assert.equal(
           (error as { details?: { validation?: { kind?: string } } }).details?.validation?.kind,
           'hook-native-per-tx-cap-exceeded'
+        );
+        return true;
+      }
+    );
+  } finally {
+    Wallet.prototype.withdraw = originalWithdraw;
+  }
+});
+
+test('withdraw classifies shared-bridge asset mismatches during broadcast into a structured AgentError', async () => {
+  const { error: bridgeError, expectedAssetId, suppliedAssetId } =
+    createAssetIdMismatchBridgeError();
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        return {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        };
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        return {
+          from: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          to: '0x6000000000000000000000000000000000000006',
+          data: '0xdeadbeef',
+          value: 0n,
+          gasLimit: 123456n,
+          maxFeePerGas: 999n,
+          maxPriorityFeePerGas: 111n,
+          type: 113
+        };
+      },
+      async estimateGasWithdraw() {
+        return 123456n;
+      }
+    })
+  });
+
+  const originalWithdraw = Wallet.prototype.withdraw;
+  Wallet.prototype.withdraw = async function mockWithdraw() {
+    throw bridgeError;
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        provider.withdraw({
+          wallet: writableEoaWallet(),
+          amount: '1',
+          tokenAddress: '0x7000000000000000000000000000000000000007',
+          decimals: 18,
+          symbol: 'ZKAT',
+          broadcast: true
+        }),
+      (error: unknown) => {
+        assert.equal(
+          (error as { code?: string }).code,
+          'WITHDRAW_BROADCAST_BRIDGE_ROUTER_REJECTED'
+        );
+        assert.equal(
+          (error as { details?: { validationDomain?: string } }).details?.validationDomain,
+          'bridge-router'
+        );
+        assert.equal(
+          (error as { details?: { validationStage?: string } }).details?.validationStage,
+          'broadcast'
+        );
+        assert.equal(
+          (
+            error as {
+              details?: { validation?: { expectedAssetId?: string; suppliedAssetId?: string } };
+            }
+          ).details?.validation?.expectedAssetId,
+          expectedAssetId
+        );
+        assert.equal(
+          (
+            error as {
+              details?: { validation?: { expectedAssetId?: string; suppliedAssetId?: string } };
+            }
+          ).details?.validation?.suppliedAssetId,
+          suppliedAssetId
         );
         return true;
       }

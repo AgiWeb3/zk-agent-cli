@@ -15,7 +15,8 @@
     "compile:eravm": "hardhat compile --config ./hardhat.config.cjs && node ./scripts/export-eravm-artifacts.mjs",
     "deploy:token:eravm": "pnpm run build && node dist/deployEraVmToken.js",
     "clean:eravm": "hardhat clean --config ./hardhat.config.cjs",
-    "deploy:paymaster": "pnpm run build && node dist/deployManagedPaymaster.js"
+    "deploy:paymaster": "pnpm run build && node dist/deployManagedPaymaster.js",
+    "deploy:pool:syncswap-classic": "pnpm run build && node dist/deploySyncSwapClassicPool.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

@@ -191,7 +191,9 @@ export interface TransactionExecutionResult {
 
 export interface SwapPreviewInput {
   wallet: WalletSessionRecord;
+  protocol?: 'uniswap-v3-exact-input-single' | 'syncswap-classic';
   routerAddress: string;
+  factoryAddress?: string;
   tokenInAddress: string;
   tokenOutAddress: string;
   amountIn: string;
@@ -217,9 +219,11 @@ export interface SwapExecutionResult {
   walletAddress: string;
   chain: string;
   chainId: number;
-  protocol: 'uniswap-v3-exact-input-single';
+  protocol: 'uniswap-v3-exact-input-single' | 'syncswap-classic';
   mode: 'preview' | 'broadcast';
   routerAddress: string;
+  factoryAddress?: string;
+  poolAddress?: string;
   sender: string;
   recipient: string;
   feeTier: number;
@@ -236,6 +240,8 @@ export interface SwapExecutionResult {
     minAmountOut: string;
     decimals: number;
   };
+  quotedAmountOut?: string;
+  quotedAmountOutRaw?: string;
   approval: {
     needed: boolean;
     spender: string;

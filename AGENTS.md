@@ -42,6 +42,7 @@ It should preserve the useful architecture patterns from `polygon-agent-cli` whi
 - When a feature is not implemented yet, fail explicitly with a milestone-oriented message.
 - Only bake in defaults that are verified from local docs in `../zksync-docs/`.
 - Avoid turning plugin capabilities into core dependencies.
+- Treat Codex sandbox DNS/network failures as an environment limitation first, not as proof that the public RPC endpoint is down. Real zkSync/Ethereum RPC verification may need to run outside the sandbox or through an approved unsandboxed command.
 
 ## Validation
 

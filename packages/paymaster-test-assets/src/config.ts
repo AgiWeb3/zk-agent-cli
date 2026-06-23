@@ -33,6 +33,19 @@ export interface ManagedPaymasterConfig {
   approvalBasedFlowEnabled: boolean;
 }
 
+export interface SyncSwapClassicPoolConfig {
+  rpcUrl: string;
+  privateKey: string;
+  walletAddress: string;
+  routerAddress: string;
+  factoryAddress: string;
+  tokenA: string;
+  tokenB: string;
+  amountA: string;
+  amountB: string;
+  recipientAddress: string;
+}
+
 export function getWorkspaceRoot(): string {
   return workspaceRoot;
 }
@@ -178,5 +191,66 @@ export function readManagedPaymasterConfig(defaultTokenAddress?: string): Manage
     tokenRateDenominator,
     generalFlowEnabled: parseBoolean(process.env.ZKSYNC_SEPOLIA_PAYMASTER_ENABLE_GENERAL, true),
     approvalBasedFlowEnabled: parseBoolean(process.env.ZKSYNC_SEPOLIA_PAYMASTER_ENABLE_APPROVAL, true)
+  };
+}
+
+export function readSyncSwapClassicPoolConfig(options?: {
+  defaultTokenA?: string;
+  defaultTokenB?: string;
+}): SyncSwapClassicPoolConfig {
+  const privateKey = normalizePrivateKey(process.env.ZKSYNC_SEPOLIA_WALLET_PRIVATE_KEY || '');
+  const walletAddress = process.env.ZKSYNC_SEPOLIA_WALLET_ADDRESS || '';
+  const rpcUrl = process.env.ZKSYNC_SEPOLIA_RPC_URL || 'https://sepolia.era.zksync.dev';
+  const routerAddress =
+    process.env.ZKSYNC_SYNCSWAP_ROUTER_ADDRESS || '0x3f39129e54d2331926c1E4bf034e111cf471AA97';
+  const factoryAddress =
+    process.env.ZKSYNC_SYNCSWAP_CLASSIC_FACTORY_ADDRESS ||
+    '0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09';
+  const tokenA =
+    process.env.ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_A ||
+    process.env.ZKSYNC_SEPOLIA_TEST_TOKEN ||
+    options?.defaultTokenA ||
+    '';
+  const tokenB =
+    process.env.ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_B ||
+    options?.defaultTokenB ||
+    '';
+  const amountA = process.env.ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_A || '1000';
+  const amountB = process.env.ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_B || '1000';
+  const recipientAddress = process.env.ZKSYNC_SYNCSWAP_CLASSIC_LP_RECIPIENT || walletAddress;
+
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
+    throw new Error(`Missing or invalid ZKSYNC_SEPOLIA_WALLET_PRIVATE_KEY in ${envPath}`);
+  }
+
+  requireAddress(walletAddress, 'ZKSYNC_SEPOLIA_WALLET_ADDRESS');
+  requireAddress(routerAddress, 'ZKSYNC_SYNCSWAP_ROUTER_ADDRESS');
+  requireAddress(factoryAddress, 'ZKSYNC_SYNCSWAP_CLASSIC_FACTORY_ADDRESS');
+  requireAddress(tokenA, 'ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_A');
+  requireAddress(tokenB, 'ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_B');
+  requireAddress(recipientAddress, 'ZKSYNC_SYNCSWAP_CLASSIC_LP_RECIPIENT');
+
+  if (tokenA.toLowerCase() === tokenB.toLowerCase()) {
+    throw new Error('ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_A and ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_B must differ');
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(amountA.trim())) {
+    throw new Error('ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_A must be a decimal amount');
+  }
+  if (!/^\d+(\.\d+)?$/.test(amountB.trim())) {
+    throw new Error('ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_B must be a decimal amount');
+  }
+
+  return {
+    rpcUrl,
+    privateKey,
+    walletAddress,
+    routerAddress,
+    factoryAddress,
+    tokenA,
+    tokenB,
+    amountA,
+    amountB,
+    recipientAddress
   };
 }

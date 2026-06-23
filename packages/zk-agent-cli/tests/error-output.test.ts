@@ -62,3 +62,37 @@ test('formatHumanErrorMessage renders top-level suggested actions', () => {
     /suggested action: Retry with paymaster mode set to none \(CLI: --paymaster-mode none\) to bypass the current approval-based paymaster\./
   );
 });
+
+test('formatHumanErrorMessage renders bridge-router validation details', () => {
+  const error = new AgentError(
+    'WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED',
+    'Withdraw transaction preparation was rejected by the zkSync bridge router.',
+    {
+      validationDomain: 'bridge-router',
+      validationStage: 'estimation',
+      suggestedAction:
+        'Use ETH or an ERC20 that has a canonical shared-bridge mapping to the selected L1 network. Locally deployed zkSync test tokens generally cannot be withdrawn to L1 through the shared bridge.',
+      validation: {
+        kind: 'asset-id-mismatch',
+        source: 'shared-bridge',
+        reason: 'asset-id-mismatch',
+        expectedAssetId: '0x' + '11'.repeat(32),
+        suppliedAssetId: '0x' + '22'.repeat(32),
+        note:
+          'The selected token does not map to the asset ID expected by the current shared bridge route.'
+      }
+    }
+  );
+
+  const message = formatHumanErrorMessage(error);
+
+  assert.match(message, /code: WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED/);
+  assert.match(message, /validation domain: bridge-router/);
+  assert.match(message, /validation stage: estimation/);
+  assert.match(message, /validation source: shared-bridge/);
+  assert.match(message, /validation kind: asset-id-mismatch/);
+  assert.match(message, /validation reason: asset-id-mismatch/);
+  assert.match(message, /expected asset id: 0x11{32}/i);
+  assert.match(message, /supplied asset id: 0x22{32}/i);
+  assert.match(message, /suggested action: Use ETH or an ERC20 that has a canonical shared-bridge mapping/i);
+});

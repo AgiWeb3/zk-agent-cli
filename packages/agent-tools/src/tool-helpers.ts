@@ -48,6 +48,8 @@ function normalizeValidationClassification(
   const domain =
     details.validationDomain === 'transaction-validation'
       ? 'transaction-validation'
+      : details.validationDomain === 'bridge-router'
+        ? 'bridge-router'
       : errorCode?.startsWith('PAYMASTER_')
         ? 'paymaster-validation'
         : 'transaction-validation';

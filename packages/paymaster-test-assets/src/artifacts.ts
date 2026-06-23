@@ -54,6 +54,10 @@ export function getLatestPaymasterDeploymentPath(): string {
   return path.join(packageRoot(), 'deployments', 'zksync-sepolia.paymaster.latest.json');
 }
 
+export function getLatestSyncSwapClassicDeploymentPath(): string {
+  return path.join(packageRoot(), 'deployments', 'zksync-sepolia.syncswap-classic.latest.json');
+}
+
 export function readGeneratedArtifact(artifactPath: string): GeneratedContractArtifact {
   if (!fs.existsSync(artifactPath)) {
     throw new Error(`Missing generated artifact at ${artifactPath}`);

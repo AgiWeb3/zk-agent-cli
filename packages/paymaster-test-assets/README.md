@@ -43,6 +43,7 @@ pnpm --filter @zk-agent/paymaster-test-assets deploy
 pnpm --filter @zk-agent/paymaster-test-assets compile:eravm
 pnpm --filter @zk-agent/paymaster-test-assets deploy:token:eravm
 pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
+pnpm --filter @zk-agent/paymaster-test-assets deploy:pool:syncswap-classic
 ```
 
 ## 生成物
@@ -59,6 +60,8 @@ pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
   `packages/paymaster-test-assets/deployments/zksync-sepolia.eravm-token.latest.json`
 - paymaster deployment:
   `packages/paymaster-test-assets/deployments/zksync-sepolia.paymaster.latest.json`
+- SyncSwap classic pool/liquidity record:
+  `packages/paymaster-test-assets/deployments/zksync-sepolia.syncswap-classic.latest.json`
 
 ## `.env` 字段
 
@@ -83,12 +86,39 @@ pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
 - `ZKSYNC_SEPOLIA_PAYMASTER_ENABLE_GENERAL`
 - `ZKSYNC_SEPOLIA_PAYMASTER_ENABLE_APPROVAL`
 
+新增 SyncSwap classic 字段：
+
+- `ZKSYNC_SYNCSWAP_ROUTER_ADDRESS`
+- `ZKSYNC_SYNCSWAP_CLASSIC_FACTORY_ADDRESS`
+- `ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_A`
+- `ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_B`
+- `ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_A`
+- `ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_B`
+- `ZKSYNC_SYNCSWAP_CLASSIC_LP_RECIPIENT`
+
 默认行为：
 
 - `PAYMASTER_TOKEN` 未设置时，优先用 `ZKSYNC_SEPOLIA_TEST_TOKEN`
 - 如果 `TEST_TOKEN` 也没设置，就回退到最近一次 `deploy` 产出的 token 地址
 - 费率默认 `1 / 1`
 - `general` 和 `approval-based` 默认都开启
+- SyncSwap classic 建池脚本默认优先用：
+  - `TOKEN_A = ZKSYNC_SEPOLIA_TEST_TOKEN` 或最近一次 EraVM token 部署
+  - `TOKEN_B = 最近一次 EVM-interpreter token 部署`
+  - 两边默认注入量都是 `1000`
+  - LP 默认发给 `ZKSYNC_SEPOLIA_WALLET_ADDRESS`
+
+## SyncSwap Classic 测试池
+
+`deploy:pool:syncswap-classic` 的目标不是部署新合约，而是为当前仓库自己的测试 token
+在 zkSync Sepolia 上准备一个可重复的 SyncSwap classic 环境：
+
+- 先查 `classic factory` 是否已有池子
+- 没有就调用 `createPool(bytes)` 建池
+- 检查两边 token 对 router 的 allowance，不足时自动补 `approve`
+- 调 `router.addLiquidity(...)` 注入双边流动性
+- 把最新池地址、注入交易、LP 余额和当前 reserves 记到
+  `zksync-sepolia.syncswap-classic.latest.json`
 
 ## 当前 Sepolia 结论
 

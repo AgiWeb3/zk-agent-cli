@@ -123,9 +123,12 @@ What is already in place:
   - machine-readable route metadata and post-broadcast status-command hints
   - unified `bridge-status` inspection on top of the deposit / withdraw lifecycle trackers
 - `swap` support through `packages/provider-zksync-defi`, including:
-  - same-chain `Uniswap V3 exactInputSingle` request shaping
-  - explicit router / token / fee-tier input instead of hidden quote aggregation
+  - same-chain `Uniswap V3 exactInputSingle` and `SyncSwap classic` single-pool request shaping
+  - explicit router / token / protocol input instead of hidden quote aggregation
+  - CLI-side fallback to local test-asset deployment records for token `decimals` / `symbol` lookup during swaps, token sends, and ERC-20 bridge/withdraw/deposit previews, so repeated Sepolia test runs do not always need manual decimal flags
   - allowance preflight with optional auto-approve before swap broadcast
+  - router-factory pool preflight, so missing V3 pools fail before any approval transaction is sent
+  - direct SyncSwap classic pool quoting before broadcast, so impossible `amountOutMin` values fail before any approval transaction is sent
   - reuse of the existing zkSync AA-aware `writeContract` path for preview and execution
   - optional CLI defaults through `ZKSYNC_SWAP_ROUTER_ADDRESS` and `ZKSYNC_SWAP_FEE_TIER`
   - explicit paymaster override support, so Sepolia swap preview can fall back to `--paymaster-mode none` when the saved approval-based session default is incompatible
@@ -136,6 +139,7 @@ What is already in place:
   - opt-in L2 withdraw broadcast for locally writable sessions
   - post-broadcast L2 and batch status inspection
   - L1 finalize-parameter preview and opt-in L1 finalize broadcast for later nullifier finalization
+  - structured shared-bridge router error classification, so unsupported or local-only assets fail with explicit `bridge-router` metadata instead of a raw revert blob
 - structured paymaster validation errors now classify known zkSync Sepolia
   SystemContext failures and known SED Lite hook rejections during estimation /
   broadcast, and surface the key validation fields in both JSON and TTY output
@@ -274,6 +278,11 @@ Relevant fields:
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_DECIMALS`
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_SUPPLY`
 
+Behavior note:
+
+- CLI/provider zkSync Sepolia reads now honor `ZKSYNC_SEPOLIA_RPC_URL` everywhere the built-in chain definition is resolved, not only in package-specific deploy scripts.
+- In the Codex sandbox used for this repository, public RPC hostname resolution is not reliable. If `sepolia.era.zksync.dev` or other RPC hosts fail from inside the sandbox, do not assume the endpoint is down until the same request is retried from the host shell or an approved unsandboxed command.
+
 Important:
 
 - `deploy` sends a real transaction to `zkSync Sepolia`
@@ -304,6 +313,11 @@ Latest local result:
   with a `SystemContext`-related validation failure
 - once the fee token itself is also deployed as native EraVM bytecode,
   approval-based live broadcast succeeds
+- locally deployed zkSync test ERC-20s can be used for same-chain transfer and
+  swap testing, but L2 -> L1 `withdraw` / `bridge` preview currently fails with
+  `WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED` and `validation.kind =
+  asset-id-mismatch`, because those assets do not have the canonical shared-bridge
+  L1 mapping required by the current route
 - the practical conclusion is:
   - custom paymaster live broadcast works
   - approval-based live broadcast works on the validated EraVM token path
@@ -376,4 +390,7 @@ Important:
   - `zkSync Sepolia` chain ID `300`
   - mainnet RPC `https://mainnet.era.zksync.io/`
   - sepolia RPC `https://sepolia.era.zksync.dev`
+- Environment caveat:
+  - Codex sandbox DNS has repeatedly failed to resolve otherwise healthy public RPC hosts during this project.
+  - When live RPC validation matters, prefer the host shell or an approved unsandboxed command path before concluding that a node or endpoint is unavailable.
 - Other Elastic Network chains should be added through explicit registry entries instead of hardcoded guesses.

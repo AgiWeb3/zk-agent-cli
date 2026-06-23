@@ -69,12 +69,37 @@ const l1Providers = new Map<number, ethers.JsonRpcProvider>();
 const READONLY_HELPER_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const UNISWAP_V3_ROUTER_INTERFACE = new ethers.Interface([
-  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)'
+  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)',
+  'function factory() view returns (address)'
+]);
+const UNISWAP_V3_FACTORY_INTERFACE = new ethers.Interface([
+  'function getPool(address tokenA,address tokenB,uint24 fee) view returns (address)'
+]);
+const SYNCSWAP_ROUTER_INTERFACE = new ethers.Interface([
+  'function swap((tuple(address pool,bytes data,address callback,bytes callbackData)[] steps,address tokenIn,uint256 amountIn)[] paths,uint256 amountOutMin,uint256 deadline) payable returns ((address token,uint256 amount))'
+]);
+const SYNCSWAP_CLASSIC_FACTORY_INTERFACE = new ethers.Interface([
+  'function getPool(address tokenA,address tokenB) view returns (address)'
+]);
+const SYNCSWAP_CLASSIC_POOL_INTERFACE = new ethers.Interface([
+  'function getAmountOut(address tokenIn,uint256 amountIn,address sender) view returns (uint256 amountOut)'
 ]);
 const ERC20_INTERFACE = new ethers.Interface([
   'function allowance(address owner,address spender) view returns (uint256)',
   'function approve(address spender,uint256 amount) returns (bool)'
 ]);
+const SHARED_BRIDGE_ERROR_INTERFACE = new ethers.Interface([
+  'error AssetIdMismatch(bytes32 expected, bytes32 supplied)',
+  'error AssetIdNotSupported(bytes32 assetId)',
+  'error AssetHandlerDoesNotExist(bytes32 assetId)',
+  'error AssetHandlerNotRegistered(bytes32 assetId)'
+]);
+const SHARED_BRIDGE_ERROR_SELECTORS = {
+  assetIdMismatch: '0x1294e9e1',
+  assetIdNotSupported: '0x04a0b7e9',
+  assetHandlerDoesNotExist: '0xfde974f4',
+  assetHandlerNotRegistered: '0x64107968'
+} as const;
 
 interface BridgeChainRef {
   kind: 'l1' | 'zksync';
@@ -234,6 +259,188 @@ function buildPreview(tx: unknown): TransactionPreview {
 
 function formatCause(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function collectErrorFragments(
+  value: unknown,
+  seen = new Set<object>(),
+  depth = 0
+): string[] {
+  if (depth > 4 || value == null) return [];
+  if (typeof value === 'string') return [value];
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+
+  if (value instanceof Error) {
+    return [
+      value.message,
+      ...collectErrorFragments((value as Error & { cause?: unknown }).cause, seen, depth + 1)
+    ];
+  }
+
+  if (typeof value !== 'object') return [];
+  if (seen.has(value)) return [];
+  seen.add(value);
+
+  const record = value as Record<string, unknown>;
+  const fragments: string[] = [];
+
+  for (const key of ['message', 'shortMessage', 'reason', 'data', 'body']) {
+    fragments.push(...collectErrorFragments(record[key], seen, depth + 1));
+  }
+
+  for (const key of ['error', 'info', 'cause']) {
+    fragments.push(...collectErrorFragments(record[key], seen, depth + 1));
+  }
+
+  return fragments;
+}
+
+function extractRevertDataCandidates(error: unknown): string[] {
+  const candidates = new Set<string>();
+
+  for (const fragment of collectErrorFragments(error)) {
+    const trimmed = fragment.trim();
+    if (/^0x[0-9a-fA-F]{8,}$/.test(trimmed) && trimmed.length % 2 === 0) {
+      candidates.add(trimmed);
+    }
+
+    for (const match of fragment.matchAll(/0x[0-9a-fA-F]{8,}/g)) {
+      const value = match[0];
+      if (value.length % 2 === 0) candidates.add(value);
+    }
+  }
+
+  return [...candidates];
+}
+
+interface KnownWithdrawBridgeFailure {
+  kind:
+    | 'asset-id-mismatch'
+    | 'asset-id-not-supported'
+    | 'asset-handler-missing'
+    | 'asset-handler-not-registered';
+  source: 'shared-bridge';
+  reason: string;
+  note: string;
+  suggestedAction: string;
+  expectedAssetId?: string;
+  suppliedAssetId?: string;
+  assetId?: string;
+}
+
+function classifyKnownWithdrawBridgeFailure(
+  error: unknown
+): KnownWithdrawBridgeFailure | undefined {
+  for (const data of extractRevertDataCandidates(error)) {
+    try {
+      const parsed = SHARED_BRIDGE_ERROR_INTERFACE.parseError(data);
+      if (!parsed) continue;
+
+      if (parsed.name === 'AssetIdMismatch') {
+        return {
+          kind: 'asset-id-mismatch',
+          source: 'shared-bridge',
+          reason: 'asset-id-mismatch',
+          note:
+            'The selected token does not map to the asset ID expected by the current shared bridge route. This usually means the token is local-only on zkSync or otherwise lacks the canonical L1 asset mapping required for L2 -> L1 withdraws.',
+          suggestedAction:
+            'Use ETH or an ERC20 that has a canonical shared-bridge mapping to the selected L1 network. Locally deployed zkSync test tokens generally cannot be withdrawn to L1 through the shared bridge.',
+          expectedAssetId: String(parsed.args[0]),
+          suppliedAssetId: String(parsed.args[1])
+        };
+      }
+
+      if (parsed.name === 'AssetIdNotSupported') {
+        return {
+          kind: 'asset-id-not-supported',
+          source: 'shared-bridge',
+          reason: 'asset-id-not-supported',
+          note:
+            'The shared bridge does not support this asset ID on the selected route.',
+          suggestedAction:
+            'Use ETH or an ERC20 that is already registered with the selected shared bridge route before retrying.',
+          assetId: String(parsed.args[0])
+        };
+      }
+
+      if (parsed.name === 'AssetHandlerDoesNotExist') {
+        return {
+          kind: 'asset-handler-missing',
+          source: 'shared-bridge',
+          reason: 'asset-handler-missing',
+          note:
+            'No bridge asset handler exists for the selected token on the current route.',
+          suggestedAction:
+            'Use a token that is already registered on the selected bridge route, or bridge a canonical L1-backed asset instead.',
+          assetId: String(parsed.args[0])
+        };
+      }
+
+      if (parsed.name === 'AssetHandlerNotRegistered') {
+        return {
+          kind: 'asset-handler-not-registered',
+          source: 'shared-bridge',
+          reason: 'asset-handler-not-registered',
+          note:
+            'The shared bridge asset handler exists but is not registered for the selected token route.',
+          suggestedAction:
+            'Use a bridge-supported asset on this route instead of a local-only test token.',
+          assetId: String(parsed.args[0])
+        };
+      }
+    } catch {}
+
+    const normalized = data.toLowerCase();
+    if (normalized.startsWith(SHARED_BRIDGE_ERROR_SELECTORS.assetIdMismatch)) {
+      return {
+        kind: 'asset-id-mismatch',
+        source: 'shared-bridge',
+        reason: 'asset-id-mismatch',
+        note:
+          'The selected token does not map to the asset ID expected by the current shared bridge route. This usually means the token is local-only on zkSync or otherwise lacks the canonical L1 asset mapping required for L2 -> L1 withdraws.',
+        suggestedAction:
+          'Use ETH or an ERC20 that has a canonical shared-bridge mapping to the selected L1 network. Locally deployed zkSync test tokens generally cannot be withdrawn to L1 through the shared bridge.'
+      };
+    }
+
+    if (normalized.startsWith(SHARED_BRIDGE_ERROR_SELECTORS.assetIdNotSupported)) {
+      return {
+        kind: 'asset-id-not-supported',
+        source: 'shared-bridge',
+        reason: 'asset-id-not-supported',
+        note: 'The shared bridge does not support this asset ID on the selected route.',
+        suggestedAction:
+          'Use ETH or an ERC20 that is already registered with the selected shared bridge route before retrying.'
+      };
+    }
+
+    if (normalized.startsWith(SHARED_BRIDGE_ERROR_SELECTORS.assetHandlerDoesNotExist)) {
+      return {
+        kind: 'asset-handler-missing',
+        source: 'shared-bridge',
+        reason: 'asset-handler-missing',
+        note: 'No bridge asset handler exists for the selected token on the current route.',
+        suggestedAction:
+          'Use a token that is already registered on the selected bridge route, or bridge a canonical L1-backed asset instead.'
+      };
+    }
+
+    if (normalized.startsWith(SHARED_BRIDGE_ERROR_SELECTORS.assetHandlerNotRegistered)) {
+      return {
+        kind: 'asset-handler-not-registered',
+        source: 'shared-bridge',
+        reason: 'asset-handler-not-registered',
+        note:
+          'The shared bridge asset handler exists but is not registered for the selected token route.',
+        suggestedAction:
+          'Use a bridge-supported asset on this route instead of a local-only test token.'
+      };
+    }
+  }
+
+  return undefined;
 }
 
 function resolveExecutionAddress(wallet: WalletSessionRecord): string {
@@ -415,7 +622,9 @@ function buildSwapNotes(options: {
 interface ResolvedSwapContext {
   chain: ReturnType<typeof resolveChain>;
   provider: DefiProviderLike;
+  protocol: SwapExecutionResult['protocol'];
   routerAddress: string;
+  factoryAddress?: string;
   sender: string;
   recipient: string;
   recipientNote?: string;
@@ -456,6 +665,125 @@ async function readAllowance(
   return allowance as bigint;
 }
 
+async function readRouterFactory(
+  provider: DefiProviderLike,
+  routerAddress: string
+): Promise<string> {
+  if (!provider.call) {
+    throw new AgentError(
+      'SWAP_POOL_READ_UNAVAILABLE',
+      'The selected provider cannot read router/factory state for swap pool preflight.',
+      {
+        routerAddress
+      }
+    );
+  }
+
+  const result = await provider.call({
+    to: routerAddress,
+    data: UNISWAP_V3_ROUTER_INTERFACE.encodeFunctionData('factory', [])
+  });
+
+  const [factoryAddress] = UNISWAP_V3_ROUTER_INTERFACE.decodeFunctionResult('factory', result);
+  return ethers.getAddress(factoryAddress as string);
+}
+
+async function readPoolAddress(
+  provider: DefiProviderLike,
+  factoryAddress: string,
+  tokenInAddress: string,
+  tokenOutAddress: string,
+  feeTier: number
+): Promise<string> {
+  if (!provider.call) {
+    throw new AgentError(
+      'SWAP_POOL_READ_UNAVAILABLE',
+      'The selected provider cannot read router/factory state for swap pool preflight.',
+      {
+        factoryAddress,
+        tokenInAddress,
+        tokenOutAddress,
+        feeTier
+      }
+    );
+  }
+
+  const result = await provider.call({
+    to: factoryAddress,
+    data: UNISWAP_V3_FACTORY_INTERFACE.encodeFunctionData('getPool', [
+      tokenInAddress,
+      tokenOutAddress,
+      feeTier
+    ])
+  });
+
+  const [poolAddress] = UNISWAP_V3_FACTORY_INTERFACE.decodeFunctionResult('getPool', result);
+  return ethers.getAddress(poolAddress as string);
+}
+
+async function readSyncSwapClassicPoolAddress(
+  provider: DefiProviderLike,
+  factoryAddress: string,
+  tokenInAddress: string,
+  tokenOutAddress: string
+): Promise<string> {
+  if (!provider.call) {
+    throw new AgentError(
+      'SWAP_POOL_READ_UNAVAILABLE',
+      'The selected provider cannot read SyncSwap factory state for swap pool preflight.',
+      {
+        factoryAddress,
+        tokenInAddress,
+        tokenOutAddress
+      }
+    );
+  }
+
+  const result = await provider.call({
+    to: factoryAddress,
+    data: SYNCSWAP_CLASSIC_FACTORY_INTERFACE.encodeFunctionData('getPool', [
+      tokenInAddress,
+      tokenOutAddress
+    ])
+  });
+
+  const [poolAddress] = SYNCSWAP_CLASSIC_FACTORY_INTERFACE.decodeFunctionResult('getPool', result);
+  return ethers.getAddress(poolAddress as string);
+}
+
+async function readSyncSwapClassicQuote(
+  provider: DefiProviderLike,
+  poolAddress: string,
+  tokenInAddress: string,
+  amountInRaw: bigint,
+  senderAddress: string
+): Promise<bigint> {
+  if (!provider.call) {
+    throw new AgentError(
+      'SWAP_QUOTE_READ_UNAVAILABLE',
+      'The selected provider cannot read SyncSwap pool quote state for swap preview.',
+      {
+        poolAddress,
+        tokenInAddress,
+        amountInRaw: amountInRaw.toString(),
+        senderAddress
+      }
+    );
+  }
+
+  const result = await provider.call({
+    to: poolAddress,
+    data: SYNCSWAP_CLASSIC_POOL_INTERFACE.encodeFunctionData('getAmountOut', [
+      tokenInAddress,
+      amountInRaw,
+      senderAddress
+    ])
+  });
+
+  const [amountOut] = SYNCSWAP_CLASSIC_POOL_INTERFACE.decodeFunctionResult('getAmountOut', result);
+  return amountOut as bigint;
+}
+
 function buildSwapCallData(context: ResolvedSwapContext): string {
   return UNISWAP_V3_ROUTER_INTERFACE.encodeFunctionData('exactInputSingle', [
     {
@@ -474,11 +802,38 @@ function buildApprovalCallData(spender: string, amount: bigint): string {
   return ERC20_INTERFACE.encodeFunctionData('approve', [spender, amount]);
 }
 
+function buildSyncSwapClassicCallData(context: ResolvedSwapContext, poolAddress: string): string {
+  const withdrawMode = 1;
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 30 * 60);
+  return SYNCSWAP_ROUTER_INTERFACE.encodeFunctionData('swap', [
+    [
+      {
+        steps: [
+          {
+            pool: poolAddress,
+            data: ethers.AbiCoder.defaultAbiCoder().encode(
+              ['address', 'address', 'uint8'],
+              [context.tokenIn.address, context.recipient, withdrawMode]
+            ),
+            callback: ethers.ZeroAddress,
+            callbackData: '0x'
+          }
+        ],
+        tokenIn: context.tokenIn.address,
+        amountIn: context.amountInRaw
+      }
+    ],
+    context.amountOutMinRaw,
+    deadline
+  ]);
+}
+
 function resolveSwapContext(input: SwapExecutionInput, providerFactory: (chainKey: string) => DefiProviderLike): ResolvedSwapContext {
   const chain = resolveChain(input.wallet.chain);
   const provider = providerFactory(chain.key);
   const sender = ethers.getAddress(resolveExecutionAddress(input.wallet));
   const { recipient, note: recipientNote } = resolveSwapRecipient(input.wallet, input.recipient);
+  const protocol = input.protocol || 'uniswap-v3-exact-input-single';
 
   if (!ethers.isAddress(input.routerAddress)) {
     throw new AgentError('INVALID_SWAP_ROUTER', 'Swap router must be a valid address.', {
@@ -518,7 +873,8 @@ function resolveSwapContext(input: SwapExecutionInput, providerFactory: (chainKe
     });
   }
 
-  const feeTier = validateUint24(input.feeTier, 'feeTier');
+  const feeTier =
+    protocol === 'syncswap-classic' ? 0 : validateUint24(input.feeTier, 'feeTier');
   const sqrtPriceLimitX96 = parseNonNegativeBigInt(
     input.sqrtPriceLimitX96,
     'sqrtPriceLimitX96'
@@ -529,7 +885,9 @@ function resolveSwapContext(input: SwapExecutionInput, providerFactory: (chainKe
   return {
     chain,
     provider,
+    protocol,
     routerAddress: ethers.getAddress(input.routerAddress),
+    factoryAddress: input.factoryAddress ? ethers.getAddress(input.factoryAddress) : undefined,
     sender,
     recipient,
     recipientNote,
@@ -1178,6 +1536,25 @@ async function prepareWithdraw(
       );
     }
 
+    const bridgeValidation = classifyKnownWithdrawBridgeFailure(error);
+    if (bridgeValidation) {
+      throw new AgentError(
+        'WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED',
+        'Withdraw transaction preparation was rejected by the zkSync bridge router.',
+        {
+          walletName: input.wallet.walletName,
+          chain: resolved.chain.key,
+          accountKind: input.wallet.accountKind,
+          target: resolved.token.address,
+          cause,
+          validationDomain: 'bridge-router',
+          validationStage: 'estimation',
+          validation: bridgeValidation,
+          suggestedAction: bridgeValidation.suggestedAction
+        }
+      );
+    }
+
     throw error;
   }
 }
@@ -1788,6 +2165,247 @@ export class ZkSyncDefiProvider implements DefiProvider {
     }
 
     const resolved = resolveSwapContext(input, this.providerFactory);
+
+    if (resolved.protocol === 'syncswap-classic') {
+      if (!resolved.factoryAddress) {
+        throw new AgentError(
+          'SWAP_FACTORY_REQUIRED',
+          'SyncSwap classic swap requires a factory address.',
+          {
+            walletName: input.wallet.walletName,
+            chain: resolved.chain.key,
+            protocol: resolved.protocol
+          }
+        );
+      }
+
+      const poolAddress = await readSyncSwapClassicPoolAddress(
+        resolved.provider,
+        resolved.factoryAddress,
+        resolved.tokenIn.address,
+        resolved.tokenOut.address
+      );
+      if (poolAddress === ethers.ZeroAddress) {
+        throw new AgentError(
+          'SWAP_POOL_NOT_FOUND',
+          'No swap pool exists for the selected token pair on the selected SyncSwap classic factory.',
+          {
+            walletName: input.wallet.walletName,
+            chain: resolved.chain.key,
+            routerAddress: resolved.routerAddress,
+            factoryAddress: resolved.factoryAddress,
+            tokenIn: resolved.tokenIn.address,
+            tokenOut: resolved.tokenOut.address,
+            protocol: resolved.protocol,
+            suggestedAction:
+              'Select a token pair that already has a SyncSwap classic pool, or create/add liquidity for this pair before retrying.'
+          }
+        );
+      }
+
+      const quotedAmountOutRaw = await readSyncSwapClassicQuote(
+        resolved.provider,
+        poolAddress,
+        resolved.tokenIn.address,
+        resolved.amountInRaw,
+        resolved.sender
+      );
+      if (quotedAmountOutRaw < resolved.amountOutMinRaw) {
+        throw new AgentError(
+          'SWAP_MIN_AMOUNT_EXCEEDS_QUOTE',
+          'Requested minimum output amount exceeds the current SyncSwap classic pool quote.',
+          {
+            walletName: input.wallet.walletName,
+            chain: resolved.chain.key,
+            routerAddress: resolved.routerAddress,
+            factoryAddress: resolved.factoryAddress,
+            poolAddress,
+            tokenIn: resolved.tokenIn.address,
+            tokenOut: resolved.tokenOut.address,
+            quotedAmountOutRaw: quotedAmountOutRaw.toString(),
+            minAmountOutRaw: resolved.amountOutMinRaw.toString(),
+            protocol: resolved.protocol,
+            suggestedAction:
+              'Lower the minimum output amount or refresh the quote against the current SyncSwap classic pool before retrying.'
+          }
+        );
+      }
+
+      const currentAllowanceRaw = await readAllowance(
+        resolved.provider,
+        resolved.tokenIn.address,
+        resolved.sender,
+        resolved.routerAddress
+      );
+      const approvalNeeded = currentAllowanceRaw < resolved.amountInRaw;
+      const approvalAmountRaw =
+        resolved.approvalMode === 'max' ? ethers.MaxUint256 : resolved.amountInRaw;
+      const approvalPreview =
+        approvalNeeded && resolved.approvalMode !== 'none'
+          ? await this.walletWriter.writeContract({
+              wallet: input.wallet,
+              to: resolved.tokenIn.address,
+              data: buildApprovalCallData(resolved.routerAddress, approvalAmountRaw),
+              broadcast: false,
+              paymaster: resolved.paymaster
+            })
+          : undefined;
+      const swapCallData = buildSyncSwapClassicCallData(resolved, poolAddress);
+      const swapResult = await this.walletWriter.writeContract({
+        wallet: input.wallet,
+        to: resolved.routerAddress,
+        data: swapCallData,
+        broadcast: false,
+        paymaster: resolved.paymaster
+      });
+
+      if (!input.broadcast) {
+        return {
+          walletName: input.wallet.walletName,
+          walletAddress: input.wallet.walletAddress,
+          chain: resolved.chain.key,
+          chainId: resolved.chain.chainId,
+          protocol: 'syncswap-classic',
+          mode: 'preview',
+          routerAddress: resolved.routerAddress,
+          factoryAddress: resolved.factoryAddress,
+          poolAddress,
+          sender: resolved.sender,
+          recipient: resolved.recipient,
+          feeTier: 0,
+          sqrtPriceLimitX96: '0',
+          tokenIn: resolved.tokenIn,
+          tokenOut: resolved.tokenOut,
+          quotedAmountOut: formatUnits(quotedAmountOutRaw, resolved.tokenOut.decimals),
+          quotedAmountOutRaw: quotedAmountOutRaw.toString(),
+          approval: {
+            needed: approvalNeeded,
+            spender: resolved.routerAddress,
+            currentAllowance: formatUnits(currentAllowanceRaw, resolved.tokenIn.decimals),
+            currentAllowanceRaw: currentAllowanceRaw.toString(),
+            requiredAmount: resolved.tokenIn.amount,
+            requiredAmountRaw: resolved.amountInRaw.toString(),
+            mode: approvalNeeded ? resolved.approvalMode : 'none',
+            preview: approvalPreview?.preview
+          },
+          paymaster: swapResult.paymaster,
+          preview: swapResult.preview,
+          notes: [
+            ...(resolved.recipientNote ? [resolved.recipientNote] : []),
+            'Swap uses a SyncSwap classic single-pool path on the selected factory.',
+            approvalNeeded
+              ? resolved.approvalMode === 'none'
+                ? 'Router allowance is currently below the required input amount. Re-run with --auto-approve or approve the router before broadcasting the swap.'
+                : 'Router allowance is below the required input amount, so an approval step will be executed before the swap.'
+              : 'Router allowance already covers the requested input amount.',
+            'This preview includes a direct pool quote from SyncSwap classic.'
+          ]
+        };
+      }
+
+      if (approvalNeeded && resolved.approvalMode === 'none') {
+        throw new AgentError(
+          'SWAP_ALLOWANCE_REQUIRED',
+          'Router allowance is below the required input amount. Enable auto-approve or approve the router before broadcasting the swap.',
+          {
+            walletName: input.wallet.walletName,
+            chain: resolved.chain.key,
+            tokenIn: resolved.tokenIn.address,
+            routerAddress: resolved.routerAddress,
+            currentAllowanceRaw: currentAllowanceRaw.toString(),
+            requiredAmountRaw: resolved.amountInRaw.toString()
+          }
+        );
+      }
+
+      const approvalBroadcast =
+        approvalNeeded && resolved.approvalMode !== 'none'
+          ? await this.walletWriter.writeContract({
+              wallet: input.wallet,
+              to: resolved.tokenIn.address,
+              data: buildApprovalCallData(resolved.routerAddress, approvalAmountRaw),
+              broadcast: true,
+              paymaster: resolved.paymaster
+            })
+          : undefined;
+      const swapBroadcast = await this.walletWriter.writeContract({
+        wallet: input.wallet,
+        to: resolved.routerAddress,
+        data: swapCallData,
+        broadcast: true,
+        paymaster: resolved.paymaster
+      });
+
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: resolved.chain.key,
+        chainId: resolved.chain.chainId,
+        protocol: 'syncswap-classic',
+        mode: 'broadcast',
+        routerAddress: resolved.routerAddress,
+        factoryAddress: resolved.factoryAddress,
+        poolAddress,
+        sender: resolved.sender,
+        recipient: resolved.recipient,
+        feeTier: 0,
+        sqrtPriceLimitX96: '0',
+        tokenIn: resolved.tokenIn,
+        tokenOut: resolved.tokenOut,
+        quotedAmountOut: formatUnits(quotedAmountOutRaw, resolved.tokenOut.decimals),
+        quotedAmountOutRaw: quotedAmountOutRaw.toString(),
+        approval: {
+          needed: approvalNeeded,
+          spender: resolved.routerAddress,
+          currentAllowance: formatUnits(currentAllowanceRaw, resolved.tokenIn.decimals),
+          currentAllowanceRaw: currentAllowanceRaw.toString(),
+          requiredAmount: resolved.tokenIn.amount,
+          requiredAmountRaw: resolved.amountInRaw.toString(),
+          mode: approvalNeeded ? resolved.approvalMode : 'none',
+          txHash: approvalBroadcast?.txHash,
+          explorerUrl: approvalBroadcast?.explorerUrl,
+          preview: approvalPreview?.preview
+        },
+        paymaster: swapBroadcast.paymaster,
+        preview: swapBroadcast.preview,
+        txHash: swapBroadcast.txHash,
+        explorerUrl: swapBroadcast.explorerUrl,
+        notes: [
+          ...(resolved.recipientNote ? [resolved.recipientNote] : []),
+          'Broadcast uses a SyncSwap classic single-pool path on the selected factory.',
+          approvalNeeded
+            ? 'An approval transaction was sent before the router call.'
+            : 'Router allowance already covered the requested input amount.',
+          'The pre-broadcast quote was read directly from the selected SyncSwap classic pool.'
+        ]
+      };
+    }
+
+    const factoryAddress = await readRouterFactory(resolved.provider, resolved.routerAddress);
+    const poolAddress = await readPoolAddress(
+      resolved.provider,
+      factoryAddress,
+      resolved.tokenIn.address,
+      resolved.tokenOut.address,
+      resolved.feeTier
+    );
+    if (poolAddress === ethers.ZeroAddress) {
+      throw new AgentError(
+        'SWAP_POOL_NOT_FOUND',
+        'No swap pool exists for the selected token pair and fee tier on the current router factory.',
+        {
+          walletName: input.wallet.walletName,
+          chain: resolved.chain.key,
+          routerAddress: resolved.routerAddress,
+          factoryAddress,
+          tokenIn: resolved.tokenIn.address,
+          tokenOut: resolved.tokenOut.address,
+          feeTier: resolved.feeTier,
+          suggestedAction:
+            'Select a token pair and fee tier that already has a live Uniswap V3 pool, or add liquidity for this pair before retrying.'
+        }
+      );
+    }
     const currentAllowanceRaw = await readAllowance(
       resolved.provider,
       resolved.tokenIn.address,
@@ -1824,6 +2442,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
         protocol: 'uniswap-v3-exact-input-single',
         mode: 'preview',
         routerAddress: resolved.routerAddress,
+        factoryAddress,
+        poolAddress,
         sender: resolved.sender,
         recipient: resolved.recipient,
         feeTier: resolved.feeTier,
@@ -1892,6 +2512,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
       protocol: 'uniswap-v3-exact-input-single',
       mode: 'broadcast',
       routerAddress: resolved.routerAddress,
+      factoryAddress,
+      poolAddress,
       sender: resolved.sender,
       recipient: resolved.recipient,
       feeTier: resolved.feeTier,
@@ -2283,6 +2905,25 @@ export class ZkSyncDefiProvider implements DefiProvider {
             validationDomain: 'transaction-validation',
             validationStage: 'broadcast',
             validation
+          }
+        );
+      }
+
+      const bridgeValidation = classifyKnownWithdrawBridgeFailure(error);
+      if (bridgeValidation) {
+        throw new AgentError(
+          'WITHDRAW_BROADCAST_BRIDGE_ROUTER_REJECTED',
+          'Withdraw transaction broadcast was rejected by the zkSync bridge router.',
+          {
+            walletName: input.wallet.walletName,
+            chain: prepared.chain.key,
+            accountKind: input.wallet.accountKind,
+            target: prepared.token.address,
+            cause,
+            validationDomain: 'bridge-router',
+            validationStage: 'broadcast',
+            validation: bridgeValidation,
+            suggestedAction: bridgeValidation.suggestedAction
           }
         );
       }

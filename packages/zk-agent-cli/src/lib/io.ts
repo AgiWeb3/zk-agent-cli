@@ -91,6 +91,7 @@ export function formatHumanErrorMessage(error: unknown): string {
   }
 
   pushDetailLine(lines, 'suggested action', details.suggestedAction);
+  pushDetailLine(lines, 'validation domain', details.validationDomain);
   pushDetailLine(lines, 'validation stage', details.validationStage);
 
   const validation = asRecord(details.validation);
@@ -104,6 +105,9 @@ export function formatHumanErrorMessage(error: unknown): string {
   pushDetailLine(lines, 'validation kind', validation.kind);
   pushDetailLine(lines, 'validation reason', validation.reason);
   pushDetailLine(lines, 'system contract', validation.systemContract);
+  pushDetailLine(lines, 'asset id', validation.assetId);
+  pushDetailLine(lines, 'expected asset id', validation.expectedAssetId);
+  pushDetailLine(lines, 'supplied asset id', validation.suppliedAssetId);
   pushDetailLine(lines, 'note', validation.note);
 
   return lines.join('\n');

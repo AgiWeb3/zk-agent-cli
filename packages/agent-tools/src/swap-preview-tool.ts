@@ -8,7 +8,9 @@ import { createAgentTool, withWalletRecord } from './tool-helpers.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 
 export interface SwapPreviewToolInput extends WalletNameInput {
+  protocol?: 'uniswap-v3-exact-input-single' | 'syncswap-classic';
   routerAddress: string;
+  factoryAddress?: string;
   tokenInAddress: string;
   tokenOutAddress: string;
   amountIn: string;
@@ -30,7 +32,7 @@ export function createSwapPreviewTool(context: AgentToolContext) {
   return createAgentTool<SwapPreviewToolInput, SwapExecutionResult>({
     name: 'swapPreviewTool',
     description:
-      'Preview or broadcast a same-chain Uniswap V3 exactInputSingle swap for a locally stored zkSync wallet.',
+      'Preview or broadcast a supported same-chain swap path for a locally stored zkSync wallet.',
     execute: async (input) =>
       withWalletRecord(context, input, async (wallet) => {
         if (!context.defiProvider) {
@@ -45,7 +47,9 @@ export function createSwapPreviewTool(context: AgentToolContext) {
 
         return context.defiProvider.swap({
           wallet,
+          protocol: input.protocol,
           routerAddress: input.routerAddress,
+          factoryAddress: input.factoryAddress,
           tokenInAddress: input.tokenInAddress,
           tokenOutAddress: input.tokenOutAddress,
           amountIn: input.amountIn,

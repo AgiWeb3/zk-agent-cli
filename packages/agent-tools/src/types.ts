@@ -14,7 +14,7 @@ export interface AgentToolError {
 }
 
 export interface AgentToolErrorClassification {
-  domain: 'paymaster-validation' | 'transaction-validation';
+  domain: 'paymaster-validation' | 'transaction-validation' | 'bridge-router';
   stage?: 'estimation' | 'broadcast';
   policyHook?: string;
   validationKind?: string;
