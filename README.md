@@ -35,6 +35,8 @@ What is already in place:
   - single-chain override
   - multi-chain aggregation across the built-in zkSync chain registry
 - thin AA-oriented transaction commands for:
+  - `fund` with route-aware funding guidance for the active chain, including optional concrete `deposit` / `bridge` command suggestions when amount or token context is provided
+  - `fund --execute` to dispatch onto the validated `deposit` or `bridge` path instead of only printing guidance
   - `send`
   - `send-token`
   - write-mode `call`
@@ -53,6 +55,7 @@ What is already in place:
   - `wallet request list` with expired-request pruning
   - connector callback handoff back into the waiting CLI process
 - first agent-facing tool surface in `packages/agent-tools` for:
+  - funding guidance, including route-aware suggested commands
   - create wallet request
   - create stored wallet approval request
   - approve stored wallet request

@@ -20,6 +20,7 @@ import {
   type CreateSessionRequestInput,
   type CreateSessionRequestResult,
   type FundingInfo,
+  type FundingInfoInput,
   type GetBalancesInput,
   type GetBalancesResult,
   type SmartAccountDeploymentInput,
@@ -123,6 +124,46 @@ function formatUnits(value: bigint, decimals: number): string {
 
   const fractionText = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
   return `${negative ? '-' : ''}${whole}.${fractionText}`;
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9:._/=-]+$/.test(value)) return value;
+  return JSON.stringify(value);
+}
+
+function appendOption(parts: string[], flag: string, value: string | number | undefined): void {
+  if (value === undefined || value === null || value === '') return;
+  parts.push(flag, shellQuote(String(value)));
+}
+
+function buildFundingCommands(input: FundingInfoInput): string[] | undefined {
+  if (resolveChain(input.chain).key !== 'zksync-sepolia') return undefined;
+
+  const amount = input.amount?.trim() || '<amount>';
+  const tokenAddress = input.tokenAddress?.trim();
+  const symbol = input.symbol?.trim();
+  const depositParts = ['zk-agent', 'deposit', '--wallet', shellQuote(input.walletName), '--amount', shellQuote(amount)];
+  const bridgeParts = [
+    'zk-agent',
+    'bridge',
+    '--wallet',
+    shellQuote(input.walletName),
+    '--from-chain',
+    'ethereum-sepolia',
+    '--to-chain',
+    'zksync-sepolia',
+    '--amount',
+    shellQuote(amount)
+  ];
+
+  appendOption(depositParts, '--token', tokenAddress);
+  appendOption(bridgeParts, '--token', tokenAddress);
+  appendOption(depositParts, '--symbol', symbol);
+  appendOption(bridgeParts, '--symbol', symbol);
+  appendOption(depositParts, '--decimals', input.decimals);
+  appendOption(bridgeParts, '--decimals', input.decimals);
+
+  return [depositParts.join(' '), bridgeParts.join(' ')];
 }
 
 function parseUnits(value: string, decimals: number): bigint {
@@ -1590,19 +1631,66 @@ export class ZkSyncWalletProvider implements WalletProvider {
     );
   }
 
-  async getFundingInfo(input: GetBalancesInput): Promise<FundingInfo> {
+  async getFundingInfo(input: FundingInfoInput): Promise<FundingInfo> {
     const chain = resolveChain(input.chain);
     const provider = getProvider(chain.key);
     const bridgeAddresses = await provider.getDefaultBridgeAddresses();
+    const fundingUrl = chain.fundingUrl || 'https://portal.zksync.io/bridge/';
+    const token =
+      input.tokenAddress?.trim()
+        ? {
+            address: input.tokenAddress.trim(),
+            symbol: input.symbol?.trim() || undefined,
+            decimals: input.decimals
+          }
+        : undefined;
+
+    if (chain.key === 'zksync-sepolia') {
+      const notes = [
+        'Use deposit for the simplest L1 -> L2 funding path when the wallet has a matching local Ethereum Sepolia signer.',
+        'Use bridge if you want the same route wrapped in unified route/status metadata.',
+        `Default shared bridge: ${bridgeAddresses.sharedL1}`,
+        `Default ERC20 bridge: ${bridgeAddresses.erc20L1}`
+      ];
+      if (token && token.decimals === undefined) {
+        notes.push(
+          'Token-specific funding commands are more reliable when decimals are known. Add --decimals before executing them if local token metadata is unavailable.'
+        );
+      }
+
+      return {
+        walletName: input.walletName,
+        walletAddress: input.walletAddress,
+        chain: chain.key,
+        chainId: chain.chainId,
+        fundingUrl,
+        route: 'ethereum-sepolia -> zksync-sepolia',
+        sourceChain: 'ethereum-sepolia',
+        sourceChainId: 11155111,
+        recommendedAction: 'deposit',
+        requestedAmount: input.amount?.trim() || undefined,
+        token,
+        suggestedCommands: buildFundingCommands(input),
+        notes
+      };
+    }
 
     return {
       walletName: input.walletName,
       walletAddress: input.walletAddress,
       chain: chain.key,
       chainId: chain.chainId,
-      fundingUrl: chain.fundingUrl || 'https://portal.zksync.io/bridge/',
+      fundingUrl,
+      route: 'ethereum-mainnet -> zksync-era',
+      sourceChain: 'ethereum-mainnet',
+      sourceChainId: 1,
+      recommendedAction: 'portal',
+      requestedAmount: input.amount?.trim() || undefined,
+      token,
       notes: [
-        'Phase 1 uses zkSync bridge defaults only.',
+        'Current live bridge/deposit execution in this repository is validated on the Sepolia route first.',
+        'For Era mainnet funding, use the official bridge portal path until the mainnet route is explicitly validated here.',
+        `Default shared bridge: ${bridgeAddresses.sharedL1}`,
         `Default ERC20 bridge: ${bridgeAddresses.erc20L1}`,
         'Cross-chain asset routing inside the Elastic Network will be added in a later milestone.'
       ]

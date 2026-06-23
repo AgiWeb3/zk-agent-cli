@@ -595,7 +595,28 @@ export interface FundingInfo {
   chain: string;
   chainId: number;
   fundingUrl: string;
+  route?: string;
+  sourceChain?: string;
+  sourceChainId?: number;
+  recommendedAction?: 'deposit' | 'bridge' | 'portal';
+  requestedAmount?: string;
+  token?: {
+    address: string;
+    symbol?: string;
+    decimals?: number;
+  };
+  suggestedCommands?: string[];
   notes: string[];
+}
+
+export interface FundingInfoInput {
+  walletName: string;
+  walletAddress: string;
+  chain: string;
+  amount?: string;
+  tokenAddress?: string;
+  symbol?: string;
+  decimals?: number;
 }
 
 export interface WalletInspectionResult {
@@ -672,7 +693,7 @@ export interface WalletProvider {
   sendNative(input: NativeTransferInput): Promise<TransactionExecutionResult>;
   sendToken(input: TokenTransferInput): Promise<TransactionExecutionResult>;
   writeContract(input: WriteContractInput): Promise<TransactionExecutionResult>;
-  getFundingInfo(input: GetBalancesInput): Promise<FundingInfo>;
+  getFundingInfo(input: FundingInfoInput): Promise<FundingInfo>;
 }
 
 export interface DefiProvider {

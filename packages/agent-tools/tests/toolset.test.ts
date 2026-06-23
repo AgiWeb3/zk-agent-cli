@@ -536,6 +536,23 @@ function createProviderStub() {
         chain: input.chain,
         chainId: 300,
         fundingUrl: 'https://example.invalid/faucet',
+        route: 'ethereum-sepolia -> zksync-sepolia',
+        sourceChain: 'ethereum-sepolia',
+        sourceChainId: 11155111,
+        recommendedAction: 'deposit',
+        requestedAmount: input.amount,
+        token: input.tokenAddress
+          ? {
+              address: input.tokenAddress,
+              symbol: input.symbol,
+              decimals: input.decimals
+            }
+          : undefined,
+        suggestedCommands: [
+          input.amount
+            ? `zk-agent deposit --wallet main --amount ${input.amount}`
+            : 'zk-agent deposit --wallet main --amount <amount>'
+        ],
         notes: []
       };
     },
@@ -1293,6 +1310,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletExportTool',
     'walletRestoreTool',
     'getBalancesTool',
+    'getFundingInfoTool',
     'callContractTool',
     'swapPreviewTool',
     'bridgePreviewTool',
@@ -1310,7 +1328,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 23);
+  assert.equal(listed.length, 24);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
 });
@@ -1329,6 +1347,32 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   assert.equal(success.ok, true);
   if (success.ok) {
     assert.equal((success.data as { walletName: string }).walletName, 'main');
+  }
+
+  const funding = await runStandardAgentTool(context, 'getFundingInfoTool', {
+    walletName: 'main',
+    amount: '0.25',
+    tokenAddress: '0x7777777777777777777777777777777777777777',
+    symbol: 'USDC',
+    decimals: 6
+  });
+  assert.equal(funding.ok, true);
+  if (funding.ok) {
+    assert.equal((funding.data as { recommendedAction: string }).recommendedAction, 'deposit');
+    assert.equal((funding.data as { sourceChain: string }).sourceChain, 'ethereum-sepolia');
+    assert.equal((funding.data as { requestedAmount: string }).requestedAmount, '0.25');
+    assert.equal(
+      (funding.data as { token: { symbol: string; decimals: number } }).token.symbol,
+      'USDC'
+    );
+    assert.equal(
+      (funding.data as { token: { symbol: string; decimals: number } }).token.decimals,
+      6
+    );
+    assert.match(
+      (funding.data as { suggestedCommands: string[] }).suggestedCommands[0] || '',
+      /--amount 0.25/
+    );
   }
 
   const deposit = await runStandardAgentTool(context, 'depositPreviewTool', {

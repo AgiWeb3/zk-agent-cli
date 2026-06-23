@@ -14,6 +14,7 @@ import { createWalletTool } from './create-wallet-tool.js';
 import { createDepositPreviewTool } from './deposit-preview-tool.js';
 import { createDepositStatusTool } from './deposit-status-tool.js';
 import { createGetBalancesTool } from './get-balances-tool.js';
+import { createGetFundingInfoTool } from './get-funding-info-tool.js';
 import {
   createApproveWalletRequestTool,
   createStoredWalletRequestTool,
@@ -68,6 +69,7 @@ export function createStandardAgentTools(context: AgentToolContext) {
     walletExportTool: createWalletExportTool(context),
     walletRestoreTool: createWalletRestoreTool(context),
     getBalancesTool: createGetBalancesTool(context),
+    getFundingInfoTool: createGetFundingInfoTool(context),
     callContractTool: createCallContractTool(context),
     swapPreviewTool: createSwapPreviewTool(context),
     bridgePreviewTool: createBridgePreviewTool(context),
@@ -99,6 +101,7 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'walletExportTool',
     'walletRestoreTool',
     'getBalancesTool',
+    'getFundingInfoTool',
     'callContractTool',
     'swapPreviewTool',
     'bridgePreviewTool',

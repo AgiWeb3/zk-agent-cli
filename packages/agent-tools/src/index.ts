@@ -8,6 +8,7 @@ export * from './bridge-status-tool.js';
 export * from './deposit-preview-tool.js';
 export * from './deposit-status-tool.js';
 export * from './get-balances-tool.js';
+export * from './get-funding-info-tool.js';
 export * from './call-contract-tool.js';
 export * from './send-native-tool.js';
 export * from './send-token-tool.js';
