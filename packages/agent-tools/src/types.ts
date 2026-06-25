@@ -1,5 +1,6 @@
 import type {
   DefiProvider,
+  WorkflowCheckpointRecord,
   WalletRequestRecord,
   WalletProvider,
   WalletSessionRecord
@@ -40,6 +41,10 @@ export interface AgentToolContext {
   loadWalletRequest(requestId: string): Promise<WalletRequestRecord | null>;
   saveWalletRequest(request: WalletRequestRecord): Promise<void>;
   deleteWalletRequest(requestId: string): Promise<boolean>;
+  loadWorkflowCheckpoint(requestId: string): Promise<WorkflowCheckpointRecord | null>;
+  saveWorkflowCheckpoint(checkpoint: WorkflowCheckpointRecord): Promise<void>;
+  listWorkflowCheckpointIds(): Promise<string[]>;
+  deleteWorkflowCheckpoint(requestId: string): Promise<boolean>;
 }
 
 export interface WalletNameInput {

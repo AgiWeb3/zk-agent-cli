@@ -95,6 +95,7 @@ import {
   printResult,
   shouldJsonOutput
 } from '../lib/io.js';
+import { buildWalletNextSummary, walletNextLines } from '../lib/wallet-next.js';
 
 const provider = new ZkSyncWalletProvider();
 const NATIVE_TOKEN_DECIMALS = 18;
@@ -1034,7 +1035,7 @@ async function readWalletContract(
   return result.result === '0x' ? undefined : result.result;
 }
 
-async function syncWalletRecord(
+export async function syncWalletRecord(
   wallet: WalletSessionRecord,
   profileOverride?: BuiltinSmartAccountProfileId
 ): Promise<WalletSyncResult> {
@@ -1362,7 +1363,7 @@ async function requireWalletRequest(requestId: string) {
   return request;
 }
 
-async function requireWalletRecord(walletName: string): Promise<WalletSessionRecord> {
+export async function requireWalletRecord(walletName: string): Promise<WalletSessionRecord> {
   const walletRecord = await loadWalletSession(walletName);
   if (!walletRecord) throw new Error(`Wallet not found: ${walletName}`);
   return walletRecord;
@@ -2108,14 +2109,16 @@ export function createWalletCommand(): Command {
           ['from', options.name],
           ['to', result.wallet.walletName],
           ['address', result.wallet.walletAddress],
-          ['requests updated', String(result.updatedRequestIds.length)]
+          ['requests updated', String(result.updatedRequestIds.length)],
+          ['workflow checkpoints updated', String(result.updatedWorkflowRequestIds.length)]
         ],
         {
           ok: true,
           walletName: result.wallet.walletName,
           previousWalletName: options.name,
           wallet: sanitizeWalletRecord(result.wallet),
-          updatedRequestIds: result.updatedRequestIds
+          updatedRequestIds: result.updatedRequestIds,
+          updatedWorkflowRequestIds: result.updatedWorkflowRequestIds
         }
       );
     });
@@ -2167,6 +2170,42 @@ export function createWalletCommand(): Command {
 
       const inspection = await provider.inspectWallet(walletRecord);
       printResult(inspectionLines(inspection), { ok: true, inspection });
+    });
+
+  wallet
+    .command('next')
+    .description('Explain the shortest next CLI steps to make a stored wallet operational')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+      const inspection = await provider.inspectWallet(walletRecord);
+      const balances = await provider.getBalances({
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: walletRecord.chain
+      });
+      const nativeBalance = balances.balances.find((entry) => entry.type === 'native');
+      const funding = nativeBalance && /^0*(\.0*)?$/.test(nativeBalance.balance.trim())
+        ? await provider.getFundingInfo({
+            walletName: walletRecord.walletName,
+            walletAddress: walletRecord.walletAddress,
+            chain: walletRecord.chain
+          })
+        : undefined;
+
+      const summary = buildWalletNextSummary({
+        wallet: walletRecord,
+        inspection,
+        nativeBalance: nativeBalance?.balance,
+        nativeSymbol: nativeBalance?.symbol,
+        funding
+      });
+
+      printResult(walletNextLines(summary), {
+        ok: true,
+        inspection,
+        summary
+      });
     });
 
   wallet

@@ -19,6 +19,7 @@ import {
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
 import { createWalletCommand } from './commands/wallet.js';
+import { createWorkflowCommand } from './commands/workflow.js';
 import {
   formatErrorPayload,
   formatHumanErrorMessage,
@@ -38,6 +39,7 @@ function createProgram(): Command {
 
   program.addCommand(createInitCommand());
   program.addCommand(createWalletCommand());
+  program.addCommand(createWorkflowCommand());
   program.addCommand(createBalancesCommand());
   program.addCommand(createFundCommand());
   program.addCommand(createSendCommand());

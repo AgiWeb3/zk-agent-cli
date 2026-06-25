@@ -1,7 +1,11 @@
 import {
   deleteWalletRequest,
+  deleteWorkflowCheckpoint,
+  listWorkflowCheckpointIds,
+  loadWorkflowCheckpoint,
   loadWalletRequest,
   loadWalletSession,
+  saveWorkflowCheckpoint,
   saveWalletRequest,
   saveWalletSession,
   type WalletSessionRecord
@@ -30,7 +34,21 @@ import { createSendTokenTool } from './send-token-tool.js';
 import { createWithdrawFinalizePreviewTool } from './withdraw-finalize-preview-tool.js';
 import { createWithdrawPreviewTool } from './withdraw-preview-tool.js';
 import { createWithdrawStatusTool } from './withdraw-status-tool.js';
+import { createWalletNextTool } from './wallet-next-tool.js';
 import { createWalletStatusTool } from './wallet-status-tool.js';
+import { createWorkflowPlanTool } from './workflow-plan-tool.js';
+import {
+  createDeleteWorkflowCheckpointTool,
+  createGetWorkflowCheckpointTool,
+  createListWorkflowCheckpointsTool,
+  createStartWorkflowCheckpointTool,
+  createUpdateWorkflowCheckpointTool
+} from './workflow-checkpoint-tools.js';
+import { createWorkflowRunByCheckpointTool, createWorkflowRunTool } from './workflow-run-tool.js';
+import {
+  createWorkflowStatusByCheckpointTool,
+  createWorkflowStatusTool
+} from './workflow-status-tool.js';
 import { createWriteContractTool } from './write-contract-tool.js';
 import type { AgentToolContext } from './types.js';
 
@@ -46,6 +64,10 @@ export function createAgentToolContext(context: {
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
+  loadWorkflowCheckpoint?: AgentToolContext['loadWorkflowCheckpoint'];
+  saveWorkflowCheckpoint?: AgentToolContext['saveWorkflowCheckpoint'];
+  listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];
+  deleteWorkflowCheckpoint?: AgentToolContext['deleteWorkflowCheckpoint'];
 }): AgentToolContext {
   return {
     provider: context.provider,
@@ -54,7 +76,11 @@ export function createAgentToolContext(context: {
     saveWallet: context.saveWallet || saveWalletSession,
     loadWalletRequest: context.loadWalletRequest || loadWalletRequest,
     saveWalletRequest: context.saveWalletRequest || saveWalletRequest,
-    deleteWalletRequest: context.deleteWalletRequest || deleteWalletRequest
+    deleteWalletRequest: context.deleteWalletRequest || deleteWalletRequest,
+    loadWorkflowCheckpoint: context.loadWorkflowCheckpoint || loadWorkflowCheckpoint,
+    saveWorkflowCheckpoint: context.saveWorkflowCheckpoint || saveWorkflowCheckpoint,
+    listWorkflowCheckpointIds: context.listWorkflowCheckpointIds || listWorkflowCheckpointIds,
+    deleteWorkflowCheckpoint: context.deleteWorkflowCheckpoint || deleteWorkflowCheckpoint
   };
 }
 
@@ -65,6 +91,17 @@ export function createStandardAgentTools(context: AgentToolContext) {
     approveWalletRequestTool: createApproveWalletRequestTool(context),
     walletReapproveTool: createWalletReapproveTool(context),
     walletStatusTool: createWalletStatusTool(context),
+    walletNextTool: createWalletNextTool(context),
+    workflowPlanTool: createWorkflowPlanTool(context),
+    workflowStatusTool: createWorkflowStatusTool(context),
+    workflowRunTool: createWorkflowRunTool(context),
+    startWorkflowCheckpointTool: createStartWorkflowCheckpointTool(context),
+    listWorkflowCheckpointsTool: createListWorkflowCheckpointsTool(context),
+    getWorkflowCheckpointTool: createGetWorkflowCheckpointTool(context),
+    updateWorkflowCheckpointTool: createUpdateWorkflowCheckpointTool(context),
+    deleteWorkflowCheckpointTool: createDeleteWorkflowCheckpointTool(context),
+    workflowStatusByCheckpointTool: createWorkflowStatusByCheckpointTool(context),
+    workflowRunByCheckpointTool: createWorkflowRunByCheckpointTool(context),
     walletSyncTool: createWalletSyncTool(context),
     walletExportTool: createWalletExportTool(context),
     walletRestoreTool: createWalletRestoreTool(context),
@@ -97,6 +134,17 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'approveWalletRequestTool',
     'walletReapproveTool',
     'walletStatusTool',
+    'walletNextTool',
+    'workflowPlanTool',
+    'workflowStatusTool',
+    'workflowRunTool',
+    'startWorkflowCheckpointTool',
+    'listWorkflowCheckpointsTool',
+    'getWorkflowCheckpointTool',
+    'updateWorkflowCheckpointTool',
+    'deleteWorkflowCheckpointTool',
+    'workflowStatusByCheckpointTool',
+    'workflowRunByCheckpointTool',
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',

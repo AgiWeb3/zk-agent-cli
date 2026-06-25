@@ -1,5 +1,6 @@
 import {
   AgentError,
+  type WorkflowCheckpointRecord,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
 
@@ -153,6 +154,22 @@ export async function requireWalletRecord(
   throw new AgentError('WALLET_NOT_FOUND', `Wallet not found: ${walletName}`, {
     walletName
   });
+}
+
+export async function requireWorkflowCheckpointRecord(
+  context: AgentToolContext,
+  requestId: string
+): Promise<WorkflowCheckpointRecord> {
+  const checkpoint = await context.loadWorkflowCheckpoint(requestId);
+  if (checkpoint) return checkpoint;
+
+  throw new AgentError(
+    'WORKFLOW_CHECKPOINT_NOT_FOUND',
+    `Workflow checkpoint not found: ${requestId}`,
+    {
+      requestId
+    }
+  );
 }
 
 export async function withWalletRecord<Input extends WalletNameInput, Output>(

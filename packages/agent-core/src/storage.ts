@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { ProjectConfig, WalletRequestRecord, WalletSessionRecord } from './providers.js';
+import type { WorkflowCheckpointRecord } from './workflow-checkpoint.js';
 
 const STORAGE_DIR = path.join(os.homedir(), '.zk-agent');
 const ENCRYPTION_KEY_FILE = path.join(STORAGE_DIR, '.encryption-key');
@@ -17,7 +18,7 @@ interface CipherData {
 function ensureStorageDir(): void {
   if (!fs.existsSync(STORAGE_DIR)) fs.mkdirSync(STORAGE_DIR, { recursive: true, mode: 0o700 });
 
-  for (const directory of ['wallets', 'requests']) {
+  for (const directory of ['wallets', 'requests', 'workflows']) {
     const fullPath = path.join(STORAGE_DIR, directory);
     if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 });
   }
@@ -146,9 +147,38 @@ export async function deleteWalletRequest(requestId: string): Promise<boolean> {
   return true;
 }
 
+export async function saveWorkflowCheckpoint(record: WorkflowCheckpointRecord): Promise<void> {
+  ensureStorageDir();
+  writeEncryptedJson(path.join(STORAGE_DIR, 'workflows', `${record.requestId}.json`), record);
+}
+
+export async function loadWorkflowCheckpoint(
+  requestId: string
+): Promise<WorkflowCheckpointRecord | null> {
+  const filePath = path.join(STORAGE_DIR, 'workflows', `${requestId}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  return readEncryptedJson<WorkflowCheckpointRecord>(filePath);
+}
+
+export async function listWorkflowCheckpointIds(): Promise<string[]> {
+  ensureStorageDir();
+  return fs
+    .readdirSync(path.join(STORAGE_DIR, 'workflows'))
+    .filter((entry) => entry.endsWith('.json'))
+    .map((entry) => entry.replace(/\.json$/, ''));
+}
+
+export async function deleteWorkflowCheckpoint(requestId: string): Promise<boolean> {
+  const filePath = path.join(STORAGE_DIR, 'workflows', `${requestId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  fs.unlinkSync(filePath);
+  return true;
+}
+
 export interface WalletRenameResult {
   wallet: WalletSessionRecord;
   updatedRequestIds: string[];
+  updatedWorkflowRequestIds: string[];
 }
 
 export async function renameWalletSession(
@@ -190,8 +220,18 @@ export async function renameWalletSession(
     updatedRequestIds.push(requestId);
   }
 
+  const updatedWorkflowRequestIds: string[] = [];
+  for (const requestId of await listWorkflowCheckpointIds()) {
+    const checkpoint = await loadWorkflowCheckpoint(requestId);
+    if (!checkpoint || checkpoint.walletName !== currentName) continue;
+    checkpoint.walletName = targetName;
+    await saveWorkflowCheckpoint(checkpoint);
+    updatedWorkflowRequestIds.push(requestId);
+  }
+
   return {
     wallet,
-    updatedRequestIds
+    updatedRequestIds,
+    updatedWorkflowRequestIds
   };
 }

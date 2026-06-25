@@ -456,6 +456,7 @@ export interface DepositStatusResult {
     l1BatchTxIndex?: number | null;
   };
   l1Batch?: WithdrawBatchResult;
+  nextCommand?: string;
   notes: string[];
 }
 

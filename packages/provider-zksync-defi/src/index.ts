@@ -1999,6 +1999,7 @@ function buildDepositStatusNotes(options: {
   l1Batch?: WithdrawBatchResult;
   receiptL1BatchNumber?: number | null;
   batchLookupError?: string;
+  nextCommand?: string;
 }): string[] {
   const notes: string[] = [];
 
@@ -2056,6 +2057,10 @@ function buildDepositStatusNotes(options: {
 
   if (options.batchLookupError) {
     notes.push(`Unable to load mapped L2 batch details: ${options.batchLookupError}`);
+  }
+
+  if (options.nextCommand) {
+    notes.push(`Next step: ${options.nextCommand}`);
   }
 
   notes.push('This command tracks the L1 deposit transaction and its mapped L2 priority operation lifecycle. It does not rebroadcast the deposit.');
@@ -2797,6 +2802,11 @@ export class ZkSyncDefiProvider implements DefiProvider {
       }
     }
 
+    const nextCommand =
+      status === 'failed' || status === 'finalized'
+        ? undefined
+        : `zk-agent deposit-status --tx-hash ${txHash} --chain ${chain.key}`;
+
     return {
       txHash,
       chain: chain.key,
@@ -2846,6 +2856,7 @@ export class ZkSyncDefiProvider implements DefiProvider {
           }
         : undefined,
       l1Batch,
+      nextCommand,
       notes: buildDepositStatusNotes({
         status,
         finalizedBlockNumber,
@@ -2855,7 +2866,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
         l2ResolutionError,
         l1Batch,
         receiptL1BatchNumber: l2Receipt?.l1BatchNumber,
-        batchLookupError
+        batchLookupError,
+        nextCommand
       })
     };
   }

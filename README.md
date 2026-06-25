@@ -45,6 +45,13 @@ What is already in place:
   - session signer consistency
   - deployed vs undeployed smart-account state
   - local write readiness blockers
+- `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
+- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`
+- `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
+- `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
+- `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
+- `workflow status|resume` for checking whether a previously prepared workflow is still blocked, still waiting on funding, or ready to continue, with optional `--request-id` loading from the stored checkpoint
+- `workflow list|show|update|delete` for local checkpoint inspection, runtime-setting adjustments, and cleanup, so longer-running operator flows do not accumulate opaque local state
 - `wallet sync` for refreshing local smart-account metadata from deployed onchain state, including saved built-in profile context such as `sed-lite`
 - `wallet export|restore` for portable local wallet backups and recovery across machines, with optional post-restore resync against deployed onchain state
 - `wallet reapprove --await-local` for reacquiring a writable local session after restore without dropping recovered smart-account metadata
@@ -56,11 +63,18 @@ What is already in place:
   - connector callback handoff back into the waiting CLI process
 - first agent-facing tool surface in `packages/agent-tools` for:
   - funding guidance, including route-aware suggested commands
+  - bounded workflow execution for concrete write intents
+  - workflow status inspection for resume-safe orchestration
   - create wallet request
   - create stored wallet approval request
   - approve stored wallet request
   - wallet reapprove
   - wallet status
+  - wallet next-step guidance
+  - workflow planning for concrete write intents
+  - bounded workflow execution with separate funding-step dispatch
+  - local workflow checkpoint lifecycle management for start/list/get/update/delete
+  - workflow status / execution directly from stored checkpoint `requestId`
   - wallet sync
   - wallet export
   - wallet restore

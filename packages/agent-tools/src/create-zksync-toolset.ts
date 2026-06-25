@@ -10,6 +10,10 @@ export function createZkSyncAgentToolContext(options: {
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
+  loadWorkflowCheckpoint?: AgentToolContext['loadWorkflowCheckpoint'];
+  saveWorkflowCheckpoint?: AgentToolContext['saveWorkflowCheckpoint'];
+  listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];
+  deleteWorkflowCheckpoint?: AgentToolContext['deleteWorkflowCheckpoint'];
 } = {}): AgentToolContext {
   const provider = new ZkSyncWalletProvider();
   return createAgentToolContext({
@@ -21,7 +25,11 @@ export function createZkSyncAgentToolContext(options: {
     saveWallet: options.saveWallet,
     loadWalletRequest: options.loadWalletRequest,
     saveWalletRequest: options.saveWalletRequest,
-    deleteWalletRequest: options.deleteWalletRequest
+    deleteWalletRequest: options.deleteWalletRequest,
+    loadWorkflowCheckpoint: options.loadWorkflowCheckpoint,
+    saveWorkflowCheckpoint: options.saveWorkflowCheckpoint,
+    listWorkflowCheckpointIds: options.listWorkflowCheckpointIds,
+    deleteWorkflowCheckpoint: options.deleteWorkflowCheckpoint
   });
 }
 
@@ -31,6 +39,10 @@ export function createZkSyncAgentTools(options: {
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
+  loadWorkflowCheckpoint?: AgentToolContext['loadWorkflowCheckpoint'];
+  saveWorkflowCheckpoint?: AgentToolContext['saveWorkflowCheckpoint'];
+  listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];
+  deleteWorkflowCheckpoint?: AgentToolContext['deleteWorkflowCheckpoint'];
 } = {}) {
   return createStandardAgentTools(createZkSyncAgentToolContext(options));
 }

@@ -339,6 +339,7 @@ function linesForDepositStatusResult(
   if (result.l1Batch?.commitTxHash) lines.push(['batch commit tx', result.l1Batch.commitTxHash]);
   if (result.l1Batch?.proveTxHash) lines.push(['batch prove tx', result.l1Batch.proveTxHash]);
   if (result.l1Batch?.executeTxHash) lines.push(['batch execute tx', result.l1Batch.executeTxHash]);
+  if (result.nextCommand) lines.push(['next', result.nextCommand]);
 
   for (const note of result.notes) lines.push(['note', note]);
   return lines;

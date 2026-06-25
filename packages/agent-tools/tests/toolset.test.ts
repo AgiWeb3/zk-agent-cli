@@ -1306,6 +1306,17 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'approveWalletRequestTool',
     'walletReapproveTool',
     'walletStatusTool',
+    'walletNextTool',
+    'workflowPlanTool',
+    'workflowStatusTool',
+    'workflowRunTool',
+    'startWorkflowCheckpointTool',
+    'listWorkflowCheckpointsTool',
+    'getWorkflowCheckpointTool',
+    'updateWorkflowCheckpointTool',
+    'deleteWorkflowCheckpointTool',
+    'workflowStatusByCheckpointTool',
+    'workflowRunByCheckpointTool',
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',
@@ -1328,7 +1339,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 24);
+  assert.equal(listed.length, 35);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
 });
@@ -1347,6 +1358,283 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   assert.equal(success.ok, true);
   if (success.ok) {
     assert.equal((success.data as { walletName: string }).walletName, 'main');
+  }
+
+  const next = await runStandardAgentTool(context, 'walletNextTool', {
+    walletName: 'main'
+  });
+  assert.equal(next.ok, true);
+  if (next.ok) {
+    assert.equal(
+      (next.data as { summary: { actions: { id: string }[] } }).summary.actions[0]?.id,
+      'reapprove'
+    );
+    assert.equal(
+      (next.data as { summary: { recommendedCommand: string } }).summary.recommendedCommand,
+      'zk-agent wallet reapprove --name main --await-local'
+    );
+    assert.equal((next.data as { summary: { status: string } }).summary.status, 'action-required');
+  }
+
+  const workflow = await runStandardAgentTool(context, 'workflowPlanTool', {
+    walletName: 'main',
+    intent: 'swap',
+    protocol: 'syncswap-classic'
+  });
+  assert.equal(workflow.ok, true);
+  if (workflow.ok) {
+    assert.equal(
+      (workflow.data as { plan: { steps: { id: string }[] } }).plan.steps[0]?.id,
+      'reapprove'
+    );
+    assert.match(
+      (workflow.data as { plan: { goalCommand: string } }).plan.goalCommand,
+      /--protocol syncswap-classic/
+    );
+    assert.equal((workflow.data as { plan: { status: string } }).plan.status, 'blocked');
+  }
+
+  const runnableContext = createAgentToolContext({
+    provider: {
+      ...provider,
+      async inspectWallet(wallet) {
+        return {
+          walletName: wallet.walletName,
+          executionAddress: wallet.walletAddress,
+          ownerAddress: wallet.ownerAddress,
+          chain: wallet.chain,
+          chainId: wallet.chainId,
+          accountKind: wallet.accountKind,
+          paymasterMode: wallet.paymasterMode,
+          deploymentStatus: 'deployed',
+          codeLength: 123,
+          sessionPrivateKeyStored: true,
+          writeReady: true,
+          blockers: [],
+          notes: ['ready']
+        };
+      }
+    },
+    defiProvider: provider,
+    loadWallet: async () => sampleWallet,
+    saveWallet: async () => {}
+  });
+
+  const workflowRun = await runStandardAgentTool(runnableContext, 'workflowRunTool', {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    }
+  });
+  assert.equal(workflowRun.ok, true);
+  if (workflowRun.ok) {
+    assert.equal(
+      (workflowRun.data as { result: { stage: string } }).result.stage,
+      'goal-executed'
+    );
+    assert.equal(
+      (workflowRun.data as { result: { goal: { mode: string } } }).result.goal.mode,
+      'preview'
+    );
+  }
+
+  const workflowStatus = await runStandardAgentTool(context, 'workflowStatusTool', {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    }
+  });
+  assert.equal(workflowStatus.ok, true);
+  if (workflowStatus.ok) {
+    assert.equal(
+      (workflowStatus.data as { result: { status: string } }).result.status,
+      'blocked'
+    );
+    assert.equal(
+      (workflowStatus.data as { result: { blockingActionIds: string[] } }).result.blockingActionIds[0],
+      'reapprove'
+    );
+  }
+
+  const workflowCheckpoints = new Map<string, any>();
+  const workflowContext = createAgentToolContext({
+    provider,
+    defiProvider: provider,
+    loadWallet: async () => sampleWallet,
+    saveWallet: async () => undefined,
+    loadWorkflowCheckpoint: async (requestId) => workflowCheckpoints.get(requestId) || null,
+    saveWorkflowCheckpoint: async (checkpoint) => {
+      workflowCheckpoints.set(checkpoint.requestId, checkpoint);
+    },
+    listWorkflowCheckpointIds: async () => Array.from(workflowCheckpoints.keys()).sort(),
+    deleteWorkflowCheckpoint: async (requestId) => workflowCheckpoints.delete(requestId)
+  });
+
+  const workflowStart = await runStandardAgentTool(workflowContext, 'startWorkflowCheckpointTool', {
+    walletName: 'main',
+    requestId: 'wf-tool-001',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    },
+    broadcast: false,
+    autoSync: true
+  });
+  assert.equal(workflowStart.ok, true);
+  if (workflowStart.ok) {
+    assert.equal(
+      (workflowStart.data as { checkpoint: { requestId: string } }).checkpoint.requestId,
+      'wf-tool-001'
+    );
+  }
+
+  const workflowList = await runStandardAgentTool(workflowContext, 'listWorkflowCheckpointsTool', {
+    walletName: 'main'
+  });
+  assert.equal(workflowList.ok, true);
+  if (workflowList.ok) {
+    assert.equal(
+      (workflowList.data as { checkpoints: unknown[] }).checkpoints.length,
+      1
+    );
+  }
+
+  const workflowUpdate = await runStandardAgentTool(workflowContext, 'updateWorkflowCheckpointTool', {
+    requestId: 'wf-tool-001',
+    broadcast: true,
+    fundingCheck: {
+      kind: 'deposit',
+      txHash: '0x' + '66'.repeat(32)
+    }
+  });
+  assert.equal(workflowUpdate.ok, true);
+  if (workflowUpdate.ok) {
+    assert.equal(
+      (workflowUpdate.data as { checkpoint: { broadcast: boolean } }).checkpoint.broadcast,
+      true
+    );
+    assert.equal(
+      (
+        workflowUpdate.data as {
+          checkpoint: { fundingCheck: { txHash: string } };
+        }
+      ).checkpoint.fundingCheck.txHash,
+      '0x' + '66'.repeat(32)
+    );
+  }
+
+  const workflowGet = await runStandardAgentTool(workflowContext, 'getWorkflowCheckpointTool', {
+    requestId: 'wf-tool-001'
+  });
+  assert.equal(workflowGet.ok, true);
+  if (workflowGet.ok) {
+    assert.equal(
+      (workflowGet.data as { checkpoint: { autoSync: boolean } }).checkpoint.autoSync,
+      true
+    );
+  }
+
+  const workflowDelete = await runStandardAgentTool(workflowContext, 'deleteWorkflowCheckpointTool', {
+    requestId: 'wf-tool-001'
+  });
+  assert.equal(workflowDelete.ok, true);
+  assert.equal(workflowCheckpoints.size, 0);
+
+  const workflowRunnableCheckpoints = new Map<string, any>();
+  const workflowRunnableContext = createAgentToolContext({
+    provider: {
+      ...provider,
+      async inspectWallet(wallet) {
+        return {
+          walletName: wallet.walletName,
+          executionAddress: wallet.walletAddress,
+          ownerAddress: wallet.ownerAddress,
+          chain: wallet.chain,
+          chainId: wallet.chainId,
+          accountKind: wallet.accountKind,
+          paymasterMode: wallet.paymasterMode,
+          deploymentStatus: 'deployed',
+          codeLength: 123,
+          sessionPrivateKeyStored: true,
+          writeReady: true,
+          blockers: [],
+          notes: ['ready']
+        };
+      }
+    },
+    defiProvider: provider,
+    loadWallet: async () => sampleWallet,
+    saveWallet: async () => undefined,
+    loadWorkflowCheckpoint: async (requestId) => workflowRunnableCheckpoints.get(requestId) || null,
+    saveWorkflowCheckpoint: async (checkpoint) => {
+      workflowRunnableCheckpoints.set(checkpoint.requestId, checkpoint);
+    },
+    listWorkflowCheckpointIds: async () => Array.from(workflowRunnableCheckpoints.keys()).sort(),
+    deleteWorkflowCheckpoint: async (requestId) => workflowRunnableCheckpoints.delete(requestId)
+  });
+
+  const runnableStart = await runStandardAgentTool(
+    workflowRunnableContext,
+    'startWorkflowCheckpointTool',
+    {
+      walletName: 'main',
+      requestId: 'wf-tool-002',
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      broadcast: false,
+      autoSync: false
+    }
+  );
+  assert.equal(runnableStart.ok, true);
+
+  const statusByCheckpoint = await runStandardAgentTool(
+    workflowRunnableContext,
+    'workflowStatusByCheckpointTool',
+    {
+      requestId: 'wf-tool-002'
+    }
+  );
+  assert.equal(statusByCheckpoint.ok, true);
+  if (statusByCheckpoint.ok) {
+    assert.equal(
+      (statusByCheckpoint.data as { result: { status: string } }).result.status,
+      'ready'
+    );
+    assert.equal(
+      (statusByCheckpoint.data as { checkpoint: { lastKnownStatus: string } }).checkpoint.lastKnownStatus,
+      'ready'
+    );
+  }
+
+  const runByCheckpoint = await runStandardAgentTool(
+    workflowRunnableContext,
+    'workflowRunByCheckpointTool',
+    {
+      requestId: 'wf-tool-002'
+    }
+  );
+  assert.equal(runByCheckpoint.ok, true);
+  if (runByCheckpoint.ok) {
+    assert.equal(
+      (runByCheckpoint.data as { result: { stage: string } }).result.stage,
+      'goal-executed'
+    );
+    assert.equal(
+      (runByCheckpoint.data as { checkpoint: { lastRun: { stage: string } } }).checkpoint.lastRun.stage,
+      'goal-executed'
+    );
   }
 
   const funding = await runStandardAgentTool(context, 'getFundingInfoTool', {

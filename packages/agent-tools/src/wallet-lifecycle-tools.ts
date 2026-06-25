@@ -535,6 +535,25 @@ async function syncWalletRecord(
   };
 }
 
+export async function syncStoredWalletRecord(
+  context: AgentToolContext,
+  wallet: WalletSessionRecord,
+  profileOverride?: BuiltinSmartAccountProfileId
+): Promise<{
+  wallet: WalletSessionRecord;
+  inspection: WalletInspectionResult;
+  profileId?: BuiltinSmartAccountProfileId;
+  notes: string[];
+}> {
+  const result = await syncWalletRecord(context, wallet, profileOverride);
+  return {
+    wallet: result.wallet,
+    inspection: result.inspection,
+    profileId: result.profileId,
+    notes: result.notes
+  };
+}
+
 function normalizeSyncOutput(result: WalletSyncInternalResult): WalletSyncToolOutput {
   return {
     wallet: stripSensitiveWalletRecord(result.wallet),
