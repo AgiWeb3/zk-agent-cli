@@ -23,7 +23,9 @@ async function main() {
       'smoke-readonly': 'src/smoke-readonly.ts',
       'smoke-lifecycle': 'src/smoke-lifecycle.ts',
       'smoke-policy': 'src/smoke-policy.ts',
-      'smoke-broadcast': 'src/smoke-broadcast.ts'
+      'smoke-broadcast': 'src/smoke-broadcast.ts',
+      'smoke-paymaster-success': 'src/smoke-paymaster-success.ts',
+      'smoke-withdraw-followup': 'src/smoke-withdraw-followup.ts'
     },
     absWorkingDir: packageDir,
     outdir: distDir,

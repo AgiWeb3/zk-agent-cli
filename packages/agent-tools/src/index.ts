@@ -4,6 +4,7 @@ export * from './create-wallet-tool.js';
 export * from './wallet-status-tool.js';
 export * from './wallet-next-tool.js';
 export * from './workflow-plan-tool.js';
+export * from './workflow-orchestrator-tool.js';
 export * from './workflow-checkpoint-tools.js';
 export * from './workflow-status-tool.js';
 export * from './workflow-run-tool.js';

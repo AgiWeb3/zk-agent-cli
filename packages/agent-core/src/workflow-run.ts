@@ -15,7 +15,7 @@ import type {
   WithdrawExecutionResult
 } from './providers.js';
 import { buildWorkflowPlan, type WorkflowIntent, type WorkflowPlan, type WorkflowSwapProtocol } from './workflow-plan.js';
-import { isZeroBalance } from './wallet-next.js';
+import { canUsePaymasterForGas, isZeroBalance } from './wallet-next.js';
 
 export interface WorkflowRunFundInput {
   amount: string;
@@ -225,7 +225,8 @@ async function loadWorkflowRuntimeState(
   intent: WorkflowIntent,
   provider: WorkflowRunDeps['provider'],
   protocol?: WorkflowSwapProtocol,
-  toChain?: string
+  toChain?: string,
+  paymaster?: PaymasterSelectionInput
 ): Promise<WorkflowRuntimeState> {
   const inspection = await provider.inspectWallet(wallet);
   const balances = await provider.getBalances({
@@ -234,8 +235,16 @@ async function loadWorkflowRuntimeState(
     chain: wallet.chain
   });
   const nativeBalance = balances.balances.find((entry) => entry.type === 'native');
+  const paymasterCanCoverGas =
+    nativeBalance &&
+    isZeroBalance(nativeBalance.balance) &&
+    (intent === 'send-native' ||
+      intent === 'send-token' ||
+      intent === 'call-write' ||
+      intent === 'swap') &&
+    canUsePaymasterForGas(wallet, paymaster);
   const funding =
-    nativeBalance && isZeroBalance(nativeBalance.balance)
+    nativeBalance && isZeroBalance(nativeBalance.balance) && !paymasterCanCoverGas
       ? await provider.getFundingInfo({
           walletName: wallet.walletName,
           walletAddress: wallet.walletAddress,
@@ -261,6 +270,7 @@ async function loadWorkflowRuntimeState(
       nativeBalance: nativeBalance?.balance,
       nativeSymbol: nativeBalance?.symbol,
       funding,
+      paymaster,
       protocol,
       toChain
     })
@@ -466,7 +476,8 @@ export async function runWorkflow(
     input.intent,
     deps.provider,
     input.goal.intent === 'swap' ? input.goal.protocol : undefined,
-    input.goal.intent === 'bridge' ? input.goal.toChain : undefined
+    input.goal.intent === 'bridge' ? input.goal.toChain : undefined,
+    'paymaster' in input.goal ? input.goal.paymaster : undefined
   );
 
   const blockingActionIds = manualBlockingActionIds(state.plan);
@@ -508,7 +519,8 @@ export async function runWorkflow(
       input.intent,
       deps.provider,
       input.goal.intent === 'swap' ? input.goal.protocol : undefined,
-      input.goal.intent === 'bridge' ? input.goal.toChain : undefined
+      input.goal.intent === 'bridge' ? input.goal.toChain : undefined,
+      'paymaster' in input.goal ? input.goal.paymaster : undefined
     );
   }
 

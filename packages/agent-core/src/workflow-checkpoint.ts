@@ -17,6 +17,7 @@ export interface WorkflowCheckpointRecord {
   format: 'zk-agent-workflow-checkpoint';
   version: 1;
   requestId: string;
+  walletRequestId?: string;
   walletName: string;
   intent: WorkflowIntent;
   goal: WorkflowGoalInput;

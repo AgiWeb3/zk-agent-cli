@@ -1816,7 +1816,7 @@ function buildBridgeStatusNotes(
   baseNotes: string[],
   nextCommand?: string
 ): string[] {
-  const notes = [...baseNotes];
+  const notes = baseNotes.filter((note) => !note.startsWith('Next step: '));
 
   if (route.operation === 'withdraw') {
     notes.push('For L2 -> L1 withdraws, bridge-status finalization means the L2 withdrawal is finalized. L1 claiming still uses withdraw-finalize.');
@@ -1950,6 +1950,7 @@ function buildWithdrawStatusNotes(options: {
   l1Batch?: WithdrawBatchResult;
   receiptL1BatchNumber?: number | null;
   batchLookupError?: string;
+  nextCommand?: string;
 }): string[] {
   const notes: string[] = [];
 
@@ -1982,6 +1983,10 @@ function buildWithdrawStatusNotes(options: {
 
   if (options.batchLookupError) {
     notes.push(`Unable to load L1 batch details: ${options.batchLookupError}`);
+  }
+
+  if (options.nextCommand) {
+    notes.push(`Next step: ${options.nextCommand}`);
   }
 
   notes.push('This command tracks the L2 transaction lifecycle and enclosing batch telemetry only. It does not prove or broadcast L1 withdrawal finalization.');
@@ -2611,7 +2616,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
         l2Transaction: result.l2Transaction,
         l2Receipt: result.l2Receipt,
         l1Batch: result.l1Batch,
-        notes: buildBridgeStatusNotes(route, result.notes)
+        nextCommand: result.nextCommand,
+        notes: buildBridgeStatusNotes(route, result.notes, result.nextCommand)
       };
     }
 
@@ -2999,6 +3005,10 @@ export class ZkSyncDefiProvider implements DefiProvider {
     }
 
     const l2Finalized = status === 'finalized';
+    const nextCommand =
+      status === 'finalized'
+        ? `zk-agent withdraw-finalize --tx-hash ${txHash} --chain ${chain.key}`
+        : undefined;
 
     let l1Batch: WithdrawBatchResult | undefined;
     let batchLookupError: string | undefined;
@@ -3023,6 +3033,7 @@ export class ZkSyncDefiProvider implements DefiProvider {
       status,
       l2Finalized,
       finalizedBlockNumber,
+      nextCommand,
       transaction: tx
         ? {
             from: tx.from,
@@ -3048,7 +3059,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
         finalizedBlockNumber,
         l1Batch,
         receiptL1BatchNumber: receipt?.l1BatchNumber,
-        batchLookupError
+        batchLookupError,
+        nextCommand
       })
     };
   }

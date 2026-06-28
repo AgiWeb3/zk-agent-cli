@@ -157,3 +157,65 @@ test('workflow plan adds a bridge note when destination chain is still missing',
   assert.match(plan.goalCommand, /--to-chain <chain>/);
   assert.match(plan.notes[0] || '', /Set --to-chain/);
 });
+
+test('workflow plan skips fund when paymaster-backed swap can cover gas', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      capabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: true
+      },
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        sessionScope: {
+          chainKeys: ['zksync-sepolia'],
+          chainIds: [300]
+        },
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        },
+        sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        },
+        sessionPublicKey: '0x' + '11'.repeat(32),
+        permissions: {
+          expiresAt: '2026-06-24T01:00:00.000Z'
+        },
+        paymasterAddress: '0x4444444444444444444444444444444444444444'
+      },
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'swap',
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    funding: sampleFunding(),
+    protocol: 'syncswap-classic'
+  });
+
+  assert.equal(plan.status, 'planned');
+  assert.deepEqual(plan.steps.map((step) => step.id), ['swap']);
+  assert.match(plan.notes[0] || '', /paymaster mode approval-based is configured/);
+});

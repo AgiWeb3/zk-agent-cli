@@ -15,6 +15,8 @@
     "smoke:lifecycle": "node --import tsx ./src/smoke-lifecycle.ts",
     "smoke:policy": "node --import tsx ./src/smoke-policy.ts",
     "smoke:broadcast": "node --import tsx ./src/smoke-broadcast.ts",
+    "smoke:paymaster-success": "node --import tsx ./src/smoke-paymaster-success.ts",
+    "smoke:withdraw-followup": "node --import tsx ./src/smoke-withdraw-followup.ts",
     "tool:run": "node --import tsx ./src/run-tool.ts"
   },
   "dependencies": {

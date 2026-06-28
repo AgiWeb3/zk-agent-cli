@@ -613,3 +613,92 @@ test('workflow run emits a concrete swap retry command after preview', async () 
   assert.match(result.nextCommand || '', /--approve-max/);
   assert.match(result.nextCommand || '', /--paymaster-mode approval-based/);
 });
+
+test('workflow run does not require separate funding when paymaster-backed send-native can cover gas', async () => {
+  let sendNativeCalls = 0;
+
+  const provider = {
+    async inspectWallet() {
+      return sampleInspection();
+    },
+    async getBalances() {
+      return {
+        walletName: 'main',
+        walletAddress: sampleWallet.walletAddress,
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        balances: [{ type: 'native', symbol: 'ETH', balance: '0', decimals: 18 }]
+      };
+    },
+    async getFundingInfo() {
+      throw new Error('getFundingInfo should not run when paymaster can cover gas');
+    },
+    async sendNative(input: { wallet: WalletSessionRecord }) {
+      sendNativeCalls += 1;
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: input.wallet.chain,
+        chainId: input.wallet.chainId,
+        accountKind: input.wallet.accountKind,
+        mode: 'preview' as const,
+        to: '0x3333333333333333333333333333333333333333',
+        data: '0x',
+        value: '100000000000000000',
+        paymaster: {
+          mode: 'approval-based' as const,
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555',
+          source: 'command' as const,
+          supported: true
+        },
+        preview: {}
+      };
+    },
+    async sendToken() {
+      throw new Error('sendToken should not run in this test');
+    },
+    async writeContract() {
+      throw new Error('writeContract should not run in this test');
+    }
+  };
+  const defiProvider = {
+    async swap() {
+      throw new Error('swap should not run in this test');
+    },
+    async bridge() {
+      throw new Error('bridge should not run in this test');
+    },
+    async deposit() {
+      throw new Error('deposit should not run in this test');
+    },
+    async withdraw() {
+      throw new Error('withdraw should not run in this test');
+    }
+  };
+
+  const result = await runWorkflow(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      broadcast: false,
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        }
+      }
+    },
+    {
+      provider,
+      defiProvider
+    }
+  );
+
+  assert.equal(sendNativeCalls, 1);
+  assert.equal(result.stage, 'goal-executed');
+});

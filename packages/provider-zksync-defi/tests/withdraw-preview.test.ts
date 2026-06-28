@@ -861,6 +861,7 @@ test('bridgeStatus routes deposit tracking through depositStatus and infers the 
       l1Included: true,
       l2Finalized: false,
       finalizedBlockNumber: 120,
+      nextCommand: 'zk-agent deposit-status --tx-hash ' + input.txHash + ' --chain zksync-sepolia',
       notes: ['deposit-status']
     };
   }) as typeof provider.depositStatus;
@@ -881,6 +882,14 @@ test('bridgeStatus routes deposit tracking through depositStatus and infers the 
     assert.equal(result.fromChain, 'ethereum-sepolia');
     assert.equal(result.toChain, 'zksync-sepolia');
     assert.equal(result.relatedTxHash, '0x' + 'aa'.repeat(32));
+    assert.equal(
+      result.nextCommand,
+      'zk-agent deposit-status --tx-hash 0x' + '12'.repeat(32) + ' --chain zksync-sepolia'
+    );
+    assert.deepEqual(result.notes, [
+      'deposit-status',
+      'Next step: zk-agent deposit-status --tx-hash 0x' + '12'.repeat(32) + ' --chain zksync-sepolia'
+    ]);
     assert.equal(calledDepositStatus, true);
     assert.equal(calledWithdrawStatus, false);
   } finally {
@@ -936,6 +945,7 @@ test('bridgeStatus routes withdraw tracking through withdrawStatus and suggests 
       status: 'finalized',
       l2Finalized: true,
       finalizedBlockNumber: 120,
+      nextCommand: 'zk-agent withdraw-finalize --tx-hash ' + input.txHash + ' --chain zksync-sepolia',
       transaction: {
         from: writableEoaWallet().walletAddress,
         to: '0x000000000000000000000000000000000000800a'
@@ -965,12 +975,80 @@ test('bridgeStatus routes withdraw tracking through withdrawStatus and suggests 
     assert.equal(result.route, 'l2-to-l1');
     assert.match(result.nextCommand || '', /withdraw-finalize/);
     assert.equal(result.l2Finalized, true);
+    assert.equal(
+      result.notes.filter((note) => note.startsWith('Next step:')).length,
+      1
+    );
+    assert.match(
+      result.notes.join('\n'),
+      new RegExp(`--wallet ${writableEoaWallet().walletName} --tx-hash`)
+    );
     assert.equal(calledDepositStatus, false);
     assert.equal(calledWithdrawStatus, true);
   } finally {
     provider.depositStatus = originalDepositStatus;
     provider.withdrawStatus = originalWithdrawStatus;
   }
+});
+
+test('withdrawStatus exposes withdraw-finalize guidance once the L2 tx is finalized', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getTransaction(hash: string) {
+        return {
+          hash,
+          from: writableEoaWallet().walletAddress,
+          to: '0x000000000000000000000000000000000000800a',
+          nonce: 7,
+          blockNumber: 100
+        };
+      },
+      async getTransactionReceipt() {
+        return {
+          blockNumber: 100,
+          blockHash: '0x' + '55'.repeat(32),
+          status: 1,
+          gasUsed: 123456n,
+          l1BatchNumber: 88,
+          l1BatchTxIndex: 3
+        };
+      },
+      async getBlock(tag: string) {
+        assert.equal(tag, 'finalized');
+        return {
+          number: 120
+        };
+      },
+      async getL1BatchDetails(batchNumber: number) {
+        assert.equal(batchNumber, 88);
+        return {
+          number: 88,
+          status: 'executed',
+          executeTxHash: '0x' + '77'.repeat(32)
+        };
+      }
+    })
+  });
+
+  const txHash = '0x' + '56'.repeat(32);
+  const result = await provider.withdrawStatus({
+    chain: 'zksync-sepolia',
+    txHash
+  });
+
+  assert.equal(result.status, 'finalized');
+  assert.equal(result.l2Finalized, true);
+  assert.equal(
+    result.nextCommand,
+    `zk-agent withdraw-finalize --tx-hash ${txHash} --chain zksync-sepolia`
+  );
+  assert.match(result.notes.join('\n'), /Next step: zk-agent withdraw-finalize/);
 });
 
 test('previewWithdraw returns native bridge metadata and defaults recipient to owner address', async () => {

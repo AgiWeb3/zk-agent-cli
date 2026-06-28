@@ -56,6 +56,7 @@ export function workflowRunLines(result: WorkflowRunResult): Array<[string, stri
   const lines: Array<[string, string]> = [
     ['wallet', result.walletName],
     ['intent', result.intent],
+    ['goal', result.plan.goal],
     ['stage', result.stage],
     ['status', result.plan.status]
   ];
@@ -105,6 +106,7 @@ export function workflowStatusLines(result: WorkflowStatusResult): Array<[string
   const lines: Array<[string, string]> = [
     ['wallet', result.walletName],
     ['intent', result.intent],
+    ['goal', result.plan.goal],
     ['status', result.status],
     ['ready', result.readyForGoal ? 'yes' : 'no']
   ];
@@ -139,7 +141,7 @@ export function workflowCheckpointLines(
   checkpoint: WorkflowCheckpointRecord
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [
-    ['request', checkpoint.requestId],
+    ['workflow request', checkpoint.requestId],
     ['wallet', checkpoint.walletName],
     ['intent', checkpoint.intent],
     ['created', checkpoint.createdAt],
@@ -147,6 +149,10 @@ export function workflowCheckpointLines(
     ['broadcast', checkpoint.broadcast ? 'yes' : 'no'],
     ['auto sync', checkpoint.autoSync ? 'yes' : 'no']
   ];
+
+  if (checkpoint.walletRequestId) {
+    lines.push(['wallet request', checkpoint.walletRequestId]);
+  }
 
   if (checkpoint.lastKnownStatus) {
     lines.push(['status', checkpoint.lastKnownStatus]);
@@ -204,6 +210,8 @@ export function workflowCheckpointListLines(
 
   return checkpoints.map((checkpoint) => [
     'checkpoint',
-    `${checkpoint.requestId}  ${checkpoint.walletName}  ${checkpoint.intent}  ${checkpoint.lastKnownStatus || 'unknown'}  updated=${checkpoint.updatedAt}`
+    `${checkpoint.requestId}  ${checkpoint.walletName}  ${checkpoint.intent}  ${checkpoint.lastKnownStatus || 'unknown'}  updated=${checkpoint.updatedAt}${
+      checkpoint.walletRequestId ? `  walletRequest=${checkpoint.walletRequestId}` : ''
+    }`
   ]);
 }

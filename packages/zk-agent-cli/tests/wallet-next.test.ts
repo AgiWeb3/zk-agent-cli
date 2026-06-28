@@ -108,3 +108,62 @@ test('wallet next reports ready when no immediate remediation is needed', () => 
   assert.equal(summary.actions.length, 0);
   assert.match(summary.notes[0] || '', /No immediate remediation step is required/);
 });
+
+test('wallet next suppresses fund guidance when a saved paymaster can cover supported writes', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      capabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: true
+      },
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        sessionScope: {
+          chainKeys: ['zksync-sepolia'],
+          chainIds: [300]
+        },
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        },
+        sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        },
+        sessionPublicKey: '0x' + '11'.repeat(32),
+        permissions: {
+          expiresAt: '2026-06-24T01:00:00.000Z'
+        },
+        paymasterAddress: '0x4444444444444444444444444444444444444444'
+      }
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    funding: sampleFunding()
+  });
+
+  assert.equal(summary.status, 'ready');
+  assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
+  assert.match(summary.notes[0] || '', /paymaster mode approval-based is configured/);
+});

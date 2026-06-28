@@ -95,13 +95,19 @@ import {
   printResult,
   shouldJsonOutput
 } from '../lib/io.js';
+import { buildWalletSubcommandPreviewNextCommand } from '../lib/preview-next-command.js';
+import {
+  buildWalletCreateRecommendedCommand,
+  buildWalletNextRecommendedCommand,
+  buildWalletReapproveRecommendedCommand
+} from '../lib/recommended-commands.js';
 import { buildWalletNextSummary, walletNextLines } from '../lib/wallet-next.js';
 
 const provider = new ZkSyncWalletProvider();
 const NATIVE_TOKEN_DECIMALS = 18;
 const LOCAL_APPROVAL_BODY_LIMIT_BYTES = 512 * 1024;
 
-function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
+export function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
   if (!payload) return undefined;
   const { sessionPrivateKey: _sessionPrivateKey, ...rest } = payload;
   return rest;
@@ -119,14 +125,14 @@ function stripSensitiveWalletRecord(wallet: WalletSessionRecord): WalletSessionR
   };
 }
 
-function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unknown> {
+export function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unknown> {
   return {
     ...stripSensitiveWalletRecord(wallet),
     sessionPayload: sanitizeSessionPayload(wallet.sessionPayload)
   };
 }
 
-function sanitizeWalletRequestRecord(request: WalletRequestRecord): Record<string, unknown> {
+export function sanitizeWalletRequestRecord(request: WalletRequestRecord): Record<string, unknown> {
   const { sessionSecretKey: _sessionSecretKey, ...rest } = request;
   return rest;
 }
@@ -1187,6 +1193,64 @@ function inspectionLines(inspection: WalletInspectionResult): Array<[string, str
   return lines;
 }
 
+async function loadWalletStatusSummary(walletRecord: WalletSessionRecord): Promise<{
+  inspection: WalletInspectionResult;
+  summary: ReturnType<typeof buildWalletNextSummary>;
+}> {
+  const inspection = await provider.inspectWallet(walletRecord);
+  const balances = await provider.getBalances({
+    walletName: walletRecord.walletName,
+    walletAddress: walletRecord.walletAddress,
+    chain: walletRecord.chain
+  });
+  const nativeBalance = balances.balances.find((entry) => entry.type === 'native');
+  const funding = nativeBalance && /^0*(\.0*)?$/.test(nativeBalance.balance.trim())
+    ? await provider.getFundingInfo({
+        walletName: walletRecord.walletName,
+        walletAddress: walletRecord.walletAddress,
+        chain: walletRecord.chain
+      })
+    : undefined;
+
+  return {
+    inspection,
+    summary: buildWalletNextSummary({
+      wallet: walletRecord,
+      inspection,
+      nativeBalance: nativeBalance?.balance,
+      nativeSymbol: nativeBalance?.symbol,
+      funding
+    })
+  };
+}
+
+function walletStatusLines(
+  inspection: WalletInspectionResult,
+  summary: ReturnType<typeof buildWalletNextSummary>
+): Array<[string, string]> {
+  const lines = inspectionLines(inspection);
+
+  lines.push(['status', summary.status]);
+
+  if (summary.nativeBalance) {
+    lines.push(['native balance', `${summary.nativeBalance} ${summary.nativeSymbol || ''}`.trim()]);
+  }
+
+  if (summary.funding?.route) {
+    lines.push(['funding route', summary.funding.route]);
+  }
+
+  if (summary.recommendedCommand) {
+    lines.push(['next', summary.recommendedCommand]);
+  }
+
+  for (const note of summary.notes) {
+    lines.push(['note', note]);
+  }
+
+  return lines;
+}
+
 function walletSyncLines(result: WalletSyncResult): Array<[string, string]> {
   const lines = inspectionLines(result.inspection);
 
@@ -1216,6 +1280,8 @@ function walletSyncLines(result: WalletSyncResult): Array<[string, string]> {
     lines.push(['sync note', note]);
   }
 
+  lines.push(['next', buildWalletNextRecommendedCommand(result.wallet.walletName)]);
+
   return lines;
 }
 
@@ -1242,6 +1308,7 @@ function walletRestoreLines(
   restoredFrom: WalletExportRecord,
   syncResult?: WalletSyncResult
 ): Array<[string, string]> {
+  let nextCommand = buildWalletNextRecommendedCommand(wallet.walletName);
   const lines: Array<[string, string]> = [
     ['wallet', wallet.walletName],
     ['address', wallet.walletAddress],
@@ -1258,8 +1325,9 @@ function walletRestoreLines(
   if (!wallet.sessionPayload?.sessionPrivateKey) {
     lines.push([
       'note',
-      `No sessionPrivateKey was present in the backup. The restored wallet can be inspected and synced, but local write execution will stay blocked until you re-import or re-approve a writable session, for example: zk-agent wallet reapprove --name ${wallet.walletName} --await-local`
+      `No sessionPrivateKey was present in the backup. The restored wallet can be inspected and synced, but local write execution will stay blocked until you re-import or re-approve a writable session, for example: ${buildWalletReapproveRecommendedCommand(wallet.walletName)}`
     ]);
+    nextCommand = buildWalletReapproveRecommendedCommand(wallet.walletName);
   }
 
   if (syncResult) {
@@ -1284,6 +1352,8 @@ function walletRestoreLines(
       lines.push(['sync note', note]);
     }
   }
+
+  lines.push(['next', nextCommand]);
 
   return lines;
 }
@@ -1330,7 +1400,10 @@ function preserveExistingWalletMetadata(
   return applyWalletSyncMetadata(importedWallet, metadataUpdates);
 }
 
-function linesForWriteResult(result: TransactionExecutionResult): Array<[string, string]> {
+function linesForWriteResult(
+  result: TransactionExecutionResult,
+  nextCommand?: string
+): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
     ['wallet', result.walletName],
@@ -1350,11 +1423,30 @@ function linesForWriteResult(result: TransactionExecutionResult): Array<[string,
   if (result.paymaster.note) lines.push(['paymaster note', result.paymaster.note]);
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
+}
+
+function linesForWalletSubcommandWriteResult(
+  result: TransactionExecutionResult,
+  options: {
+    walletName: string;
+    commandPath: string[];
+    args?: Array<readonly [string, string | number | Array<string | number> | undefined]>;
+  }
+): Array<[string, string]> {
+  return linesForWriteResult(
+    result,
+    buildWalletSubcommandPreviewNextCommand({
+      commandPath: options.commandPath,
+      walletName: options.walletName,
+      args: options.args,
+      paymaster: result.paymaster
+    })
+  );
 }
 
 async function requireWalletRequest(requestId: string) {
@@ -1389,7 +1481,7 @@ function connectorOriginFromUrl(value?: string): string | undefined {
   }
 }
 
-function buildWalletApprovalLines(
+export function buildWalletApprovalLines(
   status: string,
   requestId: string,
   walletRecord: WalletSessionRecord
@@ -1405,7 +1497,7 @@ function buildWalletApprovalLines(
     ['account', displayAccountKind(walletRecord)],
     ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
     ['paymaster', displayPaymasterMode(walletRecord)],
-    ['next', 'zk-agent balances --wallet ' + walletRecord.walletName]
+    ['next', buildWalletNextRecommendedCommand(walletRecord.walletName)]
   ];
 }
 
@@ -1420,7 +1512,7 @@ async function importApprovedWalletSession(
   return walletRecord;
 }
 
-async function createWalletReapprovalRequest(options: {
+export async function createWalletReapprovalRequest(options: {
   walletRecord: WalletSessionRecord;
   connectorUrl?: string;
 }): Promise<WalletRequestRecord> {
@@ -1593,7 +1685,7 @@ interface LocalApprovalListenerOptions {
   timeoutSeconds: number;
 }
 
-function resolveLocalApprovalListenerOptions(options: {
+export function resolveLocalApprovalListenerOptions(options: {
   host?: string;
   port?: string;
   timeoutSeconds?: string;
@@ -1630,7 +1722,7 @@ function buildCallbackUrl(host: string, port: number): URL {
   return callbackUrl;
 }
 
-async function awaitLocalWalletApproval(options: {
+export async function awaitLocalWalletApproval(options: {
   walletRequest: WalletRequestRecord;
   walletName: string;
   host: string;
@@ -1796,7 +1888,7 @@ async function printWalletList(): Promise<void> {
     printResult(
       [
         ['status', 'No wallets stored'],
-        ['next', 'zk-agent wallet create']
+        ['next', buildWalletCreateRecommendedCommand()]
       ],
       { ok: true, wallets: [] }
     );
@@ -1966,7 +2058,7 @@ export function createWalletCommand(): Command {
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ['expires', request.expiresAt],
-          ['note', 'A local smart-account session request was created. Run the await-local flow before approving in the connector.'],
+          ['note', 'A local smart-account session request was created. Run the await-local flow before approving in the connector so the CLI can receive the approved session immediately.'],
           ['next', `zk-agent wallet request await-local --request-id ${request.requestId}`]
         ],
         {
@@ -2049,7 +2141,7 @@ export function createWalletCommand(): Command {
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ['expires', request.expiresAt],
-          ['note', 'A fresh local session approval request was created for the existing wallet.'],
+          ['note', 'A fresh local session approval request was created for the existing wallet. Run the await-local flow before approving in the connector so the CLI can receive the approved session immediately.'],
           ['next', `zk-agent wallet request await-local --request-id ${request.requestId}`]
         ],
         {
@@ -2084,7 +2176,7 @@ export function createWalletCommand(): Command {
           ['account', displayAccountKind(walletRecord)],
           ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
           ['paymaster', displayPaymasterMode(walletRecord)],
-          ['next', 'zk-agent balances']
+          ['next', buildWalletNextRecommendedCommand(walletRecord.walletName)]
         ],
         { ok: true, wallet: sanitizeWalletRecord(walletRecord) }
       );
@@ -2162,14 +2254,14 @@ export function createWalletCommand(): Command {
 
   wallet
     .command('status')
-    .description('Inspect whether a stored wallet is actually ready for local write execution')
+    .description('Inspect wallet readiness and the shortest remediation path for local execution')
     .option('--name <name>', 'Wallet name', 'main')
     .action(async (options: { name: string }) => {
       const walletRecord = await loadWalletSession(options.name);
       if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
 
-      const inspection = await provider.inspectWallet(walletRecord);
-      printResult(inspectionLines(inspection), { ok: true, inspection });
+      const { inspection, summary } = await loadWalletStatusSummary(walletRecord);
+      printResult(walletStatusLines(inspection, summary), { ok: true, inspection, summary });
     });
 
   wallet
@@ -2178,28 +2270,7 @@ export function createWalletCommand(): Command {
     .option('--name <name>', 'Wallet name', 'main')
     .action(async (options: { name: string }) => {
       const walletRecord = await requireWalletRecord(options.name);
-      const inspection = await provider.inspectWallet(walletRecord);
-      const balances = await provider.getBalances({
-        walletName: walletRecord.walletName,
-        walletAddress: walletRecord.walletAddress,
-        chain: walletRecord.chain
-      });
-      const nativeBalance = balances.balances.find((entry) => entry.type === 'native');
-      const funding = nativeBalance && /^0*(\.0*)?$/.test(nativeBalance.balance.trim())
-        ? await provider.getFundingInfo({
-            walletName: walletRecord.walletName,
-            walletAddress: walletRecord.walletAddress,
-            chain: walletRecord.chain
-          })
-        : undefined;
-
-      const summary = buildWalletNextSummary({
-        wallet: walletRecord,
-        inspection,
-        nativeBalance: nativeBalance?.balance,
-        nativeSymbol: nativeBalance?.symbol,
-        funding
-      });
+      const { inspection, summary } = await loadWalletStatusSummary(walletRecord);
 
       printResult(walletNextLines(summary), {
         ok: true,
@@ -2669,7 +2740,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'hook-add'],
+        args: [
+          ['--hook', options.hook],
+          ['--init-data', initData]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['init data', initData]);
 
@@ -2714,7 +2792,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'hook-remove'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -2780,7 +2862,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'owner-set'],
+        args: [['--address', options.address]]
+      });
       lines.splice(5, 0, ['new owner', options.address]);
 
       printResult(lines, {
@@ -2848,7 +2934,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'validator-set'],
+        args: [['--address', options.address]]
+      });
       lines.splice(5, 0, ['new validator', options.address]);
 
       printResult(lines, {
@@ -2920,7 +3010,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'module-add'],
+        args: [['--module', options.module]]
+      });
       lines.splice(5, 0, ['module', options.module]);
 
       printResult(lines, {
@@ -2963,7 +3057,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'module-remove'],
+        args: [['--module', options.module]]
+      });
       lines.splice(5, 0, ['module', options.module]);
 
       printResult(lines, {
@@ -3035,7 +3133,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'limit-set'],
+        args: [['--amount', options.amount]]
+      });
       lines.splice(5, 0, ['max per tx', options.amount]);
       lines.splice(6, 0, ['max per tx wei', amountWei.toString()]);
 
@@ -3075,7 +3177,10 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      printResult(linesForWriteResult(result), {
+      printResult(linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'limit-remove']
+      }), {
         ok: true,
         sedLite: {
           operation: 'limit-remove'
@@ -3156,7 +3261,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'enable'],
+        args: [
+          ['--hook', options.hook],
+          ['--amount', options.amount]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['max per tx', options.amount]);
       lines.splice(7, 0, ['max per tx wei', amountWei.toString()]);
@@ -3211,7 +3323,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'set'],
+        args: [
+          ['--hook', options.hook],
+          ['--amount', options.amount]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['max per tx', options.amount]);
       lines.splice(7, 0, ['max per tx wei', amountWei.toString()]);
@@ -3259,7 +3378,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'remove'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -3302,7 +3425,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'disable'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -3423,7 +3550,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'enable'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['targets', options.target.join(', ')]);
 
@@ -3473,7 +3607,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'add'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -3523,7 +3664,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'remove'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -3568,7 +3716,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'disable'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -3764,7 +3916,18 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'enable'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target],
+          [
+            '--selector-rule',
+            selectorRules.map((rule) => `${rule.target}:${rule.selector}`)
+          ]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['targets', options.target.length > 0 ? options.target.join(', ') : 'none']);
       lines.splice(
@@ -3827,7 +3990,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'target-add'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -3879,7 +4049,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'target-remove'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -3932,7 +4109,15 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'selector-add'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target],
+          ['--selector', selector]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
       lines.splice(7, 0, ['selector', selector]);
@@ -3989,7 +4174,15 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'selector-remove'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target],
+          ['--selector', selector]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
       lines.splice(7, 0, ['selector', selector]);
@@ -4036,7 +4229,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'disable'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -4121,7 +4318,14 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'daily-spend-limit', 'set'],
+        args: [
+          ['--amount', options.amount],
+          ['--token', options.token]
+        ]
+      });
       lines.splice(5, 0, ['limit', options.amount]);
       lines.splice(6, 0, ['limit wei', amountWei.toString()]);
       lines.splice(7, 0, ['limit token', tokenAddress]);
@@ -4168,7 +4372,11 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      const lines = linesForWriteResult(result);
+      const lines = linesForWalletSubcommandWriteResult(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'daily-spend-limit', 'remove'],
+        args: [['--token', options.token]]
+      });
       lines.splice(5, 0, ['limit token', tokenAddress]);
 
       printResult(lines, {

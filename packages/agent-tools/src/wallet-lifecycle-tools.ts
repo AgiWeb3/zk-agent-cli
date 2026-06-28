@@ -8,6 +8,7 @@ import {
   requireBuiltinSmartAccountProfile,
   type BuiltinSmartAccountProfileId
 } from '@zk-agent/account-profiles';
+import type { AccountKind, PaymasterMode, SessionPolicies } from '@zk-agent/agent-session-protocol';
 import {
   AgentError,
   type CreateSessionRequestInput,
@@ -45,6 +46,18 @@ export interface WalletReapproveToolInput extends WalletNameInput {
   connectorUrl?: string;
 }
 
+export interface WalletApprovalOrchestratorToolInput {
+  mode: 'create' | 'reapprove' | 'approve';
+  walletName?: string;
+  chain?: string;
+  connectorUrl?: string;
+  accountKind?: AccountKind;
+  paymasterMode?: PaymasterMode;
+  policies?: SessionPolicies;
+  requestId?: string;
+  payload?: SessionPayload;
+}
+
 export interface ApproveWalletRequestToolInput {
   requestId: string;
   payload: SessionPayload;
@@ -79,6 +92,16 @@ export interface WalletRestoreToolOutput {
 export interface WalletReapproveToolOutput {
   wallet: WalletSessionRecord;
   request: SanitizedWalletRequestRecord;
+}
+
+export interface WalletApprovalOrchestratorToolOutput {
+  mode: WalletApprovalOrchestratorToolInput['mode'];
+  stage: 'request-created' | 'approved';
+  requestId: string;
+  request?: SanitizedWalletRequestRecord;
+  wallet?: WalletSessionRecord;
+  payload?: SanitizedSessionPayload;
+  nextAction: 'submit-approved-payload' | 'wallet-ready';
 }
 
 export interface ApproveWalletRequestToolOutput {
@@ -166,6 +189,12 @@ function cloneWalletSessionRecord(wallet: WalletSessionRecord): WalletSessionRec
 function sanitizeSessionPayload(payload: SessionPayload): SanitizedSessionPayload {
   const { sessionPrivateKey: _sessionPrivateKey, ...rest } = payload;
   return rest;
+}
+
+function defaultApprovalPolicies(policies?: SessionPolicies): SessionPolicies {
+  return policies || {
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  };
 }
 
 function sanitizeWalletRequestRecord(request: WalletRequestRecord): SanitizedWalletRequestRecord {
@@ -608,6 +637,161 @@ export function createWalletReapproveTool(context: AgentToolContext) {
           request: sanitizeWalletRequestRecord(request)
         };
       })
+  });
+}
+
+export async function runWalletApprovalOrchestration(
+  context: AgentToolContext,
+  input: WalletApprovalOrchestratorToolInput
+): Promise<WalletApprovalOrchestratorToolOutput> {
+  if (input.mode === 'approve') {
+    if (!input.requestId?.trim()) {
+      throw new AgentError(
+        'WALLET_REQUEST_ID_REQUIRED',
+        'walletApprovalOrchestratorTool approve mode requires requestId.',
+        {}
+      );
+    }
+    if (!input.payload) {
+      throw new AgentError(
+        'WALLET_APPROVAL_PAYLOAD_REQUIRED',
+        'walletApprovalOrchestratorTool approve mode requires an approved session payload.',
+        {
+          requestId: input.requestId
+        }
+      );
+    }
+
+    const walletRequest = await context.loadWalletRequest(input.requestId);
+    if (!walletRequest) {
+      throw new AgentError(
+        'WALLET_REQUEST_NOT_FOUND',
+        `Wallet request not found: ${input.requestId}`,
+        {
+          requestId: input.requestId
+        }
+      );
+    }
+
+    assertRequestActive(walletRequest.expiresAt);
+    assertApprovedPayloadMatchesRequest(input.payload, walletRequest);
+
+    const walletRecord = await importApprovedWalletSession(
+      context,
+      walletRequest.walletName,
+      input.payload
+    );
+    await context.deleteWalletRequest(walletRequest.requestId);
+
+    return {
+      mode: input.mode,
+      stage: 'approved',
+      requestId: walletRequest.requestId,
+      wallet: stripSensitiveWalletRecord(walletRecord),
+      payload: sanitizeSessionPayload(input.payload),
+      nextAction: 'wallet-ready'
+    };
+  }
+
+  let wallet: WalletSessionRecord | undefined;
+  let requestInput: CreateSessionRequestInput;
+
+  if (input.mode === 'create') {
+    if (!input.walletName?.trim()) {
+      throw new AgentError(
+        'WALLET_NAME_REQUIRED',
+        'walletApprovalOrchestratorTool create mode requires walletName.',
+        {}
+      );
+    }
+    if (!input.chain?.trim()) {
+      throw new AgentError(
+        'CHAIN_REQUIRED',
+        'walletApprovalOrchestratorTool create mode requires chain.',
+        {
+          walletName: input.walletName
+        }
+      );
+    }
+
+    requestInput = {
+      walletName: input.walletName.trim(),
+      chain: input.chain.trim(),
+      connectorUrl: input.connectorUrl?.trim() || 'http://localhost:4444',
+      policies: defaultApprovalPolicies(input.policies),
+      accountKind: input.accountKind,
+      paymasterMode: input.paymasterMode
+    };
+  } else {
+    if (!input.walletName?.trim()) {
+      throw new AgentError(
+        'WALLET_NAME_REQUIRED',
+        'walletApprovalOrchestratorTool reapprove mode requires walletName.',
+        {}
+      );
+    }
+
+    const currentWallet = await context.loadWallet(input.walletName.trim());
+    if (!currentWallet) {
+      throw new AgentError('WALLET_NOT_FOUND', `Wallet not found: ${input.walletName}`, {
+        walletName: input.walletName
+      });
+    }
+    wallet = currentWallet;
+
+    requestInput = {
+      walletName: wallet.walletName,
+      chain: wallet.chain,
+      connectorUrl: input.connectorUrl || wallet.sessionPayload?.connectorUrl || 'http://localhost:4444',
+      accountKind: displayAccountKind(wallet),
+      paymasterMode: displayPaymasterMode(wallet),
+      policies: defaultApprovalPolicies(input.policies)
+    };
+  }
+
+  const request = await createWalletRequest(context, requestInput);
+
+  if (!input.payload) {
+    return {
+      mode: input.mode,
+      stage: 'request-created',
+      requestId: request.requestId,
+      request: sanitizeWalletRequestRecord(request),
+      wallet: wallet ? stripSensitiveWalletRecord(wallet) : undefined,
+      nextAction: 'submit-approved-payload'
+    };
+  }
+
+  assertRequestActive(request.expiresAt);
+  assertApprovedPayloadMatchesRequest(input.payload, request);
+
+  const walletRecord = await importApprovedWalletSession(
+    context,
+    request.walletName,
+    input.payload
+  );
+  await context.deleteWalletRequest(request.requestId);
+
+  return {
+    mode: input.mode,
+    stage: 'approved',
+    requestId: request.requestId,
+    request: sanitizeWalletRequestRecord(request),
+    wallet: stripSensitiveWalletRecord(walletRecord),
+    payload: sanitizeSessionPayload(input.payload),
+    nextAction: 'wallet-ready'
+  };
+}
+
+export function createWalletApprovalOrchestratorTool(context: AgentToolContext) {
+  return createAgentTool<
+    WalletApprovalOrchestratorToolInput,
+    WalletApprovalOrchestratorToolOutput
+  >({
+    name: 'walletApprovalOrchestratorTool',
+    description:
+      'Create or reapprove a wallet session request and optionally finalize it from an approved connector payload in one tool call.',
+    execute: async (input) => runWalletApprovalOrchestration(context, input)
   });
 }
 

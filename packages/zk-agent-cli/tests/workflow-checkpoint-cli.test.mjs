@@ -69,6 +69,7 @@ function sampleCheckpoint(overrides = {}) {
     format: 'zk-agent-workflow-checkpoint',
     version: 1,
     requestId: 'wf-test-001',
+    walletRequestId: 'wr-test-001',
     walletName: 'main',
     intent: 'send-native',
     goal: {
@@ -132,12 +133,17 @@ test('workflow list/show/delete manage stored checkpoints through the CLI', asyn
 
     const shown = await runCliJson(['workflow', 'show', '--request-id', 'wf-test-001'], env);
     assert.equal(shown.ok, true);
+    assert.equal(shown.workflowRequestId, 'wf-test-001');
+    assert.equal(shown.walletRequestId, 'wr-test-001');
     assert.equal(shown.checkpoint.requestId, 'wf-test-001');
+    assert.equal(shown.checkpoint.walletRequestId, 'wr-test-001');
     assert.equal(shown.checkpoint.lastRun.txHash, '0x' + '44'.repeat(32));
 
     const deleted = await runCliJson(['workflow', 'delete', '--request-id', 'wf-test-001'], env);
     assert.equal(deleted.ok, true);
+    assert.equal(deleted.workflowRequestId, 'wf-test-001');
     assert.equal(deleted.requestId, 'wf-test-001');
+    assert.equal(deleted.walletRequestId, 'wr-test-001');
 
     const remaining = await runCliJson(['workflow', 'list'], env);
     assert.equal(remaining.count, 1);
@@ -184,6 +190,7 @@ test('workflow update changes stored checkpoint runtime settings without replaci
       env
     );
     assert.equal(updated.ok, true);
+    assert.equal(updated.workflowRequestId, 'wf-update-001');
     assert.equal(updated.checkpoint.broadcast, true);
     assert.equal(updated.checkpoint.autoSync, true);
     assert.equal(updated.checkpoint.fundingCheck.kind, 'deposit');
@@ -194,6 +201,7 @@ test('workflow update changes stored checkpoint runtime settings without replaci
       env
     );
     assert.equal(cleared.ok, true);
+    assert.equal(cleared.workflowRequestId, 'wf-update-001');
     assert.equal(cleared.checkpoint.fundingCheck, undefined);
     assert.equal(cleared.checkpoint.fund, undefined);
 

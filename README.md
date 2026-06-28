@@ -17,7 +17,17 @@ The project is intentionally modeled after the real architecture of `polygon-age
 
 ## Current Phase
 
-The project has moved past background analysis and is now in formal implementation.
+The project has moved past scaffolding and isolated chain experiments.
+
+Current stage: `Phase 3: productization and parity`.
+
+What that means:
+
+- the zkSync-native engineering baseline already exists
+- the main remaining gap versus `polygon-agent-cli` is product packaging, not
+  raw chain mechanics
+- the next work should optimize for agent/operator usability before broadening
+  the AA surface further
 
 What is already in place:
 
@@ -40,16 +50,21 @@ What is already in place:
   - `send`
   - `send-token`
   - write-mode `call`
+  - preview outputs now include concrete broadcast-ready `next` commands instead of only generic `--broadcast` hints for the supported send / call / swap / bridge / deposit / withdraw / withdraw-finalize paths
 - `wallet status` inspection for:
   - execution address vs owner address
   - session signer consistency
   - deployed vs undeployed smart-account state
   - local write readiness blockers
+  - the shortest remediation path for local execution
 - `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
 - `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
+- `workflow status|run|resume --ensure-wallet-session [--await-local]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale
+- workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
 - `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
+- `workflow` and `wallet next` now treat supported paymaster-backed smart-account writes as gas-satisfied even when the stored native balance is zero, so `send` / `send-token` / `call` / `swap` do not get blocked behind an unnecessary fund step before paymaster validation is attempted
 - `workflow status|resume` for checking whether a previously prepared workflow is still blocked, still waiting on funding, or ready to continue, with optional `--request-id` loading from the stored checkpoint
 - `workflow list|show|update|delete` for local checkpoint inspection, runtime-setting adjustments, and cleanup, so longer-running operator flows do not accumulate opaque local state
 - `wallet sync` for refreshing local smart-account metadata from deployed onchain state, including saved built-in profile context such as `sed-lite`
@@ -68,10 +83,13 @@ What is already in place:
   - create wallet request
   - create stored wallet approval request
   - approve stored wallet request
+  - unified wallet approval orchestration for create / reapprove / approve flows, with optional immediate payload finalization in one tool call
   - wallet reapprove
   - wallet status
   - wallet next-step guidance
   - workflow planning for concrete write intents
+  - unified workflow orchestration from fresh goal input or stored checkpoint, with optional checkpoint persistence and execute-when-ready behavior
+  - workflow orchestration can now auto-create a local reapproval request when a missing writable session blocks execution, and can continue straight through to goal execution when an approved payload is supplied in the same tool call
   - bounded workflow execution with separate funding-step dispatch
   - local workflow checkpoint lifecycle management for start/list/get/update/delete
   - workflow status / execution directly from stored checkpoint `requestId`
@@ -94,6 +112,8 @@ What is already in place:
   - `pnpm --filter @zk-agent/agent-tools smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
   - `pnpm --filter @zk-agent/agent-tools smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm --filter @zk-agent/agent-tools smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
+  - `pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path
+  - `pnpm --filter @zk-agent/agent-tools smoke:withdraw-followup -- --wallet <name> --tx-hash <hash> [--execute]` for withdraw-status -> finalize-preview / finalize-broadcast follow-up on a previously broadcast L2 withdraw
   - `pnpm --filter @zk-agent/agent-tools smoke:broadcast -- --wallet <name> --execute` for the opt-in live legacy fee-token incompatibility smoke, which may now fail during estimation or broadcast depending on current Sepolia behavior
   - built `dist` entrypoints now also run directly, for example `node packages/agent-tools/dist/run-tool.js --list`
   - tool errors now also expose normalized validation `classification` and
@@ -113,6 +133,7 @@ What is already in place:
   - CLI profile discovery via `wallet smart-account profiles`
   - profile-specific account management via
     `wallet smart-account sed-lite owner|owner-set|validator|validator-set|module|module-add|module-remove|hook|hooks|hook-add|hook-remove|limit|limit-set|limit-remove|native-cap-hook|target-allowlist-hook|selector-allowlist-hook`
+  - preview outputs for the built-in profile write commands now include concrete rerun commands with the same wallet/profile/paymaster arguments plus `--broadcast`
 - second built-in smart-account profile:
   - `daily-spend-limit`
   - source checked into the workspace
@@ -139,6 +160,7 @@ What is already in place:
   - the currently supported `ethereum-sepolia <-> zksync-sepolia` bridge pair
   - machine-readable route metadata and post-broadcast status-command hints
   - unified `bridge-status` inspection on top of the deposit / withdraw lifecycle trackers
+  - preserved lifecycle-specific next-step guidance in `bridge-status`, including deposit polling and withdraw finalization follow-up
 - `swap` support through `packages/provider-zksync-defi`, including:
   - same-chain `Uniswap V3 exactInputSingle` and `SyncSwap classic` single-pool request shaping
   - explicit router / token / protocol input instead of hidden quote aggregation
@@ -155,6 +177,7 @@ What is already in place:
   - gas estimation for the withdraw path
   - opt-in L2 withdraw broadcast for locally writable sessions
   - post-broadcast L2 and batch status inspection
+  - direct `withdraw-status` guidance for the later `withdraw-finalize` step once the L2 side is finalized
   - L1 finalize-parameter preview and opt-in L1 finalize broadcast for later nullifier finalization
   - structured shared-bridge router error classification, so unsupported or local-only assets fail with explicit `bridge-router` metadata instead of a raw revert blob
 - structured paymaster validation errors now classify known zkSync Sepolia
@@ -168,18 +191,86 @@ What is already in place:
   - approval-based paymaster still requires explicit fee-token validation and cannot assume that any ERC-20 is usable
   - approval-based preview now succeeds with the self-deployed `18 decimals` test token
   - approval-based live broadcast now works on the validated EraVM token path
+  - smart-account approval-based live broadcast is validated on `sed-lite-sa-v2` with tx hash `0x2783de9185bcd6af21822c9c0ffa35e5329e96c8137ff41598d3cd001344ce8c`
+  - native L2 withdraw broadcast works from `paymaster-eoa` with tx hash `0xea192d3fda23a747328c1d63b6d2e22664fd353511faf327ba8f28c408800ba8`
+  - immediate withdraw follow-up reaches `included`, but L1 finalize preview can still fail with `WITHDRAW_FINALIZE_PREVIEW_FAILED` and cause `Log proof not found!` before the chain exposes the required log proof
 - background docs in `docs/`
 - execution plan in `PLANS.md`
 - cross-environment handoff snapshot in `PROJECT_STATE.md`
 
 What is next:
 
-- push policy work onto the `sed-lite` hook path instead of hardcoding it into account core
-- validate smart-account writes through paymaster mode once the base no-paymaster path is stable
-- connector approval flow
-- funded paymaster broadcast validation on zkSync Sepolia
-- withdraw finalization follow-up
-- deposit lifecycle follow-up beyond status / broader bridge / richer swap routing and quote resolution
+1. standardize the default operator path around:
+   `setup -> wallet create/reapprove -> fund -> workflow run`
+2. add an installable `skills/` surface so agent harnesses do not need repo-
+   specific tribal knowledge
+3. upgrade the connector from local callback-first behavior to a relay-capable
+   remote approval flow
+4. wrap the current action surface in stronger workflow-oriented adapters with
+   clearer defaults and guardrails
+5. continue focused chain validation where the product path still has a real
+   gap:
+   - withdraw finalization follow-up through proof availability
+   - deposit lifecycle follow-up beyond status
+   - broader bridge coverage
+   - richer swap routing and quote resolution
+
+Compared with `polygon-agent-cli`, the practical parity target for the next
+stage is:
+
+- one obvious default path for wallet bootstrap and transaction execution
+- one installable agent-facing surface
+- one connector flow that works beyond a colocated browser + terminal setup
+- one opinionated workflow layer on top of the current zkSync action surface
+
+## Recommended Operator Path
+
+For the current phase, treat this as the canonical CLI path:
+
+1. Initialize local defaults:
+
+```bash
+pnpm zk-agent setup
+```
+
+2. Create or refresh a writable local wallet session through the connector:
+
+```bash
+pnpm zk-agent wallet create --await-local
+```
+
+If the wallet already exists but has lost its writable local session:
+
+```bash
+pnpm zk-agent wallet reapprove --name main --await-local
+```
+
+3. Ask the CLI for the shortest next remediation or execution step:
+
+```bash
+pnpm zk-agent wallet next --name main
+```
+
+If you need the same recommendation plus the underlying inspection details:
+
+```bash
+pnpm zk-agent wallet status --name main
+```
+
+4. If native gas is missing, dispatch the suggested funding route:
+
+```bash
+pnpm zk-agent fund --wallet main --amount <amount> --execute
+```
+
+5. Execute the actual goal through the workflow surface. Omit `--broadcast` to preview first:
+
+```bash
+pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount> --broadcast
+```
+
+The key rule is: do not jump straight from wallet creation into ad-hoc write
+commands. Let `wallet next` and `workflow run` carry the default operator path.
 
 ## Development Environment Strategy
 

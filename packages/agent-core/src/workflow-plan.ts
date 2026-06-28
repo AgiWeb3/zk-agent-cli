@@ -1,10 +1,14 @@
 import type {
   FundingInfo,
+  PaymasterSelectionInput,
   WalletInspectionResult,
   WalletSessionRecord
 } from './providers.js';
 import {
   buildWalletPreparationActions,
+  canUsePaymasterForGas,
+  isZeroBalance,
+  resolveEffectivePaymasterSelection,
   type WalletNextAction
 } from './wallet-next.js';
 
@@ -54,16 +58,27 @@ interface GoalStepResult {
   notes: string[];
 }
 
+export function workflowIntentSupportsPaymaster(intent: WorkflowIntent): boolean {
+  return (
+    intent === 'send-native' ||
+    intent === 'send-token' ||
+    intent === 'call-write' ||
+    intent === 'swap'
+  );
+}
+
 function appendWalletPaymasterCommandArgs(
   wallet: WalletSessionRecord,
-  command: string
+  command: string,
+  requestedPaymaster?: PaymasterSelectionInput
 ): string {
-  const mode = wallet.paymasterMode || wallet.sessionPayload?.paymaster?.mode;
+  const paymaster = resolveEffectivePaymasterSelection(wallet, requestedPaymaster);
+  const mode = paymaster?.mode;
   if (!mode || mode === 'none') return command;
 
   let nextCommand = `${command} --paymaster-mode ${mode}`;
-  const address = wallet.sessionPayload?.paymaster?.address;
-  const token = wallet.sessionPayload?.paymaster?.token;
+  const address = paymaster.address;
+  const token = paymaster.token;
 
   if (address) {
     nextCommand += ` --paymaster-address ${address}`;
@@ -80,6 +95,7 @@ function buildGoalStep(input: {
   intent: WorkflowIntent;
   protocol?: WorkflowSwapProtocol;
   toChain?: string;
+  paymaster?: PaymasterSelectionInput;
 }): GoalStepResult {
   const { wallet, intent } = input;
 
@@ -89,7 +105,8 @@ function buildGoalStep(input: {
         goal: 'Broadcast a native token transfer',
         command: appendWalletPaymasterCommandArgs(
           wallet,
-          `zk-agent send --wallet ${wallet.walletName} --to <address> --amount <amount> --broadcast`
+          `zk-agent send --wallet ${wallet.walletName} --to <address> --amount <amount> --broadcast`,
+          input.paymaster
         ),
         notes: []
       };
@@ -99,7 +116,8 @@ function buildGoalStep(input: {
         command: appendWalletPaymasterCommandArgs(
           wallet,
           `zk-agent send-token --wallet ${wallet.walletName} --token <address> ` +
-            '--amount <amount> --to <address> --broadcast'
+            '--amount <amount> --to <address> --broadcast',
+          input.paymaster
         ),
         notes: []
       };
@@ -109,7 +127,8 @@ function buildGoalStep(input: {
         command: appendWalletPaymasterCommandArgs(
           wallet,
           `zk-agent call --wallet ${wallet.walletName} --mode write ` +
-            '--to <address> --data <hex> --broadcast'
+            '--to <address> --data <hex> --broadcast',
+          input.paymaster
         ),
         notes: []
       };
@@ -121,7 +140,8 @@ function buildGoalStep(input: {
             wallet,
             `zk-agent swap --wallet ${wallet.walletName} --protocol syncswap-classic ` +
               '--router <address> --factory <address> --token-in <address> --token-out <address> ' +
-              '--amount-in <amount> --amount-out-min <amount> --broadcast'
+              '--amount-in <amount> --amount-out-min <amount> --broadcast',
+            input.paymaster
           ),
           notes: []
         };
@@ -134,7 +154,8 @@ function buildGoalStep(input: {
             wallet,
             `zk-agent swap --wallet ${wallet.walletName} --protocol uniswap-v3-exact-input-single ` +
               '--router <address> --fee-tier <fee> --token-in <address> --token-out <address> ' +
-              '--amount-in <amount> --amount-out-min <amount> --broadcast'
+              '--amount-in <amount> --amount-out-min <amount> --broadcast',
+            input.paymaster
           ),
           notes: []
         };
@@ -146,7 +167,8 @@ function buildGoalStep(input: {
           wallet,
           `zk-agent swap --wallet ${wallet.walletName} --protocol <protocol> ` +
             '--router <address> --token-in <address> --token-out <address> ' +
-            '--amount-in <amount> --amount-out-min <amount> --broadcast'
+            '--amount-in <amount> --amount-out-min <amount> --broadcast',
+          input.paymaster
         ),
         notes: [
           'When protocol is syncswap-classic, also supply --factory <address>.',
@@ -187,13 +209,19 @@ export function buildWorkflowPlan(input: {
   funding?: FundingInfo;
   protocol?: WorkflowSwapProtocol;
   toChain?: string;
+  paymaster?: PaymasterSelectionInput;
 }): WorkflowPlan {
+  const paymasterCanCoverGas =
+    workflowIntentSupportsPaymaster(input.intent) &&
+    isZeroBalance(input.nativeBalance) &&
+    canUsePaymasterForGas(input.wallet, input.paymaster);
   const preparationSteps = buildWalletPreparationActions({
     wallet: input.wallet,
     inspection: input.inspection,
     nativeBalance: input.nativeBalance,
     nativeSymbol: input.nativeSymbol,
     funding: input.funding,
+    paymasterCanCoverGas,
     fundPriority: 'required',
     excludeActionIds: input.intent === 'deposit' ? ['fund'] : undefined
   }).map<WorkflowPlanStep>((action) => ({
@@ -205,7 +233,8 @@ export function buildWorkflowPlan(input: {
     wallet: input.wallet,
     intent: input.intent,
     protocol: input.protocol,
-    toChain: input.toChain
+    toChain: input.toChain,
+    paymaster: input.paymaster
   });
   const goalStep: WorkflowPlanStep = {
     id: input.intent,
@@ -220,6 +249,13 @@ export function buildWorkflowPlan(input: {
   const steps = [...preparationSteps, goalStep];
   const readyForGoal = !preparationSteps.some((step) => step.priority === 'required');
   const notes = [
+    ...(paymasterCanCoverGas
+      ? [
+          `Native balance is zero, but paymaster mode ${
+            resolveEffectivePaymasterSelection(input.wallet, input.paymaster)?.mode || 'unknown'
+          } is configured for this workflow intent, so a separate fund step is not required up front.`
+        ]
+      : []),
     ...goal.notes,
     ...(readyForGoal
       ? []

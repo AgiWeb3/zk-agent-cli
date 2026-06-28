@@ -4,13 +4,14 @@ import type {
   DefiProvider,
   DepositStatusResult,
   FundingInfo,
+  PaymasterSelectionInput,
   WalletInspectionResult,
   WalletProvider,
   WalletSessionRecord
 } from './providers.js';
 import { buildWorkflowPlan, type WorkflowIntent, type WorkflowPlan } from './workflow-plan.js';
 import { buildWorkflowGoalCommand, type WorkflowGoalInput } from './workflow-run.js';
-import { isZeroBalance } from './wallet-next.js';
+import { canUsePaymasterForGas, isZeroBalance } from './wallet-next.js';
 
 export interface WorkflowFundingStatusCheck {
   kind: 'deposit' | 'bridge';
@@ -87,8 +88,18 @@ export async function inspectWorkflowStatus(
     chain: input.wallet.chain
   });
   const nativeBalance = balances.balances.find((entry) => entry.type === 'native');
+  const requestedPaymaster =
+    'paymaster' in input.goal ? (input.goal.paymaster as PaymasterSelectionInput | undefined) : undefined;
+  const paymasterCanCoverGas =
+    nativeBalance &&
+    isZeroBalance(nativeBalance.balance) &&
+    (input.intent === 'send-native' ||
+      input.intent === 'send-token' ||
+      input.intent === 'call-write' ||
+      input.intent === 'swap') &&
+    canUsePaymasterForGas(input.wallet, requestedPaymaster);
   const funding =
-    nativeBalance && isZeroBalance(nativeBalance.balance)
+    nativeBalance && isZeroBalance(nativeBalance.balance) && !paymasterCanCoverGas
       ? await deps.provider.getFundingInfo({
           walletName: input.wallet.walletName,
           walletAddress: input.wallet.walletAddress,
@@ -103,6 +114,7 @@ export async function inspectWorkflowStatus(
     nativeBalance: nativeBalance?.balance,
     nativeSymbol: nativeBalance?.symbol,
     funding,
+    paymaster: requestedPaymaster,
     protocol: input.goal.intent === 'swap' ? input.goal.protocol : undefined,
     toChain: input.goal.intent === 'bridge' ? input.goal.toChain : undefined
   });

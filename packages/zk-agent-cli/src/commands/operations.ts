@@ -14,6 +14,16 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 import { executeFundAction } from '../lib/fund.js';
 import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
+import {
+  buildBridgePreviewNextCommand,
+  buildCallWritePreviewNextCommand,
+  buildDepositPreviewNextCommand,
+  buildSendPreviewNextCommand,
+  buildSendTokenPreviewNextCommand,
+  buildSwapPreviewNextCommand,
+  buildWithdrawFinalizePreviewNextCommand,
+  buildWithdrawPreviewNextCommand
+} from '../lib/preview-next-command.js';
 
 const provider = new ZkSyncWalletProvider();
 const defiProvider = new ZkSyncDefiProvider({
@@ -31,7 +41,10 @@ async function requireWallet(walletName: string) {
   return wallet;
 }
 
-function linesForWriteResult(result: Awaited<ReturnType<ZkSyncWalletProvider['sendNative']>>): Array<[string, string]> {
+function linesForWriteResult(
+  result: Awaited<ReturnType<ZkSyncWalletProvider['sendNative']>>,
+  nextCommand?: string
+): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
     ['wallet', result.walletName],
@@ -51,8 +64,8 @@ function linesForWriteResult(result: Awaited<ReturnType<ZkSyncWalletProvider['se
   if (result.paymaster.note) lines.push(['paymaster note', result.paymaster.note]);
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
@@ -146,7 +159,10 @@ function isBridgeStatusTerminal(
   return status === 'finalized' || status === 'failed';
 }
 
-function linesForWithdrawResult(result: Awaited<ReturnType<ZkSyncDefiProvider['withdraw']>>): Array<[string, string]> {
+function linesForWithdrawResult(
+  result: Awaited<ReturnType<ZkSyncDefiProvider['withdraw']>>,
+  nextCommand?: string
+): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
     ['wallet', result.walletName],
@@ -167,15 +183,16 @@ function linesForWithdrawResult(result: Awaited<ReturnType<ZkSyncDefiProvider['w
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
   for (const note of result.notes) lines.push(['note', note]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the withdraw transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
 }
 
 function linesForDepositResult(
-  result: Awaited<ReturnType<ZkSyncDefiProvider['deposit']>>
+  result: Awaited<ReturnType<ZkSyncDefiProvider['deposit']>>,
+  nextCommand?: string
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
@@ -197,15 +214,16 @@ function linesForDepositResult(
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
   for (const note of result.notes) lines.push(['note', note]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the L1 deposit transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
 }
 
 function linesForBridgeResult(
-  result: Awaited<ReturnType<ZkSyncDefiProvider['bridge']>>
+  result: Awaited<ReturnType<ZkSyncDefiProvider['bridge']>>,
+  nextCommand?: string
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
@@ -228,15 +246,16 @@ function linesForBridgeResult(
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
   if (result.statusCommand) lines.push(['status', result.statusCommand]);
   for (const note of result.notes) lines.push(['note', note]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the bridge transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
 }
 
 function linesForSwapResult(
-  result: Awaited<ReturnType<ZkSyncDefiProvider['swap']>>
+  result: Awaited<ReturnType<ZkSyncDefiProvider['swap']>>,
+  nextCommand?: string
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['mode', result.mode],
@@ -276,8 +295,8 @@ function linesForSwapResult(
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
   for (const note of result.notes) lines.push(['note', note]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the swap transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
@@ -449,6 +468,7 @@ function linesForWithdrawStatusResult(
   if (result.l1Batch?.commitTxHash) lines.push(['batch commit tx', result.l1Batch.commitTxHash]);
   if (result.l1Batch?.proveTxHash) lines.push(['batch prove tx', result.l1Batch.proveTxHash]);
   if (result.l1Batch?.executeTxHash) lines.push(['batch execute tx', result.l1Batch.executeTxHash]);
+  if (result.nextCommand) lines.push(['next', result.nextCommand]);
 
   for (const note of result.notes) lines.push(['note', note]);
   return lines;
@@ -456,7 +476,8 @@ function linesForWithdrawStatusResult(
 
 function linesForWithdrawFinalizeResult(
   result: Awaited<ReturnType<ZkSyncDefiProvider['finalizeWithdraw']>>,
-  walletName?: string
+  walletName?: string,
+  nextCommand?: string
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [];
 
@@ -490,8 +511,8 @@ function linesForWithdrawFinalizeResult(
     lines.push(['legacy l2 tx number in block', String(result.legacyFinalizeParams.l2TxNumberInBlock)]);
   }
   for (const note of result.notes) lines.push(['note', note]);
-  if (result.mode === 'preview') {
-    lines.push(['next', 'Re-run with --broadcast to submit the L1 finalize transaction']);
+  if (result.mode === 'preview' && nextCommand) {
+    lines.push(['next', nextCommand]);
   }
 
   return lines;
@@ -612,7 +633,7 @@ export function createBalancesCommand(): Command {
 
 export function createFundCommand(): Command {
   return new Command('fund')
-    .description('Show the default funding path for the active chain')
+    .description('Explain or execute the default funding step for the active chain')
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--amount <value>', 'Optional amount to embed into the suggested funding commands')
     .option('--token <address>', 'Optional token address to embed into the suggested funding commands')
@@ -689,16 +710,43 @@ export function createFundCommand(): Command {
         );
 
         if ('route' in result) {
-          printResult(linesForBridgeResult(result), { ok: true, ...result });
+          printResult(
+            linesForBridgeResult(
+              result,
+              buildBridgePreviewNextCommand({
+                walletName: wallet.walletName,
+                amount: result.token.amount,
+                fromChain: result.fromChain,
+                toChain: result.toChain,
+                recipient: result.recipient,
+                token: result.token,
+                bridgeAddress: result.bridgeAddress
+              })
+            ),
+            { ok: true, ...result }
+          );
           return;
         }
 
-        printResult(linesForDepositResult(result), { ok: true, ...result });
+        printResult(
+          linesForDepositResult(
+            result,
+            buildDepositPreviewNextCommand({
+              walletName: wallet.walletName,
+              amount: result.token.amount,
+              recipient: result.recipient,
+              token: result.token,
+              bridgeAddress: result.bridgeAddress
+            })
+          ),
+          { ok: true, ...result }
+        );
         return;
       }
 
       printResult(
         [
+          ['status', 'funding-guidance'],
           ['wallet', funding.walletName],
           ['chain', `${funding.chain} (${funding.chainId})`],
           ...(funding.sourceChain
@@ -725,6 +773,9 @@ export function createFundCommand(): Command {
             ? [['token decimals', String(funding.token.decimals)] as [string, string]]
             : []),
           ['funding url', funding.fundingUrl],
+          ...(funding.suggestedCommands?.[0]
+            ? [['next', funding.suggestedCommands[0]] as [string, string]]
+            : []),
           ...((funding.suggestedCommands || []).map((command) => [
             'command',
             command
@@ -762,7 +813,18 @@ export function createSendCommand(): Command {
           paymaster: resolvePaymasterInput(options)
         });
 
-        printResult(linesForWriteResult(result), { ok: true, ...result });
+        printResult(
+          linesForWriteResult(
+            result,
+            buildSendPreviewNextCommand({
+              walletName: wallet.walletName,
+              to: options.to,
+              amount: options.amount,
+              paymaster: result.paymaster
+            })
+          ),
+          { ok: true, ...result }
+        );
       }
     );
 }
@@ -811,7 +873,16 @@ export function createSendTokenCommand(): Command {
           paymaster: resolvePaymasterInput(options)
         });
 
-        const lines = linesForWriteResult(result);
+        const nextCommand = buildSendTokenPreviewNextCommand({
+          walletName: wallet.walletName,
+          to: options.to,
+          tokenAddress: options.token,
+          amount: options.amount,
+          decimals,
+          symbol,
+          paymaster: result.paymaster
+        });
+        const lines = linesForWriteResult(result, nextCommand);
         if (symbol) lines.splice(5, 0, ['token', symbol]);
         lines.splice(symbol ? 6 : 5, 0, ['token address', options.token]);
         lines.splice(symbol ? 7 : 6, 0, ['amount', options.amount]);
@@ -875,7 +946,19 @@ export function createCallCommand(): Command {
             paymaster: resolvePaymasterInput(options)
           });
 
-          printResult(linesForWriteResult(result), { ok: true, ...result });
+          printResult(
+            linesForWriteResult(
+              result,
+              buildCallWritePreviewNextCommand({
+                walletName: wallet.walletName,
+                to: options.to,
+                data: options.data,
+                value: options.value,
+                paymaster: result.paymaster
+              })
+            ),
+            { ok: true, ...result }
+          );
           return;
         }
 
@@ -945,7 +1028,19 @@ export function createWithdrawCommand(): Command {
           broadcast: Boolean(options.broadcast)
         });
 
-        printResult(linesForWithdrawResult(result), { ok: true, ...result });
+        printResult(
+          linesForWithdrawResult(
+            result,
+            buildWithdrawPreviewNextCommand({
+              walletName: wallet.walletName,
+              amount: options.amount,
+              recipient: result.recipient,
+              token: result.token,
+              bridgeAddress: result.bridgeAddress
+            })
+          ),
+          { ok: true, ...result }
+        );
       }
     );
 }
@@ -993,7 +1088,13 @@ export function createDepositCommand(): Command {
           broadcast: Boolean(options.broadcast)
         });
 
-        printResult(linesForDepositResult(result), {
+        printResult(linesForDepositResult(result, buildDepositPreviewNextCommand({
+          walletName: wallet.walletName,
+          amount: options.amount,
+          recipient: result.recipient,
+          token: result.token,
+          bridgeAddress: result.bridgeAddress
+        })), {
           ok: true,
           ...result
         });
@@ -1109,7 +1210,19 @@ export function createSwapCommand(): Command {
           paymaster: resolvePaymasterInput(options)
         });
 
-        printResult(linesForSwapResult(result), {
+        printResult(linesForSwapResult(result, buildSwapPreviewNextCommand({
+          walletName: wallet.walletName,
+          protocol: result.protocol,
+          routerAddress: result.routerAddress,
+          factoryAddress: result.factoryAddress,
+          tokenIn: result.tokenIn,
+          tokenOut: result.tokenOut,
+          recipient: result.recipient,
+          feeTier: result.feeTier,
+          sqrtPriceLimitX96: result.sqrtPriceLimitX96,
+          approvalMode: result.approval.mode,
+          paymaster: result.paymaster
+        })), {
           ok: true,
           ...result
         });
@@ -1166,7 +1279,15 @@ export function createBridgeCommand(): Command {
           broadcast: Boolean(options.broadcast)
         });
 
-        printResult(linesForBridgeResult(result), {
+        printResult(linesForBridgeResult(result, buildBridgePreviewNextCommand({
+          walletName: wallet.walletName,
+          amount: options.amount,
+          fromChain: result.fromChain,
+          toChain: result.toChain,
+          recipient: result.recipient,
+          token: result.token,
+          bridgeAddress: result.bridgeAddress
+        })), {
           ok: true,
           ...result
         });
@@ -1385,11 +1506,23 @@ export function createWithdrawFinalizeCommand(): Command {
           broadcast: Boolean(options.broadcast)
         });
 
-        printResult(linesForWithdrawFinalizeResult(result, wallet.walletName), {
+        printResult(
+          linesForWithdrawFinalizeResult(
+            result,
+            wallet.walletName,
+            buildWithdrawFinalizePreviewNextCommand({
+              walletName: wallet.walletName,
+              txHash: options.txHash,
+              chain: options.chain || wallet.chain,
+              index: result.index
+            })
+          ),
+          {
           ok: true,
           walletName: wallet.walletName,
           ...result
-        });
+          }
+        );
       }
     );
 }

@@ -526,6 +526,7 @@ export interface WithdrawStatusResult {
   status: 'not-found' | 'pending' | 'included' | 'finalized';
   l2Finalized: boolean;
   finalizedBlockNumber?: number;
+  nextCommand?: string;
   transaction?: {
     from?: string;
     to?: string;

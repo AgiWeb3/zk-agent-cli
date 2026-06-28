@@ -1304,10 +1304,12 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'createWalletTool',
     'createWalletRequestTool',
     'approveWalletRequestTool',
+    'walletApprovalOrchestratorTool',
     'walletReapproveTool',
     'walletStatusTool',
     'walletNextTool',
     'workflowPlanTool',
+    'workflowOrchestratorTool',
     'workflowStatusTool',
     'workflowRunTool',
     'startWorkflowCheckpointTool',
@@ -1339,7 +1341,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 35);
+  assert.equal(listed.length, 37);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
 });
@@ -1476,6 +1478,45 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     deleteWorkflowCheckpoint: async (requestId) => workflowCheckpoints.delete(requestId)
   });
 
+  const blockedWorkflowOrchestrator = await runStandardAgentTool(
+    workflowContext,
+    'workflowOrchestratorTool',
+    {
+      walletName: 'main',
+      requestId: 'wf-tool-orch-001',
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      createCheckpoint: true
+    }
+  );
+  assert.equal(blockedWorkflowOrchestrator.ok, true);
+  if (blockedWorkflowOrchestrator.ok) {
+    assert.equal(
+      (blockedWorkflowOrchestrator.data as { action: string }).action,
+      'blocked'
+    );
+    assert.equal(
+      (
+        blockedWorkflowOrchestrator.data as {
+          checkpointPersisted: boolean;
+        }
+      ).checkpointPersisted,
+      true
+    );
+    assert.equal(
+      (
+        blockedWorkflowOrchestrator.data as {
+          checkpoint: { requestId: string };
+        }
+      ).checkpoint.requestId,
+      'wf-tool-orch-001'
+    );
+  }
+
   const workflowStart = await runStandardAgentTool(workflowContext, 'startWorkflowCheckpointTool', {
     walletName: 'main',
     requestId: 'wf-tool-001',
@@ -1501,9 +1542,13 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   });
   assert.equal(workflowList.ok, true);
   if (workflowList.ok) {
-    assert.equal(
-      (workflowList.data as { checkpoints: unknown[] }).checkpoints.length,
-      1
+    assert.deepEqual(
+      (
+        workflowList.data as {
+          checkpoints: { requestId: string }[];
+        }
+      ).checkpoints.map((checkpoint) => checkpoint.requestId),
+      ['wf-tool-001', 'wf-tool-orch-001']
     );
   }
 
@@ -1546,7 +1591,8 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     requestId: 'wf-tool-001'
   });
   assert.equal(workflowDelete.ok, true);
-  assert.equal(workflowCheckpoints.size, 0);
+  assert.equal(workflowCheckpoints.size, 1);
+  assert.equal(workflowCheckpoints.has('wf-tool-orch-001'), true);
 
   const workflowRunnableCheckpoints = new Map<string, any>();
   const workflowRunnableContext = createAgentToolContext({
@@ -1598,6 +1644,61 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     }
   );
   assert.equal(runnableStart.ok, true);
+
+  const workflowOrchestratorStart = await runStandardAgentTool(
+    workflowRunnableContext,
+    'workflowOrchestratorTool',
+    {
+      walletName: 'main',
+      requestId: 'wf-tool-orch-002',
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      createCheckpoint: true
+    }
+  );
+  assert.equal(workflowOrchestratorStart.ok, true);
+  if (workflowOrchestratorStart.ok) {
+    assert.equal(
+      (workflowOrchestratorStart.data as { source: string }).source,
+      'input'
+    );
+    assert.equal(
+      (workflowOrchestratorStart.data as { action: string }).action,
+      'ready'
+    );
+  }
+
+  const workflowOrchestratorResume = await runStandardAgentTool(
+    workflowRunnableContext,
+    'workflowOrchestratorTool',
+    {
+      requestId: 'wf-tool-orch-002',
+      executeWhenReady: true
+    }
+  );
+  assert.equal(workflowOrchestratorResume.ok, true);
+  if (workflowOrchestratorResume.ok) {
+    assert.equal(
+      (workflowOrchestratorResume.data as { source: string }).source,
+      'checkpoint'
+    );
+    assert.equal(
+      (workflowOrchestratorResume.data as { action: string }).action,
+      'goal-executed'
+    );
+    assert.equal(
+      (
+        workflowOrchestratorResume.data as {
+          checkpoint: { lastRun: { stage: string } };
+        }
+      ).checkpoint.lastRun.stage,
+      'goal-executed'
+    );
+  }
 
   const statusByCheckpoint = await runStandardAgentTool(
     workflowRunnableContext,
@@ -1781,6 +1882,139 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   }
 });
 
+test('workflow orchestrator can create or auto-complete wallet reapproval when session approval is missing', async () => {
+  const requests = new Map<string, any>();
+  const wallets = new Map<string, WalletSessionRecord>();
+  const checkpoints = new Map<string, any>();
+
+  const workflowProvider = {
+    ...createProviderStub(),
+    async inspectWallet(wallet: WalletSessionRecord) {
+      const sessionPrivateKeyStored = Boolean(wallet.sessionPayload?.sessionPrivateKey);
+
+      return {
+        walletName: wallet.walletName,
+        executionAddress: wallet.walletAddress,
+        ownerAddress: wallet.ownerAddress,
+        chain: wallet.chain,
+        chainId: wallet.chainId,
+        accountKind: wallet.accountKind,
+        paymasterMode: wallet.paymasterMode,
+        deploymentStatus: 'deployed',
+        codeLength: 123,
+        sessionPrivateKeyStored,
+        writeReady: sessionPrivateKeyStored,
+        blockers: sessionPrivateKeyStored ? [] : ['reapprove'],
+        notes: sessionPrivateKeyStored ? ['ready'] : ['missing local session']
+      };
+    }
+  };
+
+  wallets.set('workflow-needs-approval', {
+    ...sampleWallet,
+    walletName: 'workflow-needs-approval',
+    sessionPayload: sampleSessionPayload({
+      sessionPrivateKey: undefined
+    })
+  });
+  wallets.set('workflow-auto-approval', {
+    ...sampleWallet,
+    walletName: 'workflow-auto-approval',
+    sessionPayload: sampleSessionPayload({
+      sessionPrivateKey: undefined
+    })
+  });
+
+  const context = createAgentToolContext({
+    provider: workflowProvider,
+    defiProvider: workflowProvider,
+    loadWallet: async (walletName) => wallets.get(walletName) || null,
+    saveWallet: async (wallet) => {
+      wallets.set(wallet.walletName, wallet);
+    },
+    loadWalletRequest: async (requestId) => requests.get(requestId) || null,
+    saveWalletRequest: async (request) => {
+      requests.set(request.requestId, request);
+    },
+    deleteWalletRequest: async (requestId) => requests.delete(requestId),
+    loadWorkflowCheckpoint: async (requestId) => checkpoints.get(requestId) || null,
+    saveWorkflowCheckpoint: async (checkpoint) => {
+      checkpoints.set(checkpoint.requestId, checkpoint);
+    },
+    listWorkflowCheckpointIds: async () => Array.from(checkpoints.keys()).sort(),
+    deleteWorkflowCheckpoint: async (requestId) => checkpoints.delete(requestId)
+  });
+  const tools = createStandardAgentTools(context);
+
+  const requestCreated = await tools.workflowOrchestratorTool.execute({
+    walletName: 'workflow-needs-approval',
+    requestId: 'wf-auto-approval-001',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalConnectorUrl: 'http://localhost:4444'
+  });
+  assert.equal(requestCreated.ok, true);
+  if (!requestCreated.ok) return;
+  assert.equal(requestCreated.data.action, 'request-created');
+  assert.equal(requestCreated.data.status.status, 'blocked');
+  assert.equal(requestCreated.data.walletApproval?.stage, 'request-created');
+  assert.equal(
+    requestCreated.data.recommendedCommand,
+    `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`
+  );
+  assert.equal(
+    requestCreated.data.checkpoint?.lastRecommendedCommand,
+    requestCreated.data.recommendedCommand
+  );
+  assert.equal(Boolean(requestCreated.data.walletApproval?.requestId), true);
+  assert.equal(requests.size, 1);
+
+  requests.clear();
+
+  const autoApproved = await tools.workflowOrchestratorTool.execute({
+    walletName: 'workflow-auto-approval',
+    requestId: 'wf-auto-approval-002',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalConnectorUrl: 'http://localhost:4444',
+    approvalPayload: sampleSessionPayload({
+      walletAddress: sampleWallet.walletAddress,
+      account: {
+        kind: 'smart-account',
+        address: sampleWallet.walletAddress,
+        ownerAddress: sampleWallet.ownerAddress,
+        signerType: 'local'
+      },
+      sessionPrivateKey: '0x' + '77'.repeat(32)
+    }),
+    executeWhenReady: true
+  });
+  assert.equal(autoApproved.ok, true);
+  if (!autoApproved.ok) return;
+  assert.equal(autoApproved.data.walletApproval?.stage, 'approved');
+  assert.equal(autoApproved.data.status.status, 'ready');
+  assert.equal(autoApproved.data.action, 'goal-executed');
+  assert.equal(autoApproved.data.run?.stage, 'goal-executed');
+  assert.equal(autoApproved.data.checkpoint?.lastRun?.stage, 'goal-executed');
+  assert.equal(
+    wallets.get('workflow-auto-approval')?.sessionPayload?.sessionPrivateKey,
+    '0x' + '77'.repeat(32)
+  );
+  assert.equal(requests.size, 0);
+});
+
 test('wallet lifecycle tools persist requests, restore wallets, and preserve metadata on approval', async () => {
   const wallets = new Map<string, WalletSessionRecord>();
   const requests = new Map<string, any>();
@@ -1811,6 +2045,41 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
   });
   const tools = createStandardAgentTools(context);
 
+  const orchestratedCreate = await tools.walletApprovalOrchestratorTool.execute({
+    mode: 'create',
+    walletName: 'draft-wallet',
+    chain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444'
+  });
+  assert.equal(orchestratedCreate.ok, true);
+  if (!orchestratedCreate.ok) return;
+  assert.equal(orchestratedCreate.data.stage, 'request-created');
+  assert.equal(orchestratedCreate.data.nextAction, 'submit-approved-payload');
+  assert.ok(orchestratedCreate.data.request);
+  assert.ok(requests.has(orchestratedCreate.data.requestId));
+
+  const orchestratedApprove = await tools.walletApprovalOrchestratorTool.execute({
+    mode: 'approve',
+    requestId: orchestratedCreate.data.requestId,
+    payload: sampleSessionPayload({
+      walletAddress: '0x5555555555555555555555555555555555555555',
+      account: {
+        kind: 'smart-account',
+        address: '0x5555555555555555555555555555555555555555',
+        ownerAddress: '0x6666666666666666666666666666666666666666',
+        signerType: 'local'
+      },
+      sessionPublicKey: orchestratedCreate.data.request?.sessionPublicKey,
+      sessionPrivateKey: '0x' + '88'.repeat(32)
+    })
+  });
+  assert.equal(orchestratedApprove.ok, true);
+  if (!orchestratedApprove.ok) return;
+  assert.equal(orchestratedApprove.data.stage, 'approved');
+  assert.equal(orchestratedApprove.data.nextAction, 'wallet-ready');
+  assert.equal(orchestratedApprove.data.wallet?.walletName, 'draft-wallet');
+  assert.equal(requests.has(orchestratedCreate.data.requestId), false);
+
   const requestResult = await tools.walletReapproveTool.execute({
     walletName: 'restored',
     connectorUrl: 'http://localhost:4444'
@@ -1838,6 +2107,26 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
     '0x' + '99'.repeat(32)
   );
   assert.equal(requests.has(requestResult.data.request.requestId), false);
+
+  const reapproveOrchestrated = await tools.walletApprovalOrchestratorTool.execute({
+    mode: 'reapprove',
+    walletName: 'restored',
+    connectorUrl: 'http://localhost:4444',
+    payload: sampleSessionPayload({
+      sessionPrivateKey: '0x' + '77'.repeat(32)
+    })
+  });
+  assert.equal(reapproveOrchestrated.ok, true);
+  if (!reapproveOrchestrated.ok) return;
+  assert.equal(reapproveOrchestrated.data.stage, 'approved');
+  assert.equal(reapproveOrchestrated.data.wallet?.smartAccountProfileId, 'sed-lite');
+  assert.deepEqual(reapproveOrchestrated.data.wallet?.validationHookAddresses, [
+    '0x4444444444444444444444444444444444444444'
+  ]);
+  assert.equal(
+    wallets.get('restored')?.sessionPayload?.sessionPrivateKey,
+    '0x' + '77'.repeat(32)
+  );
 
   const exportResult = await tools.walletExportTool.execute({
     walletName: 'restored'

@@ -1,5 +1,6 @@
 import type {
   FundingInfo,
+  PaymasterSelectionInput,
   WalletInspectionResult,
   WalletSessionRecord
 } from './providers.js';
@@ -36,6 +37,53 @@ export function isZeroBalance(value: string | undefined): boolean {
   return /^0*(\.0*)?$/.test(value.trim());
 }
 
+export function resolveEffectivePaymasterSelection(
+  wallet: WalletSessionRecord,
+  requested?: PaymasterSelectionInput
+): PaymasterSelectionInput | undefined {
+  if (requested?.mode && requested.mode !== 'none') {
+    return {
+      mode: requested.mode,
+      address:
+        requested.address ??
+        wallet.sessionPayload?.paymaster?.address ??
+        wallet.sessionPayload?.paymasterAddress ??
+        undefined,
+      token: requested.token ?? wallet.sessionPayload?.paymaster?.token
+    };
+  }
+
+  const mode = wallet.paymasterMode || wallet.sessionPayload?.paymaster?.mode;
+  if (!mode || mode === 'none') return undefined;
+
+  return {
+    mode,
+    address:
+      wallet.sessionPayload?.paymaster?.address ??
+      wallet.sessionPayload?.paymasterAddress ??
+      undefined,
+    token: wallet.sessionPayload?.paymaster?.token
+  };
+}
+
+export function canUsePaymasterForGas(
+  wallet: WalletSessionRecord,
+  requested?: PaymasterSelectionInput
+): boolean {
+  const paymaster = resolveEffectivePaymasterSelection(wallet, requested);
+  if (!paymaster?.mode || paymaster.mode === 'none') return false;
+
+  const paymasterCapability =
+    wallet.capabilities?.paymaster ?? wallet.sessionPayload?.capabilities?.paymaster;
+  if (paymasterCapability === false) return false;
+
+  if (paymaster.mode === 'approval-based' && !paymaster.token) {
+    return false;
+  }
+
+  return true;
+}
+
 function sortWalletActions(actions: WalletNextAction[]): WalletNextAction[] {
   return actions.sort((left, right) => {
     const score = (value: WalletNextAction['priority']) =>
@@ -50,6 +98,7 @@ export function buildWalletPreparationActions(input: {
   nativeBalance?: string;
   nativeSymbol?: string;
   funding?: FundingInfo;
+  paymasterCanCoverGas?: boolean;
   fundPriority?: WalletNextAction['priority'];
   excludeActionIds?: string[];
 }): WalletNextAction[] {
@@ -115,7 +164,7 @@ export function buildWalletPreparationActions(input: {
     });
   }
 
-  if (!exclude.has('fund') && isZeroBalance(input.nativeBalance)) {
+  if (!exclude.has('fund') && !input.paymasterCanCoverGas && isZeroBalance(input.nativeBalance)) {
     actions.push({
       id: 'fund',
       priority: input.fundPriority ?? (inspection.writeReady ? 'recommended' : 'optional'),
@@ -141,7 +190,19 @@ export function buildWalletNextSummary(input: {
 }): WalletNextSummary {
   const { wallet, inspection, funding } = input;
   const notes: string[] = [];
-  const actions = buildWalletPreparationActions(input);
+  const paymasterCanCoverGas =
+    isZeroBalance(input.nativeBalance) && canUsePaymasterForGas(wallet);
+  const actions = buildWalletPreparationActions({
+    ...input,
+    paymasterCanCoverGas
+  });
+
+  if (paymasterCanCoverGas) {
+    const paymaster = resolveEffectivePaymasterSelection(wallet);
+    notes.push(
+      `Native balance is zero, but paymaster mode ${paymaster?.mode || 'unknown'} is configured, so supported smart-account writes may still proceed without a separate fund step.`
+    );
+  }
 
   if (actions.length === 0) {
     notes.push(

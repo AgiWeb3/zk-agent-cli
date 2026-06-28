@@ -7,15 +7,23 @@ import {
   applyWorkflowRunToCheckpoint,
   applyWorkflowStatusToCheckpoint,
   createWorkflowCheckpointRecord,
+  deleteWalletRequest,
   deleteWorkflowCheckpoint,
+  loadWalletRequest,
   listWorkflowCheckpointIds,
+  listWalletRequestIds,
   loadWorkflowCheckpoint,
   saveWalletSession,
   saveWorkflowCheckpoint,
   type PaymasterSelectionInput,
+  type DefiProvider,
+  type WalletProvider,
+  type WalletRequestRecord,
+  type WalletSessionRecord,
   type WorkflowCheckpointRecord,
   type WorkflowRunFundInput
 } from '@zk-agent/agent-core';
+import type { SessionPayload } from '@zk-agent/agent-session-protocol';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
@@ -29,17 +37,42 @@ import {
   workflowStatusLines,
   type WorkflowFundingStatusCheck,
   type WorkflowIntent,
+  type WorkflowStatusResult,
   type WorkflowSwapProtocol
 } from '../lib/workflow.js';
 import { printResult } from '../lib/io.js';
 import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
 import { runWorkflow, type WorkflowGoalInput } from '../lib/workflow-run.js';
-import { requireWalletRecord, syncWalletRecord } from './wallet.js';
+import {
+  awaitLocalWalletApproval,
+  buildWalletApprovalLines,
+  createWalletReapprovalRequest,
+  requireWalletRecord,
+  resolveLocalApprovalListenerOptions,
+  sanitizeSessionPayload,
+  sanitizeWalletRecord,
+  sanitizeWalletRequestRecord,
+  syncWalletRecord
+} from './wallet.js';
 
-const provider = new ZkSyncWalletProvider();
-const defiProvider = new ZkSyncDefiProvider({
-  walletWriter: provider
+const defaultProvider = new ZkSyncWalletProvider();
+const defaultDefiProvider = new ZkSyncDefiProvider({
+  walletWriter: defaultProvider
 });
+
+export interface WorkflowCommandDeps {
+  provider: WalletProvider;
+  defiProvider: DefiProvider;
+}
+
+function resolveWorkflowCommandDeps(
+  deps: Partial<WorkflowCommandDeps> | undefined
+): WorkflowCommandDeps {
+  return {
+    provider: deps?.provider ?? defaultProvider,
+    defiProvider: deps?.defiProvider ?? defaultDefiProvider
+  };
+}
 
 interface WorkflowCommandOptions {
   intent?: string;
@@ -47,6 +80,12 @@ interface WorkflowCommandOptions {
   requestId?: string;
   broadcast?: boolean;
   autoSync?: boolean;
+  ensureWalletSession?: boolean;
+  awaitLocal?: boolean;
+  connectorUrl?: string;
+  host?: string;
+  port?: string;
+  timeoutSeconds?: string;
   fundAmount?: string;
   fundVia?: string;
   fundTo?: string;
@@ -113,6 +152,24 @@ interface ResolvedWorkflowExecutionContext {
   fundingCheck?: WorkflowFundingStatusCheck;
   broadcast: boolean;
   autoSync: boolean;
+}
+
+export interface WorkflowWalletApprovalResult {
+  stage: 'request-created' | 'approved';
+  request: WalletRequestRecord;
+  reusedRequest: boolean;
+  nextCommand: string;
+  wallet?: WalletSessionRecord;
+  payload?: Record<string, unknown>;
+  callbackUrl?: string;
+  approvalUrl?: string;
+}
+
+export interface WorkflowSessionResolution {
+  wallet: WalletSessionRecord;
+  status: WorkflowStatusResult;
+  walletApproval?: WorkflowWalletApprovalResult;
+  recommendedCommand?: string;
 }
 
 interface WorkflowListOptions {
@@ -321,8 +378,11 @@ async function loadWorkflowPlanState(
   walletName: string,
   intent: WorkflowIntent,
   protocol?: WorkflowSwapProtocol,
-  toChain?: string
+  toChain?: string,
+  paymaster?: PaymasterSelectionInput,
+  deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
 ) {
+  const { provider } = deps;
   const wallet = await requireWalletRecord(walletName);
   const inspection = await provider.inspectWallet(wallet);
   const balances = await provider.getBalances({
@@ -350,6 +410,7 @@ async function loadWorkflowPlanState(
       nativeBalance: nativeBalance?.balance,
       nativeSymbol: nativeBalance?.symbol,
       funding,
+      paymaster,
       protocol,
       toChain
     })
@@ -650,7 +711,232 @@ function prependWorkflowRequestId(
   lines: Array<[string, string]>
 ): Array<[string, string]> {
   if (!requestId) return lines;
-  return [['request', requestId], ...lines];
+  return [['workflow request', requestId], ...lines];
+}
+
+function workflowHasSessionApprovalBlocker(status: WorkflowStatusResult): boolean {
+  return status.blockingActionIds.some((actionId) => actionId === 'reapprove' || actionId === 'signer-mismatch');
+}
+
+function workflowShouldEnsureWalletSession(
+  options: Pick<WorkflowCommandOptions, 'ensureWalletSession' | 'awaitLocal'>
+): boolean {
+  return Boolean(options.ensureWalletSession || options.awaitLocal);
+}
+
+function isWalletRequestExpired(expiresAt: string): boolean {
+  const expires = Date.parse(expiresAt);
+  if (!Number.isFinite(expires)) return false;
+  return Date.now() > expires;
+}
+
+async function findReusableWalletRequest(walletName: string): Promise<WalletRequestRecord | undefined> {
+  const requestIds = await listWalletRequestIds();
+  let reusable: WalletRequestRecord | undefined;
+
+  for (const requestId of requestIds) {
+    const request = await loadWalletRequest(requestId);
+    if (!request) continue;
+
+    if (isWalletRequestExpired(request.expiresAt)) {
+      await deleteWalletRequest(request.requestId);
+      continue;
+    }
+
+    if (request.walletName !== walletName) continue;
+    if (!reusable || request.createdAt > reusable.createdAt) {
+      reusable = request;
+    }
+  }
+
+  return reusable;
+}
+
+function buildWorkflowAwaitLocalCommand(requestId: string): string {
+  return `zk-agent wallet request await-local --request-id ${requestId}`;
+}
+
+interface EnsureWorkflowWalletSessionDeps {
+  findReusableWalletRequest(walletName: string): Promise<WalletRequestRecord | undefined>;
+  createWalletReapprovalRequest(options: {
+    walletRecord: WalletSessionRecord;
+    connectorUrl?: string;
+  }): Promise<WalletRequestRecord>;
+  awaitLocalWalletApproval(options: {
+    walletRequest: WalletRequestRecord;
+    walletName: string;
+    host: string;
+    requestedPort: number;
+    timeoutSeconds: number;
+  }): Promise<{
+    walletRecord: WalletSessionRecord;
+    payload: SessionPayload;
+    callbackUrl: string;
+    approvalUrl: string;
+  }>;
+  inspectWorkflowStatus(input: {
+    wallet: WalletSessionRecord;
+    intent: WorkflowIntent;
+    goal: WorkflowGoalInput;
+    fundingCheck?: WorkflowFundingStatusCheck;
+  }): Promise<WorkflowStatusResult>;
+}
+
+export async function ensureWorkflowWalletSession(
+  input: {
+    wallet: WalletSessionRecord;
+    intent: WorkflowIntent;
+    goal: WorkflowGoalInput;
+    fundingCheck?: WorkflowFundingStatusCheck;
+    status: WorkflowStatusResult;
+    options: Pick<
+      WorkflowCommandOptions,
+      'ensureWalletSession' | 'awaitLocal' | 'connectorUrl' | 'host' | 'port' | 'timeoutSeconds'
+    >;
+  },
+  deps: EnsureWorkflowWalletSessionDeps
+): Promise<WorkflowSessionResolution> {
+  if (!workflowShouldEnsureWalletSession(input.options) || !workflowHasSessionApprovalBlocker(input.status)) {
+    return {
+      wallet: input.wallet,
+      status: input.status,
+      recommendedCommand: input.status.recommendedCommand
+    };
+  }
+
+  const reusableRequest = await deps.findReusableWalletRequest(input.wallet.walletName);
+  const walletRequest =
+    reusableRequest ||
+    (await deps.createWalletReapprovalRequest({
+      walletRecord: input.wallet,
+      connectorUrl: input.options.connectorUrl
+    }));
+
+  const nextCommand = buildWorkflowAwaitLocalCommand(walletRequest.requestId);
+
+  if (!input.options.awaitLocal) {
+    return {
+      wallet: input.wallet,
+      status: {
+        ...input.status,
+        recommendedCommand: nextCommand
+      },
+      recommendedCommand: nextCommand,
+      walletApproval: {
+        stage: 'request-created',
+        request: walletRequest,
+        reusedRequest: Boolean(reusableRequest),
+        nextCommand
+      }
+    };
+  }
+
+  const listenerOptions = resolveLocalApprovalListenerOptions({
+    host: input.options.host,
+    port: input.options.port,
+    timeoutSeconds: input.options.timeoutSeconds
+  });
+  const approved = await deps.awaitLocalWalletApproval({
+    walletRequest,
+    walletName: input.wallet.walletName,
+    ...listenerOptions
+  });
+  const status = await deps.inspectWorkflowStatus({
+    wallet: approved.walletRecord,
+    intent: input.intent,
+    goal: input.goal,
+    fundingCheck: input.fundingCheck
+  });
+
+  return {
+    wallet: approved.walletRecord,
+    status,
+    recommendedCommand: status.recommendedCommand,
+    walletApproval: {
+      stage: 'approved',
+      request: walletRequest,
+      reusedRequest: Boolean(reusableRequest),
+      nextCommand: status.recommendedCommand || nextCommand,
+      wallet: approved.walletRecord,
+      payload: sanitizeSessionPayload(approved.payload),
+      callbackUrl: approved.callbackUrl,
+      approvalUrl: approved.approvalUrl
+    }
+  };
+}
+
+function workflowWalletApprovalLines(
+  walletApproval: WorkflowWalletApprovalResult | undefined
+): Array<[string, string]> {
+  if (!walletApproval) return [];
+
+  const lines: Array<[string, string]> = [
+    ['wallet approval', walletApproval.stage],
+    ['wallet request', walletApproval.request.requestId]
+  ];
+
+  if (walletApproval.reusedRequest) {
+    lines.push(['wallet request reused', 'yes']);
+  }
+
+  if (walletApproval.callbackUrl) {
+    lines.push(['callback url', walletApproval.callbackUrl]);
+  }
+  if (walletApproval.approvalUrl) {
+    lines.push(['approval url', walletApproval.approvalUrl]);
+  }
+
+  return lines;
+}
+
+function overrideCheckpointRecommendedCommand(
+  checkpoint: WorkflowCheckpointRecord | undefined,
+  recommendedCommand: string | undefined
+): WorkflowCheckpointRecord | undefined {
+  if (!checkpoint || !recommendedCommand) return checkpoint;
+
+  return {
+    ...checkpoint,
+    updatedAt: new Date().toISOString(),
+    lastRecommendedCommand: recommendedCommand
+  };
+}
+
+function overrideCheckpointWalletRequestId(
+  checkpoint: WorkflowCheckpointRecord | undefined,
+  walletApproval: WorkflowWalletApprovalResult | undefined
+): WorkflowCheckpointRecord | undefined {
+  if (!checkpoint || !walletApproval) return checkpoint;
+
+  return {
+    ...checkpoint,
+    updatedAt: new Date().toISOString(),
+    walletRequestId:
+      walletApproval.stage === 'request-created' ? walletApproval.request.requestId : undefined
+  };
+}
+
+function serializeWorkflowRequestMeta(requestId: string | undefined) {
+  return requestId
+    ? {
+        workflowRequestId: requestId,
+        requestId
+      }
+    : {
+        workflowRequestId: undefined,
+        requestId: undefined
+      };
+}
+
+function serializeWalletApproval(walletApproval: WorkflowWalletApprovalResult | undefined) {
+  if (!walletApproval) return undefined;
+
+  return {
+    ...walletApproval,
+    walletRequestId: walletApproval.request.requestId,
+    request: sanitizeWalletRequestRecord(walletApproval.request),
+    wallet: walletApproval.wallet ? sanitizeWalletRecord(walletApproval.wallet) : undefined
+  };
 }
 
 function addWorkflowGoalOptions(
@@ -659,6 +945,7 @@ function addWorkflowGoalOptions(
     includeExecutionFlags?: boolean;
     includeFundingDispatch?: boolean;
     includeFundingStatus?: boolean;
+    includeLocalApproval?: boolean;
   } = {}
 ): Command {
   if (config.includeExecutionFlags) {
@@ -686,6 +973,24 @@ function addWorkflowGoalOptions(
     command
       .option('--funding-kind <kind>', 'Tracked funding step kind: deposit or bridge')
       .option('--funding-tx-hash <hash>', 'Tracked funding step transaction hash');
+  }
+
+  if (config.includeLocalApproval) {
+    command
+      .option(
+        '--ensure-wallet-session',
+        'When reapprove blocks the workflow, create or reuse a local session approval request instead of only reporting the blocker',
+        false
+      )
+      .option(
+        '--await-local',
+        'When creating or reusing a local session approval request, wait for the local connector callback and continue',
+        false
+      )
+      .option('--connector-url <url>', 'Connector UI base URL override when creating a local session approval request')
+      .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
+      .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
+      .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local', '600');
   }
 
   return command
@@ -723,7 +1028,11 @@ function addWorkflowGoalOptions(
     .option('--bridge-address <address>', 'Optional bridge contract override');
 }
 
-async function executeWorkflowStartCommand(options: WorkflowCommandOptions) {
+async function executeWorkflowStartCommand(
+  options: WorkflowCommandOptions,
+  deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
+) {
+  const { provider, defiProvider } = deps;
   const intent = resolveWorkflowIntentOption(options);
   const wallet = await requireWalletRecord(options.wallet);
   const goal = resolveWorkflowGoalInput(intent, options);
@@ -822,11 +1131,38 @@ async function executeWorkflowUpdateCommand(options: WorkflowUpdateOptions) {
   };
 }
 
-async function executeWorkflowRunCommand(options: WorkflowCommandOptions) {
+async function executeWorkflowRunCommand(
+  options: WorkflowCommandOptions,
+  deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
+) {
+  const { provider, defiProvider } = deps;
   const context = await resolveWorkflowExecutionContext(options);
+  let wallet = context.wallet;
+  let checkpoint = context.checkpoint;
+  let walletApproval: WorkflowWalletApprovalResult | undefined;
+
+  if (workflowShouldEnsureWalletSession(options)) {
+    const inspection = await inspectWorkflowExecutionState(options, context, deps);
+    wallet = inspection.wallet;
+    checkpoint = inspection.checkpoint;
+    walletApproval = inspection.walletApproval;
+
+    if (
+      inspection.walletApproval?.stage === 'request-created' ||
+      inspection.result.status === 'blocked'
+    ) {
+      return {
+        requestId: inspection.requestId,
+        status: inspection.result,
+        walletApproval: inspection.walletApproval,
+        checkpoint: inspection.checkpoint
+      };
+    }
+  }
+
   const result = await runWorkflow(
     {
-      wallet: context.wallet,
+      wallet,
       intent: context.intent,
       broadcast: context.broadcast,
       autoSync: context.autoSync,
@@ -849,23 +1185,40 @@ async function executeWorkflowRunCommand(options: WorkflowCommandOptions) {
 
   await persistWorkflowCheckpoint(
     context.requestId,
-    context.checkpoint ? applyWorkflowRunToCheckpoint(context.checkpoint, result) : undefined
+    overrideCheckpointWalletRequestId(
+      checkpoint ? applyWorkflowRunToCheckpoint(checkpoint, result) : undefined,
+      walletApproval
+    )
   );
 
   return {
     requestId: context.requestId,
-    result
+    result,
+    walletApproval
   };
 }
 
-async function executeWorkflowStatusCommand(options: WorkflowCommandOptions) {
-  const context = await resolveWorkflowExecutionContext(options);
+interface WorkflowStatusCommandResult {
+  requestId?: string;
+  result: WorkflowStatusResult;
+  wallet: WalletSessionRecord;
+  checkpoint?: WorkflowCheckpointRecord;
+  walletApproval?: WorkflowWalletApprovalResult;
+}
+
+async function inspectWorkflowExecutionState(
+  options: WorkflowCommandOptions,
+  context?: ResolvedWorkflowExecutionContext,
+  deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
+): Promise<WorkflowStatusCommandResult> {
+  const { provider, defiProvider } = deps;
+  const resolvedContext = context || await resolveWorkflowExecutionContext(options);
   const result = await inspectWorkflowStatus(
     {
-      wallet: context.wallet,
-      intent: context.intent,
-      goal: context.goal,
-      fundingCheck: context.fundingCheck
+      wallet: resolvedContext.wallet,
+      intent: resolvedContext.intent,
+      goal: resolvedContext.goal,
+      fundingCheck: resolvedContext.fundingCheck
     },
     {
       provider,
@@ -873,19 +1226,54 @@ async function executeWorkflowStatusCommand(options: WorkflowCommandOptions) {
     }
   );
 
-  await persistWorkflowCheckpoint(
-    context.requestId,
-    context.checkpoint
-      ? applyWorkflowStatusToCheckpoint(context.checkpoint, result, {
-          fundingCheck: context.fundingCheck
+  const sessionResolution = await ensureWorkflowWalletSession(
+    {
+      wallet: resolvedContext.wallet,
+      intent: resolvedContext.intent,
+      goal: resolvedContext.goal,
+      fundingCheck: resolvedContext.fundingCheck,
+      status: result,
+      options
+    },
+    {
+      findReusableWalletRequest,
+      createWalletReapprovalRequest,
+      awaitLocalWalletApproval,
+      inspectWorkflowStatus: async (input) =>
+        inspectWorkflowStatus(input, {
+          provider,
+          defiProvider
         })
-      : undefined
+    }
+  );
+
+  let checkpoint = resolvedContext.checkpoint
+    ? applyWorkflowStatusToCheckpoint(resolvedContext.checkpoint, sessionResolution.status, {
+        fundingCheck: resolvedContext.fundingCheck
+      })
+    : undefined;
+  checkpoint = overrideCheckpointRecommendedCommand(checkpoint, sessionResolution.recommendedCommand);
+  checkpoint = overrideCheckpointWalletRequestId(checkpoint, sessionResolution.walletApproval);
+
+  await persistWorkflowCheckpoint(
+    resolvedContext.requestId,
+    checkpoint
   );
 
   return {
-    requestId: context.requestId,
-    result
+    requestId: resolvedContext.requestId,
+    result: sessionResolution.status,
+    wallet: sessionResolution.wallet,
+    checkpoint,
+    walletApproval: sessionResolution.walletApproval
   };
+}
+
+async function executeWorkflowStatusCommand(
+  options: WorkflowCommandOptions,
+  deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
+) {
+  return inspectWorkflowExecutionState(options, undefined, deps);
 }
 
 function assertWorkflowResumeReady(
@@ -910,7 +1298,8 @@ function assertWorkflowResumeReady(
   );
 }
 
-export function createWorkflowCommand(): Command {
+export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Command {
+  const resolvedDeps = resolveWorkflowCommandDeps(deps);
   const workflow = new Command('workflow').description(
     'Build a higher-level CLI workflow for a stored wallet and a concrete action intent'
   );
@@ -928,19 +1317,27 @@ export function createWorkflowCommand(): Command {
       'Optional swap protocol override for swap workflows: uniswap-v3-exact-input-single or syncswap-classic'
     )
     .option('--to-chain <chain>', 'Optional destination chain override for bridge workflows')
+    .option('--paymaster-mode <mode>', 'none, sponsored, or approval-based')
+    .option('--paymaster-address <address>', 'Explicit paymaster contract address override')
+    .option('--paymaster-token <address>', 'ERC-20 token address for approval-based paymaster mode')
     .action(
       async (options: {
         intent: string;
         wallet: string;
         protocol?: string;
         toChain?: string;
+        paymasterMode?: string;
+        paymasterAddress?: string;
+        paymasterToken?: string;
       }) => {
         const intent = parseWorkflowIntent(options.intent);
         const { inspection, plan } = await loadWorkflowPlanState(
           options.wallet,
           intent,
           parseWorkflowSwapProtocol(options.protocol),
-          options.toChain
+          options.toChain,
+          resolveWorkflowPaymasterInput(options),
+          resolvedDeps
         );
 
         printResult(workflowPlanLines(plan), {
@@ -982,6 +1379,8 @@ export function createWorkflowCommand(): Command {
 
       printResult(workflowCheckpointLines(checkpoint), {
         ok: true,
+        ...serializeWorkflowRequestMeta(checkpoint.requestId),
+        walletRequestId: checkpoint.walletRequestId,
         checkpoint
       });
     });
@@ -1008,7 +1407,8 @@ export function createWorkflowCommand(): Command {
 
       printResult(workflowCheckpointLines(result.checkpoint), {
         ok: true,
-        requestId: result.requestId,
+        ...serializeWorkflowRequestMeta(result.requestId),
+        walletRequestId: result.checkpoint.walletRequestId,
         checkpoint: result.checkpoint
       });
     });
@@ -1029,7 +1429,8 @@ export function createWorkflowCommand(): Command {
         ],
         {
           ok: true,
-          requestId: result.requestId,
+          ...serializeWorkflowRequestMeta(result.requestId),
+          walletRequestId: result.checkpoint.walletRequestId,
           checkpoint: result.checkpoint
         }
       );
@@ -1050,13 +1451,13 @@ export function createWorkflowCommand(): Command {
     includeFundingDispatch: true,
     includeFundingStatus: true
   }).action(async (options: WorkflowCommandOptions) => {
-    const started = await executeWorkflowStartCommand(options);
+    const started = await executeWorkflowStartCommand(options, resolvedDeps);
 
     printResult(
       prependWorkflowRequestId(started.requestId, workflowStatusLines(started.status)),
       {
         ok: true,
-        requestId: started.requestId,
+        ...serializeWorkflowRequestMeta(started.requestId),
         checkpoint: started.checkpoint,
         status: started.status
       }
@@ -1065,7 +1466,7 @@ export function createWorkflowCommand(): Command {
 
   const run = workflow
     .command('run')
-    .description('Run one workflow intent when the wallet is ready, or dispatch the required funding step first')
+    .description('Run the requested workflow, or stop on the next required prerequisite or funding step first')
     .option(
       '--intent <intent>',
       'send-native, send-token, call-write, swap, bridge, deposit, or withdraw'
@@ -1075,15 +1476,42 @@ export function createWorkflowCommand(): Command {
 
   addWorkflowGoalOptions(run, {
     includeExecutionFlags: true,
-    includeFundingDispatch: true
+    includeFundingDispatch: true,
+    includeLocalApproval: true
   }).action(async (options: WorkflowCommandOptions) => {
-    const execution = await executeWorkflowRunCommand(options);
+    const execution = await executeWorkflowRunCommand(options, resolvedDeps);
 
-    printResult(prependWorkflowRequestId(execution.requestId, workflowRunLines(execution.result)), {
-      ok: true,
-      requestId: execution.requestId,
-      result: execution.result
-    });
+    if (execution.result) {
+      printResult(
+        prependWorkflowRequestId(
+          execution.requestId,
+          [...workflowRunLines(execution.result), ...workflowWalletApprovalLines(execution.walletApproval)]
+        ),
+        {
+          ok: true,
+          ...serializeWorkflowRequestMeta(execution.requestId),
+          result: execution.result,
+          walletRequestId: execution.walletApproval?.request.requestId,
+          walletApproval: serializeWalletApproval(execution.walletApproval)
+        }
+      );
+      return;
+    }
+
+    printResult(
+      prependWorkflowRequestId(
+        execution.requestId,
+        [...workflowStatusLines(execution.status), ...workflowWalletApprovalLines(execution.walletApproval)]
+      ),
+      {
+        ok: true,
+        ...serializeWorkflowRequestMeta(execution.requestId),
+        status: execution.status,
+        checkpoint: execution.checkpoint,
+        walletRequestId: execution.walletApproval?.request.requestId,
+        walletApproval: serializeWalletApproval(execution.walletApproval)
+      }
+    );
   });
 
   const status = workflow
@@ -1097,15 +1525,25 @@ export function createWorkflowCommand(): Command {
     .option('--request-id <id>', 'Load the workflow definition from a stored checkpoint');
 
   addWorkflowGoalOptions(status, {
-    includeFundingStatus: true
+    includeFundingStatus: true,
+    includeLocalApproval: true
   }).action(async (options: WorkflowCommandOptions) => {
-    const inspection = await executeWorkflowStatusCommand(options);
+    const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
 
-    printResult(prependWorkflowRequestId(inspection.requestId, workflowStatusLines(inspection.result)), {
-      ok: true,
-      requestId: inspection.requestId,
-      result: inspection.result
-    });
+    printResult(
+      prependWorkflowRequestId(
+        inspection.requestId,
+        [...workflowStatusLines(inspection.result), ...workflowWalletApprovalLines(inspection.walletApproval)]
+      ),
+      {
+        ok: true,
+        ...serializeWorkflowRequestMeta(inspection.requestId),
+        result: inspection.result,
+        checkpoint: inspection.checkpoint,
+        walletRequestId: inspection.walletApproval?.request.requestId,
+        walletApproval: serializeWalletApproval(inspection.walletApproval)
+      }
+    );
   });
 
   const resume = workflow
@@ -1120,22 +1558,70 @@ export function createWorkflowCommand(): Command {
 
   addWorkflowGoalOptions(resume, {
     includeExecutionFlags: true,
-    includeFundingStatus: true
+    includeFundingStatus: true,
+    includeLocalApproval: true
   }).action(async (options: WorkflowCommandOptions) => {
-    const inspection = await executeWorkflowStatusCommand(options);
+    const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
+    if (inspection.walletApproval?.stage === 'request-created') {
+      printResult(
+        prependWorkflowRequestId(
+          inspection.requestId,
+          [...workflowStatusLines(inspection.result), ...workflowWalletApprovalLines(inspection.walletApproval)]
+        ),
+        {
+          ok: true,
+          ...serializeWorkflowRequestMeta(inspection.requestId),
+          status: inspection.result,
+          checkpoint: inspection.checkpoint,
+          walletRequestId: inspection.walletApproval.request.requestId,
+          walletApproval: serializeWalletApproval(inspection.walletApproval)
+        }
+      );
+      return;
+    }
+
     assertWorkflowResumeReady(inspection.result);
 
-    const execution = await executeWorkflowRunCommand({
-      ...options,
-      fundAmount: undefined
-    });
+    const execution = await executeWorkflowRunCommand(
+      {
+        ...options,
+        fundAmount: undefined
+      },
+      resolvedDeps
+    );
 
-    printResult(prependWorkflowRequestId(execution.requestId, workflowRunLines(execution.result)), {
-      ok: true,
-      requestId: execution.requestId,
-      status: inspection.result,
-      result: execution.result
-    });
+    if (!execution.result) {
+      printResult(
+        prependWorkflowRequestId(
+          execution.requestId,
+          [...workflowStatusLines(execution.status), ...workflowWalletApprovalLines(execution.walletApproval)]
+        ),
+        {
+          ok: true,
+          ...serializeWorkflowRequestMeta(execution.requestId),
+          status: execution.status,
+          checkpoint: execution.checkpoint,
+          walletRequestId: execution.walletApproval?.request.requestId,
+          walletApproval: serializeWalletApproval(execution.walletApproval)
+        }
+      );
+      return;
+    }
+
+    printResult(
+      prependWorkflowRequestId(
+        execution.requestId,
+        [...workflowRunLines(execution.result), ...workflowWalletApprovalLines(inspection.walletApproval)]
+      ),
+      {
+        ok: true,
+        ...serializeWorkflowRequestMeta(execution.requestId),
+        status: inspection.result,
+        result: execution.result,
+        walletRequestId: inspection.walletApproval?.request.requestId,
+        walletApproval: serializeWalletApproval(inspection.walletApproval)
+      }
+    );
   });
 
   return workflow;

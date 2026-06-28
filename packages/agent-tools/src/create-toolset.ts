@@ -21,6 +21,7 @@ import { createGetBalancesTool } from './get-balances-tool.js';
 import { createGetFundingInfoTool } from './get-funding-info-tool.js';
 import {
   createApproveWalletRequestTool,
+  createWalletApprovalOrchestratorTool,
   createStoredWalletRequestTool,
   createWalletExportTool,
   createWalletReapproveTool,
@@ -37,6 +38,7 @@ import { createWithdrawStatusTool } from './withdraw-status-tool.js';
 import { createWalletNextTool } from './wallet-next-tool.js';
 import { createWalletStatusTool } from './wallet-status-tool.js';
 import { createWorkflowPlanTool } from './workflow-plan-tool.js';
+import { createWorkflowOrchestratorTool } from './workflow-orchestrator-tool.js';
 import {
   createDeleteWorkflowCheckpointTool,
   createGetWorkflowCheckpointTool,
@@ -89,10 +91,12 @@ export function createStandardAgentTools(context: AgentToolContext) {
     createWalletTool: createWalletTool(context),
     createWalletRequestTool: createStoredWalletRequestTool(context),
     approveWalletRequestTool: createApproveWalletRequestTool(context),
+    walletApprovalOrchestratorTool: createWalletApprovalOrchestratorTool(context),
     walletReapproveTool: createWalletReapproveTool(context),
     walletStatusTool: createWalletStatusTool(context),
     walletNextTool: createWalletNextTool(context),
     workflowPlanTool: createWorkflowPlanTool(context),
+    workflowOrchestratorTool: createWorkflowOrchestratorTool(context),
     workflowStatusTool: createWorkflowStatusTool(context),
     workflowRunTool: createWorkflowRunTool(context),
     startWorkflowCheckpointTool: createStartWorkflowCheckpointTool(context),
@@ -132,10 +136,12 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'createWalletTool',
     'createWalletRequestTool',
     'approveWalletRequestTool',
+    'walletApprovalOrchestratorTool',
     'walletReapproveTool',
     'walletStatusTool',
     'walletNextTool',
     'workflowPlanTool',
+    'workflowOrchestratorTool',
     'workflowStatusTool',
     'workflowRunTool',
     'startWorkflowCheckpointTool',

@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { loadProjectConfig, saveProjectConfig } from '@zk-agent/agent-core';
 
 import { printResult } from '../lib/io.js';
+import { buildWalletCreateRecommendedCommand } from '../lib/recommended-commands.js';
 
 interface SetupArgs {
   defaultChain?: string;
@@ -24,7 +25,8 @@ export function createInitCommand(): Command {
           [
             ['status', 'Config already exists. Re-run with --force to overwrite.'],
             ['default chain', existing.defaultChain],
-            ['connector', existing.connectorUrl]
+            ['connector', existing.connectorUrl],
+            ['next', buildWalletCreateRecommendedCommand()]
           ],
           {
             ok: true,
@@ -50,7 +52,7 @@ export function createInitCommand(): Command {
           ['status', 'Config saved'],
           ['default chain', config.defaultChain],
           ['connector', config.connectorUrl],
-          ['next', 'zk-agent wallet create']
+          ['next', buildWalletCreateRecommendedCommand()]
         ],
         { ok: true, config }
       );

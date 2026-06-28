@@ -172,3 +172,46 @@ test('workflow status reports ready when no blocker and no funding gap remain', 
     'zk-agent send --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
   );
 });
+
+test('workflow status stays ready when paymaster-backed send-native can cover zero native balance', async () => {
+  const result = await inspectWorkflowStatus(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        }
+      }
+    },
+    {
+      provider: {
+        async inspectWallet() {
+          return sampleInspection();
+        },
+        async getBalances() {
+          return {
+            walletName: 'main',
+            walletAddress: sampleWallet.walletAddress,
+            chain: 'zksync-sepolia',
+            chainId: 300,
+            balances: [{ type: 'native', symbol: 'ETH', balance: '0', decimals: 18 }]
+          };
+        },
+        async getFundingInfo() {
+          throw new Error('getFundingInfo should not run when paymaster can cover gas');
+        }
+      }
+    }
+  );
+
+  assert.equal(result.status, 'ready');
+  assert.equal(result.readyForGoal, true);
+  assert.equal(result.fundingNeeded, false);
+  assert.equal(result.funding, undefined);
+});
