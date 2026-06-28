@@ -18,6 +18,8 @@ import {
   createWithdrawStatusCommand
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
+import { createDefaultsCommand } from './commands/defaults.js';
+import { createRelayCommand } from './commands/relay.js';
 import { createWalletCommand } from './commands/wallet.js';
 import { createWorkflowCommand } from './commands/workflow.js';
 import {
@@ -38,6 +40,8 @@ function createProgram(): Command {
     });
 
   program.addCommand(createInitCommand());
+  program.addCommand(createDefaultsCommand());
+  program.addCommand(createRelayCommand());
   program.addCommand(createWalletCommand());
   program.addCommand(createWorkflowCommand());
   program.addCommand(createBalancesCommand());

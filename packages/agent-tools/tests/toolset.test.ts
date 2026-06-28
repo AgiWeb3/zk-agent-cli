@@ -6,6 +6,7 @@ import {
   encodeSedLiteValidationHooksRead,
   encodeSedLiteValidatorRead
 } from '@zk-agent/account-profiles';
+import { bytesToHex, encryptSession, generateX25519Keypair } from '@zk-agent/agent-session-protocol';
 import { AgentError, resolveChain, type WalletSessionRecord } from '@zk-agent/agent-core';
 
 import {
@@ -29,6 +30,10 @@ const sampleWallet: WalletSessionRecord = {
   accountKind: 'smart-account',
   createdAt: '2026-06-18T00:00:00.000Z'
 };
+
+const approvalKeypair = generateX25519Keypair();
+const approvalSessionPublicKey = bytesToHex(approvalKeypair.publicKey);
+const approvalSessionSecretKey = bytesToHex(approvalKeypair.secretKey);
 
 function sampleSessionPayload(overrides = {}) {
   return {
@@ -103,8 +108,8 @@ function createProviderStub() {
           paymaster: false
         },
         approvalUrl: 'http://localhost:4444/#request=dummy',
-        sessionPublicKey: '0x' + '11'.repeat(32),
-        sessionSecretKey: '0x' + '22'.repeat(32)
+        sessionPublicKey: approvalSessionPublicKey,
+        sessionSecretKey: approvalSessionSecretKey
       };
     },
     async importSession(walletName, payload) {
@@ -1968,12 +1973,44 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     requestCreated.data.recommendedCommand,
     `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`
   );
+  assert.deepEqual(requestCreated.data.recommendedCommands, {
+    awaitLocal: `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`,
+    approve: `zk-agent wallet request approve --request-id ${requestCreated.data.walletApproval?.requestId} --payload @approved-session.json`
+  });
   assert.equal(
     requestCreated.data.checkpoint?.lastRecommendedCommand,
     requestCreated.data.recommendedCommand
   );
   assert.equal(Boolean(requestCreated.data.walletApproval?.requestId), true);
   assert.equal(requests.size, 1);
+
+  const relayRequestCreated = await tools.workflowOrchestratorTool.execute({
+    walletName: 'workflow-needs-approval',
+    requestId: 'wf-auto-approval-relay-001',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalConnectorUrl: 'http://localhost:4444',
+    approvalRelayUrl: 'http://127.0.0.1:4445'
+  });
+  assert.equal(relayRequestCreated.ok, true);
+  if (!relayRequestCreated.ok) return;
+  assert.equal(
+    relayRequestCreated.data.recommendedCommand,
+    `zk-agent wallet request relay-publish --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`
+  );
+  assert.deepEqual(relayRequestCreated.data.recommendedCommands, {
+    awaitLocal: `zk-agent wallet request await-local --request-id ${relayRequestCreated.data.walletApproval?.requestId}`,
+    approve: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --payload @approved-session.json`,
+    relayPublish: `zk-agent wallet request relay-publish --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`,
+    relayStatus: `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`,
+    relayApprove: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445 --code <code>`
+  });
 
   requests.clear();
 
@@ -1997,6 +2034,7 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
         ownerAddress: sampleWallet.ownerAddress,
         signerType: 'local'
       },
+      sessionPublicKey: approvalSessionPublicKey,
       sessionPrivateKey: '0x' + '77'.repeat(32)
     }),
     executeWhenReady: true
@@ -2056,6 +2094,10 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
   assert.equal(orchestratedCreate.data.stage, 'request-created');
   assert.equal(orchestratedCreate.data.nextAction, 'submit-approved-payload');
   assert.ok(orchestratedCreate.data.request);
+  assert.deepEqual(orchestratedCreate.data.recommendedCommands, {
+    awaitLocal: `zk-agent wallet request await-local --request-id ${orchestratedCreate.data.requestId}`,
+    approve: `zk-agent wallet request approve --request-id ${orchestratedCreate.data.requestId} --payload @approved-session.json`
+  });
   assert.ok(requests.has(orchestratedCreate.data.requestId));
 
   const orchestratedApprove = await tools.walletApprovalOrchestratorTool.execute({
@@ -2108,11 +2150,42 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
   );
   assert.equal(requests.has(requestResult.data.request.requestId), false);
 
+  const encryptedRequestResult = await tools.walletReapproveTool.execute({
+    walletName: 'restored',
+    connectorUrl: 'http://localhost:4444'
+  });
+  assert.equal(encryptedRequestResult.ok, true);
+  if (!encryptedRequestResult.ok) return;
+
+  const encryptedPayloadSource = sampleSessionPayload({
+    sessionPublicKey: encryptedRequestResult.data.request.sessionPublicKey,
+    sessionPrivateKey: '0x' + '55'.repeat(32)
+  });
+  const { encrypted, code } = encryptSession(
+    encryptedPayloadSource,
+    encryptedRequestResult.data.request.sessionPublicKey,
+    encryptedRequestResult.data.request.requestId
+  );
+
+  const encryptedApproveResult = await tools.approveWalletRequestTool.execute({
+    requestId: encryptedRequestResult.data.request.requestId,
+    encryptedPayload: encrypted,
+    code
+  });
+  assert.equal(encryptedApproveResult.ok, true);
+  if (!encryptedApproveResult.ok) return;
+  assert.equal(
+    wallets.get('restored')?.sessionPayload?.sessionPrivateKey,
+    '0x' + '55'.repeat(32)
+  );
+  assert.equal(requests.has(encryptedRequestResult.data.request.requestId), false);
+
   const reapproveOrchestrated = await tools.walletApprovalOrchestratorTool.execute({
     mode: 'reapprove',
     walletName: 'restored',
     connectorUrl: 'http://localhost:4444',
     payload: sampleSessionPayload({
+      sessionPublicKey: approvalSessionPublicKey,
       sessionPrivateKey: '0x' + '77'.repeat(32)
     })
   });

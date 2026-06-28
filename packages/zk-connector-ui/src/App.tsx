@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   PROTOCOL_VERSION,
   buildApprovedSessionPayload,
   decodeSessionApprovalRequest,
+  encryptSession,
+  type RelayStatusResponse,
   type SessionApprovalRequest
 } from '@zk-agent/agent-session-protocol';
 
@@ -15,7 +17,8 @@ function readFallbackParams(): Record<string, string> {
     chain: params.get('chain') || '',
     chainId: params.get('chainId') || '',
     provider: params.get('provider') || '',
-    callbackUrl: params.get('callbackUrl') || ''
+    callbackUrl: params.get('callbackUrl') || '',
+    relayRequestUrl: params.get('relayRequestUrl') || ''
   };
 }
 
@@ -53,10 +56,41 @@ async function copyText(value: string): Promise<boolean> {
   }
 }
 
+function hasRelayRequest(value: RelayStatusResponse | { error?: string }): value is RelayStatusResponse {
+  return 'request_id' in value;
+}
+
+function normalizeAbsoluteUrl(value: string): string {
+  if (!value) return '';
+
+  try {
+    return new URL(value, window.location.origin).toString();
+  } catch {
+    return '';
+  }
+}
+
+function relayApproveCommand(
+  request: SessionApprovalRequest | null,
+  relayRequestUrl: string
+): string {
+  if (!request || !relayRequestUrl) {
+    return 'zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code>';
+  }
+
+  return `zk-agent wallet request approve --request-id ${request.requestId} --relay-url ${relayRequestUrl.replace(/\/api\/requests\/[^/]+$/, '')} --code <code>`;
+}
+
 export function App() {
   const fallback = readFallbackParams();
-  const request = useMemo(() => readEncodedRequest(), []);
+  const encodedRequest = useMemo(() => readEncodedRequest(), []);
+  const relayRequestUrl = useMemo(
+    () => normalizeAbsoluteUrl(fallback.relayRequestUrl),
+    [fallback.relayRequestUrl]
+  );
   const callbackUrl = useMemo(() => normalizeCallbackUrl(fallback.callbackUrl), [fallback.callbackUrl]);
+  const [request, setRequest] = useState<SessionApprovalRequest | null>(encodedRequest);
+  const [requestLoadError, setRequestLoadError] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
   const [sessionAddress, setSessionAddress] = useState('');
@@ -67,6 +101,37 @@ export function App() {
   const [copyStatus, setCopyStatus] = useState('');
   const [submitStatus, setSubmitStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRelayRequest() {
+      if (encodedRequest || !relayRequestUrl) return;
+
+      try {
+        const response = await fetch(relayRequestUrl);
+        const body = (await response.json()) as RelayStatusResponse | { error?: string };
+        if (!response.ok) {
+          throw new Error('error' in body && body.error ? body.error : `Relay request fetch failed with status ${response.status}`);
+        }
+
+        if (!cancelled && hasRelayRequest(body)) {
+          setRequest(body.request || null);
+          setRequestLoadError(body.request ? '' : 'Relay request did not include an approval payload request.');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRequestLoadError(error instanceof Error ? error.message : 'Failed to load relay request.');
+        }
+      }
+    }
+
+    void loadRelayRequest();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [encodedRequest, relayRequestUrl]);
 
   const approvedPayload = useMemo(() => {
     if (!request || !walletAddress) return null;
@@ -103,14 +168,39 @@ export function App() {
     return JSON.stringify(approvedPayload, null, 2);
   }, [approvedPayload]);
 
+  const encryptedRelayPackage = useMemo(() => {
+    if (!approvedPayload || !request?.sessionPublicKey) return null;
+
+    try {
+      return encryptSession(approvedPayload, request.sessionPublicKey, request.requestId);
+    } catch {
+      return null;
+    }
+  }, [approvedPayload, request]);
+
+  const generatedEncryptedPayload = useMemo(() => {
+    if (!encryptedRelayPackage) return '';
+    return JSON.stringify(encryptedRelayPackage.encrypted, null, 2);
+  }, [encryptedRelayPackage]);
+
+  const finalizeCommand = useMemo(() => {
+    if (!request) return '';
+    return `zk-agent wallet request approve --request-id ${request.requestId} --payload @approved-session.json`;
+  }, [request]);
+
+  const finalizeRelayCommand = useMemo(
+    () => relayApproveCommand(request, relayRequestUrl),
+    [request, relayRequestUrl]
+  );
+
   return (
     <main className="page">
       <section className="card">
         <p className="eyebrow">zk-agent connector</p>
         <h1>Session approval draft</h1>
         <p className="lede">
-          This screen now understands a locally encoded approval request and can generate an
-          importable session payload for the CLI. It is still a local draft flow, not a real relay.
+          This screen understands local callback approval, manual payload export, and encrypted
+          relay-package submission.
         </p>
 
         <dl className="meta">
@@ -228,7 +318,9 @@ export function App() {
               <p className="helper">
                 {callbackUrl
                   ? 'Approve in the connector to return the session directly to the waiting CLI process. Copy payload remains available as a fallback.'
-                  : 'Paste the generated JSON into the CLI with `zk-agent wallet import --payload ...`.'}
+                  : relayRequestUrl
+                    ? `Approve here to submit the encrypted relay package, then finalize from the CLI with \`${finalizeRelayCommand}\`.`
+                  : `Save the generated JSON and finalize it with \`${finalizeCommand || 'zk-agent wallet request approve --request-id <id> --payload @approved-session.json'}\`.`}
               </p>
               <textarea
                 className="payload"
@@ -289,6 +381,52 @@ export function App() {
                   >
                     {isSubmitting ? 'Approving...' : 'Approve In CLI'}
                   </button>
+                ) : relayRequestUrl ? (
+                  <button
+                    type="button"
+                    disabled={!encryptedRelayPackage || isSubmitting}
+                    onClick={async () => {
+                      if (!relayRequestUrl || !encryptedRelayPackage) return;
+
+                      setIsSubmitting(true);
+                      setSubmitStatus('');
+
+                      try {
+                        const response = await fetch(`${relayRequestUrl}/approval`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({
+                            encrypted_payload: encryptedRelayPackage.encrypted
+                          })
+                        });
+                        const body = (await response.json().catch(() => null)) as
+                          | { error?: string; approval_ready?: boolean }
+                          | null;
+
+                        if (!response.ok) {
+                          throw new Error(
+                            body?.error || `Relay approval submission failed with status ${response.status}`
+                          );
+                        }
+
+                        setSubmitStatus(
+                          body?.approval_ready
+                            ? 'Encrypted relay payload submitted. Send the approval code to the CLI operator out-of-band.'
+                            : 'Relay accepted the approval package.'
+                        );
+                      } catch (error) {
+                        setSubmitStatus(
+                          error instanceof Error ? error.message : 'Failed to submit encrypted relay payload.'
+                        );
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit To Relay'}
+                  </button>
                 ) : null}
                 <button
                   type="button"
@@ -300,16 +438,59 @@ export function App() {
                 >
                   Copy payload
                 </button>
+                <button
+                  type="button"
+                  disabled={!generatedEncryptedPayload}
+                  onClick={async () => {
+                    const ok = await copyText(generatedEncryptedPayload);
+                    setCopyStatus(ok ? 'Encrypted relay payload copied to clipboard.' : 'Clipboard copy failed.');
+                  }}
+                >
+                  Copy encrypted payload
+                </button>
+                <button
+                  type="button"
+                  disabled={!encryptedRelayPackage?.code}
+                  onClick={async () => {
+                    const ok = encryptedRelayPackage?.code
+                      ? await copyText(encryptedRelayPackage.code)
+                      : false;
+                    setCopyStatus(ok ? 'Relay approval code copied to clipboard.' : 'Clipboard copy failed.');
+                  }}
+                >
+                  Copy approval code
+                </button>
                 {copyStatus ? <p className="status">{copyStatus}</p> : null}
                 {submitStatus ? <p className="status">{submitStatus}</p> : null}
               </div>
             </section>
+
+            <section className="panel">
+              <h2>Encrypted relay fallback</h2>
+              <p className="helper">
+                This package can be sent through an untrusted relay because the CLI still needs the
+                approval code to decrypt it. Finalize it with
+                {` \`${relayRequestUrl ? finalizeRelayCommand : request ? `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${encryptedRelayPackage?.code || '<code>'}` : 'zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>'}\`.`}
+              </p>
+              <label>
+                <span>Approval code</span>
+                <input readOnly value={encryptedRelayPackage?.code || ''} placeholder="Generated after valid approval data exists" />
+              </label>
+              <textarea
+                className="payload"
+                readOnly
+                value={
+                  generatedEncryptedPayload ||
+                  'Enter a valid wallet address and approval metadata to generate an encrypted relay package.'
+                }
+              />
+            </section>
           </>
         ) : (
           <div className="callout">
-            This page did not receive an encoded request payload in the URL hash. The fallback query
-            params are visible above, but full approval generation needs the `request=...` fragment
-            produced by `zk-agent wallet create`.
+            {requestLoadError
+              ? requestLoadError
+              : 'This page did not receive an encoded request payload in the URL hash or through relayRequestUrl.'}
           </div>
         )}
       </section>

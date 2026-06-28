@@ -80,9 +80,14 @@ import {
 } from '@zk-agent/agent-core';
 import {
   buildApprovedSessionPayload,
+  decryptSession,
   type AccountKind,
+  type EncryptedPayload,
+  type RelayCreateRequest,
+  type RelayStatusResponse,
   type SessionPayload,
-  type PaymasterMode
+  type PaymasterMode,
+  hexToBytes
 } from '@zk-agent/agent-session-protocol';
 import { ethers } from 'ethers';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
@@ -97,10 +102,22 @@ import {
 } from '../lib/io.js';
 import { buildWalletSubcommandPreviewNextCommand } from '../lib/preview-next-command.js';
 import {
+  buildWalletRequestApproveRecommendedCommand,
+  buildWalletRequestAwaitLocalRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletNextRecommendedCommand,
+  buildWalletRequestRelayApproveRecommendedCommand,
+  buildWalletRequestRelayPublishRecommendedCommand,
+  buildWalletRequestRelayStatusRecommendedCommand,
   buildWalletReapproveRecommendedCommand
 } from '../lib/recommended-commands.js';
+import {
+  fetchRelayApproval,
+  fetchRelayStatus,
+  publishRelayRequest,
+  relayShareUrl,
+  relayStatusUrl
+} from '../lib/relay.js';
 import { buildWalletNextSummary, walletNextLines } from '../lib/wallet-next.js';
 
 const provider = new ZkSyncWalletProvider();
@@ -174,6 +191,10 @@ function formatWalletSummary(wallet: WalletSessionRecord): string {
 function deriveAddressFromPrivateKey(value?: string): string | undefined {
   if (!value) return undefined;
   return new ZkSyncWallet(value).address;
+}
+
+function stripHexPrefix(value: string): string {
+  return value.startsWith('0x') ? value.slice(2) : value;
 }
 
 function isAddress(value: string): boolean {
@@ -1617,6 +1638,37 @@ function assertApprovedPayloadMatchesRequest(
   }
 }
 
+function decryptApprovedPayloadForWalletRequest(
+  walletRequest: WalletRequestRecord,
+  encryptedPayload: EncryptedPayload,
+  code: string
+): SessionPayload {
+  if (!walletRequest.sessionSecretKey) {
+    throw new Error(
+      `Stored wallet request is missing the session secret needed to decrypt encrypted approval data: ${walletRequest.requestId}`
+    );
+  }
+
+  return decryptSession(
+    encryptedPayload,
+    hexToBytes(stripHexPrefix(walletRequest.sessionSecretKey)),
+    code,
+    walletRequest.requestId
+  );
+}
+
+async function fetchEncryptedRelayApprovalPayload(
+  relayUrl: string,
+  requestId: string
+): Promise<EncryptedPayload> {
+  const approval = await fetchRelayApproval(relayUrl, requestId);
+  if (!approval.approval_ready || !approval.encrypted_payload) {
+    throw new Error(`Relay approval is not ready yet for request ${requestId}.`);
+  }
+
+  return approval.encrypted_payload;
+}
+
 function writeLocalApprovalJson(
   response: ServerResponse,
   statusCode: number,
@@ -1956,7 +2008,7 @@ async function printBuiltinSmartAccountProfiles(): Promise<void> {
 
 export function createWalletCommand(): Command {
   const wallet = new Command('wallet').description('Manage wallet sessions');
-  const request = new Command('request').description('Inspect and locally approve pending wallet requests');
+  const request = new Command('request').description('Inspect and finalize pending wallet requests');
   const smartAccount = new Command('smart-account').description(
     'Predict and deploy zkSync smart-account contracts from a supplied artifact or built-in profile'
   );
@@ -1981,7 +2033,7 @@ export function createWalletCommand(): Command {
 
   wallet
     .command('create')
-    .description('Create a local zkSync smart-account session request and approval URL')
+    .description('Create a zkSync wallet session request and connector approval URL')
     .option('--name <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Chain key or chain id')
     .option('--connector-url <url>', 'Connector UI base URL override')
@@ -2058,8 +2110,9 @@ export function createWalletCommand(): Command {
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ['expires', request.expiresAt],
-          ['note', 'A local smart-account session request was created. Run the await-local flow before approving in the connector so the CLI can receive the approved session immediately.'],
-          ['next', `zk-agent wallet request await-local --request-id ${request.requestId}`]
+          ['next local', buildWalletRequestAwaitLocalRecommendedCommand(request.requestId)],
+          ['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)],
+          ['note', 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.']
         ],
         {
           ok: true,
@@ -2072,7 +2125,11 @@ export function createWalletCommand(): Command {
           accountKind: request.requestedAccountKind,
           paymasterMode: request.requestedPaymasterMode,
           capabilities: request.requestedCapabilities,
-          sessionScope: request.requestedSessionScope
+          sessionScope: request.requestedSessionScope,
+          recommendedCommands: {
+            awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(request.requestId),
+            approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+          }
         }
       );
       }
@@ -2080,7 +2137,7 @@ export function createWalletCommand(): Command {
 
   wallet
     .command('reapprove')
-    .description('Request a fresh local approval for an existing wallet so it can regain or rotate its stored session')
+    .description('Request a fresh connector approval for an existing wallet so it can regain or rotate its stored session')
     .option('--name <name>', 'Wallet name', 'main')
     .option('--connector-url <url>', 'Connector UI base URL override')
     .option('--await-local', 'Immediately wait for a local connector approval callback')
@@ -2141,13 +2198,18 @@ export function createWalletCommand(): Command {
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ['expires', request.expiresAt],
-          ['note', 'A fresh local session approval request was created for the existing wallet. Run the await-local flow before approving in the connector so the CLI can receive the approved session immediately.'],
-          ['next', `zk-agent wallet request await-local --request-id ${request.requestId}`]
+          ['next local', buildWalletRequestAwaitLocalRecommendedCommand(request.requestId)],
+          ['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)],
+          ['note', 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.']
         ],
         {
           ok: true,
           wallet: sanitizeWalletRecord(walletRecord),
-          request: sanitizeWalletRequestRecord(request)
+          request: sanitizeWalletRequestRecord(request),
+          recommendedCommands: {
+            awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(request.requestId),
+            approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+          }
         }
       );
     }
@@ -2423,14 +2485,24 @@ export function createWalletCommand(): Command {
           ['expires', walletRequest.expiresAt],
           ['approval url', walletRequest.approvalUrl],
           ...(status === 'pending'
-            ? [['next', `zk-agent wallet request await-local --request-id ${walletRequest.requestId}`] as [string, string]]
+            ? [
+                ['next local', buildWalletRequestAwaitLocalRecommendedCommand(walletRequest.requestId)] as [string, string],
+                ['next remote', buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)] as [string, string]
+              ]
             : [])
         ],
         {
           ok: true,
           request: sanitizeWalletRequestRecord(walletRequest),
           requestStatus: status,
-          removed: status === 'expired'
+          removed: status === 'expired',
+          recommendedCommands:
+            status === 'pending'
+              ? {
+                  awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(walletRequest.requestId),
+                  approve: buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)
+                }
+              : undefined
         }
       );
     });
@@ -2475,8 +2547,154 @@ export function createWalletCommand(): Command {
     );
 
   request
+    .command('relay-publish')
+    .description('Publish a stored wallet request to a relay server and get a shareable approval URL')
+    .requiredOption('--request-id <id>', 'Wallet request id')
+    .requiredOption('--relay-url <url>', 'Relay server base URL')
+    .action(async (options: { requestId: string; relayUrl: string }) => {
+      const walletRequest = await requireActiveWalletRequest(options.requestId);
+      const relayRequest: RelayCreateRequest = {
+        approval_url: walletRequest.approvalUrl,
+        request: {
+          requestId: walletRequest.requestId,
+          walletName: walletRequest.walletName,
+          chain: walletRequest.chain,
+          chainId: walletRequest.chainId,
+          provider: walletRequest.provider,
+          createdAt: walletRequest.createdAt,
+          expiresAt: walletRequest.expiresAt,
+          connectorUrl: walletRequest.connectorUrl,
+          requestedAccountKind: walletRequest.requestedAccountKind,
+          requestedPaymasterMode: walletRequest.requestedPaymasterMode,
+          requestedSessionScope: walletRequest.requestedSessionScope,
+          requestedCapabilities: walletRequest.requestedCapabilities,
+          policies: walletRequest.policies,
+          sessionPublicKey: walletRequest.sessionPublicKey
+        }
+      };
+      const relay = await publishRelayRequest(options.relayUrl, relayRequest);
+
+        printResult(
+          [
+            ['status', relay.status],
+            ['request', relay.request_id],
+            ['share url', relay.share_url],
+            ['status url', relay.status_url],
+            ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
+            ['next approve', buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)]
+          ],
+          {
+            ok: true,
+            relay,
+            request: sanitizeWalletRequestRecord(walletRequest),
+            recommendedCommands: {
+              status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
+              approve: buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
+            }
+          }
+        );
+      });
+
+  request
+    .command('relay-status')
+    .description('Inspect the relay status of a published wallet request')
+    .requiredOption('--request-id <id>', 'Wallet request id')
+    .requiredOption('--relay-url <url>', 'Relay server base URL')
+    .action(async (options: { requestId: string; relayUrl: string }) => {
+      const relay = await fetchRelayStatus(options.relayUrl, options.requestId);
+
+      printResult(
+        [
+          ['status', relay.status],
+          ['request', relay.request_id],
+          ['approval ready', relay.approval_ready ? 'yes' : 'no'],
+          ['share url', relay.approval_url],
+          ['expires', relay.expires_at],
+          ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
+          ...(relay.approval_ready
+            ? [[
+                'next approve',
+                buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
+              ] as [string, string]]
+            : [])
+        ],
+        {
+          ok: true,
+          relay,
+          recommendedCommands: {
+            status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
+            ...(relay.approval_ready
+              ? {
+                  approve: buildWalletRequestRelayApproveRecommendedCommand(
+                    relay.request_id,
+                    options.relayUrl
+                  )
+                }
+              : {})
+          }
+        }
+      );
+    });
+
+  request
+    .command('approve')
+    .description('Finalize a stored wallet request from a connector payload or encrypted relay package')
+    .requiredOption('--request-id <id>', 'Wallet request id')
+    .option('--payload <payload>', 'Approved session payload JSON or @file path')
+    .option('--encrypted-payload <payload>', 'Encrypted approval payload JSON or @file path')
+    .option('--relay-url <url>', 'Relay server base URL that stores an encrypted approval payload')
+    .option('--code <code>', 'Approval code used to decrypt --encrypted-payload')
+    .action(async (options: { requestId: string; payload?: string; encryptedPayload?: string; relayUrl?: string; code?: string }) => {
+      const walletRequest = await requireActiveWalletRequest(options.requestId);
+      const sourceCount =
+        Number(Boolean(options.payload)) +
+        Number(Boolean(options.encryptedPayload)) +
+        Number(Boolean(options.relayUrl));
+      if (sourceCount !== 1) {
+        throw new Error('Specify exactly one of --payload, --encrypted-payload, or --relay-url.');
+      }
+
+      const payload = options.payload
+        ? parseJsonInput<SessionPayload>(options.payload)
+        : decryptApprovedPayloadForWalletRequest(
+            walletRequest,
+            options.encryptedPayload
+              ? parseJsonInput<EncryptedPayload>(options.encryptedPayload)
+              : await fetchEncryptedRelayApprovalPayload(options.relayUrl as string, walletRequest.requestId),
+            options.code?.trim() || (() => {
+              throw new Error('--code is required when using --encrypted-payload or --relay-url.');
+            })()
+          );
+      assertApprovedPayloadMatchesRequest(payload, walletRequest);
+
+      const walletRecord = await importApprovedWalletSession(walletRequest.walletName, payload);
+      await deleteWalletRequest(walletRequest.requestId);
+
+      printResult(
+        buildWalletApprovalLines(
+          options.payload
+            ? 'Wallet request approved from connector payload'
+            : 'Wallet request approved from encrypted relay payload',
+          walletRequest.requestId,
+          walletRecord
+        ),
+        {
+          ok: true,
+          request: sanitizeWalletRequestRecord(walletRequest),
+          payload: sanitizeSessionPayload(payload),
+          wallet: sanitizeWalletRecord(walletRecord),
+          approvalSource: options.payload
+            ? 'payload'
+            : options.encryptedPayload
+              ? 'encrypted-payload'
+              : 'relay-url'
+        }
+      );
+    });
+
+  request
     .command('approve-local')
-    .description('Approve a stored wallet request locally and save the resulting session')
+    .description('Manually construct an approved session payload from CLI inputs and save the resulting wallet')
     .requiredOption('--request-id <id>', 'Wallet request id')
     .requiredOption('--wallet-address <address>', 'Approved execution address (EOA address or smart-account address)')
     .option('--owner-address <address>', 'Owner / signer address for smart-account sessions')

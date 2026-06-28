@@ -133,10 +133,49 @@ export interface EncryptedPayload {
   code_hash_hex: string;
 }
 
+export type RelayRequestStatus = 'pending' | 'ready' | 'expired';
+
+export interface RelayRequestRecord {
+  request_id: string;
+  created_at: string;
+  expires_at: string;
+  approval_url: string;
+  request: SessionApprovalRequest;
+  encrypted_payload?: EncryptedPayload;
+  approval_submitted_at?: string;
+}
+
+export interface RelayCreateRequest {
+  approval_url: string;
+  request: SessionApprovalRequest;
+}
+
 export interface RelayCreateResponse {
   request_id: string;
+  status: RelayRequestStatus;
+  share_url: string;
+  status_url: string;
+  approval_url: string;
 }
 
 export interface RelayStatusResponse {
-  status: 'pending' | 'ready';
+  request_id: string;
+  status: RelayRequestStatus;
+  approval_ready: boolean;
+  approval_url: string;
+  expires_at: string;
+  request?: SessionApprovalRequest;
+  approval_submitted_at?: string;
+}
+
+export interface RelayApprovalSubmitRequest {
+  encrypted_payload: EncryptedPayload;
+}
+
+export interface RelayApprovalResponse {
+  request_id: string;
+  status: RelayRequestStatus;
+  approval_ready: boolean;
+  approval_submitted_at?: string;
+  encrypted_payload?: EncryptedPayload;
 }

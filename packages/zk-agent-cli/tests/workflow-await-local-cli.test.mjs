@@ -308,6 +308,71 @@ test('workflow status can await local approval through commander with injected p
   }
 });
 
+test('workflow status can emit relay follow-up commands through commander when relayUrl is supplied', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-relay-guidance-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await seedWorkflowAwaitLocalState(homeDir);
+
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fixtureEntry,
+        'status',
+        '--request-id',
+        'wf-await-001',
+        '--ensure-wallet-session',
+        '--relay-url',
+        'http://127.0.0.1:4445'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow status JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.workflowRequestId, 'wf-await-001');
+    assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.result.status, 'blocked');
+    assert.equal(
+      result.result.recommendedCommand,
+      'zk-agent wallet request relay-publish --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    );
+    assert.equal(result.walletApproval.stage, 'request-created');
+    assert.equal(result.walletApproval.reusedRequest, true);
+    assert.deepEqual(result.walletApproval.recommendedCommands, {
+      awaitLocal: 'zk-agent wallet request await-local --request-id wr-reuse-001',
+      approve: 'zk-agent wallet request approve --request-id wr-reuse-001 --payload @approved-session.json',
+      relayPublish:
+        'zk-agent wallet request relay-publish --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445',
+      relayStatus:
+        'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445',
+      relayApprove:
+        'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code>'
+    });
+
+    const storedRequest = await storage.loadWalletRequest('wr-reuse-001');
+    assert.equal(storedRequest?.requestId, 'wr-reuse-001');
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('workflow resume can await local approval and continue to goal execution through commander', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-resume-await-local-'));
 

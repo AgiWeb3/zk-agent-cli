@@ -24,6 +24,7 @@ import type { AgentToolContext, WalletNameInput } from './types.js';
 import {
   runWalletApprovalOrchestration,
   syncStoredWalletRecord,
+  type WalletApprovalRecommendedCommands,
   type WalletApprovalOrchestratorToolInput,
   type WalletApprovalOrchestratorToolOutput
 } from './wallet-lifecycle-tools.js';
@@ -40,6 +41,7 @@ export interface WorkflowOrchestratorToolInput extends Partial<WalletNameInput> 
   executeWhenReady?: boolean;
   ensureWalletSession?: boolean;
   approvalConnectorUrl?: string;
+  approvalRelayUrl?: string;
   approvalPayload?: WalletApprovalOrchestratorToolInput['payload'];
 }
 
@@ -56,6 +58,7 @@ export interface WorkflowOrchestratorToolOutput {
   run?: WorkflowRunResult;
   walletApproval?: WalletApprovalOrchestratorToolOutput;
   recommendedCommand?: string;
+  recommendedCommands?: WalletApprovalRecommendedCommands;
 }
 
 interface ResolvedWorkflowOrchestratorInput {
@@ -291,7 +294,20 @@ function walletApprovalNextCommand(
     return undefined;
   }
 
-  return `zk-agent wallet request await-local --request-id ${walletApproval.requestId}`;
+  return (
+    walletApproval.recommendedCommands?.relayPublish ||
+    walletApproval.recommendedCommands?.awaitLocal
+  );
+}
+
+function walletApprovalRecommendedCommands(
+  walletApproval: WalletApprovalOrchestratorToolOutput | undefined
+): WalletApprovalRecommendedCommands | undefined {
+  if (!walletApproval || walletApproval.stage !== 'request-created') {
+    return undefined;
+  }
+
+  return walletApproval.recommendedCommands;
 }
 
 function overrideCheckpointRecommendedCommand(
@@ -343,6 +359,7 @@ export function createWorkflowOrchestratorTool(context: AgentToolContext) {
           mode: 'reapprove',
           walletName: resolved.walletName,
           connectorUrl: input.approvalConnectorUrl,
+          relayUrl: input.approvalRelayUrl,
           payload: input.approvalPayload
         });
 
@@ -427,7 +444,8 @@ export function createWorkflowOrchestratorTool(context: AgentToolContext) {
         status,
         run,
         walletApproval,
-        recommendedCommand: run ? run.nextCommand : recommendedCommand
+        recommendedCommand: run ? run.nextCommand : recommendedCommand,
+        recommendedCommands: walletApprovalRecommendedCommands(walletApproval)
       };
     }
   });

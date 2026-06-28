@@ -8,7 +8,14 @@ import {
   requireBuiltinSmartAccountProfile,
   type BuiltinSmartAccountProfileId
 } from '@zk-agent/account-profiles';
-import type { AccountKind, PaymasterMode, SessionPolicies } from '@zk-agent/agent-session-protocol';
+import {
+  decryptSession,
+  hexToBytes,
+  type AccountKind,
+  type EncryptedPayload,
+  type PaymasterMode,
+  type SessionPolicies
+} from '@zk-agent/agent-session-protocol';
 import {
   AgentError,
   type CreateSessionRequestInput,
@@ -25,6 +32,14 @@ import type { AgentToolContext, WalletNameInput } from './types.js';
 type SessionPayload = NonNullable<WalletSessionRecord['sessionPayload']>;
 type SanitizedSessionPayload = Omit<SessionPayload, 'sessionPrivateKey'>;
 type SanitizedWalletRequestRecord = Omit<WalletRequestRecord, 'sessionSecretKey'>;
+
+export interface WalletApprovalRecommendedCommands {
+  awaitLocal: string;
+  approve: string;
+  relayPublish?: string;
+  relayStatus?: string;
+  relayApprove?: string;
+}
 
 export interface WalletSyncToolInput extends WalletNameInput {
   profileId?: string;
@@ -51,16 +66,21 @@ export interface WalletApprovalOrchestratorToolInput {
   walletName?: string;
   chain?: string;
   connectorUrl?: string;
+  relayUrl?: string;
   accountKind?: AccountKind;
   paymasterMode?: PaymasterMode;
   policies?: SessionPolicies;
   requestId?: string;
   payload?: SessionPayload;
+  encryptedPayload?: EncryptedPayload;
+  code?: string;
 }
 
 export interface ApproveWalletRequestToolInput {
   requestId: string;
-  payload: SessionPayload;
+  payload?: SessionPayload;
+  encryptedPayload?: EncryptedPayload;
+  code?: string;
 }
 
 export interface WalletSyncToolOutput {
@@ -102,6 +122,7 @@ export interface WalletApprovalOrchestratorToolOutput {
   wallet?: WalletSessionRecord;
   payload?: SanitizedSessionPayload;
   nextAction: 'submit-approved-payload' | 'wallet-ready';
+  recommendedCommands?: WalletApprovalRecommendedCommands;
 }
 
 export interface ApproveWalletRequestToolOutput {
@@ -200,6 +221,78 @@ function defaultApprovalPolicies(policies?: SessionPolicies): SessionPolicies {
 function sanitizeWalletRequestRecord(request: WalletRequestRecord): SanitizedWalletRequestRecord {
   const { sessionSecretKey: _sessionSecretKey, ...rest } = request;
   return rest;
+}
+
+function buildWalletApprovalRecommendedCommands(
+  requestId: string,
+  relayUrl?: string
+): WalletApprovalRecommendedCommands {
+  const commands: WalletApprovalRecommendedCommands = {
+    awaitLocal: `zk-agent wallet request await-local --request-id ${requestId}`,
+    approve: `zk-agent wallet request approve --request-id ${requestId} --payload @approved-session.json`
+  };
+
+  if (relayUrl?.trim()) {
+    commands.relayPublish = `zk-agent wallet request relay-publish --request-id ${requestId} --relay-url ${relayUrl}`;
+    commands.relayStatus = `zk-agent wallet request relay-status --request-id ${requestId} --relay-url ${relayUrl}`;
+    commands.relayApprove = `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayUrl} --code <code>`;
+  }
+
+  return commands;
+}
+
+function stripHexPrefix(value: string): string {
+  return value.startsWith('0x') ? value.slice(2) : value;
+}
+
+function resolveApprovedPayloadFromInput(
+  walletRequest: WalletRequestRecord,
+  input: Pick<WalletApprovalOrchestratorToolInput, 'payload' | 'encryptedPayload' | 'code'>
+): SessionPayload | undefined {
+  if (input.payload && input.encryptedPayload) {
+    throw new AgentError(
+      'WALLET_APPROVAL_PAYLOAD_CONFLICT',
+      'Specify only one of payload or encryptedPayload for wallet approval.',
+      {
+        requestId: walletRequest.requestId
+      }
+    );
+  }
+
+  if (input.payload) {
+    return input.payload;
+  }
+
+  if (!input.encryptedPayload) {
+    return undefined;
+  }
+
+  if (!input.code?.trim()) {
+    throw new AgentError(
+      'WALLET_APPROVAL_CODE_REQUIRED',
+      'Encrypted wallet approval requires a code.',
+      {
+        requestId: walletRequest.requestId
+      }
+    );
+  }
+
+  if (!walletRequest.sessionSecretKey) {
+    throw new AgentError(
+      'WALLET_REQUEST_SECRET_MISSING',
+      'Stored wallet request is missing the secret needed to decrypt encrypted approval data.',
+      {
+        requestId: walletRequest.requestId
+      }
+    );
+  }
+
+  return decryptSession(
+    input.encryptedPayload,
+    hexToBytes(stripHexPrefix(walletRequest.sessionSecretKey)),
+    input.code.trim(),
+    walletRequest.requestId
+  );
 }
 
 function stripSensitiveWalletRecord(wallet: WalletSessionRecord): WalletSessionRecord {
@@ -652,15 +745,6 @@ export async function runWalletApprovalOrchestration(
         {}
       );
     }
-    if (!input.payload) {
-      throw new AgentError(
-        'WALLET_APPROVAL_PAYLOAD_REQUIRED',
-        'walletApprovalOrchestratorTool approve mode requires an approved session payload.',
-        {
-          requestId: input.requestId
-        }
-      );
-    }
 
     const walletRequest = await context.loadWalletRequest(input.requestId);
     if (!walletRequest) {
@@ -673,13 +757,24 @@ export async function runWalletApprovalOrchestration(
       );
     }
 
+    const payload = resolveApprovedPayloadFromInput(walletRequest, input);
+    if (!payload) {
+      throw new AgentError(
+        'WALLET_APPROVAL_PAYLOAD_REQUIRED',
+        'walletApprovalOrchestratorTool approve mode requires payload or encryptedPayload.',
+        {
+          requestId: input.requestId
+        }
+      );
+    }
+
     assertRequestActive(walletRequest.expiresAt);
-    assertApprovedPayloadMatchesRequest(input.payload, walletRequest);
+    assertApprovedPayloadMatchesRequest(payload, walletRequest);
 
     const walletRecord = await importApprovedWalletSession(
       context,
       walletRequest.walletName,
-      input.payload
+      payload
     );
     await context.deleteWalletRequest(walletRequest.requestId);
 
@@ -688,7 +783,7 @@ export async function runWalletApprovalOrchestration(
       stage: 'approved',
       requestId: walletRequest.requestId,
       wallet: stripSensitiveWalletRecord(walletRecord),
-      payload: sanitizeSessionPayload(input.payload),
+      payload: sanitizeSessionPayload(payload),
       nextAction: 'wallet-ready'
     };
   }
@@ -751,24 +846,27 @@ export async function runWalletApprovalOrchestration(
 
   const request = await createWalletRequest(context, requestInput);
 
-  if (!input.payload) {
+  const payload = resolveApprovedPayloadFromInput(request, input);
+
+  if (!payload) {
     return {
       mode: input.mode,
       stage: 'request-created',
       requestId: request.requestId,
       request: sanitizeWalletRequestRecord(request),
       wallet: wallet ? stripSensitiveWalletRecord(wallet) : undefined,
-      nextAction: 'submit-approved-payload'
+      nextAction: 'submit-approved-payload',
+      recommendedCommands: buildWalletApprovalRecommendedCommands(request.requestId, input.relayUrl)
     };
   }
 
   assertRequestActive(request.expiresAt);
-  assertApprovedPayloadMatchesRequest(input.payload, request);
+  assertApprovedPayloadMatchesRequest(payload, request);
 
   const walletRecord = await importApprovedWalletSession(
     context,
     request.walletName,
-    input.payload
+    payload
   );
   await context.deleteWalletRequest(request.requestId);
 
@@ -778,7 +876,7 @@ export async function runWalletApprovalOrchestration(
     requestId: request.requestId,
     request: sanitizeWalletRequestRecord(request),
     wallet: stripSensitiveWalletRecord(walletRecord),
-    payload: sanitizeSessionPayload(input.payload),
+    payload: sanitizeSessionPayload(payload),
     nextAction: 'wallet-ready'
   };
 }
@@ -807,20 +905,31 @@ export function createApproveWalletRequestTool(context: AgentToolContext) {
         });
       }
 
+      const payload = resolveApprovedPayloadFromInput(walletRequest, input);
+      if (!payload) {
+        throw new AgentError(
+          'WALLET_APPROVAL_PAYLOAD_REQUIRED',
+          'approveWalletRequestTool requires payload or encryptedPayload.',
+          {
+            requestId: input.requestId
+          }
+        );
+      }
+
       assertRequestActive(walletRequest.expiresAt);
-      assertApprovedPayloadMatchesRequest(input.payload, walletRequest);
+      assertApprovedPayloadMatchesRequest(payload, walletRequest);
 
       const walletRecord = await importApprovedWalletSession(
         context,
         walletRequest.walletName,
-        input.payload
+        payload
       );
       await context.deleteWalletRequest(walletRequest.requestId);
 
       return {
         requestId: walletRequest.requestId,
         wallet: stripSensitiveWalletRecord(walletRecord),
-        payload: sanitizeSessionPayload(input.payload)
+        payload: sanitizeSessionPayload(payload)
       };
     }
   });

@@ -177,6 +177,55 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
     result.status.recommendedCommand,
     'zk-agent wallet request await-local --request-id req12345'
   );
+  assert.deepEqual(result.walletApproval?.recommendedCommands, {
+    awaitLocal: 'zk-agent wallet request await-local --request-id req12345',
+    approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json'
+  });
+});
+
+test('ensureWorkflowWalletSession prefers relay publish guidance when relayUrl is supplied', async () => {
+  const result = await ensureWorkflowWalletSession(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      status: sampleStatus(),
+      options: {
+        ensureWalletSession: true,
+        relayUrl: 'http://127.0.0.1:4445'
+      }
+    },
+    {
+      findReusableWalletRequest: async () => undefined,
+      createWalletReapprovalRequest: async () => sampleRequest(),
+      awaitLocalWalletApproval: async () => {
+        throw new Error('awaitLocalWalletApproval should not run without --await-local');
+      },
+      inspectWorkflowStatus: async () => {
+        throw new Error('inspectWorkflowStatus should not rerun without --await-local');
+      }
+    }
+  );
+
+  assert.equal(
+    result.recommendedCommand,
+    'zk-agent wallet request relay-publish --request-id req12345 --relay-url http://127.0.0.1:4445'
+  );
+  assert.equal(
+    result.status.recommendedCommand,
+    'zk-agent wallet request relay-publish --request-id req12345 --relay-url http://127.0.0.1:4445'
+  );
+  assert.deepEqual(result.walletApproval?.recommendedCommands, {
+    awaitLocal: 'zk-agent wallet request await-local --request-id req12345',
+    approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json',
+    relayPublish: 'zk-agent wallet request relay-publish --request-id req12345 --relay-url http://127.0.0.1:4445',
+    relayStatus: 'zk-agent wallet request relay-status --request-id req12345 --relay-url http://127.0.0.1:4445',
+    relayApprove: 'zk-agent wallet request approve --request-id req12345 --relay-url http://127.0.0.1:4445 --code <code>'
+  });
 });
 
 test('ensureWorkflowWalletSession can await local approval, reuse an existing request, and rerun workflow status', async () => {

@@ -6,6 +6,12 @@ Current handoff snapshot:
 
 - [PROJECT_STATE.md](./PROJECT_STATE.md)
 
+Agent-facing entrypoint:
+
+- [skills/SKILL.md](./skills/SKILL.md)
+- [skills/QUICKSTART.md](./skills/QUICKSTART.md)
+- [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
+
 The project is intentionally modeled after the real architecture of `polygon-agent-cli`, but it is not a direct fork. The goal is to preserve the reusable system shape:
 
 - CLI entrypoint for humans and agent harnesses
@@ -39,6 +45,7 @@ What is already in place:
 - initial Commander-based CLI commands
 - local wallet record maintenance via `wallet rename`
 - local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
+- `defaults` for a machine-readable view of the built-in chains and the currently tracked validated zkSync Sepolia router / paymaster / fee-token defaults
 - `zksync-ethers` read path for balances and contract calls
 - `balances` now supports:
   - stored-wallet default chain reads
@@ -61,7 +68,7 @@ What is already in place:
 - `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
-- `workflow status|run|resume --ensure-wallet-session [--await-local]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale
+- `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and relay publish/status/approve guidance
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
 - `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
 - `workflow` and `wallet next` now treat supported paymaster-backed smart-account writes as gas-satisfied even when the stored native balance is zero, so `send` / `send-token` / `call` / `swap` do not get blocked behind an unnecessary fund step before paymaster validation is attempted
@@ -74,6 +81,8 @@ What is already in place:
   - `wallet create --await-local`
   - auto-consume of approved local requests
   - `wallet request await-local`
+  - `wallet request approve --payload ...` for non-colocated/manual connector return
+  - `relay serve` + `wallet request relay-publish|relay-status` for the local file-backed hosted relay prototype
   - `wallet request list` with expired-request pruning
   - connector callback handoff back into the waiting CLI process
 - first agent-facing tool surface in `packages/agent-tools` for:
@@ -204,8 +213,8 @@ What is next:
    `setup -> wallet create/reapprove -> fund -> workflow run`
 2. add an installable `skills/` surface so agent harnesses do not need repo-
    specific tribal knowledge
-3. upgrade the connector from local callback-first behavior to a relay-capable
-   remote approval flow
+3. upgrade the connector from the current local callback + encrypted relay
+   package prototype to a hosted relay-capable remote approval flow
 4. wrap the current action surface in stronger workflow-oriented adapters with
    clearer defaults and guardrails
 5. continue focused chain validation where the product path still has a real
@@ -220,7 +229,7 @@ stage is:
 
 - one obvious default path for wallet bootstrap and transaction execution
 - one installable agent-facing surface
-- one connector flow that works beyond a colocated browser + terminal setup
+- one connector flow that works both for colocated `--await-local` approval and for manual or encrypted relay payload return
 - one opinionated workflow layer on top of the current zkSync action surface
 
 ## Recommended Operator Path
@@ -243,6 +252,35 @@ If the wallet already exists but has lost its writable local session:
 
 ```bash
 pnpm zk-agent wallet reapprove --name main --await-local
+```
+
+If the connector cannot call back into the waiting CLI process, the manual
+fallback is:
+
+1. Start the relay prototype:
+
+```bash
+pnpm zk-agent relay serve
+```
+
+2. Run `wallet create` or `wallet reapprove` without `--await-local`.
+3. Publish the request:
+
+```bash
+pnpm zk-agent wallet request relay-publish --request-id <id> --relay-url <relay-url>
+```
+
+4. Open the returned share URL in the connector UI.
+5. Finalize it from the CLI with either:
+
+```bash
+pnpm zk-agent wallet request approve --request-id <id> --payload @approved-session.json
+```
+
+Or, for the encrypted relay package path:
+
+```bash
+pnpm zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>
 ```
 
 3. Ask the CLI for the shortest next remediation or execution step:
@@ -269,8 +307,24 @@ pnpm zk-agent fund --wallet main --amount <amount> --execute
 pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount> --broadcast
 ```
 
+If a workflow is blocked on reapproval and the connector cannot call back into
+the waiting CLI process, use `--ensure-wallet-session --relay-url <relay-url>`
+to make `workflow run|status|resume` emit relay publish/status/approve follow-up
+commands instead of only local callback guidance.
+
 The key rule is: do not jump straight from wallet creation into ad-hoc write
 commands. Let `wallet next` and `workflow run` carry the default operator path.
+
+## Agent Skills
+
+The repo now includes an agent-facing skills surface:
+
+- [skills/SKILL.md](./skills/SKILL.md)
+- [skills/QUICKSTART.md](./skills/QUICKSTART.md)
+- [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
+
+These files are the shortest maintained entrypoint for agent harnesses that
+need the current canonical CLI path without reading the entire repository.
 
 ## Development Environment Strategy
 

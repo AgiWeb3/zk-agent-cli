@@ -42,6 +42,13 @@ import {
 } from '../lib/workflow.js';
 import { printResult } from '../lib/io.js';
 import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
+import {
+  buildWalletRequestApproveRecommendedCommand,
+  buildWalletRequestAwaitLocalRecommendedCommand,
+  buildWalletRequestRelayApproveRecommendedCommand,
+  buildWalletRequestRelayPublishRecommendedCommand,
+  buildWalletRequestRelayStatusRecommendedCommand
+} from '../lib/recommended-commands.js';
 import { runWorkflow, type WorkflowGoalInput } from '../lib/workflow-run.js';
 import {
   awaitLocalWalletApproval,
@@ -83,6 +90,7 @@ interface WorkflowCommandOptions {
   ensureWalletSession?: boolean;
   awaitLocal?: boolean;
   connectorUrl?: string;
+  relayUrl?: string;
   host?: string;
   port?: string;
   timeoutSeconds?: string;
@@ -159,6 +167,13 @@ export interface WorkflowWalletApprovalResult {
   request: WalletRequestRecord;
   reusedRequest: boolean;
   nextCommand: string;
+  recommendedCommands?: {
+    awaitLocal: string;
+    approve: string;
+    relayPublish?: string;
+    relayStatus?: string;
+    relayApprove?: string;
+  };
   wallet?: WalletSessionRecord;
   payload?: Record<string, unknown>;
   callbackUrl?: string;
@@ -752,10 +767,6 @@ async function findReusableWalletRequest(walletName: string): Promise<WalletRequ
   return reusable;
 }
 
-function buildWorkflowAwaitLocalCommand(requestId: string): string {
-  return `zk-agent wallet request await-local --request-id ${requestId}`;
-}
-
 interface EnsureWorkflowWalletSessionDeps {
   findReusableWalletRequest(walletName: string): Promise<WalletRequestRecord | undefined>;
   createWalletReapprovalRequest(options: {
@@ -791,7 +802,7 @@ export async function ensureWorkflowWalletSession(
     status: WorkflowStatusResult;
     options: Pick<
       WorkflowCommandOptions,
-      'ensureWalletSession' | 'awaitLocal' | 'connectorUrl' | 'host' | 'port' | 'timeoutSeconds'
+      'ensureWalletSession' | 'awaitLocal' | 'connectorUrl' | 'relayUrl' | 'host' | 'port' | 'timeoutSeconds'
     >;
   },
   deps: EnsureWorkflowWalletSessionDeps
@@ -812,21 +823,46 @@ export async function ensureWorkflowWalletSession(
       connectorUrl: input.options.connectorUrl
     }));
 
-  const nextCommand = buildWorkflowAwaitLocalCommand(walletRequest.requestId);
+  const nextCommand = buildWalletRequestAwaitLocalRecommendedCommand(walletRequest.requestId);
+  const relayUrl = input.options.relayUrl?.trim();
+  const recommendedCommands: NonNullable<WorkflowWalletApprovalResult['recommendedCommands']> = {
+    awaitLocal: nextCommand,
+    approve: buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)
+  };
+
+  if (relayUrl) {
+    recommendedCommands.relayPublish = buildWalletRequestRelayPublishRecommendedCommand(
+      walletRequest.requestId,
+      relayUrl
+    );
+    recommendedCommands.relayStatus = buildWalletRequestRelayStatusRecommendedCommand(
+      walletRequest.requestId,
+      relayUrl
+    );
+    recommendedCommands.relayApprove = buildWalletRequestRelayApproveRecommendedCommand(
+      walletRequest.requestId,
+      relayUrl
+    );
+  }
+  const initialRecommendedCommand =
+    relayUrl && !input.options.awaitLocal
+      ? recommendedCommands.relayPublish || nextCommand
+      : nextCommand;
 
   if (!input.options.awaitLocal) {
     return {
       wallet: input.wallet,
       status: {
         ...input.status,
-        recommendedCommand: nextCommand
+        recommendedCommand: initialRecommendedCommand
       },
-      recommendedCommand: nextCommand,
+      recommendedCommand: initialRecommendedCommand,
       walletApproval: {
         stage: 'request-created',
         request: walletRequest,
         reusedRequest: Boolean(reusableRequest),
-        nextCommand
+        nextCommand: initialRecommendedCommand,
+        recommendedCommands
       }
     };
   }
@@ -857,6 +893,7 @@ export async function ensureWorkflowWalletSession(
       request: walletRequest,
       reusedRequest: Boolean(reusableRequest),
       nextCommand: status.recommendedCommand || nextCommand,
+      recommendedCommands,
       wallet: approved.walletRecord,
       payload: sanitizeSessionPayload(approved.payload),
       callbackUrl: approved.callbackUrl,
@@ -884,6 +921,19 @@ function workflowWalletApprovalLines(
   }
   if (walletApproval.approvalUrl) {
     lines.push(['approval url', walletApproval.approvalUrl]);
+  }
+  if (walletApproval.stage === 'request-created' && walletApproval.recommendedCommands) {
+    lines.push(['next local', walletApproval.recommendedCommands.awaitLocal]);
+    lines.push(['next remote', walletApproval.recommendedCommands.approve]);
+    if (walletApproval.recommendedCommands.relayPublish) {
+      lines.push(['next relay publish', walletApproval.recommendedCommands.relayPublish]);
+    }
+    if (walletApproval.recommendedCommands.relayStatus) {
+      lines.push(['next relay status', walletApproval.recommendedCommands.relayStatus]);
+    }
+    if (walletApproval.recommendedCommands.relayApprove) {
+      lines.push(['next relay approve', walletApproval.recommendedCommands.relayApprove]);
+    }
   }
 
   return lines;
@@ -988,6 +1038,7 @@ function addWorkflowGoalOptions(
         false
       )
       .option('--connector-url <url>', 'Connector UI base URL override when creating a local session approval request')
+      .option('--relay-url <url>', 'Relay server base URL override when publishing a wallet approval request for remote completion')
       .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
       .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
       .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local', '600');
