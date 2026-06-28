@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import type { FundingInfo, WalletInspectionResult, WalletSessionRecord } from '@zk-agent/agent-core';
 
-import { buildWalletNextSummary } from '../src/lib/wallet-next.ts';
+import {
+  buildWalletNextSummary,
+  resolveEffectivePaymasterSelection
+} from '../src/lib/wallet-next.ts';
 
 const sampleWallet: WalletSessionRecord = {
   walletName: 'main',
@@ -166,4 +169,55 @@ test('wallet next suppresses fund guidance when a saved paymaster can cover supp
   assert.equal(summary.status, 'ready');
   assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
   assert.match(summary.notes[0] || '', /paymaster mode approval-based is configured/);
+});
+
+test('explicit paymaster none overrides a saved paymaster selection', () => {
+  const resolved = resolveEffectivePaymasterSelection(
+    {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        sessionScope: {
+          chainKeys: ['zksync-sepolia'],
+          chainIds: [300]
+        },
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        },
+        sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        },
+        sessionPublicKey: '0x' + '11'.repeat(32),
+        permissions: {
+          expiresAt: '2026-06-24T01:00:00.000Z'
+        },
+        paymasterAddress: '0x4444444444444444444444444444444444444444'
+      }
+    },
+    {
+      mode: 'none'
+    }
+  );
+
+  assert.deepEqual(resolved, {
+    mode: 'none'
+  });
 });

@@ -479,7 +479,7 @@ test('workflow run dispatches funding first and does not immediately execute the
   assert.equal(result.stage, 'funding-dispatched');
   assert.equal(depositCalls, 1);
   assert.equal(sendNativeCalls, 0);
-  assert.match(result.nextCommand, /zk-agent send --wallet main/);
+  assert.match(result.nextCommand, /zk-agent workflow send-native --wallet main/);
 });
 
 test('workflow run emits a concrete swap retry command after preview', async () => {
@@ -604,7 +604,7 @@ test('workflow run emits a concrete swap retry command after preview', async () 
   );
 
   assert.equal(result.stage, 'goal-executed');
-  assert.match(result.nextCommand || '', /zk-agent swap --wallet main --protocol syncswap-classic/);
+  assert.match(result.nextCommand || '', /zk-agent workflow swap --wallet main --protocol syncswap-classic/);
   assert.match(result.nextCommand || '', /--router 0x1111111111111111111111111111111111111111/);
   assert.match(result.nextCommand || '', /--factory 0x2222222222222222222222222222222222222222/);
   assert.match(result.nextCommand || '', /--token-in 0x4444444444444444444444444444444444444444/);
@@ -701,4 +701,120 @@ test('workflow run does not require separate funding when paymaster-backed send-
 
   assert.equal(sendNativeCalls, 1);
   assert.equal(result.stage, 'goal-executed');
+});
+
+test('workflow run does not treat an explicit paymaster none override as gas coverage', async () => {
+  const provider = {
+    async inspectWallet() {
+      return sampleInspection();
+    },
+    async getBalances() {
+      return {
+        walletName: 'main',
+        walletAddress: sampleWallet.walletAddress,
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        balances: [{ type: 'native', symbol: 'ETH', balance: '0', decimals: 18 }]
+      };
+    },
+    async getFundingInfo() {
+      return sampleFunding();
+    },
+    async sendNative() {
+      throw new Error('sendNative should not run before funding');
+    },
+    async sendToken() {
+      throw new Error('sendToken should not run before funding');
+    },
+    async writeContract() {
+      throw new Error('writeContract should not run before funding');
+    }
+  };
+  const defiProvider = {
+    async swap() {
+      throw new Error('swap should not run before funding');
+    },
+    async bridge() {
+      throw new Error('bridge should not run before funding');
+    },
+    async deposit() {
+      throw new Error('deposit should not run before funding');
+    },
+    async withdraw() {
+      throw new Error('withdraw should not run before funding');
+    }
+  };
+
+  await assert.rejects(
+    () =>
+      runWorkflow(
+        {
+          wallet: {
+            ...sampleWallet,
+            paymasterMode: 'approval-based',
+            capabilities: {
+              read: true,
+              write: true,
+              transfer: true,
+              contractCall: true,
+              paymaster: true
+            },
+            sessionPayload: {
+              version: 1,
+              provider: 'zksync-sso',
+              chain: 'zksync-sepolia',
+              chainId: 300,
+              walletAddress: sampleWallet.walletAddress,
+              account: {
+                kind: 'smart-account',
+                address: sampleWallet.walletAddress,
+                ownerAddress: sampleWallet.ownerAddress,
+                signerType: 'local'
+              },
+              sessionScope: {
+                chainKeys: ['zksync-sepolia'],
+                chainIds: [300]
+              },
+              capabilities: {
+                read: true,
+                write: true,
+                transfer: true,
+                contractCall: true,
+                paymaster: true
+              },
+              sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+              paymaster: {
+                mode: 'approval-based',
+                address: '0x4444444444444444444444444444444444444444',
+                token: '0x5555555555555555555555555555555555555555'
+              },
+              sessionPublicKey: '0x' + '11'.repeat(32),
+              permissions: {
+                expiresAt: '2026-06-24T01:00:00.000Z'
+              },
+              paymasterAddress: '0x4444444444444444444444444444444444444444'
+            }
+          },
+          intent: 'send-native',
+          broadcast: false,
+          goal: {
+            intent: 'send-native',
+            to: '0x3333333333333333333333333333333333333333',
+            amount: '0.1',
+            paymaster: {
+              mode: 'none'
+            }
+          }
+        },
+        {
+          provider,
+          defiProvider
+        }
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof AgentError);
+      assert.equal(error.code, 'WORKFLOW_FUNDING_REQUIRED');
+      return true;
+    }
+  );
 });

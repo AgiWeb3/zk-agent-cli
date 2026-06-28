@@ -1,5 +1,6 @@
 export {
   buildWalletNextSummary,
+  resolveEffectivePaymasterSelection,
   type WalletNextAction,
   type WalletNextSummary
 } from '@zk-agent/agent-core';

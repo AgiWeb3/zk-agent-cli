@@ -71,7 +71,7 @@ function sampleStatus(overrides: Partial<WorkflowStatusResult> = {}): WorkflowSt
       status: 'blocked',
       readyForGoal: false,
       recommendedCommand: 'zk-agent wallet reapprove --name main --await-local',
-      goalCommand: 'zk-agent send --wallet main --to <address> --amount <amount> --broadcast',
+      goalCommand: 'zk-agent workflow send-native --wallet main --to <address> --amount <amount> --broadcast',
       steps: [],
       notes: []
     },
@@ -282,7 +282,7 @@ test('ensureWorkflowWalletSession can await local approval, reuse an existing re
           status: 'ready',
           readyForGoal: true,
           blockingActionIds: [],
-          recommendedCommand: 'zk-agent send --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
+          recommendedCommand: 'zk-agent workflow send-native --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
         });
       }
     }
@@ -297,7 +297,7 @@ test('ensureWorkflowWalletSession can await local approval, reuse an existing re
   assert.equal(result.status.readyForGoal, true);
   assert.equal(
     result.recommendedCommand,
-    'zk-agent send --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
+    'zk-agent workflow send-native --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
   );
   assert.equal(result.wallet.sessionPayload?.sessionPrivateKey, '0x' + '77'.repeat(32));
   assert.equal(approval?.callbackUrl, 'http://127.0.0.1:9999/approve');

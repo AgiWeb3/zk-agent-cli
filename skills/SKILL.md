@@ -161,6 +161,11 @@ pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --a
 - auto-sync metadata when requested
 - create or reuse a session approval request when `--ensure-wallet-session` is supplied, with `await-local`, manual `wallet request approve`, or relay-driven follow-up when `--relay-url <url>` is supplied
 
+For the common direct execution path, the CLI also exposes intent-specific
+shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
+`workflow deposit`, and `workflow withdraw`. These are thin wrappers around
+`workflow run --intent ...`.
+
 ## Core commands
 
 ### Setup and wallet lifecycle
@@ -198,6 +203,9 @@ pnpm zk-agent wallet request approve-local --request-id <id> --wallet-address <a
 ```bash
 pnpm zk-agent workflow plan --wallet <name> --intent <intent> ...
 pnpm zk-agent workflow run --wallet <name> --intent <intent> ...
+pnpm zk-agent workflow send-native --wallet <name> --to <address> --amount <amount> ...
+pnpm zk-agent workflow swap --wallet <name> --token-in <address> --token-out <address> ...
+pnpm zk-agent workflow bridge --wallet <name> --amount <amount> --to-chain <chain> ...
 pnpm zk-agent workflow status --wallet <name> --intent <intent> ...
 pnpm zk-agent workflow resume --wallet <name> --intent <intent> ...
 pnpm zk-agent workflow list
@@ -235,6 +243,9 @@ pnpm zk-agent withdraw --wallet <name> --amount <value> [--token <address>] [--b
 pnpm zk-agent withdraw-status --wallet <name> --tx-hash <hash>
 pnpm zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
 ```
+
+For `syncswap-classic`, the CLI can fill the tracked zkSync Sepolia router and
+factory defaults when those flags are omitted.
 
 ### Built-in smart-account profiles
 

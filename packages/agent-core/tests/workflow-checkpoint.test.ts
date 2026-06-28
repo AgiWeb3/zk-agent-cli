@@ -133,7 +133,7 @@ test('workflow checkpoint captures funding tracking after a dispatched funding b
       chainId: sampleWallet.chainId,
       intent: 'send-native',
       goal: 'send native',
-      goalCommand: 'zk-agent send --wallet main --to 0x333 --amount 0.1 --broadcast',
+      goalCommand: 'zk-agent workflow send-native --wallet main --to 0x333 --amount 0.1 --broadcast',
       recommendedCommand: 'zk-agent deposit --wallet main --amount 0.02 --broadcast',
       status: 'blocked',
       accountKind: sampleWallet.accountKind,

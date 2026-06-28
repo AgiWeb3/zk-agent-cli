@@ -41,7 +41,13 @@ export function resolveEffectivePaymasterSelection(
   wallet: WalletSessionRecord,
   requested?: PaymasterSelectionInput
 ): PaymasterSelectionInput | undefined {
-  if (requested?.mode && requested.mode !== 'none') {
+  if (requested?.mode === 'none') {
+    return {
+      mode: 'none'
+    };
+  }
+
+  if (requested?.mode) {
     return {
       mode: requested.mode,
       address:

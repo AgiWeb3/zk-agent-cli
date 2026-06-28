@@ -49,6 +49,7 @@ import {
   buildWalletRequestRelayPublishRecommendedCommand,
   buildWalletRequestRelayStatusRecommendedCommand
 } from '../lib/recommended-commands.js';
+import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
 import { runWorkflow, type WorkflowGoalInput } from '../lib/workflow-run.js';
 import {
   awaitLocalWalletApproval,
@@ -191,6 +192,16 @@ interface WorkflowListOptions {
   wallet?: string;
   intent?: string;
 }
+
+const WORKFLOW_INTENT_SUBCOMMANDS: WorkflowIntent[] = [
+  'send-native',
+  'send-token',
+  'call-write',
+  'swap',
+  'bridge',
+  'deposit',
+  'withdraw'
+];
 
 interface WorkflowRequestIdOptions {
   requestId: string;
@@ -348,47 +359,6 @@ function resolveTokenDecimalsOrLocalMetadata(
   );
 }
 
-function requirePositiveInteger(value: string | undefined, label: string): number {
-  if (!value) {
-    throw new Error(`${label} is required`);
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${label} must be a positive integer`);
-  }
-
-  return parsed;
-}
-
-function resolveRequiredOptionWithEnv(
-  value: string | undefined,
-  label: string,
-  envName: string
-): string {
-  const direct = value?.trim();
-  if (direct) return direct;
-
-  const fromEnv = process.env[envName]?.trim();
-  if (fromEnv) return fromEnv;
-
-  throw new Error(`${label} is required (or set ${envName} in .env)`);
-}
-
-function resolvePositiveIntegerWithEnv(
-  value: string | undefined,
-  label: string,
-  envName: string
-): number {
-  const direct = value?.trim();
-  if (direct) return requirePositiveInteger(direct, label);
-
-  const fromEnv = process.env[envName]?.trim();
-  if (fromEnv) return requirePositiveInteger(fromEnv, envName);
-
-  throw new Error(`${label} is required (or set ${envName} in .env)`);
-}
-
 async function loadWorkflowPlanState(
   walletName: string,
   intent: WorkflowIntent,
@@ -478,24 +448,12 @@ function resolveWorkflowGoalInput(
       if (!options.amountIn) throw new Error('--amount-in is required for --intent swap');
       if (!options.amountOutMin) throw new Error('--amount-out-min is required for --intent swap');
 
-      const protocol = parseWorkflowSwapProtocol(options.protocol);
-      const routerEnvName =
-        protocol === 'syncswap-classic'
-          ? 'ZKSYNC_SYNCSWAP_ROUTER_ADDRESS'
-          : 'ZKSYNC_SWAP_ROUTER_ADDRESS';
-      const routerAddress = resolveRequiredOptionWithEnv(options.router, '--router', routerEnvName);
-      const factoryAddress =
-        protocol === 'syncswap-classic'
-          ? resolveRequiredOptionWithEnv(
-              options.factory,
-              '--factory',
-              'ZKSYNC_SYNCSWAP_CLASSIC_FACTORY_ADDRESS'
-            )
-          : options.factory;
-      const feeTier =
-        protocol === 'syncswap-classic'
-          ? 0
-          : resolvePositiveIntegerWithEnv(options.feeTier, '--fee-tier', 'ZKSYNC_SWAP_FEE_TIER');
+      const { protocol, routerAddress, factoryAddress, feeTier } = resolveSwapCommandDefaults({
+        protocol: parseWorkflowSwapProtocol(options.protocol),
+        router: options.router,
+        factory: options.factory,
+        feeTier: options.feeTier
+      });
 
       return {
         intent,
@@ -939,6 +897,42 @@ function workflowWalletApprovalLines(
   return lines;
 }
 
+function printWorkflowRunCommandResult(
+  execution: Awaited<ReturnType<typeof executeWorkflowRunCommand>>
+): void {
+  if (execution.result) {
+    printResult(
+      prependWorkflowRequestId(
+        execution.requestId,
+        [...workflowRunLines(execution.result), ...workflowWalletApprovalLines(execution.walletApproval)]
+      ),
+      {
+        ok: true,
+        ...serializeWorkflowRequestMeta(execution.requestId),
+        result: execution.result,
+        walletRequestId: execution.walletApproval?.request.requestId,
+        walletApproval: serializeWalletApproval(execution.walletApproval)
+      }
+    );
+    return;
+  }
+
+  printResult(
+    prependWorkflowRequestId(
+      execution.requestId,
+      [...workflowStatusLines(execution.status), ...workflowWalletApprovalLines(execution.walletApproval)]
+    ),
+    {
+      ok: true,
+      ...serializeWorkflowRequestMeta(execution.requestId),
+      status: execution.status,
+      checkpoint: execution.checkpoint,
+      walletRequestId: execution.walletApproval?.request.requestId,
+      walletApproval: serializeWalletApproval(execution.walletApproval)
+    }
+  );
+}
+
 function overrideCheckpointRecommendedCommand(
   checkpoint: WorkflowCheckpointRecord | undefined,
   recommendedCommand: string | undefined
@@ -1056,8 +1050,14 @@ function addWorkflowGoalOptions(
       '--protocol <protocol>',
       'Optional swap protocol override: uniswap-v3-exact-input-single or syncswap-classic'
     )
-    .option('--router <address>', 'Swap router contract address')
-    .option('--factory <address>', 'Optional swap factory override')
+    .option(
+      '--router <address>',
+      'Swap router contract address. Optional for syncswap-classic when tracked defaults are available'
+    )
+    .option(
+      '--factory <address>',
+      'Optional swap factory override. For syncswap-classic, tracked defaults are used when omitted'
+    )
     .option('--token-in <address>', 'Swap input token address')
     .option('--token-out <address>', 'Swap output token address')
     .option('--amount-in <value>', 'Swap input amount')
@@ -1531,38 +1531,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeLocalApproval: true
   }).action(async (options: WorkflowCommandOptions) => {
     const execution = await executeWorkflowRunCommand(options, resolvedDeps);
-
-    if (execution.result) {
-      printResult(
-        prependWorkflowRequestId(
-          execution.requestId,
-          [...workflowRunLines(execution.result), ...workflowWalletApprovalLines(execution.walletApproval)]
-        ),
-        {
-          ok: true,
-          ...serializeWorkflowRequestMeta(execution.requestId),
-          result: execution.result,
-          walletRequestId: execution.walletApproval?.request.requestId,
-          walletApproval: serializeWalletApproval(execution.walletApproval)
-        }
-      );
-      return;
-    }
-
-    printResult(
-      prependWorkflowRequestId(
-        execution.requestId,
-        [...workflowStatusLines(execution.status), ...workflowWalletApprovalLines(execution.walletApproval)]
-      ),
-      {
-        ok: true,
-        ...serializeWorkflowRequestMeta(execution.requestId),
-        status: execution.status,
-        checkpoint: execution.checkpoint,
-        walletRequestId: execution.walletApproval?.request.requestId,
-        walletApproval: serializeWalletApproval(execution.walletApproval)
-      }
-    );
+    printWorkflowRunCommandResult(execution);
   });
 
   const status = workflow
@@ -1674,6 +1643,29 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       }
     );
   });
+
+  for (const intent of WORKFLOW_INTENT_SUBCOMMANDS) {
+    const command = workflow
+      .command(intent)
+      .description(`Shortcut for workflow run --intent ${intent}`)
+      .option('--wallet <name>', 'Wallet name', 'main');
+
+    addWorkflowGoalOptions(command, {
+      includeExecutionFlags: true,
+      includeFundingDispatch: true,
+      includeLocalApproval: true
+    }).action(async (options: WorkflowCommandOptions) => {
+      const execution = await executeWorkflowRunCommand(
+        {
+          ...options,
+          intent
+        },
+        resolvedDeps
+      );
+
+      printWorkflowRunCommandResult(execution);
+    });
+  }
 
   return workflow;
 }

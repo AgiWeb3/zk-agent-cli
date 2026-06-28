@@ -105,7 +105,7 @@ function buildGoalStep(input: {
         goal: 'Broadcast a native token transfer',
         command: appendWalletPaymasterCommandArgs(
           wallet,
-          `zk-agent send --wallet ${wallet.walletName} --to <address> --amount <amount> --broadcast`,
+          `zk-agent workflow send-native --wallet ${wallet.walletName} --to <address> --amount <amount> --broadcast`,
           input.paymaster
         ),
         notes: []
@@ -115,7 +115,7 @@ function buildGoalStep(input: {
         goal: 'Broadcast an ERC-20 transfer',
         command: appendWalletPaymasterCommandArgs(
           wallet,
-          `zk-agent send-token --wallet ${wallet.walletName} --token <address> ` +
+          `zk-agent workflow send-token --wallet ${wallet.walletName} --token <address> ` +
             '--amount <amount> --to <address> --broadcast',
           input.paymaster
         ),
@@ -126,7 +126,7 @@ function buildGoalStep(input: {
         goal: 'Broadcast a write-mode contract call',
         command: appendWalletPaymasterCommandArgs(
           wallet,
-          `zk-agent call --wallet ${wallet.walletName} --mode write ` +
+          `zk-agent workflow call-write --wallet ${wallet.walletName} ` +
             '--to <address> --data <hex> --broadcast',
           input.paymaster
         ),
@@ -138,7 +138,7 @@ function buildGoalStep(input: {
           goal: 'Broadcast a SyncSwap classic swap',
           command: appendWalletPaymasterCommandArgs(
             wallet,
-            `zk-agent swap --wallet ${wallet.walletName} --protocol syncswap-classic ` +
+            `zk-agent workflow swap --wallet ${wallet.walletName} --protocol syncswap-classic ` +
               '--router <address> --factory <address> --token-in <address> --token-out <address> ' +
               '--amount-in <amount> --amount-out-min <amount> --broadcast',
             input.paymaster
@@ -152,7 +152,7 @@ function buildGoalStep(input: {
           goal: 'Broadcast a Uniswap V3 exactInputSingle swap',
           command: appendWalletPaymasterCommandArgs(
             wallet,
-            `zk-agent swap --wallet ${wallet.walletName} --protocol uniswap-v3-exact-input-single ` +
+            `zk-agent workflow swap --wallet ${wallet.walletName} --protocol uniswap-v3-exact-input-single ` +
               '--router <address> --fee-tier <fee> --token-in <address> --token-out <address> ' +
               '--amount-in <amount> --amount-out-min <amount> --broadcast',
             input.paymaster
@@ -165,7 +165,7 @@ function buildGoalStep(input: {
         goal: 'Broadcast a supported same-chain swap',
         command: appendWalletPaymasterCommandArgs(
           wallet,
-          `zk-agent swap --wallet ${wallet.walletName} --protocol <protocol> ` +
+          `zk-agent workflow swap --wallet ${wallet.walletName} --protocol <protocol> ` +
             '--router <address> --token-in <address> --token-out <address> ' +
             '--amount-in <amount> --amount-out-min <amount> --broadcast',
           input.paymaster
@@ -179,20 +179,20 @@ function buildGoalStep(input: {
       return {
         goal: 'Broadcast a supported bridge route',
         command:
-          `zk-agent bridge --wallet ${wallet.walletName} --to-chain ${input.toChain || '<chain>'} ` +
+          `zk-agent workflow bridge --wallet ${wallet.walletName} --to-chain ${input.toChain || '<chain>'} ` +
           '--amount <amount> --broadcast',
         notes: input.toChain ? [] : ['Set --to-chain to the destination chain before execution.']
       };
     case 'deposit':
       return {
         goal: 'Broadcast an L1 to L2 deposit',
-        command: `zk-agent deposit --wallet ${wallet.walletName} --amount <amount> --broadcast`,
+        command: `zk-agent workflow deposit --wallet ${wallet.walletName} --amount <amount> --broadcast`,
         notes: []
       };
     case 'withdraw':
       return {
         goal: 'Broadcast an L2 to L1 withdraw',
-        command: `zk-agent withdraw --wallet ${wallet.walletName} --amount <amount> --broadcast`,
+        command: `zk-agent workflow withdraw --wallet ${wallet.walletName} --amount <amount> --broadcast`,
         notes: []
       };
     default:

@@ -141,6 +141,65 @@ test('workflow plan emits a protocol-specific swap goal command when requested',
   assert.match(plan.goalCommand, /--paymaster-token 0x5555555555555555555555555555555555555555/);
 });
 
+test('workflow plan respects an explicit paymaster none override', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        sessionScope: {
+          chainKeys: ['zksync-sepolia'],
+          chainIds: [300]
+        },
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        },
+        sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        },
+        sessionPublicKey: '0x' + '11'.repeat(32),
+        permissions: {
+          expiresAt: '2026-06-24T01:00:00.000Z'
+        },
+        paymasterAddress: '0x4444444444444444444444444444444444444444'
+      },
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'swap',
+    nativeBalance: '1.5',
+    nativeSymbol: 'ETH',
+    protocol: 'syncswap-classic',
+    paymaster: {
+      mode: 'none'
+    }
+  });
+
+  assert.equal(plan.status, 'planned');
+  assert.equal(plan.readyForGoal, true);
+  assert.doesNotMatch(plan.goalCommand, /--paymaster-mode approval-based/);
+  assert.doesNotMatch(plan.goalCommand, /--paymaster-address/);
+  assert.doesNotMatch(plan.goalCommand, /--paymaster-token/);
+});
+
 test('workflow plan adds a bridge note when destination chain is still missing', () => {
   const plan = buildWorkflowPlan({
     wallet: {

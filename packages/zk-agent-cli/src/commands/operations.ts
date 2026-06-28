@@ -24,6 +24,7 @@ import {
   buildWithdrawFinalizePreviewNextCommand,
   buildWithdrawPreviewNextCommand
 } from '../lib/preview-next-command.js';
+import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
 
 const provider = new ZkSyncWalletProvider();
 const defiProvider = new ZkSyncDefiProvider({
@@ -117,34 +118,6 @@ function requirePositiveInteger(value: string | undefined, label: string): numbe
   }
 
   return parsed;
-}
-
-function resolveRequiredOptionWithEnv(
-  value: string | undefined,
-  label: string,
-  envName: string
-): string {
-  const direct = value?.trim();
-  if (direct) return direct;
-
-  const fromEnv = process.env[envName]?.trim();
-  if (fromEnv) return fromEnv;
-
-  throw new Error(`${label} is required (or set ${envName} in .env)`);
-}
-
-function resolvePositiveIntegerWithEnv(
-  value: string | undefined,
-  label: string,
-  envName: string
-): number {
-  const direct = value?.trim();
-  if (direct) return requirePositiveInteger(direct, label);
-
-  const fromEnv = process.env[envName]?.trim();
-  if (fromEnv) return requirePositiveInteger(fromEnv, envName);
-
-  throw new Error(`${label} is required (or set ${envName} in .env)`);
 }
 
 function isDepositStatusTerminal(
@@ -1110,8 +1083,14 @@ export function createSwapCommand(): Command {
       'uniswap-v3-exact-input-single or syncswap-classic',
       'uniswap-v3-exact-input-single'
     )
-    .option('--router <address>', 'Swap router contract address')
-    .option('--factory <address>', 'Optional factory address override for protocol-specific pool lookup')
+    .option(
+      '--router <address>',
+      'Swap router contract address. Optional for syncswap-classic when tracked defaults are available'
+    )
+    .option(
+      '--factory <address>',
+      'Optional factory address override for protocol-specific pool lookup. For syncswap-classic, tracked defaults are used when omitted'
+    )
     .requiredOption('--token-in <address>', 'Input ERC-20 token contract address')
     .requiredOption('--token-out <address>', 'Output ERC-20 token contract address')
     .requiredOption('--amount-in <value>', 'Input amount in human-readable token units')
@@ -1158,31 +1137,19 @@ export function createSwapCommand(): Command {
         paymasterToken?: string;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const protocol = options.protocol || 'uniswap-v3-exact-input-single';
-        const routerEnvName =
-          protocol === 'syncswap-classic'
-            ? 'ZKSYNC_SYNCSWAP_ROUTER_ADDRESS'
-            : 'ZKSYNC_SWAP_ROUTER_ADDRESS';
-        const routerAddress = resolveRequiredOptionWithEnv(options.router, '--router', routerEnvName);
-        const factoryAddress =
-          protocol === 'syncswap-classic'
-            ? resolveRequiredOptionWithEnv(
-                options.factory,
-                '--factory',
-                'ZKSYNC_SYNCSWAP_CLASSIC_FACTORY_ADDRESS'
-              )
-            : options.factory;
-        const feeTier =
-          protocol === 'syncswap-classic'
-            ? 0
-            : resolvePositiveIntegerWithEnv(options.feeTier, '--fee-tier', 'ZKSYNC_SWAP_FEE_TIER');
+        const { protocol, routerAddress, factoryAddress, feeTier } = resolveSwapCommandDefaults({
+          protocol: options.protocol as 'uniswap-v3-exact-input-single' | 'syncswap-classic' | undefined,
+          router: options.router,
+          factory: options.factory,
+          feeTier: options.feeTier
+        });
         const tokenInSymbol =
           resolveOptionalLabel(options.tokenInSymbol) ?? resolveLocalTokenMetadata(options.tokenIn)?.symbol;
         const tokenOutSymbol =
           resolveOptionalLabel(options.tokenOutSymbol) ?? resolveLocalTokenMetadata(options.tokenOut)?.symbol;
         const result = await defiProvider.swap({
           wallet,
-          protocol: protocol as 'uniswap-v3-exact-input-single' | 'syncswap-classic',
+          protocol,
           routerAddress,
           factoryAddress,
           tokenInAddress: options.tokenIn,

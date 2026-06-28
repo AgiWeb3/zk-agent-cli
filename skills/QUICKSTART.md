@@ -95,6 +95,12 @@ Preview a native send:
 pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount>
 ```
 
+Equivalent shortcut:
+
+```bash
+pnpm zk-agent workflow send-native --wallet main --to <address> --amount <amount>
+```
+
 Broadcast the same send:
 
 ```bash
@@ -148,12 +154,15 @@ Examples:
 ```bash
 pnpm zk-agent balances --wallet main
 pnpm zk-agent send --wallet main --to <address> --amount <amount>
-pnpm zk-agent swap --wallet main --protocol syncswap-classic ...
+pnpm zk-agent swap --wallet main --protocol syncswap-classic --token-in <address> --token-out <address> --amount-in <amount> --amount-out-min <amount>
 pnpm zk-agent bridge --wallet main --to-chain zksync-sepolia --amount <amount>
 pnpm zk-agent withdraw --wallet main --amount <amount>
 pnpm zk-agent withdraw-status --wallet main --tx-hash <hash>
 pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash>
 ```
+
+For `syncswap-classic`, tracked Sepolia router/factory defaults are used when
+`--router` and `--factory` are omitted.
 
 ## 9. Smart-account path
 

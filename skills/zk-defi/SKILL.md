@@ -94,8 +94,6 @@ Preview:
 pnpm zk-agent swap \
   --wallet main \
   --protocol syncswap-classic \
-  --router <address> \
-  --factory <address> \
   --token-in <address> \
   --token-out <address> \
   --amount-in <amount> \
@@ -108,8 +106,6 @@ Broadcast:
 pnpm zk-agent swap \
   --wallet main \
   --protocol syncswap-classic \
-  --router <address> \
-  --factory <address> \
   --token-in <address> \
   --token-out <address> \
   --amount-in <amount> \
@@ -137,6 +133,9 @@ Current behavior worth relying on:
 - allowance preflight exists
 - `--auto-approve` can send the approval transaction first when needed
 - local deployment metadata can supply token decimals/symbols when available
+- when `--protocol syncswap-classic` is selected, the CLI can fill the tracked
+  zkSync Sepolia router/factory defaults if `--router` and `--factory` are not
+  supplied
 - preview output includes a concrete rerun command for broadcast
 
 ## Supported bridge route

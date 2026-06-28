@@ -150,6 +150,16 @@ function sampleWallet() {
   };
 }
 
+function sampleWritableWallet() {
+  return {
+    ...sampleWallet(),
+    sessionPayload: {
+      ...sampleWallet().sessionPayload,
+      sessionPrivateKey: '0x' + '77'.repeat(32)
+    }
+  };
+}
+
 function sampleRequest() {
   return {
     requestId: 'wr-reuse-001',
@@ -298,11 +308,62 @@ test('workflow status can await local approval through commander with injected p
     assert.equal(result.walletApproval.wallet.sessionPayload.sessionPrivateKey, undefined);
     assert.equal(result.checkpoint.requestId, 'wf-await-001');
     assert.equal(result.checkpoint.walletRequestId, undefined);
-    assert.match(result.result.recommendedCommand, /zk-agent send --wallet main/);
+    assert.match(result.result.recommendedCommand, /zk-agent workflow send-native --wallet main/);
 
     assert.deepEqual(await storage.listWalletRequestIds(), []);
     const storedWallet = await storage.loadWalletSession('main');
     assert.equal(storedWallet?.sessionPayload?.sessionPrivateKey, '0x' + '77'.repeat(32));
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('workflow send-native shortcut executes the same path as workflow run with a fixed intent', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-send-native-shortcut-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveWalletSession(sampleWritableWallet());
+
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fixtureEntry,
+        'send-native',
+        '--wallet',
+        'main',
+        '--to',
+        '0x3333333333333333333333333333333333333333',
+        '--amount',
+        '0.1',
+        '--broadcast'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow send-native JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.result.stage, 'goal-executed');
+    assert.equal(result.result.goal.mode, 'broadcast');
+    assert.equal(result.result.goal.txHash, '0x' + '99'.repeat(32));
+    assert.equal(result.result.goal.to, '0x3333333333333333333333333333333333333333');
+    assert.equal(result.walletApproval, undefined);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

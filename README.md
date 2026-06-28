@@ -68,6 +68,7 @@ What is already in place:
 - `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
+- intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
 - `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and relay publish/status/approve guidance
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
 - `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
@@ -173,6 +174,7 @@ What is already in place:
 - `swap` support through `packages/provider-zksync-defi`, including:
   - same-chain `Uniswap V3 exactInputSingle` and `SyncSwap classic` single-pool request shaping
   - explicit router / token / protocol input instead of hidden quote aggregation
+  - tracked SyncSwap classic router / factory defaults, so the CLI can fill Sepolia-safe values when `--protocol syncswap-classic` is selected and the operator omits those flags
   - CLI-side fallback to local test-asset deployment records for token `decimals` / `symbol` lookup during swaps, token sends, and ERC-20 bridge/withdraw/deposit previews, so repeated Sepolia test runs do not always need manual decimal flags
   - allowance preflight with optional auto-approve before swap broadcast
   - router-factory pool preflight, so missing V3 pools fail before any approval transaction is sent

@@ -295,17 +295,17 @@ export function buildWorkflowGoalCommand(
   switch (goal.intent) {
     case 'send-native':
       return appendPaymasterCommandArgs(
-        `zk-agent send --wallet ${walletName} --to ${goal.to} --amount ${goal.amount} --broadcast`,
+        `zk-agent workflow send-native --wallet ${walletName} --to ${goal.to} --amount ${goal.amount} --broadcast`,
         goal.paymaster
       );
     case 'send-token':
       return appendPaymasterCommandArgs(
-        `zk-agent send-token --wallet ${walletName} --token ${goal.tokenAddress} --amount ${goal.amount} --to ${goal.to} --broadcast`,
+        `zk-agent workflow send-token --wallet ${walletName} --token ${goal.tokenAddress} --amount ${goal.amount} --to ${goal.to} --broadcast`,
         goal.paymaster
       );
     case 'call-write':
       return appendPaymasterCommandArgs(
-        `zk-agent call --wallet ${walletName} --mode write --to ${goal.to} --data ${goal.data} --broadcast`,
+        `zk-agent workflow call-write --wallet ${walletName} --to ${goal.to} --data ${goal.data} --broadcast`,
         goal.paymaster
       );
     case 'swap': {
@@ -313,7 +313,7 @@ export function buildWorkflowGoalCommand(
         goal.protocol ||
         (goal.factoryAddress ? 'syncswap-classic' : 'uniswap-v3-exact-input-single');
       let command =
-        `zk-agent swap --wallet ${walletName} --protocol ${protocol} ` +
+        `zk-agent workflow swap --wallet ${walletName} --protocol ${protocol} ` +
         `--router ${goal.routerAddress} --token-in ${goal.tokenInAddress} ` +
         `--token-out ${goal.tokenOutAddress} --amount-in ${goal.amountIn} ` +
         `--amount-out-min ${goal.amountOutMin} --token-in-decimals ${goal.tokenInDecimals} ` +
@@ -336,7 +336,7 @@ export function buildWorkflowGoalCommand(
     }
     case 'bridge': {
       let command =
-        `zk-agent bridge --wallet ${walletName} --to-chain ${goal.toChain} --amount ${goal.amount} --broadcast`;
+        `zk-agent workflow bridge --wallet ${walletName} --to-chain ${goal.toChain} --amount ${goal.amount} --broadcast`;
       command = appendOptionalCommandArg(command, '--from-chain', goal.fromChain);
       command = appendOptionalCommandArg(command, '--to', goal.to);
       command = appendOptionalCommandArg(command, '--token', goal.tokenAddress);
@@ -346,7 +346,7 @@ export function buildWorkflowGoalCommand(
       return command;
     }
     case 'deposit': {
-      let command = `zk-agent deposit --wallet ${walletName} --amount ${goal.amount} --broadcast`;
+      let command = `zk-agent workflow deposit --wallet ${walletName} --amount ${goal.amount} --broadcast`;
       command = appendOptionalCommandArg(command, '--to', goal.to);
       command = appendOptionalCommandArg(command, '--token', goal.tokenAddress);
       command = appendOptionalCommandArg(command, '--symbol', goal.symbol);
@@ -355,7 +355,7 @@ export function buildWorkflowGoalCommand(
       return command;
     }
     case 'withdraw': {
-      let command = `zk-agent withdraw --wallet ${walletName} --amount ${goal.amount} --broadcast`;
+      let command = `zk-agent workflow withdraw --wallet ${walletName} --amount ${goal.amount} --broadcast`;
       command = appendOptionalCommandArg(command, '--to', goal.to);
       command = appendOptionalCommandArg(command, '--token', goal.tokenAddress);
       command = appendOptionalCommandArg(command, '--symbol', goal.symbol);

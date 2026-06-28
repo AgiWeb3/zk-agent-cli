@@ -169,7 +169,7 @@ test('workflow status reports ready when no blocker and no funding gap remain', 
   assert.equal(result.blockingActionIds.length, 0);
   assert.equal(
     result.recommendedCommand,
-    'zk-agent send --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
+    'zk-agent workflow send-native --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
   );
 });
 
