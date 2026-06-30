@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   PROTOCOL_VERSION,
   buildApprovedSessionPayload,
+  deriveEthereumAddressFromPrivateKey,
   decodeSessionApprovalRequest,
   encryptSession,
   type RelayStatusResponse,
@@ -70,15 +71,53 @@ function normalizeAbsoluteUrl(value: string): string {
   }
 }
 
+function relayShareUrlFromStatus(relay: RelayStatusResponse | null): string {
+  return relay?.approval_url || '';
+}
+
+function relayStatusTone(status: RelayStatusResponse['status'] | 'loading' | 'error'): string {
+  switch (status) {
+    case 'ready':
+      return 'good';
+    case 'expired':
+      return 'bad';
+    case 'pending':
+    case 'loading':
+      return 'warn';
+    default:
+      return 'muted';
+  }
+}
+
+function formatTimestamp(value: string | undefined): string {
+  if (!value) return 'n/a';
+
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return value;
+  return new Date(parsed).toLocaleString();
+}
+
 function relayApproveCommand(
   request: SessionApprovalRequest | null,
   relayRequestUrl: string
 ): string {
   if (!request || !relayRequestUrl) {
-    return 'zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code>';
+    return 'zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait';
   }
 
-  return `zk-agent wallet request approve --request-id ${request.requestId} --relay-url ${relayRequestUrl.replace(/\/api\/requests\/[^/]+$/, '')} --code <code>`;
+  return `zk-agent wallet request approve --request-id ${request.requestId} --relay-url ${relayRequestUrl.replace(/\/api\/requests\/[^/]+$/, '')} --code <code> --wait`;
+}
+
+function relayBaseUrl(relayRequestUrl: string): string {
+  return relayRequestUrl.replace(/\/api\/requests\/[^/]+$/, '');
+}
+
+function isSmartAccountRequest(request: SessionApprovalRequest | null): boolean {
+  return request?.requestedAccountKind === 'smart-account';
+}
+
+function isApprovalBasedRequest(request: SessionApprovalRequest | null): boolean {
+  return request?.requestedPaymasterMode === 'approval-based';
 }
 
 export function App() {
@@ -91,6 +130,9 @@ export function App() {
   const callbackUrl = useMemo(() => normalizeCallbackUrl(fallback.callbackUrl), [fallback.callbackUrl]);
   const [request, setRequest] = useState<SessionApprovalRequest | null>(encodedRequest);
   const [requestLoadError, setRequestLoadError] = useState('');
+  const [relayStatus, setRelayStatus] = useState<RelayStatusResponse | null>(null);
+  const [relayStatusError, setRelayStatusError] = useState('');
+  const [isRelayRefreshing, setIsRelayRefreshing] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
   const [sessionAddress, setSessionAddress] = useState('');
@@ -101,56 +143,116 @@ export function App() {
   const [copyStatus, setCopyStatus] = useState('');
   const [submitStatus, setSubmitStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const smartAccountRequest = isSmartAccountRequest(request);
+  const approvalBasedRequest = isApprovalBasedRequest(request);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadRelayRequest() {
+    async function loadRelayRequest(markRefreshing = false) {
       if (encodedRequest || !relayRequestUrl) return;
+
+      if (markRefreshing && !cancelled) {
+        setIsRelayRefreshing(true);
+      }
 
       try {
         const response = await fetch(relayRequestUrl);
         const body = (await response.json()) as RelayStatusResponse | { error?: string };
         if (!response.ok) {
-          throw new Error('error' in body && body.error ? body.error : `Relay request fetch failed with status ${response.status}`);
+          throw new Error(
+            'error' in body && body.error
+              ? body.error
+              : `Relay request fetch failed with status ${response.status}`
+          );
         }
 
         if (!cancelled && hasRelayRequest(body)) {
+          setRelayStatus(body);
           setRequest(body.request || null);
+          setRelayStatusError('');
           setRequestLoadError(body.request ? '' : 'Relay request did not include an approval payload request.');
         }
       } catch (error) {
         if (!cancelled) {
-          setRequestLoadError(error instanceof Error ? error.message : 'Failed to load relay request.');
+          const message =
+            error instanceof Error ? error.message : 'Failed to load relay request.';
+          setRelayStatusError(message);
+          setRequestLoadError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRelayRefreshing(false);
         }
       }
     }
 
     void loadRelayRequest();
 
+    if (!encodedRequest && relayRequestUrl) {
+      const interval = window.setInterval(() => {
+        if (cancelled) return;
+        if (relayStatus?.approval_ready || relayStatus?.status === 'expired') return;
+        void loadRelayRequest();
+      }, 3000);
+
+      return () => {
+        cancelled = true;
+        window.clearInterval(interval);
+      };
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [encodedRequest, relayRequestUrl]);
+  }, [encodedRequest, relayRequestUrl, relayStatus?.approval_ready, relayStatus?.status]);
 
-  const approvedPayload = useMemo(() => {
-    if (!request || !walletAddress) return null;
+  const derivedOwnerAddress = useMemo(() => {
+    if (!sessionPrivateKey) return '';
 
     try {
-      return buildApprovedSessionPayload({
-        request,
-        walletAddress,
-        ownerAddress: ownerAddress || undefined,
-        sessionAddress: sessionAddress || undefined,
-        sessionPrivateKey: sessionPrivateKey || undefined,
-        validatorAddress: validatorAddress || undefined,
-        paymasterAddress: paymasterAddress || undefined,
-        paymasterToken: paymasterToken || undefined,
-        connectorOrigin: window.location.origin,
-        connectorUrl: `${window.location.origin}${window.location.pathname}`
-      });
+      return deriveEthereumAddressFromPrivateKey(sessionPrivateKey);
     } catch {
-      return null;
+      return '';
+    }
+  }, [sessionPrivateKey]);
+
+  const payloadDraft = useMemo(() => {
+    if (!request) {
+      return {
+        payload: null,
+        error: 'Approval request is missing.'
+      };
+    }
+
+    if (!walletAddress) {
+      return {
+        payload: null,
+        error: 'walletAddress is required.'
+      };
+    }
+
+    try {
+      return {
+        payload: buildApprovedSessionPayload({
+          request,
+          walletAddress,
+          ownerAddress: ownerAddress || undefined,
+          sessionAddress: sessionAddress || undefined,
+          sessionPrivateKey: sessionPrivateKey || undefined,
+          validatorAddress: validatorAddress || undefined,
+          paymasterAddress: paymasterAddress || undefined,
+          paymasterToken: paymasterToken || undefined,
+          connectorOrigin: window.location.origin,
+          connectorUrl: `${window.location.origin}${window.location.pathname}`
+        }),
+        error: ''
+      };
+    } catch (error) {
+      return {
+        payload: null,
+        error: error instanceof Error ? error.message : 'Failed to build approved session payload.'
+      };
     }
   }, [
     ownerAddress,
@@ -162,6 +264,8 @@ export function App() {
     validatorAddress,
     walletAddress
   ]);
+  const approvedPayload = payloadDraft.payload;
+  const payloadError = payloadDraft.error;
 
   const generatedPayload = useMemo(() => {
     if (!approvedPayload) return '';
@@ -192,6 +296,41 @@ export function App() {
     () => relayApproveCommand(request, relayRequestUrl),
     [request, relayRequestUrl]
   );
+  const relayBase = useMemo(
+    () => (relayRequestUrl ? relayBaseUrl(relayRequestUrl) : ''),
+    [relayRequestUrl]
+  );
+  const relayWaitCommand = useMemo(() => {
+    if (!request || !relayBase) return '';
+    return `zk-agent wallet request relay-status --request-id ${request.requestId} --relay-url ${relayBase} --wait`;
+  }, [relayBase, request]);
+  const encryptedFinalizeCommand = useMemo(() => {
+    if (!request) {
+      return 'zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>';
+    }
+
+    return `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${encryptedRelayPackage?.code || '<code>'}`;
+  }, [encryptedRelayPackage?.code, request]);
+  const relayShareUrl = useMemo(() => relayShareUrlFromStatus(relayStatus), [relayStatus]);
+  const relayStatusLabel = relayStatus
+    ? relayStatus.status
+    : relayRequestUrl
+      ? isRelayRefreshing
+        ? 'loading'
+        : 'pending'
+      : null;
+  const relayStateTone = relayStatusLabel ? relayStatusTone(relayStatusLabel) : 'muted';
+  const relayPrimaryMessage = relayStatus
+    ? relayStatus.status === 'ready'
+      ? 'Encrypted relay approval is ready. The CLI can finalize with the approval code now.'
+      : relayStatus.status === 'expired'
+        ? 'This relay request has expired. Create or reapprove a fresh session request.'
+        : relayStatus.approval_ready
+          ? 'Relay approval is ready.'
+          : 'Waiting for the connector to submit the encrypted approval package.'
+    : relayRequestUrl
+      ? 'Loading relay approval status.'
+      : '';
 
   return (
     <main className="page">
@@ -244,6 +383,95 @@ export function App() {
 
         {request ? (
           <>
+            {relayRequestUrl ? (
+              <section className="panel">
+                <div className="panel-header">
+                  <h2>Relay approval status</h2>
+                  <span className={`state-pill state-pill--${relayStateTone}`}>
+                    {relayStatusLabel || 'idle'}
+                  </span>
+                </div>
+                <p className="helper">{relayPrimaryMessage}</p>
+                <dl className="meta compact-meta">
+                  <div>
+                    <dt>Approval ready</dt>
+                    <dd>{relayStatus?.approval_ready ? 'yes' : 'no'}</dd>
+                  </div>
+                  <div>
+                    <dt>Share URL</dt>
+                    <dd>{relayShareUrl || 'n/a'}</dd>
+                  </div>
+                  <div>
+                    <dt>Status URL</dt>
+                    <dd>{relayRequestUrl}</dd>
+                  </div>
+                  <div>
+                    <dt>Submitted at</dt>
+                    <dd>{formatTimestamp(relayStatus?.approval_submitted_at)}</dd>
+                  </div>
+                  <div>
+                    <dt>Expires</dt>
+                    <dd>{formatTimestamp(relayStatus?.expires_at || request.expiresAt)}</dd>
+                  </div>
+                </dl>
+                <div className="actions">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!relayRequestUrl || encodedRequest) return;
+
+                      setIsRelayRefreshing(true);
+                      try {
+                        const response = await fetch(relayRequestUrl);
+                        const body = (await response.json()) as RelayStatusResponse | { error?: string };
+                        if (!response.ok) {
+                          throw new Error(
+                            'error' in body && body.error
+                              ? body.error
+                              : `Relay request fetch failed with status ${response.status}`
+                          );
+                        }
+                        if (hasRelayRequest(body)) {
+                          setRelayStatus(body);
+                          setRelayStatusError('');
+                          setRequest(body.request || request);
+                        }
+                      } catch (error) {
+                        setRelayStatusError(
+                          error instanceof Error ? error.message : 'Failed to refresh relay status.'
+                        );
+                      } finally {
+                        setIsRelayRefreshing(false);
+                      }
+                    }}
+                  >
+                    {isRelayRefreshing ? 'Refreshing...' : 'Refresh relay status'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!relayShareUrl}
+                    onClick={async () => {
+                      const ok = relayShareUrl ? await copyText(relayShareUrl) : false;
+                      setCopyStatus(ok ? 'Relay share URL copied to clipboard.' : 'Clipboard copy failed.');
+                    }}
+                  >
+                    Copy share URL
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!relayRequestUrl}
+                    onClick={async () => {
+                      const ok = relayRequestUrl ? await copyText(relayRequestUrl) : false;
+                      setCopyStatus(ok ? 'Relay status URL copied to clipboard.' : 'Clipboard copy failed.');
+                    }}
+                  >
+                    Copy status URL
+                  </button>
+                </div>
+                {relayStatusError ? <p className="status status-error">{relayStatusError}</p> : null}
+              </section>
+            ) : null}
+
             <section className="panel">
               <h2>Requested capabilities</h2>
               <div className="chip-row">
@@ -257,6 +485,23 @@ export function App() {
 
             <section className="panel">
               <h2>Approve and generate session payload</h2>
+              <div className="helper-stack">
+                <p className="helper">
+                  Required now:
+                  {' '}
+                  wallet address
+                  {smartAccountRequest ? ', plus owner address or session private key' : ''}.
+                  {approvalBasedRequest ? ' Approval-based paymaster mode also expects the fee token address.' : ''}
+                </p>
+                {derivedOwnerAddress ? (
+                  <p className="status">
+                    Derived owner from session private key:
+                    {' '}
+                    <code>{derivedOwnerAddress}</code>
+                  </p>
+                ) : null}
+                {payloadError ? <p className="status status-error">{payloadError}</p> : null}
+              </div>
               <div className="form-grid">
                 <label>
                   <span>Wallet address</span>
@@ -271,7 +516,11 @@ export function App() {
                   <input
                     value={ownerAddress}
                     onChange={(event) => setOwnerAddress(event.target.value.trim())}
-                    placeholder="Optional 0x... if session private key is provided"
+                    placeholder={
+                      smartAccountRequest
+                        ? '0x... or leave empty if session private key can derive it'
+                        : 'Optional 0x...'
+                    }
                   />
                 </label>
                 <label>
@@ -282,22 +531,26 @@ export function App() {
                     placeholder="Optional 0x..."
                   />
                 </label>
-                <label>
-                  <span>Session private key</span>
-                  <input
-                    value={sessionPrivateKey}
-                    onChange={(event) => setSessionPrivateKey(event.target.value.trim())}
-                    placeholder="Optional 0x... for writable testnet sessions"
-                  />
-                </label>
-                <label>
-                  <span>Validator address</span>
-                  <input
-                    value={validatorAddress}
-                    onChange={(event) => setValidatorAddress(event.target.value.trim())}
-                    placeholder="Optional 0x..."
-                  />
-                </label>
+                {smartAccountRequest ? (
+                  <>
+                    <label>
+                      <span>Session private key</span>
+                      <input
+                        value={sessionPrivateKey}
+                        onChange={(event) => setSessionPrivateKey(event.target.value.trim())}
+                        placeholder="Optional 0x... for writable testnet sessions"
+                      />
+                    </label>
+                    <label>
+                      <span>Validator address</span>
+                      <input
+                        value={validatorAddress}
+                        onChange={(event) => setValidatorAddress(event.target.value.trim())}
+                        placeholder="Optional 0x..."
+                      />
+                    </label>
+                  </>
+                ) : null}
                 <label>
                   <span>Paymaster address</span>
                   <input
@@ -306,21 +559,27 @@ export function App() {
                     placeholder="Optional 0x..."
                   />
                 </label>
-                <label>
-                  <span>Paymaster token</span>
-                  <input
-                    value={paymasterToken}
-                    onChange={(event) => setPaymasterToken(event.target.value.trim())}
-                    placeholder="Optional 0x... for approval-based mode"
-                  />
-                </label>
+                {approvalBasedRequest ? (
+                  <label>
+                    <span>Paymaster token</span>
+                    <input
+                      value={paymasterToken}
+                      onChange={(event) => setPaymasterToken(event.target.value.trim())}
+                      placeholder="0x... fee token for approval-based mode"
+                    />
+                  </label>
+                ) : null}
               </div>
               <p className="helper">
                 {callbackUrl
                   ? 'Approve in the connector to return the session directly to the waiting CLI process. Copy payload remains available as a fallback.'
                   : relayRequestUrl
-                    ? `Approve here to submit the encrypted relay package, then finalize from the CLI with \`${finalizeRelayCommand}\`.`
-                  : `Save the generated JSON and finalize it with \`${finalizeCommand || 'zk-agent wallet request approve --request-id <id> --payload @approved-session.json'}\`.`}
+                    ? relayStatus?.status === 'expired'
+                      ? 'This relay request is expired. Do not submit a new approval package here.'
+                      : relayStatus?.approval_ready
+                        ? `Relay already has an encrypted approval package. Finalize it from the CLI with \`${finalizeRelayCommand}\`.`
+                        : `Approve here to submit the encrypted relay package, then finalize from the CLI with \`${finalizeRelayCommand}\`.`
+                    : `Save the generated JSON and finalize it with \`${finalizeCommand || 'zk-agent wallet request approve --request-id <id> --payload @approved-session.json'}\`.`}
               </p>
               <textarea
                 className="payload"
@@ -331,6 +590,22 @@ export function App() {
                 }
               />
               <div className="actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => {
+                    setOwnerAddress('');
+                    setSessionAddress('');
+                    setSessionPrivateKey('');
+                    setValidatorAddress('');
+                    setPaymasterAddress('');
+                    setPaymasterToken('');
+                    setCopyStatus('');
+                    setSubmitStatus('');
+                  }}
+                >
+                  Clear optional fields
+                </button>
                 {callbackUrl ? (
                   <button
                     type="button"
@@ -384,7 +659,7 @@ export function App() {
                 ) : relayRequestUrl ? (
                   <button
                     type="button"
-                    disabled={!encryptedRelayPackage || isSubmitting}
+                    disabled={!encryptedRelayPackage || isSubmitting || relayStatus?.status === 'expired'}
                     onClick={async () => {
                       if (!relayRequestUrl || !encryptedRelayPackage) return;
 
@@ -409,6 +684,15 @@ export function App() {
                           throw new Error(
                             body?.error || `Relay approval submission failed with status ${response.status}`
                           );
+                        }
+
+                        const refreshed = await fetch(relayRequestUrl);
+                        const refreshedBody = (await refreshed.json().catch(() => null)) as
+                          | RelayStatusResponse
+                          | { error?: string }
+                          | null;
+                        if (refreshed.ok && refreshedBody && hasRelayRequest(refreshedBody)) {
+                          setRelayStatus(refreshedBody);
                         }
 
                         setSubmitStatus(
@@ -484,6 +768,144 @@ export function App() {
                   'Enter a valid wallet address and approval metadata to generate an encrypted relay package.'
                 }
               />
+            </section>
+
+            <section className="panel">
+              <h2>Next operator step</h2>
+              {callbackUrl ? (
+                <div className="helper-stack">
+                  <p className="helper">
+                    The fastest path is still the in-page callback. Click
+                    {' '}
+                    <code>Approve In CLI</code>
+                    {' '}
+                    above and the waiting CLI process should complete immediately.
+                  </p>
+                  <p className="helper">
+                    If that callback path is unavailable, copy the JSON payload and finalize from the CLI:
+                  </p>
+                  <textarea className="command-block" readOnly value={finalizeCommand} />
+                  <div className="actions">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await copyText(finalizeCommand);
+                        setCopyStatus(ok ? 'Finalize command copied to clipboard.' : 'Clipboard copy failed.');
+                      }}
+                    >
+                      Copy finalize command
+                    </button>
+                  </div>
+                </div>
+              ) : relayRequestUrl ? (
+                <div className="helper-stack">
+                  {relayStatus?.status === 'expired' ? (
+                    <p className="status status-error">
+                      This relay request is expired. The operator should create or reapprove a fresh wallet request.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="helper">
+                        {relayStatus?.approval_ready
+                          ? 'The relay already has the encrypted approval package. The CLI operator can finalize now.'
+                          : 'After submitting the encrypted package, the CLI operator should wait for relay readiness and then finalize with the approval code.'}
+                      </p>
+                      <label className="field-stack">
+                        <span>CLI wait command</span>
+                        <textarea
+                          className="command-block"
+                          readOnly
+                          value={relayWaitCommand || 'zk-agent wallet request relay-status --request-id <id> --relay-url <relay-url> --wait'}
+                        />
+                      </label>
+                      <label className="field-stack">
+                        <span>CLI finalize command</span>
+                        <textarea
+                          className="command-block"
+                          readOnly
+                          value={finalizeRelayCommand}
+                        />
+                      </label>
+                      <label className="field-stack">
+                        <span>Approval code</span>
+                        <input
+                          readOnly
+                          value={encryptedRelayPackage?.code || ''}
+                          placeholder="Generated after valid approval data exists"
+                        />
+                      </label>
+                      <div className="actions">
+                        <button
+                          type="button"
+                          disabled={!relayWaitCommand}
+                          onClick={async () => {
+                            const ok = relayWaitCommand ? await copyText(relayWaitCommand) : false;
+                            setCopyStatus(ok ? 'Relay wait command copied to clipboard.' : 'Clipboard copy failed.');
+                          }}
+                        >
+                          Copy wait command
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!finalizeRelayCommand}
+                          onClick={async () => {
+                            const ok = finalizeRelayCommand ? await copyText(finalizeRelayCommand) : false;
+                            setCopyStatus(ok ? 'Relay finalize command copied to clipboard.' : 'Clipboard copy failed.');
+                          }}
+                        >
+                          Copy finalize command
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!encryptedRelayPackage?.code}
+                          onClick={async () => {
+                            const ok = encryptedRelayPackage?.code
+                              ? await copyText(encryptedRelayPackage.code)
+                              : false;
+                            setCopyStatus(ok ? 'Relay approval code copied to clipboard.' : 'Clipboard copy failed.');
+                          }}
+                        >
+                          Copy approval code
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="helper-stack">
+                  <p className="helper">
+                    No direct callback is active. Save the generated payload or encrypted package, then finalize from the CLI with one of these commands:
+                  </p>
+                  <label className="field-stack">
+                    <span>Plain payload finalize command</span>
+                    <textarea className="command-block" readOnly value={finalizeCommand} />
+                  </label>
+                  <label className="field-stack">
+                    <span>Encrypted payload finalize command</span>
+                    <textarea className="command-block" readOnly value={encryptedFinalizeCommand} />
+                  </label>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await copyText(finalizeCommand);
+                        setCopyStatus(ok ? 'Plain finalize command copied to clipboard.' : 'Clipboard copy failed.');
+                      }}
+                    >
+                      Copy plain finalize
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await copyText(encryptedFinalizeCommand);
+                        setCopyStatus(ok ? 'Encrypted finalize command copied to clipboard.' : 'Clipboard copy failed.');
+                      }}
+                    >
+                      Copy encrypted finalize
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         ) : (

@@ -134,6 +134,16 @@ function sampleApprovedPayload(): SessionPayload {
   };
 }
 
+function sampleRelay(requestId = 'req12345') {
+  return {
+    request_id: requestId,
+    status: 'pending' as const,
+    share_url: `http://127.0.0.1:4445/r/${requestId}`,
+    status_url: `http://127.0.0.1:4445/api/requests/${requestId}`,
+    approval_url: `http://127.0.0.1:4445/r/${requestId}`
+  };
+}
+
 test('ensureWorkflowWalletSession creates a local wallet request and overrides the recommended command', async () => {
   let created = 0;
 
@@ -156,6 +166,9 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
       createWalletReapprovalRequest: async () => {
         created += 1;
         return sampleRequest();
+      },
+      publishWalletRequestToRelay: async () => {
+        throw new Error('publishWalletRequestToRelay should not run without --relay-url');
       },
       awaitLocalWalletApproval: async () => {
         throw new Error('awaitLocalWalletApproval should not run without --await-local');
@@ -183,7 +196,7 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
   });
 });
 
-test('ensureWorkflowWalletSession prefers relay publish guidance when relayUrl is supplied', async () => {
+test('ensureWorkflowWalletSession prefers relay status guidance after relay auto-publish when relayUrl is supplied', async () => {
   const result = await ensureWorkflowWalletSession(
     {
       wallet: sampleWallet,
@@ -202,6 +215,12 @@ test('ensureWorkflowWalletSession prefers relay publish guidance when relayUrl i
     {
       findReusableWalletRequest: async () => undefined,
       createWalletReapprovalRequest: async () => sampleRequest(),
+      publishWalletRequestToRelay: async (walletRequest, relayUrl) => ({
+        ...sampleRelay(walletRequest.requestId),
+        share_url: `${relayUrl}/r/${walletRequest.requestId}`,
+        status_url: `${relayUrl}/api/requests/${walletRequest.requestId}`,
+        approval_url: `${relayUrl}/r/${walletRequest.requestId}`
+      }),
       awaitLocalWalletApproval: async () => {
         throw new Error('awaitLocalWalletApproval should not run without --await-local');
       },
@@ -213,18 +232,18 @@ test('ensureWorkflowWalletSession prefers relay publish guidance when relayUrl i
 
   assert.equal(
     result.recommendedCommand,
-    'zk-agent wallet request relay-publish --request-id req12345 --relay-url http://127.0.0.1:4445'
+    'zk-agent wallet request relay-status --request-id req12345 --relay-url http://127.0.0.1:4445'
   );
   assert.equal(
     result.status.recommendedCommand,
-    'zk-agent wallet request relay-publish --request-id req12345 --relay-url http://127.0.0.1:4445'
+    'zk-agent wallet request relay-status --request-id req12345 --relay-url http://127.0.0.1:4445'
   );
+  assert.deepEqual(result.walletApproval?.relay, sampleRelay());
   assert.deepEqual(result.walletApproval?.recommendedCommands, {
     awaitLocal: 'zk-agent wallet request await-local --request-id req12345',
     approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json',
-    relayPublish: 'zk-agent wallet request relay-publish --request-id req12345 --relay-url http://127.0.0.1:4445',
     relayStatus: 'zk-agent wallet request relay-status --request-id req12345 --relay-url http://127.0.0.1:4445',
-    relayApprove: 'zk-agent wallet request approve --request-id req12345 --relay-url http://127.0.0.1:4445 --code <code>'
+    relayApprove: 'zk-agent wallet request approve --request-id req12345 --relay-url http://127.0.0.1:4445 --code <code> --wait'
   });
 });
 
@@ -255,6 +274,9 @@ test('ensureWorkflowWalletSession can await local approval, reuse an existing re
       findReusableWalletRequest: async () => sampleRequest(),
       createWalletReapprovalRequest: async () => {
         throw new Error('createWalletReapprovalRequest should not run when a reusable request exists');
+      },
+      publishWalletRequestToRelay: async () => {
+        throw new Error('publishWalletRequestToRelay should not run without --relay-url');
       },
       awaitLocalWalletApproval: async ({ walletRequest }) => ({
         walletRecord: {

@@ -39,5 +39,5 @@ export function buildWalletRequestRelayApproveRecommendedCommand(
   requestId: string,
   relayUrl: string
 ): string {
-  return `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayUrl} --code <code>`;
+  return `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayUrl} --code <code> --wait`;
 }

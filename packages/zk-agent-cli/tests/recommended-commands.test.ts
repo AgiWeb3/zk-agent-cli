@@ -61,6 +61,6 @@ test('recommended wallet request relay status command includes request id and re
 test('recommended wallet request relay approve command includes request id and relay url', () => {
   assert.equal(
     buildWalletRequestRelayApproveRecommendedCommand('req123', 'http://127.0.0.1:4445'),
-    'zk-agent wallet request approve --request-id req123 --relay-url http://127.0.0.1:4445 --code <code>'
+    'zk-agent wallet request approve --request-id req123 --relay-url http://127.0.0.1:4445 --code <code> --wait'
   );
 });

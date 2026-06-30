@@ -85,7 +85,16 @@ process.env.ZK_AGENT_OUTPUT = 'json';
 
 const command = createWorkflowCommand({
   provider,
-  defiProvider
+  defiProvider,
+  async publishWalletRequestToRelay(walletRequest, relayUrl) {
+    return {
+      request_id: walletRequest.requestId,
+      status: 'pending',
+      share_url: `${relayUrl}/r/${walletRequest.requestId}`,
+      status_url: `${relayUrl}/api/requests/${walletRequest.requestId}`,
+      approval_url: `${relayUrl}/r/${walletRequest.requestId}`
+    };
+  }
 });
 
 command.exitOverride();

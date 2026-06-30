@@ -1891,6 +1891,14 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
   const requests = new Map<string, any>();
   const wallets = new Map<string, WalletSessionRecord>();
   const checkpoints = new Map<string, any>();
+  const delayedRelayApprovals = new Map<
+    string,
+    {
+      encrypted: ReturnType<typeof encryptSession>['encrypted'];
+      readyAfter: number;
+      calls: number;
+    }
+  >();
 
   const workflowProvider = {
     ...createProviderStub(),
@@ -1942,6 +1950,38 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
       requests.set(request.requestId, request);
     },
     deleteWalletRequest: async (requestId) => requests.delete(requestId),
+    publishWalletRequestToRelay: async (walletRequest, relayUrl) => ({
+      request_id: walletRequest.requestId,
+      status: 'pending',
+      share_url: `${relayUrl}/r/${walletRequest.requestId}`,
+      status_url: `${relayUrl}/api/requests/${walletRequest.requestId}`,
+      approval_url: `${relayUrl}/r/${walletRequest.requestId}`
+    }),
+    fetchRelayApproval: async (requestId, relayUrl) => {
+      const delayed = delayedRelayApprovals.get(requestId);
+      if (!delayed) {
+        throw new Error(`Missing delayed relay approval stub: ${requestId} @ ${relayUrl}`);
+      }
+
+      delayed.calls += 1;
+      if (delayed.calls < delayed.readyAfter) {
+        return {
+          request_id: requestId,
+          status: 'pending',
+          approval_ready: false,
+          approval_submitted_at: undefined,
+          encrypted_payload: undefined
+        };
+      }
+
+      return {
+        request_id: requestId,
+        status: 'ready',
+        approval_ready: true,
+        approval_submitted_at: '2026-06-20T00:00:00.000Z',
+        encrypted_payload: delayed.encrypted
+      };
+    },
     loadWorkflowCheckpoint: async (requestId) => checkpoints.get(requestId) || null,
     saveWorkflowCheckpoint: async (checkpoint) => {
       checkpoints.set(checkpoint.requestId, checkpoint);
@@ -2002,14 +2042,20 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
   if (!relayRequestCreated.ok) return;
   assert.equal(
     relayRequestCreated.data.recommendedCommand,
-    `zk-agent wallet request relay-publish --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`
+    `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`
   );
+  assert.deepEqual(relayRequestCreated.data.walletApproval?.relay, {
+    request_id: relayRequestCreated.data.walletApproval?.requestId,
+    status: 'pending',
+    share_url: `http://127.0.0.1:4445/r/${relayRequestCreated.data.walletApproval?.requestId}`,
+    status_url: `http://127.0.0.1:4445/api/requests/${relayRequestCreated.data.walletApproval?.requestId}`,
+    approval_url: `http://127.0.0.1:4445/r/${relayRequestCreated.data.walletApproval?.requestId}`
+  });
   assert.deepEqual(relayRequestCreated.data.recommendedCommands, {
     awaitLocal: `zk-agent wallet request await-local --request-id ${relayRequestCreated.data.walletApproval?.requestId}`,
     approve: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --payload @approved-session.json`,
-    relayPublish: `zk-agent wallet request relay-publish --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`,
     relayStatus: `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`,
-    relayApprove: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445 --code <code>`
+    relayApprove: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445 --code <code> --wait`
   });
 
   requests.clear();
@@ -2051,11 +2097,77 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     '0x' + '77'.repeat(32)
   );
   assert.equal(requests.size, 0);
+
+  const relayAutoApprovalPayload = sampleSessionPayload({
+    walletAddress: sampleWallet.walletAddress,
+    account: {
+      kind: 'smart-account',
+      address: sampleWallet.walletAddress,
+      ownerAddress: sampleWallet.ownerAddress,
+      signerType: 'local'
+    },
+    sessionPublicKey: approvalSessionPublicKey,
+    sessionPrivateKey: '0x' + '44'.repeat(32)
+  });
+  const delayedRelayApproval = encryptSession(
+    relayAutoApprovalPayload,
+    approvalSessionPublicKey,
+    'req12345'
+  );
+  delayedRelayApprovals.set('req12345', {
+    encrypted: delayedRelayApproval.encrypted,
+    readyAfter: 2,
+    calls: 0
+  });
+
+  const relayAutoApproved = await tools.workflowOrchestratorTool.execute({
+    walletName: 'workflow-needs-approval',
+    requestId: 'wf-auto-approval-relay-002',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalConnectorUrl: 'http://localhost:4444',
+    approvalRelayUrl: 'http://127.0.0.1:4445',
+    approvalCode: delayedRelayApproval.code,
+    approvalWaitForRelayApproval: true,
+    approvalRelayWaitTimeoutMs: 100,
+    approvalRelayWaitIntervalMs: 1,
+    executeWhenReady: true
+  });
+  assert.equal(relayAutoApproved.ok, true);
+  if (!relayAutoApproved.ok) return;
+  assert.equal(relayAutoApproved.data.walletApproval?.stage, 'approved');
+  assert.equal(relayAutoApproved.data.status.status, 'ready');
+  assert.equal(relayAutoApproved.data.action, 'goal-executed');
+  assert.equal(relayAutoApproved.data.run?.stage, 'goal-executed');
+  assert.equal(relayAutoApproved.data.checkpoint?.lastRun?.stage, 'goal-executed');
+  assert.equal(
+    wallets.get('workflow-needs-approval')?.sessionPayload?.sessionPrivateKey,
+    '0x' + '44'.repeat(32)
+  );
+  assert.equal(delayedRelayApprovals.get('req12345')?.calls, 2);
 });
 
 test('wallet lifecycle tools persist requests, restore wallets, and preserve metadata on approval', async () => {
   const wallets = new Map<string, WalletSessionRecord>();
   const requests = new Map<string, any>();
+  const relayApprovals = new Map<
+    string,
+    ReturnType<typeof encryptSession>
+  >();
+  const delayedRelayApprovals = new Map<
+    string,
+    {
+      encrypted: ReturnType<typeof encryptSession>['encrypted'];
+      readyAfter: number;
+      calls: number;
+    }
+  >();
   wallets.set('restored', {
     ...sampleWallet,
     walletName: 'restored',
@@ -2079,7 +2191,50 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
     saveWalletRequest: async (request) => {
       requests.set(request.requestId, request);
     },
-    deleteWalletRequest: async (requestId) => requests.delete(requestId)
+    deleteWalletRequest: async (requestId) => requests.delete(requestId),
+    publishWalletRequestToRelay: async (walletRequest, relayUrl) => ({
+      request_id: walletRequest.requestId,
+      status: 'pending',
+      share_url: `${relayUrl}/r/${walletRequest.requestId}`,
+      status_url: `${relayUrl}/api/requests/${walletRequest.requestId}`,
+      approval_url: `${relayUrl}/r/${walletRequest.requestId}`
+    }),
+    fetchRelayApproval: async (requestId) => {
+      const delayedRelayApproval = delayedRelayApprovals.get(requestId);
+      if (delayedRelayApproval) {
+        delayedRelayApproval.calls += 1;
+        if (delayedRelayApproval.calls < delayedRelayApproval.readyAfter) {
+          return {
+            request_id: requestId,
+            status: 'pending',
+            approval_ready: false,
+            approval_submitted_at: undefined,
+            encrypted_payload: undefined
+          };
+        }
+
+        return {
+          request_id: requestId,
+          status: 'ready',
+          approval_ready: true,
+          approval_submitted_at: '2026-06-20T00:00:00.000Z',
+          encrypted_payload: delayedRelayApproval.encrypted
+        };
+      }
+
+      const relayApproval = relayApprovals.get(requestId);
+      if (!relayApproval) {
+        throw new Error(`Missing relay approval stub: ${requestId}`);
+      }
+
+      return {
+        request_id: requestId,
+        status: 'ready',
+        approval_ready: true,
+        approval_submitted_at: '2026-06-20T00:00:00.000Z',
+        encrypted_payload: relayApproval.encrypted
+      };
+    }
   });
   const tools = createStandardAgentTools(context);
 
@@ -2121,6 +2276,64 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
   assert.equal(orchestratedApprove.data.nextAction, 'wallet-ready');
   assert.equal(orchestratedApprove.data.wallet?.walletName, 'draft-wallet');
   assert.equal(requests.has(orchestratedCreate.data.requestId), false);
+
+  const orchestratedCreateRelay = await tools.walletApprovalOrchestratorTool.execute({
+    mode: 'create',
+    walletName: 'draft-wallet-relay',
+    chain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    relayUrl: 'http://127.0.0.1:4445'
+  });
+  assert.equal(orchestratedCreateRelay.ok, true);
+  if (!orchestratedCreateRelay.ok) return;
+  assert.equal(orchestratedCreateRelay.data.stage, 'request-created');
+  assert.deepEqual(orchestratedCreateRelay.data.relay, {
+    request_id: orchestratedCreateRelay.data.requestId,
+    status: 'pending',
+    share_url: `http://127.0.0.1:4445/r/${orchestratedCreateRelay.data.requestId}`,
+    status_url: `http://127.0.0.1:4445/api/requests/${orchestratedCreateRelay.data.requestId}`,
+    approval_url: `http://127.0.0.1:4445/r/${orchestratedCreateRelay.data.requestId}`
+  });
+  assert.deepEqual(orchestratedCreateRelay.data.recommendedCommands, {
+    awaitLocal: `zk-agent wallet request await-local --request-id ${orchestratedCreateRelay.data.requestId}`,
+    approve: `zk-agent wallet request approve --request-id ${orchestratedCreateRelay.data.requestId} --payload @approved-session.json`,
+    relayStatus: `zk-agent wallet request relay-status --request-id ${orchestratedCreateRelay.data.requestId} --relay-url http://127.0.0.1:4445`,
+    relayApprove: `zk-agent wallet request approve --request-id ${orchestratedCreateRelay.data.requestId} --relay-url http://127.0.0.1:4445 --code <code> --wait`
+  });
+  assert.ok(requests.has(orchestratedCreateRelay.data.requestId));
+
+  const relayApprovalPayload = sampleSessionPayload({
+    walletAddress: '0x7777777777777777777777777777777777777777',
+    account: {
+      kind: 'smart-account',
+      address: '0x7777777777777777777777777777777777777777',
+      ownerAddress: '0x8888888888888888888888888888888888888888',
+      signerType: 'local'
+    },
+    sessionPublicKey: orchestratedCreateRelay.data.request.sessionPublicKey,
+    sessionPrivateKey: '0x' + '66'.repeat(32)
+  });
+  const relayApproval = encryptSession(
+    relayApprovalPayload,
+    orchestratedCreateRelay.data.request.sessionPublicKey,
+    orchestratedCreateRelay.data.requestId
+  );
+  relayApprovals.set(orchestratedCreateRelay.data.requestId, relayApproval);
+
+  const relayApproved = await tools.walletApprovalOrchestratorTool.execute({
+    mode: 'approve',
+    requestId: orchestratedCreateRelay.data.requestId,
+    relayUrl: 'http://127.0.0.1:4445',
+    code: relayApproval.code
+  });
+  assert.equal(relayApproved.ok, true);
+  if (!relayApproved.ok) return;
+  assert.equal(relayApproved.data.stage, 'approved');
+  assert.equal(relayApproved.data.nextAction, 'wallet-ready');
+  assert.equal(relayApproved.data.wallet?.walletName, 'draft-wallet-relay');
+  assert.equal(relayApproved.data.wallet?.walletAddress, '0x7777777777777777777777777777777777777777');
+  assert.equal(relayApproved.data.wallet?.ownerAddress, '0x8888888888888888888888888888888888888888');
+  assert.equal(requests.has(orchestratedCreateRelay.data.requestId), false);
 
   const requestResult = await tools.walletReapproveTool.execute({
     walletName: 'restored',
@@ -2179,6 +2392,48 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
     '0x' + '55'.repeat(32)
   );
   assert.equal(requests.has(encryptedRequestResult.data.request.requestId), false);
+
+  const delayedRelayRequestResult = await tools.walletReapproveTool.execute({
+    walletName: 'restored',
+    connectorUrl: 'http://localhost:4444'
+  });
+  assert.equal(delayedRelayRequestResult.ok, true);
+  if (!delayedRelayRequestResult.ok) return;
+
+  const delayedRelayPayloadSource = sampleSessionPayload({
+    sessionPublicKey: delayedRelayRequestResult.data.request.sessionPublicKey,
+    sessionPrivateKey: '0x' + '33'.repeat(32)
+  });
+  const delayedRelayEncrypted = encryptSession(
+    delayedRelayPayloadSource,
+    delayedRelayRequestResult.data.request.sessionPublicKey,
+    delayedRelayRequestResult.data.request.requestId
+  );
+  delayedRelayApprovals.set(delayedRelayRequestResult.data.request.requestId, {
+    encrypted: delayedRelayEncrypted.encrypted,
+    readyAfter: 2,
+    calls: 0
+  });
+
+  const delayedRelayApproveResult = await tools.approveWalletRequestTool.execute({
+    requestId: delayedRelayRequestResult.data.request.requestId,
+    relayUrl: 'http://127.0.0.1:4445',
+    code: delayedRelayEncrypted.code,
+    waitForRelayApproval: true,
+    relayWaitTimeoutMs: 100,
+    relayWaitIntervalMs: 1
+  });
+  assert.equal(delayedRelayApproveResult.ok, true);
+  if (!delayedRelayApproveResult.ok) return;
+  assert.equal(
+    wallets.get('restored')?.sessionPayload?.sessionPrivateKey,
+    '0x' + '33'.repeat(32)
+  );
+  assert.equal(
+    delayedRelayApprovals.get(delayedRelayRequestResult.data.request.requestId)?.calls,
+    2
+  );
+  assert.equal(requests.has(delayedRelayRequestResult.data.request.requestId), false);
 
   const reapproveOrchestrated = await tools.walletApprovalOrchestratorTool.execute({
     mode: 'reapprove',

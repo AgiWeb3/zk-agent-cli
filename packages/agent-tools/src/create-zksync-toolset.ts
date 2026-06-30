@@ -10,6 +10,8 @@ export function createZkSyncAgentToolContext(options: {
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
+  publishWalletRequestToRelay?: AgentToolContext['publishWalletRequestToRelay'];
+  fetchRelayApproval?: AgentToolContext['fetchRelayApproval'];
   loadWorkflowCheckpoint?: AgentToolContext['loadWorkflowCheckpoint'];
   saveWorkflowCheckpoint?: AgentToolContext['saveWorkflowCheckpoint'];
   listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];
@@ -26,6 +28,8 @@ export function createZkSyncAgentToolContext(options: {
     loadWalletRequest: options.loadWalletRequest,
     saveWalletRequest: options.saveWalletRequest,
     deleteWalletRequest: options.deleteWalletRequest,
+    publishWalletRequestToRelay: options.publishWalletRequestToRelay,
+    fetchRelayApproval: options.fetchRelayApproval,
     loadWorkflowCheckpoint: options.loadWorkflowCheckpoint,
     saveWorkflowCheckpoint: options.saveWorkflowCheckpoint,
     listWorkflowCheckpointIds: options.listWorkflowCheckpointIds,
@@ -39,6 +43,8 @@ export function createZkSyncAgentTools(options: {
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
+  publishWalletRequestToRelay?: AgentToolContext['publishWalletRequestToRelay'];
+  fetchRelayApproval?: AgentToolContext['fetchRelayApproval'];
   loadWorkflowCheckpoint?: AgentToolContext['loadWorkflowCheckpoint'];
   saveWorkflowCheckpoint?: AgentToolContext['saveWorkflowCheckpoint'];
   listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];

@@ -23,7 +23,7 @@ import {
   type WorkflowCheckpointRecord,
   type WorkflowRunFundInput
 } from '@zk-agent/agent-core';
-import type { SessionPayload } from '@zk-agent/agent-session-protocol';
+import type { RelayCreateResponse, SessionPayload } from '@zk-agent/agent-session-protocol';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
@@ -46,7 +46,6 @@ import {
   buildWalletRequestApproveRecommendedCommand,
   buildWalletRequestAwaitLocalRecommendedCommand,
   buildWalletRequestRelayApproveRecommendedCommand,
-  buildWalletRequestRelayPublishRecommendedCommand,
   buildWalletRequestRelayStatusRecommendedCommand
 } from '../lib/recommended-commands.js';
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
@@ -55,6 +54,7 @@ import {
   awaitLocalWalletApproval,
   buildWalletApprovalLines,
   createWalletReapprovalRequest,
+  publishWalletRequestToRelay,
   requireWalletRecord,
   resolveLocalApprovalListenerOptions,
   sanitizeSessionPayload,
@@ -71,6 +71,10 @@ const defaultDefiProvider = new ZkSyncDefiProvider({
 export interface WorkflowCommandDeps {
   provider: WalletProvider;
   defiProvider: DefiProvider;
+  publishWalletRequestToRelay(
+    walletRequest: WalletRequestRecord,
+    relayUrl: string
+  ): Promise<RelayCreateResponse>;
 }
 
 function resolveWorkflowCommandDeps(
@@ -78,7 +82,9 @@ function resolveWorkflowCommandDeps(
 ): WorkflowCommandDeps {
   return {
     provider: deps?.provider ?? defaultProvider,
-    defiProvider: deps?.defiProvider ?? defaultDefiProvider
+    defiProvider: deps?.defiProvider ?? defaultDefiProvider,
+    publishWalletRequestToRelay:
+      deps?.publishWalletRequestToRelay ?? publishWalletRequestToRelay
   };
 }
 
@@ -168,10 +174,10 @@ export interface WorkflowWalletApprovalResult {
   request: WalletRequestRecord;
   reusedRequest: boolean;
   nextCommand: string;
+  relay?: RelayCreateResponse;
   recommendedCommands?: {
     awaitLocal: string;
     approve: string;
-    relayPublish?: string;
     relayStatus?: string;
     relayApprove?: string;
   };
@@ -731,6 +737,10 @@ interface EnsureWorkflowWalletSessionDeps {
     walletRecord: WalletSessionRecord;
     connectorUrl?: string;
   }): Promise<WalletRequestRecord>;
+  publishWalletRequestToRelay(
+    walletRequest: WalletRequestRecord,
+    relayUrl: string
+  ): Promise<RelayCreateResponse>;
   awaitLocalWalletApproval(options: {
     walletRequest: WalletRequestRecord;
     walletName: string;
@@ -783,16 +793,15 @@ export async function ensureWorkflowWalletSession(
 
   const nextCommand = buildWalletRequestAwaitLocalRecommendedCommand(walletRequest.requestId);
   const relayUrl = input.options.relayUrl?.trim();
+  const relay = relayUrl
+    ? await deps.publishWalletRequestToRelay(walletRequest, relayUrl)
+    : undefined;
   const recommendedCommands: NonNullable<WorkflowWalletApprovalResult['recommendedCommands']> = {
     awaitLocal: nextCommand,
     approve: buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)
   };
 
   if (relayUrl) {
-    recommendedCommands.relayPublish = buildWalletRequestRelayPublishRecommendedCommand(
-      walletRequest.requestId,
-      relayUrl
-    );
     recommendedCommands.relayStatus = buildWalletRequestRelayStatusRecommendedCommand(
       walletRequest.requestId,
       relayUrl
@@ -804,7 +813,7 @@ export async function ensureWorkflowWalletSession(
   }
   const initialRecommendedCommand =
     relayUrl && !input.options.awaitLocal
-      ? recommendedCommands.relayPublish || nextCommand
+      ? recommendedCommands.relayStatus || nextCommand
       : nextCommand;
 
   if (!input.options.awaitLocal) {
@@ -819,6 +828,7 @@ export async function ensureWorkflowWalletSession(
         stage: 'request-created',
         request: walletRequest,
         reusedRequest: Boolean(reusableRequest),
+        relay,
         nextCommand: initialRecommendedCommand,
         recommendedCommands
       }
@@ -850,6 +860,7 @@ export async function ensureWorkflowWalletSession(
       stage: 'approved',
       request: walletRequest,
       reusedRequest: Boolean(reusableRequest),
+      relay,
       nextCommand: status.recommendedCommand || nextCommand,
       recommendedCommands,
       wallet: approved.walletRecord,
@@ -880,12 +891,15 @@ function workflowWalletApprovalLines(
   if (walletApproval.approvalUrl) {
     lines.push(['approval url', walletApproval.approvalUrl]);
   }
+  if (walletApproval.relay?.share_url) {
+    lines.push(['share url', walletApproval.relay.share_url]);
+  }
+  if (walletApproval.relay?.status_url) {
+    lines.push(['status url', walletApproval.relay.status_url]);
+  }
   if (walletApproval.stage === 'request-created' && walletApproval.recommendedCommands) {
     lines.push(['next local', walletApproval.recommendedCommands.awaitLocal]);
     lines.push(['next remote', walletApproval.recommendedCommands.approve]);
-    if (walletApproval.recommendedCommands.relayPublish) {
-      lines.push(['next relay publish', walletApproval.recommendedCommands.relayPublish]);
-    }
     if (walletApproval.recommendedCommands.relayStatus) {
       lines.push(['next relay status', walletApproval.recommendedCommands.relayStatus]);
     }
@@ -1289,6 +1303,7 @@ async function inspectWorkflowExecutionState(
     {
       findReusableWalletRequest,
       createWalletReapprovalRequest,
+      publishWalletRequestToRelay: deps.publishWalletRequestToRelay,
       awaitLocalWalletApproval,
       inspectWorkflowStatus: async (input) =>
         inspectWorkflowStatus(input, {

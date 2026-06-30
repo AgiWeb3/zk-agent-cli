@@ -12,6 +12,8 @@ const fixtureEntry = path.join(packageRoot, 'tests', 'fixtures', 'workflow-await
 const agentCoreStorageModuleUrl = pathToFileURL(
   path.resolve(packageRoot, '../agent-core/dist/storage.js')
 ).href;
+const FIXTURE_CREATED_AT = '2099-06-28T00:00:00.000Z';
+const FIXTURE_EXPIRES_AT = '2099-06-29T00:00:00.000Z';
 
 function createCliEnv(homeDir) {
   return {
@@ -111,7 +113,7 @@ function sampleWallet() {
     chainId: 300,
     provider: 'zksync-sso',
     accountKind: 'smart-account',
-    createdAt: '2026-06-28T00:00:00.000Z',
+    createdAt: FIXTURE_CREATED_AT,
     sessionPayload: {
       version: 1,
       provider: 'zksync-sso',
@@ -135,14 +137,14 @@ function sampleWallet() {
         contractCall: true,
         paymaster: false
       },
-      sessionExpiresAt: '2026-06-29T00:00:00.000Z',
+      sessionExpiresAt: FIXTURE_EXPIRES_AT,
       paymaster: {
         mode: 'none',
         address: null
       },
       sessionPublicKey: '0x' + '11'.repeat(32),
       permissions: {
-        expiresAt: '2026-06-29T00:00:00.000Z'
+        expiresAt: FIXTURE_EXPIRES_AT
       },
       connectorUrl: 'http://localhost:4444',
       paymasterAddress: null
@@ -167,8 +169,8 @@ function sampleRequest() {
     chain: 'zksync-sepolia',
     chainId: 300,
     provider: 'zksync-sso',
-    createdAt: '2026-06-28T00:00:00.000Z',
-    expiresAt: '2026-06-29T00:00:00.000Z',
+    createdAt: FIXTURE_CREATED_AT,
+    expiresAt: FIXTURE_EXPIRES_AT,
     connectorUrl: 'http://localhost:4444',
     requestedAccountKind: 'smart-account',
     requestedPaymasterMode: 'none',
@@ -184,7 +186,7 @@ function sampleRequest() {
       paymaster: false
     },
     policies: {
-      expiresAt: '2026-06-29T00:00:00.000Z'
+      expiresAt: FIXTURE_EXPIRES_AT
     },
     approvalUrl: 'http://localhost:4444/#request=dummy',
     sessionPublicKey: '0x' + '11'.repeat(32),
@@ -206,8 +208,8 @@ function sampleCheckpoint() {
     },
     broadcast: true,
     autoSync: false,
-    createdAt: '2026-06-28T00:00:00.000Z',
-    updatedAt: '2026-06-28T00:00:00.000Z',
+    createdAt: FIXTURE_CREATED_AT,
+    updatedAt: FIXTURE_CREATED_AT,
     lastKnownStatus: 'blocked',
     lastReadyForGoal: false,
     lastRecommendedCommand: 'zk-agent wallet reapprove --name main --await-local'
@@ -412,19 +414,24 @@ test('workflow status can emit relay follow-up commands through commander when r
     assert.equal(result.result.status, 'blocked');
     assert.equal(
       result.result.recommendedCommand,
-      'zk-agent wallet request relay-publish --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+      'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
     );
     assert.equal(result.walletApproval.stage, 'request-created');
     assert.equal(result.walletApproval.reusedRequest, true);
+    assert.deepEqual(result.walletApproval.relay, {
+      request_id: 'wr-reuse-001',
+      status: 'pending',
+      share_url: 'http://127.0.0.1:4445/r/wr-reuse-001',
+      status_url: 'http://127.0.0.1:4445/api/requests/wr-reuse-001',
+      approval_url: 'http://127.0.0.1:4445/r/wr-reuse-001'
+    });
     assert.deepEqual(result.walletApproval.recommendedCommands, {
       awaitLocal: 'zk-agent wallet request await-local --request-id wr-reuse-001',
       approve: 'zk-agent wallet request approve --request-id wr-reuse-001 --payload @approved-session.json',
-      relayPublish:
-        'zk-agent wallet request relay-publish --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445',
       relayStatus:
         'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445',
       relayApprove:
-        'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code>'
+        'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code> --wait'
     });
 
     const storedRequest = await storage.loadWalletRequest('wr-reuse-001');

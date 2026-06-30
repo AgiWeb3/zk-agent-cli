@@ -69,7 +69,7 @@ What is already in place:
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
 - intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
-- `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and relay publish/status/approve guidance
+- `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and one-step relay publish plus relay status/approve guidance
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
 - `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
 - `workflow` and `wallet next` now treat supported paymaster-backed smart-account writes as gas-satisfied even when the stored native balance is zero, so `send` / `send-token` / `call` / `swap` do not get blocked behind an unnecessary fund step before paymaster validation is attempted
@@ -80,10 +80,12 @@ What is already in place:
 - `wallet reapprove --await-local` for reacquiring a writable local session after restore without dropping recovered smart-account metadata
 - local connector approval loop support via:
   - `wallet create --await-local`
+  - `wallet create --relay-url <url>` / `wallet reapprove --relay-url <url>` for one-step remote approval publishing
   - auto-consume of approved local requests
   - `wallet request await-local`
   - `wallet request approve --payload ...` for non-colocated/manual connector return
-  - `relay serve` + `wallet request relay-publish|relay-status` for the local file-backed hosted relay prototype
+  - `relay serve` + `wallet create|reapprove --relay-url <url>` + `wallet request relay-status|approve` for the local file-backed hosted relay prototype
+  - relay-backed connector pages now show share/status URLs, auto-refresh pending approval state, and reflect encrypted submission immediately
   - `wallet request list` with expired-request pruning
   - connector callback handoff back into the waiting CLI process
 - first agent-facing tool surface in `packages/agent-tools` for:
@@ -92,14 +94,14 @@ What is already in place:
   - workflow status inspection for resume-safe orchestration
   - create wallet request
   - create stored wallet approval request
-  - approve stored wallet request
-  - unified wallet approval orchestration for create / reapprove / approve flows, with optional immediate payload finalization in one tool call
+  - approve stored wallet request, including relay-backed encrypted approval fetch / wait
+  - unified wallet approval orchestration for create / reapprove / approve flows, with optional relay auto-publish, relay wait/finalization, or immediate payload finalization in one tool call
   - wallet reapprove
   - wallet status
   - wallet next-step guidance
   - workflow planning for concrete write intents
   - unified workflow orchestration from fresh goal input or stored checkpoint, with optional checkpoint persistence and execute-when-ready behavior
-  - workflow orchestration can now auto-create a local reapproval request when a missing writable session blocks execution, and can continue straight through to goal execution when an approved payload is supplied in the same tool call
+  - workflow orchestration can now auto-create a local reapproval request when a missing writable session blocks execution, auto-publish it to a relay when requested, wait for relay approval readiness when given the approval code, and continue straight through to goal execution when an approved payload is supplied in the same tool call
   - bounded workflow execution with separate funding-step dispatch
   - local workflow checkpoint lifecycle management for start/list/get/update/delete
   - workflow status / execution directly from stored checkpoint `requestId`
@@ -265,14 +267,26 @@ fallback is:
 pnpm zk-agent relay serve
 ```
 
-2. Run `wallet create` or `wallet reapprove` without `--await-local`.
-3. Publish the request:
+2. Run `wallet create` or `wallet reapprove` with `--relay-url <url>`:
 
 ```bash
-pnpm zk-agent wallet request relay-publish --request-id <id> --relay-url <relay-url>
+pnpm zk-agent wallet create --relay-url <relay-url>
+pnpm zk-agent wallet reapprove --name main --relay-url <relay-url>
 ```
 
-4. Open the returned share URL in the connector UI.
+3. Open the returned share URL in the connector UI.
+4. Finalize directly from the CLI once the connector operator has the approval code:
+
+```bash
+pnpm zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait
+```
+
+If you only want to inspect readiness first:
+
+```bash
+pnpm zk-agent wallet request relay-status --request-id <id> --relay-url <relay-url> --wait
+```
+
 5. Finalize it from the CLI with either:
 
 ```bash
@@ -311,8 +325,9 @@ pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --a
 
 If a workflow is blocked on reapproval and the connector cannot call back into
 the waiting CLI process, use `--ensure-wallet-session --relay-url <relay-url>`
-to make `workflow run|status|resume` emit relay publish/status/approve follow-up
-commands instead of only local callback guidance.
+to make `workflow run|status|resume` auto-publish the approval request to the
+relay and emit relay status/approve follow-up commands instead of only local
+callback guidance.
 
 The key rule is: do not jump straight from wallet creation into ad-hoc write
 commands. Let `wallet next` and `workflow run` carry the default operator path.

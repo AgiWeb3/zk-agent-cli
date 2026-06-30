@@ -22,6 +22,8 @@ import { createGetFundingInfoTool } from './get-funding-info-tool.js';
 import {
   createApproveWalletRequestTool,
   createWalletApprovalOrchestratorTool,
+  fetchWalletRequestRelayApproval,
+  publishWalletRequestToRelay,
   createStoredWalletRequestTool,
   createWalletExportTool,
   createWalletReapproveTool,
@@ -66,6 +68,8 @@ export function createAgentToolContext(context: {
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
   saveWalletRequest?: AgentToolContext['saveWalletRequest'];
   deleteWalletRequest?: AgentToolContext['deleteWalletRequest'];
+  publishWalletRequestToRelay?: AgentToolContext['publishWalletRequestToRelay'];
+  fetchRelayApproval?: AgentToolContext['fetchRelayApproval'];
   loadWorkflowCheckpoint?: AgentToolContext['loadWorkflowCheckpoint'];
   saveWorkflowCheckpoint?: AgentToolContext['saveWorkflowCheckpoint'];
   listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];
@@ -79,6 +83,10 @@ export function createAgentToolContext(context: {
     loadWalletRequest: context.loadWalletRequest || loadWalletRequest,
     saveWalletRequest: context.saveWalletRequest || saveWalletRequest,
     deleteWalletRequest: context.deleteWalletRequest || deleteWalletRequest,
+    publishWalletRequestToRelay:
+      context.publishWalletRequestToRelay || publishWalletRequestToRelay,
+    fetchRelayApproval:
+      context.fetchRelayApproval || fetchWalletRequestRelayApproval,
     loadWorkflowCheckpoint: context.loadWorkflowCheckpoint || loadWorkflowCheckpoint,
     saveWorkflowCheckpoint: context.saveWorkflowCheckpoint || saveWorkflowCheckpoint,
     listWorkflowCheckpointIds: context.listWorkflowCheckpointIds || listWorkflowCheckpointIds,

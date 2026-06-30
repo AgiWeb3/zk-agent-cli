@@ -1,10 +1,11 @@
 import type {
   DefiProvider,
-  WorkflowCheckpointRecord,
   WalletRequestRecord,
+  WorkflowCheckpointRecord,
   WalletProvider,
   WalletSessionRecord
 } from '@zk-agent/agent-core';
+import type { RelayApprovalResponse, RelayCreateResponse } from '@zk-agent/agent-session-protocol';
 
 export interface AgentToolError {
   code: string;
@@ -41,6 +42,14 @@ export interface AgentToolContext {
   loadWalletRequest(requestId: string): Promise<WalletRequestRecord | null>;
   saveWalletRequest(request: WalletRequestRecord): Promise<void>;
   deleteWalletRequest(requestId: string): Promise<boolean>;
+  publishWalletRequestToRelay(
+    walletRequest: WalletRequestRecord,
+    relayUrl: string
+  ): Promise<RelayCreateResponse>;
+  fetchRelayApproval(
+    requestId: string,
+    relayUrl: string
+  ): Promise<RelayApprovalResponse>;
   loadWorkflowCheckpoint(requestId: string): Promise<WorkflowCheckpointRecord | null>;
   saveWorkflowCheckpoint(checkpoint: WorkflowCheckpointRecord): Promise<void>;
   listWorkflowCheckpointIds(): Promise<string[]>;

@@ -11,6 +11,9 @@ import {
 import {
   decryptSession,
   hexToBytes,
+  type RelayApprovalResponse,
+  type RelayCreateRequest,
+  type RelayCreateResponse,
   type AccountKind,
   type EncryptedPayload,
   type PaymasterMode,
@@ -36,7 +39,6 @@ type SanitizedWalletRequestRecord = Omit<WalletRequestRecord, 'sessionSecretKey'
 export interface WalletApprovalRecommendedCommands {
   awaitLocal: string;
   approve: string;
-  relayPublish?: string;
   relayStatus?: string;
   relayApprove?: string;
 }
@@ -67,6 +69,9 @@ export interface WalletApprovalOrchestratorToolInput {
   chain?: string;
   connectorUrl?: string;
   relayUrl?: string;
+  waitForRelayApproval?: boolean;
+  relayWaitTimeoutMs?: number;
+  relayWaitIntervalMs?: number;
   accountKind?: AccountKind;
   paymasterMode?: PaymasterMode;
   policies?: SessionPolicies;
@@ -80,6 +85,10 @@ export interface ApproveWalletRequestToolInput {
   requestId: string;
   payload?: SessionPayload;
   encryptedPayload?: EncryptedPayload;
+  relayUrl?: string;
+  waitForRelayApproval?: boolean;
+  relayWaitTimeoutMs?: number;
+  relayWaitIntervalMs?: number;
   code?: string;
 }
 
@@ -119,6 +128,7 @@ export interface WalletApprovalOrchestratorToolOutput {
   stage: 'request-created' | 'approved';
   requestId: string;
   request?: SanitizedWalletRequestRecord;
+  relay?: RelayCreateResponse;
   wallet?: WalletSessionRecord;
   payload?: SanitizedSessionPayload;
   nextAction: 'submit-approved-payload' | 'wallet-ready';
@@ -233,26 +243,190 @@ function buildWalletApprovalRecommendedCommands(
   };
 
   if (relayUrl?.trim()) {
-    commands.relayPublish = `zk-agent wallet request relay-publish --request-id ${requestId} --relay-url ${relayUrl}`;
     commands.relayStatus = `zk-agent wallet request relay-status --request-id ${requestId} --relay-url ${relayUrl}`;
-    commands.relayApprove = `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayUrl} --code <code>`;
+    commands.relayApprove = `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayUrl} --code <code> --wait`;
   }
 
   return commands;
+}
+
+function normalizeRelayBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, '');
+}
+
+function buildRelayCreateRequest(walletRequest: WalletRequestRecord): RelayCreateRequest {
+  return {
+    approval_url: walletRequest.approvalUrl,
+    request: {
+      requestId: walletRequest.requestId,
+      walletName: walletRequest.walletName,
+      chain: walletRequest.chain,
+      chainId: walletRequest.chainId,
+      provider: walletRequest.provider,
+      createdAt: walletRequest.createdAt,
+      expiresAt: walletRequest.expiresAt,
+      connectorUrl: walletRequest.connectorUrl,
+      requestedAccountKind: walletRequest.requestedAccountKind,
+      requestedPaymasterMode: walletRequest.requestedPaymasterMode,
+      requestedSessionScope: walletRequest.requestedSessionScope,
+      requestedCapabilities: walletRequest.requestedCapabilities,
+      policies: walletRequest.policies,
+      sessionPublicKey: walletRequest.sessionPublicKey
+    }
+  };
+}
+
+export async function publishWalletRequestToRelay(
+  walletRequest: WalletRequestRecord,
+  relayUrl: string
+): Promise<RelayCreateResponse> {
+  const response = await fetch(`${normalizeRelayBaseUrl(relayUrl)}/api/requests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(buildRelayCreateRequest(walletRequest))
+  });
+
+  if (!response.ok) {
+    throw new AgentError(
+      'RELAY_PUBLISH_FAILED',
+      `Relay publish failed with status ${response.status}.`,
+      {
+        relayUrl,
+        requestId: walletRequest.requestId,
+        status: response.status
+      }
+    );
+  }
+
+  return (await response.json()) as RelayCreateResponse;
+}
+
+export async function fetchWalletRequestRelayApproval(
+  requestId: string,
+  relayUrl: string
+): Promise<RelayApprovalResponse> {
+  const response = await fetch(
+    `${normalizeRelayBaseUrl(relayUrl)}/api/requests/${requestId}/approval`
+  );
+
+  if (!response.ok) {
+    throw new AgentError(
+      'RELAY_APPROVAL_FETCH_FAILED',
+      `Relay approval fetch failed with status ${response.status}.`,
+      {
+        relayUrl,
+        requestId,
+        status: response.status
+      }
+    );
+  }
+
+  return (await response.json()) as RelayApprovalResponse;
 }
 
 function stripHexPrefix(value: string): string {
   return value.startsWith('0x') ? value.slice(2) : value;
 }
 
-function resolveApprovedPayloadFromInput(
+const DEFAULT_RELAY_WAIT_TIMEOUT_MS = 600_000;
+const DEFAULT_RELAY_WAIT_INTERVAL_MS = 2_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function normalizePositiveInteger(
+  value: number | undefined,
+  label: string,
+  fallback: number
+): number {
+  const resolved = value ?? fallback;
+  if (!Number.isInteger(resolved) || resolved <= 0) {
+    throw new AgentError(
+      'INVALID_INPUT',
+      `${label} must be a positive integer.`,
+      {
+        label,
+        value
+      }
+    );
+  }
+
+  return resolved;
+}
+
+async function waitForRelayApprovalReady(
+  context: AgentToolContext,
+  requestId: string,
+  relayUrl: string,
+  input: Pick<
+    WalletApprovalOrchestratorToolInput,
+    'waitForRelayApproval' | 'relayWaitTimeoutMs' | 'relayWaitIntervalMs'
+  >
+): Promise<RelayApprovalResponse> {
+  const timeoutMs = normalizePositiveInteger(
+    input.relayWaitTimeoutMs,
+    'relayWaitTimeoutMs',
+    DEFAULT_RELAY_WAIT_TIMEOUT_MS
+  );
+  const intervalMs = normalizePositiveInteger(
+    input.relayWaitIntervalMs,
+    'relayWaitIntervalMs',
+    DEFAULT_RELAY_WAIT_INTERVAL_MS
+  );
+  const startedAt = Date.now();
+  let approval = await context.fetchRelayApproval(requestId, relayUrl);
+
+  if (approval.approval_ready || approval.status === 'expired') {
+    return approval;
+  }
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await sleep(intervalMs);
+    approval = await context.fetchRelayApproval(requestId, relayUrl);
+    if (approval.approval_ready || approval.status === 'expired') {
+      return approval;
+    }
+  }
+
+  throw new AgentError(
+    'RELAY_APPROVAL_TIMEOUT',
+    `Timed out waiting for relay approval after ${Math.ceil(timeoutMs / 1000)} seconds.`,
+    {
+      requestId,
+      relayUrl,
+      timeoutMs,
+      intervalMs
+    }
+  );
+}
+
+async function resolveApprovedPayloadFromInput(
+  context: AgentToolContext,
   walletRequest: WalletRequestRecord,
-  input: Pick<WalletApprovalOrchestratorToolInput, 'payload' | 'encryptedPayload' | 'code'>
-): SessionPayload | undefined {
-  if (input.payload && input.encryptedPayload) {
+  input: Pick<
+    WalletApprovalOrchestratorToolInput,
+    | 'payload'
+    | 'encryptedPayload'
+    | 'relayUrl'
+    | 'code'
+    | 'waitForRelayApproval'
+    | 'relayWaitTimeoutMs'
+    | 'relayWaitIntervalMs'
+  >
+): Promise<SessionPayload | undefined> {
+  const inputModes =
+    Number(Boolean(input.payload)) +
+    Number(Boolean(input.encryptedPayload)) +
+    Number(Boolean(input.relayUrl?.trim()));
+  if (inputModes > 1) {
     throw new AgentError(
       'WALLET_APPROVAL_PAYLOAD_CONFLICT',
-      'Specify only one of payload or encryptedPayload for wallet approval.',
+      'Specify only one of payload, encryptedPayload, or relayUrl for wallet approval.',
       {
         requestId: walletRequest.requestId
       }
@@ -263,7 +437,64 @@ function resolveApprovedPayloadFromInput(
     return input.payload;
   }
 
-  if (!input.encryptedPayload) {
+  if (
+    (input.waitForRelayApproval ||
+      input.relayWaitTimeoutMs !== undefined ||
+      input.relayWaitIntervalMs !== undefined) &&
+    !input.relayUrl?.trim()
+  ) {
+    throw new AgentError(
+      'RELAY_URL_REQUIRED',
+      'waitForRelayApproval requires relayUrl.',
+      {
+        requestId: walletRequest.requestId
+      }
+    );
+  }
+
+  let encryptedPayload = input.encryptedPayload;
+
+  if (!encryptedPayload && input.relayUrl?.trim()) {
+    const relayApproval = input.waitForRelayApproval
+      ? await waitForRelayApprovalReady(
+          context,
+          walletRequest.requestId,
+          input.relayUrl.trim(),
+          input
+        )
+      : await context.fetchRelayApproval(
+          walletRequest.requestId,
+          input.relayUrl.trim()
+        );
+
+    if (relayApproval.status === 'expired') {
+      throw new AgentError(
+        'RELAY_APPROVAL_EXPIRED',
+        'Relay approval request expired before an encrypted approval payload was available.',
+        {
+          requestId: walletRequest.requestId,
+          relayUrl: input.relayUrl.trim()
+        }
+      );
+    }
+
+    if (!relayApproval.approval_ready || !relayApproval.encrypted_payload) {
+      throw new AgentError(
+        'RELAY_APPROVAL_NOT_READY',
+        'Relay approval payload is not ready yet.',
+        {
+          requestId: walletRequest.requestId,
+          relayUrl: input.relayUrl.trim(),
+          status: relayApproval.status,
+          approvalReady: relayApproval.approval_ready
+        }
+      );
+    }
+
+    encryptedPayload = relayApproval.encrypted_payload;
+  }
+
+  if (!encryptedPayload) {
     return undefined;
   }
 
@@ -288,7 +519,7 @@ function resolveApprovedPayloadFromInput(
   }
 
   return decryptSession(
-    input.encryptedPayload,
+    encryptedPayload,
     hexToBytes(stripHexPrefix(walletRequest.sessionSecretKey)),
     input.code.trim(),
     walletRequest.requestId
@@ -757,11 +988,11 @@ export async function runWalletApprovalOrchestration(
       );
     }
 
-    const payload = resolveApprovedPayloadFromInput(walletRequest, input);
+    const payload = await resolveApprovedPayloadFromInput(context, walletRequest, input);
     if (!payload) {
       throw new AgentError(
         'WALLET_APPROVAL_PAYLOAD_REQUIRED',
-        'walletApprovalOrchestratorTool approve mode requires payload or encryptedPayload.',
+        'walletApprovalOrchestratorTool approve mode requires payload, encryptedPayload, or relayUrl.',
         {
           requestId: input.requestId
         }
@@ -845,8 +1076,30 @@ export async function runWalletApprovalOrchestration(
   }
 
   const request = await createWalletRequest(context, requestInput);
+  const relayUrl = input.relayUrl?.trim();
+  const usesDirectApprovalPayload = Boolean(input.payload || input.encryptedPayload);
+  const shouldAttemptImmediateRelayApproval = Boolean(
+    !usesDirectApprovalPayload &&
+      relayUrl &&
+      (input.code?.trim() || input.waitForRelayApproval)
+  );
+  const relay =
+    relayUrl && !usesDirectApprovalPayload
+      ? await context.publishWalletRequestToRelay(request, relayUrl)
+      : undefined;
+  const shouldAttemptImmediateApproval = usesDirectApprovalPayload || shouldAttemptImmediateRelayApproval;
 
-  const payload = resolveApprovedPayloadFromInput(request, input);
+  const payload = shouldAttemptImmediateApproval
+    ? await resolveApprovedPayloadFromInput(context, request, {
+        payload: input.payload,
+        encryptedPayload: input.encryptedPayload,
+        relayUrl: shouldAttemptImmediateRelayApproval ? relayUrl : undefined,
+        code: input.code,
+        waitForRelayApproval: input.waitForRelayApproval,
+        relayWaitTimeoutMs: input.relayWaitTimeoutMs,
+        relayWaitIntervalMs: input.relayWaitIntervalMs
+      })
+    : undefined;
 
   if (!payload) {
     return {
@@ -854,9 +1107,10 @@ export async function runWalletApprovalOrchestration(
       stage: 'request-created',
       requestId: request.requestId,
       request: sanitizeWalletRequestRecord(request),
+      relay,
       wallet: wallet ? stripSensitiveWalletRecord(wallet) : undefined,
       nextAction: 'submit-approved-payload',
-      recommendedCommands: buildWalletApprovalRecommendedCommands(request.requestId, input.relayUrl)
+      recommendedCommands: buildWalletApprovalRecommendedCommands(request.requestId, relayUrl)
     };
   }
 
@@ -888,7 +1142,7 @@ export function createWalletApprovalOrchestratorTool(context: AgentToolContext) 
   >({
     name: 'walletApprovalOrchestratorTool',
     description:
-      'Create or reapprove a wallet session request and optionally finalize it from an approved connector payload in one tool call.',
+      'Create or reapprove a wallet session request and optionally finalize it from an approved payload or relay approval in one tool call.',
     execute: async (input) => runWalletApprovalOrchestration(context, input)
   });
 }
@@ -896,7 +1150,7 @@ export function createWalletApprovalOrchestratorTool(context: AgentToolContext) 
 export function createApproveWalletRequestTool(context: AgentToolContext) {
   return createAgentTool<ApproveWalletRequestToolInput, ApproveWalletRequestToolOutput>({
     name: 'approveWalletRequestTool',
-    description: 'Finalize a stored wallet approval request from an approved session payload.',
+    description: 'Finalize a stored wallet approval request from an approved payload or encrypted relay approval.',
     execute: async (input) => {
       const walletRequest = await context.loadWalletRequest(input.requestId);
       if (!walletRequest) {
@@ -905,11 +1159,11 @@ export function createApproveWalletRequestTool(context: AgentToolContext) {
         });
       }
 
-      const payload = resolveApprovedPayloadFromInput(walletRequest, input);
+      const payload = await resolveApprovedPayloadFromInput(context, walletRequest, input);
       if (!payload) {
         throw new AgentError(
           'WALLET_APPROVAL_PAYLOAD_REQUIRED',
-          'approveWalletRequestTool requires payload or encryptedPayload.',
+          'approveWalletRequestTool requires payload, encryptedPayload, or relayUrl.',
           {
             requestId: input.requestId
           }

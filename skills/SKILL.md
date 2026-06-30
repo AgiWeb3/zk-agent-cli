@@ -84,20 +84,14 @@ pnpm zk-agent wallet reapprove --name main --await-local
 ```
 
 If the connector cannot return directly to the waiting CLI process, create the
-request without `--await-local`, start the relay prototype, publish the request
-to the relay, approve in the connector, and then either save the generated
-payload or save the encrypted relay package plus its code.
+request with `--relay-url <url>`, start the relay prototype, approve in the
+connector, and then either save the generated payload or save the encrypted
+relay package plus its code.
 
 Start the relay:
 
 ```bash
 pnpm zk-agent relay serve
-```
-
-Publish the request:
-
-```bash
-pnpm zk-agent wallet request relay-publish --request-id <id> --relay-url <relay-url>
 ```
 
 Plain payload path:
@@ -159,7 +153,7 @@ pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --a
 - stop on missing prerequisites instead of failing late
 - dispatch a separate funding step first when needed
 - auto-sync metadata when requested
-- create or reuse a session approval request when `--ensure-wallet-session` is supplied, with `await-local`, manual `wallet request approve`, or relay-driven follow-up when `--relay-url <url>` is supplied
+- create or reuse a session approval request when `--ensure-wallet-session` is supplied, with `await-local`, manual `wallet request approve`, or auto-publish to relay plus relay-driven follow-up when `--relay-url <url>` is supplied
 
 For the common direct execution path, the CLI also exposes intent-specific
 shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
@@ -172,8 +166,8 @@ shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
 
 ```bash
 pnpm zk-agent setup [--default-chain <chain>] [--connector-url <url>] [--force]
-pnpm zk-agent wallet create [--name <name>] [--chain <chain>] [--await-local]
-pnpm zk-agent wallet reapprove [--name <name>] [--await-local]
+pnpm zk-agent wallet create [--name <name>] [--chain <chain>] [--await-local] [--relay-url <url>]
+pnpm zk-agent wallet reapprove [--name <name>] [--await-local] [--relay-url <url>]
 pnpm zk-agent wallet status [--name <name>]
 pnpm zk-agent wallet next [--name <name>]
 pnpm zk-agent defaults
@@ -193,8 +187,9 @@ pnpm zk-agent wallet request list
 pnpm zk-agent wallet request show --request-id <id>
 pnpm zk-agent wallet request await-local --request-id <id>
 pnpm zk-agent wallet request relay-publish --request-id <id> --relay-url <url>
-pnpm zk-agent wallet request relay-status --request-id <id> --relay-url <url>
+pnpm zk-agent wallet request relay-status --request-id <id> --relay-url <url> [--wait]
 pnpm zk-agent wallet request approve --request-id <id> --payload <json|@file>
+pnpm zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> [--wait]
 pnpm zk-agent wallet request approve-local --request-id <id> --wallet-address <address> ...
 ```
 

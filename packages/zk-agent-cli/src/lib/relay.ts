@@ -194,6 +194,41 @@ export async function fetchRelayStatus(
   return (await response.json()) as RelayStatusResponse;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export async function waitForRelayApprovalReady(
+  baseUrl: string,
+  requestId: string,
+  options: {
+    timeoutMs: number;
+    intervalMs: number;
+  }
+): Promise<RelayStatusResponse> {
+  const startedAt = Date.now();
+  let last = await fetchRelayStatus(baseUrl, requestId);
+
+  if (last.approval_ready || last.status === 'expired') {
+    return last;
+  }
+
+  while (Date.now() - startedAt < options.timeoutMs) {
+    await sleep(options.intervalMs);
+    last = await fetchRelayStatus(baseUrl, requestId);
+
+    if (last.approval_ready || last.status === 'expired') {
+      return last;
+    }
+  }
+
+  throw new Error(
+    `Timed out waiting for relay approval after ${Math.ceil(options.timeoutMs / 1000)} seconds.`
+  );
+}
+
 export async function fetchRelayApproval(
   baseUrl: string,
   requestId: string

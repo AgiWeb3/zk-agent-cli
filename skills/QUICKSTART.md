@@ -41,9 +41,15 @@ Manual fallback when the connector cannot call back into the waiting CLI:
 
 ```bash
 pnpm zk-agent relay serve
-pnpm zk-agent wallet create
-pnpm zk-agent wallet request relay-publish --request-id <id> --relay-url <relay-url>
-pnpm zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code>
+pnpm zk-agent wallet create --relay-url <relay-url>
+pnpm zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait
+```
+
+The same remote path also works for an existing wallet that needs a fresh
+session:
+
+```bash
+pnpm zk-agent wallet reapprove --name main --relay-url <relay-url>
 ```
 
 Encrypted relay fallback:
@@ -118,8 +124,8 @@ The same workflow surface also supports:
 
 If `workflow run|status|resume` is blocked on a missing writable session, add
 `--ensure-wallet-session`. Add `--relay-url <url>` when you want the workflow
-command to emit relay publish/status/approve follow-up commands instead of only
-local callback guidance.
+command to auto-publish the approval request to the relay and emit relay
+status/approve follow-up commands instead of only local callback guidance.
 
 ## 7. Resume blocked or long-running flows
 
@@ -196,7 +202,7 @@ pnpm --filter @zk-agent/agent-tools tool:run -- --tool walletStatusTool --input 
 ## Known constraints
 
 - approval-based paymaster mode is not valid for every ERC-20 fee token
-- direct remote approval is available through `relay serve` + `wallet request relay-publish` + `wallet request approve`, including an encrypted relay-package path, but `--await-local` remains the default path
+- direct remote approval is available through `relay serve` + `wallet create|reapprove --relay-url` + `wallet request approve`, including an encrypted relay-package path, but `--await-local` remains the default path
 - sandbox DNS can fail even when the public RPC endpoint is healthy
 - for current phase work, prefer:
   - `wallet create --await-local`

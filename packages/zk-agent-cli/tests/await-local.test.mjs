@@ -675,7 +675,7 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(published.relay.status, 'pending');
     assert.deepEqual(published.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
-      approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code>`
+      approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
     });
 
     const relayStatusPending = await runCliJson(
@@ -752,7 +752,7 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(relayStatusReady.relay.approval_ready, true);
     assert.deepEqual(relayStatusReady.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
-      approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code>`
+      approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
     });
 
     const approved = await runCliJson(
@@ -776,6 +776,413 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(approved.wallet.ownerAddress, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
   } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('relay status --wait blocks until the encrypted approval payload is ready', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-relay-status-wait-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const created = await runCliJson(
+      ['wallet', 'create', '--name', 'relay-wait-test', '--chain', 'zksync-sepolia'],
+      env
+    );
+    const request = decodeApprovalRequest(created.approvalUrl);
+
+    await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-publish',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    const payload = {
+      version: 1,
+      provider: request.provider,
+      chain: request.chain,
+      chainId: request.chainId,
+      walletAddress: '0xdddddddddddddddddddddddddddddddddddddddd',
+      account: {
+        kind: request.requestedAccountKind,
+        address: '0xdddddddddddddddddddddddddddddddddddddddd',
+        ownerAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        signerType: 'connector'
+      },
+      sessionScope: request.requestedSessionScope,
+      capabilities: request.requestedCapabilities,
+      sessionExpiresAt: request.expiresAt,
+      paymaster: {
+        mode: request.requestedPaymasterMode,
+        address: null
+      },
+      sessionPublicKey: request.sessionPublicKey,
+      permissions: request.policies,
+      connectorUrl: request.connectorUrl,
+      connectorOrigin: relayBaseUrl,
+      paymasterAddress: null
+    };
+    const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);
+
+    const { child, readStdout, readStderr } = spawnCli(
+      [
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl,
+        '--wait',
+        '--timeout-seconds',
+        '5',
+        '--interval-ms',
+        '50'
+      ],
+      env
+    );
+
+    setTimeout(() => {
+      const payload = {
+        version: 1,
+        provider: request.provider,
+        chain: request.chain,
+        chainId: request.chainId,
+        walletAddress: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        account: {
+          kind: request.requestedAccountKind,
+          address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          ownerAddress: '0xcccccccccccccccccccccccccccccccccccccccc',
+          signerType: 'connector'
+        },
+        sessionScope: request.requestedSessionScope,
+        capabilities: request.requestedCapabilities,
+        sessionExpiresAt: request.expiresAt,
+        paymaster: {
+          mode: request.requestedPaymasterMode,
+          address: null
+        },
+        sessionPublicKey: request.sessionPublicKey,
+        permissions: request.policies,
+        connectorUrl: request.connectorUrl,
+        connectorOrigin: relayBaseUrl,
+        paymasterAddress: null
+      };
+
+      const { encrypted } = encryptSession(payload, request.sessionPublicKey, request.requestId);
+
+      void fetch(`${relayBaseUrl}/api/requests/${created.requestId}/approval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          encrypted_payload: encrypted
+        })
+      });
+    }, 150);
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'relay-status --wait JSON output was empty');
+
+    const waited = JSON.parse(stdout);
+    assert.equal(waited.ok, true);
+    assert.equal(waited.relay.request_id, created.requestId);
+    assert.equal(waited.relay.status, 'ready');
+    assert.equal(waited.relay.approval_ready, true);
+    assert.deepEqual(waited.recommendedCommands, {
+      status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
+      approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
+    });
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet request approve --wait blocks until the encrypted relay payload is ready and then imports the wallet', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-relay-approve-wait-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const created = await runCliJson(
+      ['wallet', 'create', '--name', 'relay-approve-wait-test', '--chain', 'zksync-sepolia'],
+      env
+    );
+    const request = decodeApprovalRequest(created.approvalUrl);
+
+    await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-publish',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    const payload = {
+      version: 1,
+      provider: request.provider,
+      chain: request.chain,
+      chainId: request.chainId,
+      walletAddress: '0xdddddddddddddddddddddddddddddddddddddddd',
+      account: {
+        kind: request.requestedAccountKind,
+        address: '0xdddddddddddddddddddddddddddddddddddddddd',
+        ownerAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        signerType: 'connector'
+      },
+      sessionScope: request.requestedSessionScope,
+      capabilities: request.requestedCapabilities,
+      sessionExpiresAt: request.expiresAt,
+      paymaster: {
+        mode: request.requestedPaymasterMode,
+        address: null
+      },
+      sessionPublicKey: request.sessionPublicKey,
+      permissions: request.policies,
+      connectorUrl: request.connectorUrl,
+      connectorOrigin: relayBaseUrl,
+      paymasterAddress: null
+    };
+    const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);
+
+    const { child, readStdout, readStderr } = spawnCli(
+      [
+        'wallet',
+        'request',
+        'approve',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl,
+        '--code',
+        code,
+        '--wait',
+        '--timeout-seconds',
+        '5',
+        '--interval-ms',
+        '50'
+      ],
+      env
+    );
+
+    setTimeout(() => {
+      void fetch(`${relayBaseUrl}/api/requests/${created.requestId}/approval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          encrypted_payload: encrypted
+        })
+      });
+    }, 150);
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'approve --wait JSON output was empty');
+
+    const approved = JSON.parse(stdout);
+    assert.equal(approved.ok, true);
+    assert.equal(approved.approvalSource, 'relay-url');
+    assert.equal(approved.wallet.walletName, 'relay-approve-wait-test');
+    assert.equal(approved.wallet.walletAddress, '0xdddddddddddddddddddddddddddddddddddddddd');
+    assert.equal(approved.wallet.ownerAddress, '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    assert.deepEqual(await listStoredRequestIds(homeDir), []);
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet create --relay-url publishes the request immediately for remote approval', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-create-relay-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const created = await runCliJson(
+      [
+        'wallet',
+        'create',
+        '--name',
+        'relay-create-direct',
+        '--chain',
+        'zksync-sepolia',
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    assert.equal(created.ok, true);
+    assert.equal(created.walletName, 'relay-create-direct');
+    assert.equal(created.relay.request_id, created.requestId);
+    assert.equal(created.relay.status, 'pending');
+    assert.equal(created.relay.share_url, `${relayBaseUrl}/r/${created.requestId}`);
+    assert.equal(created.relay.status_url, `${relayBaseUrl}/api/requests/${created.requestId}`);
+    assert.deepEqual(created.recommendedCommands, {
+      awaitLocal: `zk-agent wallet request await-local --request-id ${created.requestId}`,
+      relayStatus: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
+      relayApprove: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`,
+      approve: `zk-agent wallet request approve --request-id ${created.requestId} --payload @approved-session.json`
+    });
+
+    const relayStatus = await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+    assert.equal(relayStatus.ok, true);
+    assert.equal(relayStatus.relay.status, 'pending');
+    assert.equal(relayStatus.relay.request.requestId, created.requestId);
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet reapprove --relay-url publishes the request immediately for remote approval', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-reapprove-relay-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(
+      sampleWalletRecord({
+        walletName: 'relay-reapprove-direct',
+        sessionPayload: {
+          ...sampleWalletRecord().sessionPayload,
+          sessionPrivateKey: undefined
+        }
+      })
+    );
+
+    await waitForRelayHealth(relayPort);
+
+    const created = await runCliJson(
+      [
+        'wallet',
+        'reapprove',
+        '--name',
+        'relay-reapprove-direct',
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    assert.equal(created.ok, true);
+    assert.equal(created.request.requestId, created.relay.request_id);
+    assert.equal(created.relay.status, 'pending');
+    assert.equal(created.relay.share_url, `${relayBaseUrl}/r/${created.request.requestId}`);
+    assert.equal(created.relay.status_url, `${relayBaseUrl}/api/requests/${created.request.requestId}`);
+    assert.deepEqual(created.recommendedCommands, {
+      awaitLocal: `zk-agent wallet request await-local --request-id ${created.request.requestId}`,
+      relayStatus: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,
+      relayApprove: `zk-agent wallet request approve --request-id ${created.request.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`,
+      approve: `zk-agent wallet request approve --request-id ${created.request.requestId} --payload @approved-session.json`
+    });
+
+    const relayStatus = await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        created.request.requestId,
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+    assert.equal(relayStatus.ok, true);
+    assert.equal(relayStatus.relay.status, 'pending');
+    assert.equal(relayStatus.relay.request.requestId, created.request.requestId);
+  } finally {
+    process.env.HOME = previousHome;
     relayChild.kill('SIGTERM');
     await waitForExit(relayChild, 5000).catch(() => {
       const relayErrorOutput = readRelayStderr().trim();

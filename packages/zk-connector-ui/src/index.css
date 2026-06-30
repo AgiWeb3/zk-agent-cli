@@ -93,9 +93,50 @@ h1 {
   border: 1px solid rgba(122, 145, 201, 0.14);
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .panel h2 {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 18px;
+}
+
+.state-pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.state-pill--good {
+  background: rgba(71, 196, 138, 0.16);
+  border: 1px solid rgba(71, 196, 138, 0.28);
+  color: #9cf0c3;
+}
+
+.state-pill--warn {
+  background: rgba(239, 190, 84, 0.14);
+  border: 1px solid rgba(239, 190, 84, 0.22);
+  color: #f7df9f;
+}
+
+.state-pill--bad {
+  background: rgba(255, 114, 114, 0.14);
+  border: 1px solid rgba(255, 114, 114, 0.24);
+  color: #ffb1b1;
+}
+
+.state-pill--muted {
+  background: rgba(122, 145, 201, 0.12);
+  border: 1px solid rgba(122, 145, 201, 0.2);
+  color: #c2d1f3;
 }
 
 .chip-row {
@@ -132,6 +173,28 @@ h1 {
   font-size: 14px;
 }
 
+.helper-stack {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.helper-stack code,
+.status code {
+  font-family: "Cascadia Code", Consolas, monospace;
+  color: #e7eefb;
+}
+
+.field-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.field-stack span {
+  color: #9eb2de;
+  font-size: 14px;
+}
+
 .form-grid input,
 .payload {
   width: 100%;
@@ -152,11 +215,28 @@ h1 {
   line-height: 1.5;
 }
 
+.command-block {
+  width: 100%;
+  min-height: 88px;
+  border: 1px solid rgba(122, 145, 201, 0.24);
+  border-radius: 14px;
+  background: rgba(4, 10, 22, 0.96);
+  color: #e7eefb;
+  padding: 12px 14px;
+  resize: vertical;
+  font: 13px/1.5 "Cascadia Code", Consolas, monospace;
+}
+
 .actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   margin-top: 14px;
+}
+
+.compact-meta {
+  margin-bottom: 0;
 }
 
 button {
@@ -172,4 +252,31 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.button-secondary {
+  background: rgba(122, 145, 201, 0.12);
+  color: #d7e1fb;
+  border: 1px solid rgba(122, 145, 201, 0.24);
+  font-weight: 600;
+}
+
+.status-error {
+  color: #ffb1b1;
+}
+
+@media (max-width: 720px) {
+  .card {
+    padding: 22px;
+    border-radius: 20px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+
+  .panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

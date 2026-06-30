@@ -116,7 +116,8 @@ import {
   fetchRelayStatus,
   publishRelayRequest,
   relayShareUrl,
-  relayStatusUrl
+  relayStatusUrl,
+  waitForRelayApprovalReady
 } from '../lib/relay.js';
 import { buildWalletNextSummary, walletNextLines } from '../lib/wallet-next.js';
 
@@ -1522,6 +1523,35 @@ export function buildWalletApprovalLines(
   ];
 }
 
+function buildRelayCreateRequest(walletRequest: WalletRequestRecord): RelayCreateRequest {
+  return {
+    approval_url: walletRequest.approvalUrl,
+    request: {
+      requestId: walletRequest.requestId,
+      walletName: walletRequest.walletName,
+      chain: walletRequest.chain,
+      chainId: walletRequest.chainId,
+      provider: walletRequest.provider,
+      createdAt: walletRequest.createdAt,
+      expiresAt: walletRequest.expiresAt,
+      connectorUrl: walletRequest.connectorUrl,
+      requestedAccountKind: walletRequest.requestedAccountKind,
+      requestedPaymasterMode: walletRequest.requestedPaymasterMode,
+      requestedSessionScope: walletRequest.requestedSessionScope,
+      requestedCapabilities: walletRequest.requestedCapabilities,
+      policies: walletRequest.policies,
+      sessionPublicKey: walletRequest.sessionPublicKey
+    }
+  };
+}
+
+export async function publishWalletRequestToRelay(
+  walletRequest: WalletRequestRecord,
+  relayUrl: string
+): Promise<Awaited<ReturnType<typeof publishRelayRequest>>> {
+  return publishRelayRequest(relayUrl, buildRelayCreateRequest(walletRequest));
+}
+
 async function importApprovedWalletSession(
   walletName: string,
   payload: SessionPayload
@@ -1659,8 +1689,23 @@ function decryptApprovedPayloadForWalletRequest(
 
 async function fetchEncryptedRelayApprovalPayload(
   relayUrl: string,
-  requestId: string
+  requestId: string,
+  options?: {
+    wait?: boolean;
+    timeoutMs?: number;
+    intervalMs?: number;
+  }
 ): Promise<EncryptedPayload> {
+  if (options?.wait) {
+    const relay = await waitForRelayApprovalReady(relayUrl, requestId, {
+      timeoutMs: options.timeoutMs ?? 600_000,
+      intervalMs: options.intervalMs ?? 2_000
+    });
+    if (!relay.approval_ready) {
+      throw new Error(`Relay approval expired before the encrypted payload was ready for request ${requestId}.`);
+    }
+  }
+
   const approval = await fetchRelayApproval(relayUrl, requestId);
   if (!approval.approval_ready || !approval.encrypted_payload) {
     throw new Error(`Relay approval is not ready yet for request ${requestId}.`);
@@ -1737,6 +1782,19 @@ interface LocalApprovalListenerOptions {
   timeoutSeconds: number;
 }
 
+function parsePositiveIntegerOption(
+  value: string | undefined,
+  flag: string,
+  fallback: number
+): number {
+  const parsed = Number.parseInt(value || String(fallback), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${flag} must be a positive integer`);
+  }
+
+  return parsed;
+}
+
 export function resolveLocalApprovalListenerOptions(options: {
   host?: string;
   port?: string;
@@ -1752,10 +1810,7 @@ export function resolveLocalApprovalListenerOptions(options: {
     throw new Error('--port must be an integer between 0 and 65535');
   }
 
-  const timeoutSeconds = Number.parseInt(options.timeoutSeconds || '600', 10);
-  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
-    throw new Error('--timeout-seconds must be a positive integer');
-  }
+  const timeoutSeconds = parsePositiveIntegerOption(options.timeoutSeconds, '--timeout-seconds', 600);
 
   return {
     host,
@@ -2037,6 +2092,7 @@ export function createWalletCommand(): Command {
     .option('--name <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Chain key or chain id')
     .option('--connector-url <url>', 'Connector UI base URL override')
+    .option('--relay-url <url>', 'Relay server base URL for immediate remote approval publishing')
     .option('--account-kind <kind>', 'Requested account kind', 'smart-account')
     .option('--paymaster-mode <mode>', 'Requested paymaster mode', 'none')
     .option('--await-local', 'Immediately wait for a local connector approval callback')
@@ -2048,6 +2104,7 @@ export function createWalletCommand(): Command {
         name: string;
         chain?: string;
         connectorUrl?: string;
+        relayUrl?: string;
         accountKind?: 'eoa' | 'smart-account' | 'session-key';
         paymasterMode?: 'none' | 'sponsored' | 'approval-based';
         awaitLocal?: boolean;
@@ -2101,6 +2158,10 @@ export function createWalletCommand(): Command {
         return;
       }
 
+      const relay = options.relayUrl
+        ? await publishWalletRequestToRelay(request, options.relayUrl)
+        : undefined;
+
       printResult(
         [
           ['wallet', request.walletName],
@@ -2109,16 +2170,39 @@ export function createWalletCommand(): Command {
           ['paymaster', request.requestedPaymasterMode],
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
+          ...(relay
+            ? [
+                ['share url', relay.share_url] as [string, string],
+                ['status url', relay.status_url] as [string, string]
+              ]
+            : []),
           ['expires', request.expiresAt],
           ['next local', buildWalletRequestAwaitLocalRecommendedCommand(request.requestId)],
-          ['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)],
-          ['note', 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.']
+          ...(relay
+            ? [
+                [
+                  'next relay status',
+                  buildWalletRequestRelayStatusRecommendedCommand(request.requestId, options.relayUrl as string)
+                ] as [string, string],
+                [
+                  'next relay approve',
+                  buildWalletRequestRelayApproveRecommendedCommand(request.requestId, options.relayUrl as string)
+                ] as [string, string]
+              ]
+            : [['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)] as [string, string]]),
+          [
+            'note',
+            relay
+              ? 'Request was published to the relay. Send the share URL to the connector operator, then finalize from the CLI with wallet request approve --relay-url.'
+              : 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.'
+          ]
         ],
         {
           ok: true,
           walletName: request.walletName,
           requestId: request.requestId,
           approvalUrl: request.approvalUrl,
+          relay,
           expiresAt: request.expiresAt,
           chain: request.chain,
           chainId: request.chainId,
@@ -2128,7 +2212,21 @@ export function createWalletCommand(): Command {
           sessionScope: request.requestedSessionScope,
           recommendedCommands: {
             awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(request.requestId),
-            approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+            ...(relay
+              ? {
+                  relayStatus: buildWalletRequestRelayStatusRecommendedCommand(
+                    request.requestId,
+                    options.relayUrl as string
+                  ),
+                  relayApprove: buildWalletRequestRelayApproveRecommendedCommand(
+                    request.requestId,
+                    options.relayUrl as string
+                  ),
+                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+                }
+              : {
+                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+                })
           }
         }
       );
@@ -2140,6 +2238,7 @@ export function createWalletCommand(): Command {
     .description('Request a fresh connector approval for an existing wallet so it can regain or rotate its stored session')
     .option('--name <name>', 'Wallet name', 'main')
     .option('--connector-url <url>', 'Connector UI base URL override')
+    .option('--relay-url <url>', 'Relay server base URL for immediate remote approval publishing')
     .option('--await-local', 'Immediately wait for a local connector approval callback')
     .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
     .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
@@ -2148,6 +2247,7 @@ export function createWalletCommand(): Command {
       async (options: {
         name: string;
         connectorUrl?: string;
+        relayUrl?: string;
         awaitLocal?: boolean;
         host?: string;
         port?: string;
@@ -2186,6 +2286,10 @@ export function createWalletCommand(): Command {
         return;
       }
 
+      const relay = options.relayUrl
+        ? await publishWalletRequestToRelay(request, options.relayUrl)
+        : undefined;
+
       printResult(
         [
           ['wallet', request.walletName],
@@ -2197,18 +2301,55 @@ export function createWalletCommand(): Command {
           ['paymaster', displayPaymasterMode(walletRecord)],
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
+          ...(relay
+            ? [
+                ['share url', relay.share_url] as [string, string],
+                ['status url', relay.status_url] as [string, string]
+              ]
+            : []),
           ['expires', request.expiresAt],
           ['next local', buildWalletRequestAwaitLocalRecommendedCommand(request.requestId)],
-          ['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)],
-          ['note', 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.']
+          ...(relay
+            ? [
+                [
+                  'next relay status',
+                  buildWalletRequestRelayStatusRecommendedCommand(request.requestId, options.relayUrl as string)
+                ] as [string, string],
+                [
+                  'next relay approve',
+                  buildWalletRequestRelayApproveRecommendedCommand(request.requestId, options.relayUrl as string)
+                ] as [string, string]
+              ]
+            : [['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)] as [string, string]]),
+          [
+            'note',
+            relay
+              ? 'Request was published to the relay. Send the share URL to the connector operator, then finalize from the CLI with wallet request approve --relay-url.'
+              : 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.'
+          ]
         ],
         {
           ok: true,
           wallet: sanitizeWalletRecord(walletRecord),
           request: sanitizeWalletRequestRecord(request),
+          relay,
           recommendedCommands: {
             awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(request.requestId),
-            approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+            ...(relay
+              ? {
+                  relayStatus: buildWalletRequestRelayStatusRecommendedCommand(
+                    request.requestId,
+                    options.relayUrl as string
+                  ),
+                  relayApprove: buildWalletRequestRelayApproveRecommendedCommand(
+                    request.requestId,
+                    options.relayUrl as string
+                  ),
+                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+                }
+              : {
+                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
+                })
           }
         }
       );
@@ -2553,26 +2694,7 @@ export function createWalletCommand(): Command {
     .requiredOption('--relay-url <url>', 'Relay server base URL')
     .action(async (options: { requestId: string; relayUrl: string }) => {
       const walletRequest = await requireActiveWalletRequest(options.requestId);
-      const relayRequest: RelayCreateRequest = {
-        approval_url: walletRequest.approvalUrl,
-        request: {
-          requestId: walletRequest.requestId,
-          walletName: walletRequest.walletName,
-          chain: walletRequest.chain,
-          chainId: walletRequest.chainId,
-          provider: walletRequest.provider,
-          createdAt: walletRequest.createdAt,
-          expiresAt: walletRequest.expiresAt,
-          connectorUrl: walletRequest.connectorUrl,
-          requestedAccountKind: walletRequest.requestedAccountKind,
-          requestedPaymasterMode: walletRequest.requestedPaymasterMode,
-          requestedSessionScope: walletRequest.requestedSessionScope,
-          requestedCapabilities: walletRequest.requestedCapabilities,
-          policies: walletRequest.policies,
-          sessionPublicKey: walletRequest.sessionPublicKey
-        }
-      };
-      const relay = await publishRelayRequest(options.relayUrl, relayRequest);
+      const relay = await publishWalletRequestToRelay(walletRequest, options.relayUrl);
 
         printResult(
           [
@@ -2597,11 +2719,19 @@ export function createWalletCommand(): Command {
 
   request
     .command('relay-status')
-    .description('Inspect the relay status of a published wallet request')
+    .description('Inspect the relay status of a published wallet request, optionally waiting until approval is ready')
     .requiredOption('--request-id <id>', 'Wallet request id')
     .requiredOption('--relay-url <url>', 'Relay server base URL')
-    .action(async (options: { requestId: string; relayUrl: string }) => {
-      const relay = await fetchRelayStatus(options.relayUrl, options.requestId);
+    .option('--wait', 'Poll until the encrypted relay approval is ready or the request expires')
+    .option('--timeout-seconds <seconds>', 'How long to wait while polling relay status', '600')
+    .option('--interval-ms <milliseconds>', 'How often to poll relay status while waiting', '2000')
+    .action(async (options: { requestId: string; relayUrl: string; wait?: boolean; timeoutSeconds?: string; intervalMs?: string }) => {
+      const relay = options.wait
+        ? await waitForRelayApprovalReady(options.relayUrl, options.requestId, {
+            timeoutMs: parsePositiveIntegerOption(options.timeoutSeconds, '--timeout-seconds', 600) * 1000,
+            intervalMs: parsePositiveIntegerOption(options.intervalMs, '--interval-ms', 2000)
+          })
+        : await fetchRelayStatus(options.relayUrl, options.requestId);
 
       printResult(
         [
@@ -2644,7 +2774,19 @@ export function createWalletCommand(): Command {
     .option('--encrypted-payload <payload>', 'Encrypted approval payload JSON or @file path')
     .option('--relay-url <url>', 'Relay server base URL that stores an encrypted approval payload')
     .option('--code <code>', 'Approval code used to decrypt --encrypted-payload')
-    .action(async (options: { requestId: string; payload?: string; encryptedPayload?: string; relayUrl?: string; code?: string }) => {
+    .option('--wait', 'Poll relay status until the encrypted approval is ready or the request expires (only with --relay-url)')
+    .option('--timeout-seconds <seconds>', 'How long to wait while polling relay status', '600')
+    .option('--interval-ms <milliseconds>', 'How often to poll relay status while waiting', '2000')
+    .action(async (options: {
+      requestId: string;
+      payload?: string;
+      encryptedPayload?: string;
+      relayUrl?: string;
+      code?: string;
+      wait?: boolean;
+      timeoutSeconds?: string;
+      intervalMs?: string;
+    }) => {
       const walletRequest = await requireActiveWalletRequest(options.requestId);
       const sourceCount =
         Number(Boolean(options.payload)) +
@@ -2653,6 +2795,9 @@ export function createWalletCommand(): Command {
       if (sourceCount !== 1) {
         throw new Error('Specify exactly one of --payload, --encrypted-payload, or --relay-url.');
       }
+      if (options.wait && !options.relayUrl) {
+        throw new Error('--wait is only supported together with --relay-url.');
+      }
 
       const payload = options.payload
         ? parseJsonInput<SessionPayload>(options.payload)
@@ -2660,7 +2805,15 @@ export function createWalletCommand(): Command {
             walletRequest,
             options.encryptedPayload
               ? parseJsonInput<EncryptedPayload>(options.encryptedPayload)
-              : await fetchEncryptedRelayApprovalPayload(options.relayUrl as string, walletRequest.requestId),
+              : await fetchEncryptedRelayApprovalPayload(options.relayUrl as string, walletRequest.requestId, {
+                  wait: options.wait,
+                  timeoutMs: parsePositiveIntegerOption(
+                    options.timeoutSeconds,
+                    '--timeout-seconds',
+                    600
+                  ) * 1000,
+                  intervalMs: parsePositiveIntegerOption(options.intervalMs, '--interval-ms', 2000)
+                }),
             options.code?.trim() || (() => {
               throw new Error('--code is required when using --encrypted-payload or --relay-url.');
             })()

@@ -43,6 +43,11 @@ export interface WorkflowOrchestratorToolInput extends Partial<WalletNameInput> 
   approvalConnectorUrl?: string;
   approvalRelayUrl?: string;
   approvalPayload?: WalletApprovalOrchestratorToolInput['payload'];
+  approvalEncryptedPayload?: WalletApprovalOrchestratorToolInput['encryptedPayload'];
+  approvalCode?: WalletApprovalOrchestratorToolInput['code'];
+  approvalWaitForRelayApproval?: WalletApprovalOrchestratorToolInput['waitForRelayApproval'];
+  approvalRelayWaitTimeoutMs?: WalletApprovalOrchestratorToolInput['relayWaitTimeoutMs'];
+  approvalRelayWaitIntervalMs?: WalletApprovalOrchestratorToolInput['relayWaitIntervalMs'];
 }
 
 export interface WorkflowOrchestratorToolOutput {
@@ -295,7 +300,7 @@ function walletApprovalNextCommand(
   }
 
   return (
-    walletApproval.recommendedCommands?.relayPublish ||
+    walletApproval.recommendedCommands?.relayStatus ||
     walletApproval.recommendedCommands?.awaitLocal
   );
 }
@@ -360,7 +365,12 @@ export function createWorkflowOrchestratorTool(context: AgentToolContext) {
           walletName: resolved.walletName,
           connectorUrl: input.approvalConnectorUrl,
           relayUrl: input.approvalRelayUrl,
-          payload: input.approvalPayload
+          payload: input.approvalPayload,
+          encryptedPayload: input.approvalEncryptedPayload,
+          code: input.approvalCode,
+          waitForRelayApproval: input.approvalWaitForRelayApproval,
+          relayWaitTimeoutMs: input.approvalRelayWaitTimeoutMs,
+          relayWaitIntervalMs: input.approvalRelayWaitIntervalMs
         });
 
         recommendedCommand = walletApprovalNextCommand(walletApproval) || recommendedCommand;
