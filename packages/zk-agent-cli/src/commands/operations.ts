@@ -1,9 +1,12 @@
 import { Command } from 'commander';
 
 import {
+  type DefiProvider,
   type GetBalancesResult,
   type MultiChainBalancesResult,
   type PaymasterSelectionInput,
+  type WalletProvider,
+  type WalletSessionRecord,
   loadProjectConfig,
   loadWalletSession,
   resolveChain
@@ -38,6 +41,46 @@ function delay(ms: number): Promise<void> {
 
 async function requireWallet(walletName: string) {
   const wallet = await loadWalletSession(walletName);
+  if (!wallet) throw new Error(`Wallet not found: ${walletName}`);
+  return wallet;
+}
+
+interface FundCommandOptions {
+  wallet: string;
+  amount?: string;
+  token?: string;
+  symbol?: string;
+  to?: string;
+  bridgeAddress?: string;
+  via?: string;
+  execute?: boolean;
+  broadcast?: boolean;
+  decimals?: string;
+}
+
+interface FundCommandDeps {
+  provider: WalletProvider;
+  defiProvider: DefiProvider;
+  loadWallet(walletName: string): Promise<WalletSessionRecord | null>;
+}
+
+function resolveFundCommandDeps(deps: Partial<FundCommandDeps> | undefined): FundCommandDeps {
+  return {
+    provider: deps?.provider ?? provider,
+    defiProvider: deps?.defiProvider ?? defiProvider,
+    loadWallet:
+      deps?.loadWallet ??
+      (async (walletName: string) => {
+        return loadWalletSession(walletName);
+      })
+  };
+}
+
+async function requireFundCommandWallet(
+  walletName: string,
+  deps: FundCommandDeps
+): Promise<WalletSessionRecord> {
+  const wallet = await deps.loadWallet(walletName);
   if (!wallet) throw new Error(`Wallet not found: ${walletName}`);
   return wallet;
 }
@@ -604,7 +647,139 @@ export function createBalancesCommand(): Command {
     });
 }
 
-export function createFundCommand(): Command {
+export async function executeFundCommand(
+  options: FundCommandOptions,
+  deps: FundCommandDeps
+): Promise<void> {
+  if (options.broadcast && !options.execute) {
+    throw new Error('--broadcast requires --execute for the fund command');
+  }
+
+  const walletName = options.wallet;
+  const wallet = await requireFundCommandWallet(walletName, deps);
+  const symbol =
+    options.token
+      ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
+      : resolveOptionalLabel(options.symbol);
+  const localTokenMetadata = options.token ? resolveLocalTokenMetadata(options.token) : undefined;
+  const decimalsForGuidance = options.token
+    ? localTokenMetadata?.decimals ??
+      (options.decimals?.trim() ? requireTokenDecimals(options.decimals) : undefined)
+    : undefined;
+  const funding = await deps.provider.getFundingInfo({
+    walletName,
+    walletAddress: wallet.walletAddress,
+    chain: wallet.chain,
+    amount: options.amount,
+    tokenAddress: options.token,
+    symbol,
+    decimals: decimalsForGuidance
+  });
+
+  if (options.execute) {
+    const result = await executeFundAction(
+      {
+        wallet,
+        funding,
+        amount: options.amount,
+        tokenAddress: options.token,
+        symbol,
+        decimals: options.token
+          ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
+          : undefined,
+        to: options.to,
+        bridgeAddress: options.bridgeAddress,
+        via:
+          options.via === 'deposit' || options.via === 'bridge'
+            ? options.via
+            : undefined,
+        broadcast: Boolean(options.broadcast)
+      },
+      {
+        deposit: deps.defiProvider.deposit.bind(deps.defiProvider),
+        bridge: deps.defiProvider.bridge.bind(deps.defiProvider)
+      }
+    );
+
+    if ('route' in result) {
+      printResult(
+        linesForBridgeResult(
+          result,
+          buildBridgePreviewNextCommand({
+            walletName: wallet.walletName,
+            amount: result.token.amount,
+            fromChain: result.fromChain,
+            toChain: result.toChain,
+            recipient: result.recipient,
+            token: result.token,
+            bridgeAddress: result.bridgeAddress
+          })
+        ),
+        { ok: true, ...result }
+      );
+      return;
+    }
+
+    printResult(
+      linesForDepositResult(
+        result,
+        buildDepositPreviewNextCommand({
+          walletName: wallet.walletName,
+          amount: result.token.amount,
+          recipient: result.recipient,
+          token: result.token,
+          bridgeAddress: result.bridgeAddress
+        })
+      ),
+      { ok: true, ...result }
+    );
+    return;
+  }
+
+  printResult(
+    [
+      ['status', 'funding-guidance'],
+      ['wallet', funding.walletName],
+      ['chain', `${funding.chain} (${funding.chainId})`],
+      ...(funding.sourceChain
+        ? [
+            [
+              'source chain',
+              funding.sourceChainId
+                ? `${funding.sourceChain} (${funding.sourceChainId})`
+                : funding.sourceChain
+            ] as [string, string]
+          ]
+        : []),
+      ...(funding.route ? [['route', funding.route] as [string, string]] : []),
+      ...(funding.recommendedAction
+        ? [['recommended action', funding.recommendedAction] as [string, string]]
+        : []),
+      ...(funding.requestedAmount
+        ? [['amount', funding.requestedAmount] as [string, string]]
+        : []),
+      ...(funding.token
+        ? [['token', funding.token.symbol ? `${funding.token.symbol} (${funding.token.address})` : funding.token.address] as [string, string]]
+        : []),
+      ...(funding.token?.decimals !== undefined
+        ? [['token decimals', String(funding.token.decimals)] as [string, string]]
+        : []),
+      ['funding url', funding.fundingUrl],
+      ...(funding.suggestedCommands?.[0]
+        ? [['next', funding.suggestedCommands[0]] as [string, string]]
+        : []),
+      ...((funding.suggestedCommands || []).map((command) => [
+        'command',
+        command
+      ]) as Array<[string, string]>),
+      ...funding.notes.map((note) => ['note', note] as [string, string])
+    ],
+    { ok: true, ...funding }
+  );
+}
+
+export function createFundCommand(deps?: Partial<FundCommandDeps>): Command {
+  const resolvedDeps = resolveFundCommandDeps(deps);
   return new Command('fund')
     .description('Explain or execute the default funding step for the active chain')
     .option('--wallet <name>', 'Wallet name', 'main')
@@ -620,143 +795,8 @@ export function createFundCommand(): Command {
       '--decimals <value>',
       'Optional token decimals. When omitted, local deployment metadata is used if available.'
     )
-    .action(async (options: {
-      wallet: string;
-      amount?: string;
-      token?: string;
-      symbol?: string;
-      to?: string;
-      bridgeAddress?: string;
-      via?: string;
-      execute?: boolean;
-      broadcast?: boolean;
-      decimals?: string;
-    }) => {
-      if (options.broadcast && !options.execute) {
-        throw new Error('--broadcast requires --execute for the fund command');
-      }
-
-      const walletName = options.wallet;
-      const wallet = await requireWallet(walletName);
-      const symbol =
-        options.token
-          ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-          : resolveOptionalLabel(options.symbol);
-      const localTokenMetadata = options.token ? resolveLocalTokenMetadata(options.token) : undefined;
-      const decimalsForGuidance = options.token
-        ? localTokenMetadata?.decimals ??
-          (options.decimals?.trim() ? requireTokenDecimals(options.decimals) : undefined)
-        : undefined;
-      const funding = await provider.getFundingInfo({
-        walletName,
-        walletAddress: wallet.walletAddress,
-        chain: wallet.chain,
-        amount: options.amount,
-        tokenAddress: options.token,
-        symbol,
-        decimals: decimalsForGuidance
-      });
-
-      if (options.execute) {
-        const result = await executeFundAction(
-          {
-            wallet,
-            funding,
-            amount: options.amount,
-            tokenAddress: options.token,
-            symbol,
-            decimals: options.token
-              ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-              : undefined,
-            to: options.to,
-            bridgeAddress: options.bridgeAddress,
-            via:
-              options.via === 'deposit' || options.via === 'bridge'
-                ? options.via
-                : undefined,
-            broadcast: Boolean(options.broadcast)
-          },
-          {
-            deposit: defiProvider.deposit.bind(defiProvider),
-            bridge: defiProvider.bridge.bind(defiProvider)
-          }
-        );
-
-        if ('route' in result) {
-          printResult(
-            linesForBridgeResult(
-              result,
-              buildBridgePreviewNextCommand({
-                walletName: wallet.walletName,
-                amount: result.token.amount,
-                fromChain: result.fromChain,
-                toChain: result.toChain,
-                recipient: result.recipient,
-                token: result.token,
-                bridgeAddress: result.bridgeAddress
-              })
-            ),
-            { ok: true, ...result }
-          );
-          return;
-        }
-
-        printResult(
-          linesForDepositResult(
-            result,
-            buildDepositPreviewNextCommand({
-              walletName: wallet.walletName,
-              amount: result.token.amount,
-              recipient: result.recipient,
-              token: result.token,
-              bridgeAddress: result.bridgeAddress
-            })
-          ),
-          { ok: true, ...result }
-        );
-        return;
-      }
-
-      printResult(
-        [
-          ['status', 'funding-guidance'],
-          ['wallet', funding.walletName],
-          ['chain', `${funding.chain} (${funding.chainId})`],
-          ...(funding.sourceChain
-            ? [
-                [
-                  'source chain',
-                  funding.sourceChainId
-                    ? `${funding.sourceChain} (${funding.sourceChainId})`
-                    : funding.sourceChain
-                ] as [string, string]
-              ]
-            : []),
-          ...(funding.route ? [['route', funding.route] as [string, string]] : []),
-          ...(funding.recommendedAction
-            ? [['recommended action', funding.recommendedAction] as [string, string]]
-            : []),
-          ...(funding.requestedAmount
-            ? [['amount', funding.requestedAmount] as [string, string]]
-            : []),
-          ...(funding.token
-            ? [['token', funding.token.symbol ? `${funding.token.symbol} (${funding.token.address})` : funding.token.address] as [string, string]]
-            : []),
-          ...(funding.token?.decimals !== undefined
-            ? [['token decimals', String(funding.token.decimals)] as [string, string]]
-            : []),
-          ['funding url', funding.fundingUrl],
-          ...(funding.suggestedCommands?.[0]
-            ? [['next', funding.suggestedCommands[0]] as [string, string]]
-            : []),
-          ...((funding.suggestedCommands || []).map((command) => [
-            'command',
-            command
-          ]) as Array<[string, string]>),
-          ...funding.notes.map((note) => ['note', note] as [string, string])
-        ],
-        { ok: true, ...funding }
-      );
+    .action(async (options: FundCommandOptions) => {
+      await executeFundCommand(options, resolvedDeps);
     });
 }
 

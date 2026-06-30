@@ -98,6 +98,19 @@ function sortWalletActions(actions: WalletNextAction[]): WalletNextAction[] {
   });
 }
 
+function normalizeWorkflowFundCommand(command: string | undefined, walletName: string): string {
+  const trimmed = command?.trim();
+  if (!trimmed) {
+    return `zk-agent workflow fund --wallet ${walletName} --amount <amount> --execute`;
+  }
+
+  if (!trimmed.startsWith('zk-agent fund ')) {
+    return trimmed;
+  }
+
+  return trimmed.replace(/^zk-agent fund\b/, 'zk-agent workflow fund');
+}
+
 export function buildWalletPreparationActions(input: {
   wallet: WalletSessionRecord;
   inspection: WalletInspectionResult;
@@ -178,9 +191,10 @@ export function buildWalletPreparationActions(input: {
       reason: funding?.route
         ? `The active chain currently shows a zero native balance. The default funding route is ${funding.route}.`
         : 'The active chain currently shows a zero native balance.',
-      command:
-        funding?.suggestedCommands?.[0] ||
-        `zk-agent fund --wallet ${wallet.walletName} --amount <amount> --execute`
+      command: normalizeWorkflowFundCommand(
+        funding?.suggestedCommands?.[0],
+        wallet.walletName
+      )
     });
   }
 

@@ -93,7 +93,7 @@ test('wallet next recommends sync and fund for deployed but unsynced zero-balanc
   assert.equal(summary.status, 'ready');
   assert.equal(summary.actions[0]?.id, 'sync');
   assert.equal(summary.actions[1]?.id, 'fund');
-  assert.match(summary.actions[1]?.command || '', /zk-agent fund --wallet main --amount <amount> --execute/);
+  assert.match(summary.actions[1]?.command || '', /zk-agent workflow fund --wallet main --amount <amount> --execute/);
 });
 
 test('wallet next reports ready when no immediate remediation is needed', () => {

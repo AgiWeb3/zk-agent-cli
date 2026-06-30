@@ -84,13 +84,13 @@ pnpm zk-agent wallet status --name main
 Guidance only:
 
 ```bash
-pnpm zk-agent fund --wallet main
+pnpm zk-agent workflow fund --wallet main
 ```
 
 Dispatch the suggested funding route:
 
 ```bash
-pnpm zk-agent fund --wallet main --amount <amount> --execute
+pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
 ## 6. Run a workflow instead of jumping straight to direct write commands

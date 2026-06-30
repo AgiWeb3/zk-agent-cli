@@ -1,6 +1,6 @@
 ---
 name: zk-agent-cli
-description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> wallet create/reapprove -> wallet next/status -> fund -> workflow run.
+description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> wallet create/reapprove -> wallet next/status -> workflow fund -> workflow run.
 ---
 
 # zk-agent-cli Skill
@@ -123,13 +123,13 @@ when you need the same recommendation plus the underlying readiness details.
 ### 4. Fund only when the CLI says funding is required
 
 ```bash
-pnpm zk-agent fund --wallet main --amount <amount> --execute
+pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
 If you only want guidance:
 
 ```bash
-pnpm zk-agent fund --wallet main
+pnpm zk-agent workflow fund --wallet main
 ```
 
 Do not hardcode a funding path. Use the CLI-provided route and `next` command.
@@ -197,6 +197,7 @@ pnpm zk-agent wallet request approve-local --request-id <id> --wallet-address <a
 
 ```bash
 pnpm zk-agent workflow plan --wallet <name> --intent <intent> ...
+pnpm zk-agent workflow fund --wallet <name> [--amount <amount>] [--execute]
 pnpm zk-agent workflow run --wallet <name> --intent <intent> ...
 pnpm zk-agent workflow send-native --wallet <name> --to <address> --amount <amount> ...
 pnpm zk-agent workflow swap --wallet <name> --token-in <address> --token-out <address> ...
@@ -222,6 +223,8 @@ Valid intents:
 ### Direct action commands
 
 These exist, but use them when you intentionally want the lower-level path.
+For funding, prefer `workflow fund`; the top-level `fund` command remains as the
+raw alias.
 
 ```bash
 pnpm zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>]

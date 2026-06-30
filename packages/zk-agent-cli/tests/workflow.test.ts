@@ -80,6 +80,10 @@ test('workflow plan blocks swap until write prerequisites and gas funding are sa
     ['reapprove', 'deploy', 'fund', 'swap']
   );
   assert.equal(plan.recommendedCommand, 'zk-agent wallet reapprove --name main --await-local');
+  assert.equal(
+    plan.steps[2]?.command,
+    'zk-agent workflow fund --wallet main --amount <amount> --execute --via deposit'
+  );
 });
 
 test('workflow plan emits a protocol-specific swap goal command when requested', () => {

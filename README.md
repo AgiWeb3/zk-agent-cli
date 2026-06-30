@@ -66,6 +66,7 @@ What is already in place:
   - the shortest remediation path for local execution
 - `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
 - `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`
+- `workflow fund` as a workflow-first alias for the default funding step, so the canonical operator path no longer has to jump back out to the top-level `fund` command family
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
 - intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
@@ -214,7 +215,7 @@ What is already in place:
 What is next:
 
 1. standardize the default operator path around:
-   `setup -> wallet create/reapprove -> fund -> workflow run`
+   `setup -> wallet create/reapprove -> workflow fund -> workflow run`
 2. add an installable `skills/` surface so agent harnesses do not need repo-
    specific tribal knowledge
 3. upgrade the connector from the current local callback + encrypted relay
@@ -311,7 +312,13 @@ If you need the same recommendation plus the underlying inspection details:
 pnpm zk-agent wallet status --name main
 ```
 
-4. If native gas is missing, dispatch the suggested funding route:
+4. If native gas is missing, dispatch the suggested funding route through the workflow surface:
+
+```bash
+pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
+```
+
+The top-level alias still exists:
 
 ```bash
 pnpm zk-agent fund --wallet main --amount <amount> --execute
@@ -331,6 +338,91 @@ callback guidance.
 
 The key rule is: do not jump straight from wallet creation into ad-hoc write
 commands. Let `wallet next` and `workflow run` carry the default operator path.
+
+## User-Facing Command Model
+
+From an operator point of view, the CLI now has one consistent shape:
+
+```bash
+pnpm zk-agent <top-level-command> [subcommand] [flags]
+```
+
+The practical command surface is split into three layers.
+
+### 1. Wallet and session commands
+
+Use these to bootstrap or recover the wallet session, not to perform the final
+business action:
+
+```bash
+pnpm zk-agent setup
+pnpm zk-agent wallet create --name main --await-local
+pnpm zk-agent wallet reapprove --name main --await-local
+pnpm zk-agent wallet status --name main
+pnpm zk-agent wallet next --name main
+```
+
+`wallet next` is the default decision point. It tells the user whether the next
+step is sync, deploy, reapprove, fund, or execute.
+
+### 2. Workflow commands
+
+This is the default action layer. Prefer this surface when the user wants to
+send, swap, bridge, deposit, withdraw, or fund a wallet.
+
+```bash
+pnpm zk-agent workflow fund --wallet main --amount 0.01 --execute
+pnpm zk-agent workflow send-native --wallet main --to 0x... --amount 0.001 --broadcast
+pnpm zk-agent workflow send-token --wallet main --token 0x... --to 0x... --amount 10 --broadcast
+pnpm zk-agent workflow swap --wallet main --token-in 0x... --token-out 0x... --amount-in 1 --broadcast
+pnpm zk-agent workflow bridge --wallet main --to-chain zksync-sepolia --amount 0.01 --broadcast
+```
+
+When you want one unified action entrypoint instead of the intent-specific
+shortcuts, use:
+
+```bash
+pnpm zk-agent workflow run --wallet main --intent send-native --to 0x... --amount 0.001 --broadcast
+```
+
+For interrupted flows, stay inside the same surface:
+
+```bash
+pnpm zk-agent workflow status --request-id <id>
+pnpm zk-agent workflow resume --request-id <id>
+```
+
+### 3. Direct action commands
+
+These top-level commands still exist, but they are the lower-level path. Use
+them for scripting, debugging, or when you explicitly want to bypass the
+workflow-oriented UX:
+
+```bash
+pnpm zk-agent fund ...
+pnpm zk-agent send ...
+pnpm zk-agent send-token ...
+pnpm zk-agent swap ...
+pnpm zk-agent bridge ...
+pnpm zk-agent deposit ...
+pnpm zk-agent withdraw ...
+```
+
+The intended user mental model is:
+
+1. prepare the wallet with `wallet`
+2. ask `wallet next` for the shortest valid next step
+3. execute through `workflow`
+
+The shortest default product path is therefore:
+
+```bash
+pnpm zk-agent setup
+pnpm zk-agent wallet create --name main --await-local
+pnpm zk-agent wallet next --name main
+pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
+pnpm zk-agent workflow send-native --wallet main --to <address> --amount <amount> --broadcast
+```
 
 ## Agent Skills
 

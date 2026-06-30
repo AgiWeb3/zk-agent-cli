@@ -51,6 +51,9 @@ import {
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
 import { runWorkflow, type WorkflowGoalInput } from '../lib/workflow-run.js';
 import {
+  createFundCommand,
+} from './operations.js';
+import {
   awaitLocalWalletApproval,
   buildWalletApprovalLines,
   createWalletReapprovalRequest,
@@ -1681,6 +1684,13 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       printWorkflowRunCommandResult(execution);
     });
   }
+
+  workflow.addCommand(
+    createFundCommand({
+      provider: resolvedDeps.provider,
+      defiProvider: resolvedDeps.defiProvider
+    }).description('Workflow-first alias for the default funding step on the active chain')
+  );
 
   return workflow;
 }
