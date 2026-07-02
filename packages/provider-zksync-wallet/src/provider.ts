@@ -16,6 +16,7 @@ import {
   type NativeTransferInput,
   type PaymasterSelectionInput,
   type ResolvedPaymasterPolicy,
+  resolveEffectivePaymasterSelection,
   resolveChain,
   type CreateSessionRequestInput,
   type CreateSessionRequestResult,
@@ -443,14 +444,19 @@ function resolvePaymasterSelection(
     );
   }
 
-  const address = requested?.address ?? sessionPaymaster?.address ?? wallet.sessionPayload?.paymasterAddress;
+  const effectiveSelection = resolveEffectivePaymasterSelection(wallet, requested);
+  const address =
+    effectiveSelection?.address ??
+    requested?.address ??
+    sessionPaymaster?.address ??
+    wallet.sessionPayload?.paymasterAddress;
   if (address && !isAddress(address)) {
     throw new AgentError('INVALID_PAYMASTER_ADDRESS', 'Paymaster address must be a valid address.', {
       address
     });
   }
 
-  const token = requested?.token ?? sessionPaymaster?.token;
+  const token = effectiveSelection?.token ?? requested?.token ?? sessionPaymaster?.token;
   if (mode === 'approval-based' && !token) {
     throw new AgentError(
       'PAYMASTER_TOKEN_REQUIRED',

@@ -20,7 +20,10 @@ pnpm zk-agent setup
 Expected result:
 
 - local config is saved under `~/.zk-agent/config.json`
-- the CLI prints a `next` command for wallet creation
+- the CLI prints the default operator-path follow-ups:
+  - `zk-agent defaults`
+  - `zk-agent wallet create --await-local`
+  - `zk-agent next`
 
 ## 3. Create a writable wallet session
 
@@ -30,6 +33,21 @@ pnpm zk-agent wallet create --await-local
 
 This is the preferred path because the CLI waits for the local connector
 callback and stores the approved session immediately.
+
+The command output also includes the post-approval follow-ups:
+
+- `zk-agent next`
+- `zk-agent wallet status --name <wallet>`
+
+The surrounding wallet-management commands follow the same pattern:
+`wallet list`, `wallet request list`, `wallet export`, `wallet rename`,
+`wallet address`, and `wallet remove` also return explicit follow-up commands.
+
+When you want the canonical wallet command sequence, run:
+
+```bash
+pnpm zk-agent wallet --help
+```
 
 If a wallet already exists but the writable local session is missing or stale:
 
@@ -44,6 +62,10 @@ pnpm zk-agent relay serve
 pnpm zk-agent wallet create --relay-url <relay-url>
 pnpm zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait
 ```
+
+`relay serve` now also prints the relay-aware `wallet create` and `wallet
+reapprove` follow-up commands directly, so the operator can copy the exact next
+step from the server output.
 
 The same remote path also works for an existing wallet that needs a fresh
 session:
@@ -67,7 +89,13 @@ defaults when you need the machine-readable baseline:
 pnpm zk-agent defaults
 ```
 
-Shortest next-step summary:
+Shortest next-step summary across setup, wallet readiness, and stored workflow checkpoints:
+
+```bash
+pnpm zk-agent next
+```
+
+Wallet-only detailed view:
 
 ```bash
 pnpm zk-agent wallet next --name main
@@ -122,6 +150,12 @@ The same workflow surface also supports:
 - `deposit`
 - `withdraw`
 
+When you need the canonical workflow command sequence, run:
+
+```bash
+pnpm zk-agent workflow --help
+```
+
 If `workflow run|status|resume` is blocked on a missing writable session, add
 `--ensure-wallet-session`. Add `--relay-url <url>` when you want the workflow
 command to auto-publish the approval request to the relay and emit relay
@@ -146,6 +180,17 @@ Check whether it is ready to continue:
 ```bash
 pnpm zk-agent workflow status --request-id <id>
 ```
+
+Ask for the single shortest next step:
+
+```bash
+pnpm zk-agent workflow next --request-id <id>
+```
+
+`workflow start`, `workflow status`, `workflow run`, `workflow resume`, and the
+`workflow next` and the intent shortcut commands now also return explicit
+`recommendedCommands` in JSON mode, so agent-driven callers can keep moving
+without rebuilding the next CLI step themselves.
 
 Resume when ready:
 
@@ -185,6 +230,16 @@ pnpm zk-agent wallet smart-account predict --name main --profile sed-lite
 pnpm zk-agent wallet smart-account deploy --name main --profile sed-lite
 ```
 
+`wallet smart-account predict` now returns the matching deploy command in
+`recommendedCommands.deploy`, and `wallet smart-account deploy` returns
+post-deploy `wallet status` / `wallet next` follow-ups when the deployed address
+is saved back into the local wallet record.
+
+The profile-management write commands under `wallet smart-account sed-lite ...`
+and `wallet smart-account daily-spend-limit ...` now also return structured
+`recommendedCommands` in JSON mode, including the concrete preview rerun command
+when the current result is still a preview.
+
 ## 10. Programmatic tool surface
 
 List tools:
@@ -202,6 +257,7 @@ pnpm --filter @zk-agent/agent-tools tool:run -- --tool walletStatusTool --input 
 ## Known constraints
 
 - approval-based paymaster mode is not valid for every ERC-20 fee token
+- on `zksync-sepolia`, approval-based mode can auto-fill the tracked validated paymaster + EraVM fee-token defaults when only the mode is supplied
 - direct remote approval is available through `relay serve` + `wallet create|reapprove --relay-url` + `wallet request approve`, including an encrypted relay-package path, but `--await-local` remains the default path
 - sandbox DNS can fail even when the public RPC endpoint is healthy
 - for current phase work, prefer:

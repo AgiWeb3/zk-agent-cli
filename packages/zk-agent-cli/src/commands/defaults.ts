@@ -5,7 +5,7 @@ import { loadValidatedDefaults } from '../lib/validated-defaults.js';
 
 export function createDefaultsCommand(): Command {
   return new Command('defaults')
-    .description('Show built-in chains and the currently tracked validated zkSync Sepolia router, paymaster, and fee-token defaults')
+    .description('Show the machine-readable registry of supported, validated, experimental, and manually configured defaults')
     .action(async () => {
       const defaults = loadValidatedDefaults();
 
@@ -61,6 +61,40 @@ export function createDefaultsCommand(): Command {
         'configured uniswap fee tier',
         defaults.configured.uniswapV3ExactInputSingle.feeTier || 'not set'
       ]);
+
+      for (const swap of defaults.registry.swapProtocols) {
+        lines.push([
+          `${swap.status} swap`,
+          `${swap.id} on ${swap.chain} (${swap.configuration})`
+        ]);
+      }
+
+      for (const route of defaults.registry.bridgeRoutes) {
+        lines.push([
+          `${route.status} bridge route`,
+          `${route.fromChain} -> ${route.toChain} (${route.direction})`
+        ]);
+      }
+
+      for (const paymasterPath of defaults.registry.paymasterPaths) {
+        lines.push([
+          `${paymasterPath.status} paymaster path`,
+          `${paymasterPath.mode} on ${paymasterPath.chain}`
+        ]);
+        if (paymasterPath.paymasterAddress) {
+          lines.push(['path paymaster', paymasterPath.paymasterAddress]);
+        }
+        if (paymasterPath.feeTokenAddress) {
+          lines.push([
+            'path fee token',
+            `${paymasterPath.feeTokenSymbol || 'unknown'} ${paymasterPath.feeTokenAddress}`
+          ]);
+        }
+      }
+
+      for (const note of defaults.notes) {
+        lines.push(['note', note]);
+      }
 
       printResult(lines, {
         ok: true,

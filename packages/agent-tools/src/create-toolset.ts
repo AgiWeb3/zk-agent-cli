@@ -2,6 +2,7 @@ import {
   deleteWalletRequest,
   deleteWorkflowCheckpoint,
   listWorkflowCheckpointIds,
+  loadProjectConfig,
   loadWorkflowCheckpoint,
   loadWalletRequest,
   loadWalletSession,
@@ -18,7 +19,19 @@ import { createWalletTool } from './create-wallet-tool.js';
 import { createDepositPreviewTool } from './deposit-preview-tool.js';
 import { createDepositStatusTool } from './deposit-status-tool.js';
 import { createGetBalancesTool } from './get-balances-tool.js';
+import { createGetDefaultsTool } from './get-defaults-tool.js';
 import { createGetFundingInfoTool } from './get-funding-info-tool.js';
+import { createTopLevelNextTool } from './top-level-next-tool.js';
+import { createWorkflowFundTool } from './workflow-fund-tool.js';
+import {
+  createWorkflowBridgeTool,
+  createWorkflowCallWriteTool,
+  createWorkflowDepositTool,
+  createWorkflowSendNativeTool,
+  createWorkflowSendTokenTool,
+  createWorkflowSwapTool,
+  createWorkflowWithdrawTool
+} from './workflow-intent-tools.js';
 import {
   createApproveWalletRequestTool,
   createWalletApprovalOrchestratorTool,
@@ -50,6 +63,10 @@ import {
 } from './workflow-checkpoint-tools.js';
 import { createWorkflowRunByCheckpointTool, createWorkflowRunTool } from './workflow-run-tool.js';
 import {
+  createWorkflowNextByCheckpointTool,
+  createWorkflowNextTool
+} from './workflow-next-tool.js';
+import {
   createWorkflowStatusByCheckpointTool,
   createWorkflowStatusTool
 } from './workflow-status-tool.js';
@@ -63,6 +80,7 @@ async function defaultLoadWallet(walletName: string): Promise<WalletSessionRecor
 export function createAgentToolContext(context: {
   provider: AgentToolContext['provider'];
   defiProvider?: AgentToolContext['defiProvider'];
+  loadProjectConfig?: AgentToolContext['loadProjectConfig'];
   loadWallet?: AgentToolContext['loadWallet'];
   saveWallet?: AgentToolContext['saveWallet'];
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
@@ -78,6 +96,7 @@ export function createAgentToolContext(context: {
   return {
     provider: context.provider,
     defiProvider: context.defiProvider,
+    loadProjectConfig: context.loadProjectConfig || loadProjectConfig,
     loadWallet: context.loadWallet || defaultLoadWallet,
     saveWallet: context.saveWallet || saveWalletSession,
     loadWalletRequest: context.loadWalletRequest || loadWalletRequest,
@@ -97,6 +116,7 @@ export function createAgentToolContext(context: {
 export function createStandardAgentTools(context: AgentToolContext) {
   return {
     createWalletTool: createWalletTool(context),
+    topLevelNextTool: createTopLevelNextTool(context),
     createWalletRequestTool: createStoredWalletRequestTool(context),
     approveWalletRequestTool: createApproveWalletRequestTool(context),
     walletApprovalOrchestratorTool: createWalletApprovalOrchestratorTool(context),
@@ -106,19 +126,30 @@ export function createStandardAgentTools(context: AgentToolContext) {
     workflowPlanTool: createWorkflowPlanTool(context),
     workflowOrchestratorTool: createWorkflowOrchestratorTool(context),
     workflowStatusTool: createWorkflowStatusTool(context),
+    workflowNextTool: createWorkflowNextTool(context),
     workflowRunTool: createWorkflowRunTool(context),
+    workflowSendNativeTool: createWorkflowSendNativeTool(context),
+    workflowSendTokenTool: createWorkflowSendTokenTool(context),
+    workflowCallWriteTool: createWorkflowCallWriteTool(context),
+    workflowSwapTool: createWorkflowSwapTool(context),
+    workflowBridgeTool: createWorkflowBridgeTool(context),
+    workflowDepositTool: createWorkflowDepositTool(context),
+    workflowWithdrawTool: createWorkflowWithdrawTool(context),
     startWorkflowCheckpointTool: createStartWorkflowCheckpointTool(context),
     listWorkflowCheckpointsTool: createListWorkflowCheckpointsTool(context),
     getWorkflowCheckpointTool: createGetWorkflowCheckpointTool(context),
     updateWorkflowCheckpointTool: createUpdateWorkflowCheckpointTool(context),
     deleteWorkflowCheckpointTool: createDeleteWorkflowCheckpointTool(context),
     workflowStatusByCheckpointTool: createWorkflowStatusByCheckpointTool(context),
+    workflowNextByCheckpointTool: createWorkflowNextByCheckpointTool(context),
     workflowRunByCheckpointTool: createWorkflowRunByCheckpointTool(context),
     walletSyncTool: createWalletSyncTool(context),
     walletExportTool: createWalletExportTool(context),
     walletRestoreTool: createWalletRestoreTool(context),
     getBalancesTool: createGetBalancesTool(context),
+    getDefaultsTool: createGetDefaultsTool(context),
     getFundingInfoTool: createGetFundingInfoTool(context),
+    workflowFundTool: createWorkflowFundTool(context),
     callContractTool: createCallContractTool(context),
     swapPreviewTool: createSwapPreviewTool(context),
     bridgePreviewTool: createBridgePreviewTool(context),
@@ -142,6 +173,7 @@ export type StandardAgentToolName = keyof StandardAgentTools;
 export function listStandardAgentToolNames(): StandardAgentToolName[] {
   return [
     'createWalletTool',
+    'topLevelNextTool',
     'createWalletRequestTool',
     'approveWalletRequestTool',
     'walletApprovalOrchestratorTool',
@@ -151,19 +183,30 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'workflowPlanTool',
     'workflowOrchestratorTool',
     'workflowStatusTool',
+    'workflowNextTool',
     'workflowRunTool',
+    'workflowSendNativeTool',
+    'workflowSendTokenTool',
+    'workflowCallWriteTool',
+    'workflowSwapTool',
+    'workflowBridgeTool',
+    'workflowDepositTool',
+    'workflowWithdrawTool',
     'startWorkflowCheckpointTool',
     'listWorkflowCheckpointsTool',
     'getWorkflowCheckpointTool',
     'updateWorkflowCheckpointTool',
     'deleteWorkflowCheckpointTool',
     'workflowStatusByCheckpointTool',
+    'workflowNextByCheckpointTool',
     'workflowRunByCheckpointTool',
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',
     'getBalancesTool',
+    'getDefaultsTool',
     'getFundingInfoTool',
+    'workflowFundTool',
     'callContractTool',
     'swapPreviewTool',
     'bridgePreviewTool',

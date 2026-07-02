@@ -4,6 +4,10 @@ import type {
   WalletInspectionResult,
   WalletSessionRecord
 } from './providers.js';
+import {
+  buildPaymasterRegistryNotes,
+  resolveTrackedPaymasterSelection
+} from './validated-defaults.js';
 
 export interface WalletNextAction {
   id: string;
@@ -41,6 +45,26 @@ export function resolveEffectivePaymasterSelection(
   wallet: WalletSessionRecord,
   requested?: PaymasterSelectionInput
 ): PaymasterSelectionInput | undefined {
+  const supplementTrackedDefaults = (
+    paymaster: PaymasterSelectionInput | undefined
+  ): PaymasterSelectionInput | undefined => {
+    if (!paymaster?.mode || paymaster.mode !== 'approval-based') return paymaster;
+
+    const tracked = resolveTrackedPaymasterSelection({
+      chain: wallet.chain,
+      mode: paymaster.mode,
+      paymasterAddress: paymaster.address,
+      tokenAddress: paymaster.token
+    });
+    if (!tracked) return paymaster;
+
+    return {
+      ...paymaster,
+      address: paymaster.address ?? tracked.address,
+      token: paymaster.token ?? tracked.token
+    };
+  };
+
   if (requested?.mode === 'none') {
     return {
       mode: 'none'
@@ -48,7 +72,7 @@ export function resolveEffectivePaymasterSelection(
   }
 
   if (requested?.mode) {
-    return {
+    return supplementTrackedDefaults({
       mode: requested.mode,
       address:
         requested.address ??
@@ -56,20 +80,20 @@ export function resolveEffectivePaymasterSelection(
         wallet.sessionPayload?.paymasterAddress ??
         undefined,
       token: requested.token ?? wallet.sessionPayload?.paymaster?.token
-    };
+    });
   }
 
   const mode = wallet.paymasterMode || wallet.sessionPayload?.paymaster?.mode;
   if (!mode || mode === 'none') return undefined;
 
-  return {
+  return supplementTrackedDefaults({
     mode,
     address:
       wallet.sessionPayload?.paymaster?.address ??
       wallet.sessionPayload?.paymasterAddress ??
       undefined,
     token: wallet.sessionPayload?.paymaster?.token
-  };
+  });
 }
 
 export function canUsePaymasterForGas(
@@ -221,6 +245,14 @@ export function buildWalletNextSummary(input: {
     const paymaster = resolveEffectivePaymasterSelection(wallet);
     notes.push(
       `Native balance is zero, but paymaster mode ${paymaster?.mode || 'unknown'} is configured, so supported smart-account writes may still proceed without a separate fund step.`
+    );
+    notes.push(
+      ...buildPaymasterRegistryNotes({
+        chain: inspection.chain,
+        mode: paymaster?.mode,
+        paymasterAddress: paymaster?.address,
+        tokenAddress: paymaster?.token
+      })
     );
   }
 

@@ -18,6 +18,7 @@ import {
   createWithdrawStatusCommand
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
+import { createNextCommand } from './commands/next.js';
 import { createDefaultsCommand } from './commands/defaults.js';
 import { createRelayCommand } from './commands/relay.js';
 import { createWalletCommand } from './commands/wallet.js';
@@ -28,6 +29,20 @@ import {
   jsonOut,
   shouldJsonOutput
 } from './lib/io.js';
+
+function buildDefaultOperatorPathHelpText(): string {
+  return [
+    '',
+    'Default operator path:',
+    '  zk-agent setup',
+    '  zk-agent next',
+    '  zk-agent wallet create --await-local',
+    '  zk-agent next',
+    '  zk-agent workflow run --wallet main --intent <intent> [goal flags]',
+    '',
+    'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.'
+  ].join('\n');
+}
 
 function createProgram(): Command {
   const program = new Command()
@@ -40,6 +55,7 @@ function createProgram(): Command {
     });
 
   program.addCommand(createInitCommand());
+  program.addCommand(createNextCommand());
   program.addCommand(createDefaultsCommand());
   program.addCommand(createRelayCommand());
   program.addCommand(createWalletCommand());
@@ -61,6 +77,8 @@ function createProgram(): Command {
   for (const command of createPlannedCommands()) {
     program.addCommand(command);
   }
+
+  program.addHelpText('after', buildDefaultOperatorPathHelpText());
 
   return program;
 }

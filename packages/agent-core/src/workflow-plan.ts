@@ -5,6 +5,11 @@ import type {
   WalletSessionRecord
 } from './providers.js';
 import {
+  buildBridgeRegistryNotes,
+  buildPaymasterRegistryNotes,
+  buildSwapRegistryNotes
+} from './validated-defaults.js';
+import {
   buildWalletPreparationActions,
   canUsePaymasterForGas,
   isZeroBalance,
@@ -255,6 +260,42 @@ export function buildWorkflowPlan(input: {
             resolveEffectivePaymasterSelection(input.wallet, input.paymaster)?.mode || 'unknown'
           } is configured for this workflow intent, so a separate fund step is not required up front.`
         ]
+      : []),
+    ...(() => {
+      const paymaster = resolveEffectivePaymasterSelection(input.wallet, input.paymaster);
+      return paymasterCanCoverGas
+        ? buildPaymasterRegistryNotes({
+            chain: input.inspection.chain,
+            mode: paymaster?.mode,
+            paymasterAddress: paymaster?.address,
+            tokenAddress: paymaster?.token
+          })
+        : [];
+    })(),
+    ...(input.intent === 'swap' && input.protocol
+      ? buildSwapRegistryNotes({
+          chain: input.inspection.chain,
+          protocol: input.protocol
+        })
+      : []),
+    ...(input.intent === 'bridge' && input.toChain
+      ? buildBridgeRegistryNotes({
+          fromChain:
+            input.toChain === input.wallet.chain ? 'ethereum-sepolia' : input.wallet.chain,
+          toChain: input.toChain
+        })
+      : []),
+    ...(input.intent === 'deposit'
+      ? buildBridgeRegistryNotes({
+          fromChain: 'ethereum-sepolia',
+          toChain: input.wallet.chain
+        })
+      : []),
+    ...(input.intent === 'withdraw'
+      ? buildBridgeRegistryNotes({
+          fromChain: input.wallet.chain,
+          toChain: 'ethereum-sepolia'
+        })
       : []),
     ...goal.notes,
     ...(readyForGoal

@@ -387,6 +387,12 @@ test('wallet create --await-local completes the local approval round-trip in one
 
     const requestId = await waitForStoredRequestId(homeDir);
     const shown = await runCliJson(['wallet', 'request', 'show', '--request-id', requestId], env);
+    assert.deepEqual(shown.recommendedCommands, {
+      awaitLocal: `zk-agent wallet request await-local --request-id ${requestId}`,
+      approve: `zk-agent wallet request approve --request-id ${requestId} --payload @approved-session.json`,
+      afterApproval: 'zk-agent next',
+      afterApprovalStatus: 'zk-agent wallet status --name create-await-local-test'
+    });
     const request = decodeApprovalRequest(shown.request.approvalUrl);
     const endpoint = await waitForApprovalListener(port);
     const walletAddress = '0x3333333333333333333333333333333333333333';
@@ -444,6 +450,11 @@ test('wallet create --await-local completes the local approval round-trip in one
     assert.equal(result.wallet.ownerAddress, ownerAddress);
     assert.equal(result.request.requestId, requestId);
     assert.equal(result.payload.account.ownerAddress, ownerAddress);
+    assert.deepEqual(result.recommendedCommands, {
+      next: 'zk-agent wallet next --name create-await-local-test',
+      status: 'zk-agent wallet status --name create-await-local-test',
+      reapprove: 'zk-agent wallet reapprove --name create-await-local-test --await-local'
+    });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
 
     const listed = await runCliJson(['wallet', 'request', 'list'], env);
@@ -495,7 +506,82 @@ test('wallet request list prunes expired local requests', async () => {
     const result = await runCliJson(['wallet', 'request', 'list'], env);
     assert.deepEqual(result.requests, []);
     assert.deepEqual(result.removedExpiredRequestIds, ['expired123']);
+    assert.deepEqual(result.recommendedCommands, {
+      createWallet: 'zk-agent wallet create --await-local'
+    });
+    assert.deepEqual(result.requestRecommendations, []);
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
+  } finally {
+    process.env.HOME = previousHome;
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet list returns per-wallet follow-up commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-list-'));
+  const env = createCliEnv(homeDir);
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(sampleWalletRecord({ walletName: 'listed-wallet' }));
+
+    const result = await runCliJson(['wallet', 'list'], env);
+    assert.equal(result.ok, true);
+    assert.equal(result.wallets.length, 1);
+    assert.equal(result.wallets[0].walletName, 'listed-wallet');
+    assert.equal(result.recommendedCommands, undefined);
+    assert.deepEqual(result.walletRecommendations, [
+      {
+        walletName: 'listed-wallet',
+        recommendedCommands: {
+          next: 'zk-agent wallet next --name listed-wallet',
+          status: 'zk-agent wallet status --name listed-wallet'
+        }
+      }
+    ]);
+  } finally {
+    process.env.HOME = previousHome;
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet rename, address, and remove return follow-up commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-commands-'));
+  const env = createCliEnv(homeDir);
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(sampleWalletRecord({ walletName: 'rename-source' }));
+
+    const renamed = await runCliJson(
+      ['wallet', 'rename', '--name', 'rename-source', '--new-name', 'rename-target'],
+      env
+    );
+    assert.equal(renamed.ok, true);
+    assert.equal(renamed.wallet.walletName, 'rename-target');
+    assert.deepEqual(renamed.recommendedCommands, {
+      next: 'zk-agent wallet next --name rename-target',
+      status: 'zk-agent wallet status --name rename-target'
+    });
+
+    const addressed = await runCliJson(['wallet', 'address', '--name', 'rename-target'], env);
+    assert.equal(addressed.ok, true);
+    assert.equal(addressed.wallet.walletName, 'rename-target');
+    assert.deepEqual(addressed.recommendedCommands, {
+      next: 'zk-agent wallet next --name rename-target',
+      status: 'zk-agent wallet status --name rename-target'
+    });
+
+    const removed = await runCliJson(['wallet', 'remove', '--name', 'rename-target'], env);
+    assert.equal(removed.ok, true);
+    assert.deepEqual(removed.recommendedCommands, {
+      createWallet: 'zk-agent wallet create --await-local',
+      listWallets: 'zk-agent wallet list'
+    });
   } finally {
     process.env.HOME = previousHome;
     await rm(homeDir, { recursive: true, force: true });
@@ -511,6 +597,18 @@ test('wallet request approve imports an approved connector payload and removes t
       ['wallet', 'create', '--name', 'remote-approve-test', '--chain', 'zksync-sepolia'],
       env
     );
+    const pending = await runCliJson(['wallet', 'request', 'list'], env);
+    assert.deepEqual(pending.requestRecommendations, [
+      {
+        requestId: created.requestId,
+        walletName: 'remote-approve-test',
+        recommendedCommands: {
+          show: `zk-agent wallet request show --request-id ${created.requestId}`,
+          afterApproval: 'zk-agent next',
+          afterApprovalStatus: 'zk-agent wallet status --name remote-approve-test'
+        }
+      }
+    ]);
     const request = decodeApprovalRequest(created.approvalUrl);
     const walletAddress = '0x5555555555555555555555555555555555555555';
     const ownerAddress = '0x6666666666666666666666666666666666666666';
@@ -559,6 +657,11 @@ test('wallet request approve imports an approved connector payload and removes t
     assert.equal(approved.wallet.walletAddress, walletAddress);
     assert.equal(approved.wallet.ownerAddress, ownerAddress);
     assert.equal(approved.payload.account.ownerAddress, ownerAddress);
+    assert.deepEqual(approved.recommendedCommands, {
+      next: 'zk-agent wallet next --name remote-approve-test',
+      status: 'zk-agent wallet status --name remote-approve-test',
+      reapprove: 'zk-agent wallet reapprove --name remote-approve-test --await-local'
+    });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
 
     const listed = await runCliJson(['wallet', 'request', 'list'], env);
@@ -625,6 +728,12 @@ test('wallet request approve decrypts an encrypted relay payload and removes the
       ],
       env
     );
+
+    assert.deepEqual(approved.recommendedCommands, {
+      next: 'zk-agent wallet next --name encrypted-approve-test',
+      status: 'zk-agent wallet status --name encrypted-approve-test',
+      reapprove: 'zk-agent wallet reapprove --name encrypted-approve-test --await-local'
+    });
 
     assert.equal(approved.ok, true);
     assert.equal(approved.approvalSource, 'encrypted-payload');
@@ -774,6 +883,11 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(approved.wallet.walletName, 'relay-approve-test');
     assert.equal(approved.wallet.walletAddress, '0x9999999999999999999999999999999999999999');
     assert.equal(approved.wallet.ownerAddress, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    assert.deepEqual(approved.recommendedCommands, {
+      next: 'zk-agent wallet next --name relay-approve-test',
+      status: 'zk-agent wallet status --name relay-approve-test',
+      reapprove: 'zk-agent wallet reapprove --name relay-approve-test --await-local'
+    });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
   } finally {
     relayChild.kill('SIGTERM');
@@ -1036,6 +1150,11 @@ test('wallet request approve --wait blocks until the encrypted relay payload is 
     assert.equal(approved.wallet.walletName, 'relay-approve-wait-test');
     assert.equal(approved.wallet.walletAddress, '0xdddddddddddddddddddddddddddddddddddddddd');
     assert.equal(approved.wallet.ownerAddress, '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    assert.deepEqual(approved.recommendedCommands, {
+      next: 'zk-agent wallet next --name relay-approve-wait-test',
+      status: 'zk-agent wallet status --name relay-approve-wait-test',
+      reapprove: 'zk-agent wallet reapprove --name relay-approve-wait-test --await-local'
+    });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
   } finally {
     relayChild.kill('SIGTERM');
@@ -1086,7 +1205,9 @@ test('wallet create --relay-url publishes the request immediately for remote app
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       relayApprove: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`,
-      approve: `zk-agent wallet request approve --request-id ${created.requestId} --payload @approved-session.json`
+      approve: `zk-agent wallet request approve --request-id ${created.requestId} --payload @approved-session.json`,
+      afterApproval: 'zk-agent next',
+      afterApprovalStatus: 'zk-agent wallet status --name relay-create-direct'
     });
 
     const relayStatus = await runCliJson(
@@ -1163,7 +1284,9 @@ test('wallet reapprove --relay-url publishes the request immediately for remote 
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.request.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,
       relayApprove: `zk-agent wallet request approve --request-id ${created.request.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`,
-      approve: `zk-agent wallet request approve --request-id ${created.request.requestId} --payload @approved-session.json`
+      approve: `zk-agent wallet request approve --request-id ${created.request.requestId} --payload @approved-session.json`,
+      afterApproval: 'zk-agent next',
+      afterApprovalStatus: 'zk-agent wallet status --name relay-reapprove-direct'
     });
 
     const relayStatus = await runCliJson(
@@ -1206,6 +1329,9 @@ test('wallet export strips sensitive session data by default and wallet restore 
 
     const exported = await runCliJson(['wallet', 'export', '--name', 'portable-source'], env);
     assert.equal(exported.ok, true);
+    assert.deepEqual(exported.recommendedCommands, {
+      restore: 'zk-agent wallet restore --payload @wallet-export.json --name portable-source-restored'
+    });
     assert.equal(exported.export.format, 'zk-agent-wallet-export');
     assert.equal(exported.export.sensitiveDataIncluded, false);
     assert.equal(exported.export.wallet.smartAccountProfileId, undefined);
@@ -1234,6 +1360,11 @@ test('wallet export strips sensitive session data by default and wallet restore 
     assert.equal(restored.wallet.smartAccountProfileId, 'daily-spend-limit');
     assert.equal(restored.wallet.sessionPayload.sessionPrivateKey, undefined);
     assert.equal(restored.restoredFrom.originalWalletName, 'portable-source');
+    assert.deepEqual(restored.recommendedCommands, {
+      next: 'zk-agent wallet next --name portable-restored',
+      status: 'zk-agent wallet status --name portable-restored',
+      reapprove: 'zk-agent wallet reapprove --name portable-restored --await-local'
+    });
 
     const storedRestored = await loadWalletSession('portable-restored');
     assert.ok(storedRestored);
@@ -1333,6 +1464,10 @@ test('wallet import preserves restored metadata for the same execution address a
 
     assert.equal(preserved.ok, true);
     assert.equal(preserved.wallet.smartAccountProfileId, 'sed-lite');
+    assert.deepEqual(preserved.recommendedCommands, {
+      next: 'zk-agent wallet next --name recoverable-wallet',
+      status: 'zk-agent wallet status --name recoverable-wallet'
+    });
     assert.deepEqual(preserved.wallet.validationHookAddresses, [
       '0x4444444444444444444444444444444444444444',
       '0x5555555555555555555555555555555555555555'
@@ -1370,6 +1505,10 @@ test('wallet import preserves restored metadata for the same execution address a
     assert.equal(replaced.wallet.smartAccountProfileId, undefined);
     assert.equal(replaced.wallet.validationHookAddresses, undefined);
     assert.equal(replaced.wallet.syncedAt, undefined);
+    assert.deepEqual(replaced.recommendedCommands, {
+      next: 'zk-agent wallet next --name recoverable-wallet',
+      status: 'zk-agent wallet status --name recoverable-wallet'
+    });
   } finally {
     process.env.HOME = previousHome;
     await rm(homeDir, { recursive: true, force: true });
@@ -1445,6 +1584,10 @@ test('wallet reapprove --await-local restores a writable session without droppin
     assert.equal(result.ok, true);
     assert.equal(result.wallet.walletName, 'reapprove-wallet');
     assert.equal(result.wallet.smartAccountProfileId, 'sed-lite');
+    assert.deepEqual(result.recommendedCommands, {
+      next: 'zk-agent wallet next --name reapprove-wallet',
+      status: 'zk-agent wallet status --name reapprove-wallet'
+    });
     assert.deepEqual(result.wallet.validationHookAddresses, [
       '0x4444444444444444444444444444444444444444',
       '0x5555555555555555555555555555555555555555'

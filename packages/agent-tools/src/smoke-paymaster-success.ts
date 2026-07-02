@@ -34,10 +34,11 @@ function printUsage(): void {
       '  pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute] [--to <address>] [--amount <native>] [--paymaster-address <address>] [--paymaster-token <address>]',
       '',
       'What it does:',
-      '  1. Resolves the validated EraVM approval-based paymaster path.',
-      '  2. Runs a real workflow-backed send-native preview by default.',
-      '  3. With --execute, broadcasts the real paymaster-backed send-native transaction.',
-      '  4. Asserts that workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
+      '  1. Validates the approval-based workflow-backed send-native path.',
+      '  2. By default, only requests paymaster mode and relies on tracked validated Sepolia defaults to fill address/token.',
+      '  3. Runs a real workflow-backed send-native preview by default.',
+      '  4. With --execute, broadcasts the real paymaster-backed send-native transaction.',
+      '  5. Asserts that workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
       '',
       'Safety:',
       '  Without --execute this command only performs a live preview.',
@@ -46,8 +47,7 @@ function printUsage(): void {
       'Defaults:',
       '  --amount defaults to 0.00001',
       '  --to defaults to the wallet ownerAddress when available',
-      '  --paymaster-address defaults to the latest EraVM paymaster deployment record',
-      '  --paymaster-token defaults to the latest EraVM token deployment record'
+      '  when --paymaster-address / --paymaster-token are omitted, the workflow/provider path should resolve the tracked validated paymaster defaults itself'
     ].join('\n') + '\n'
   );
 }
@@ -180,25 +180,27 @@ async function main(): Promise<void> {
     );
   }
 
-  const resolvedPaymasterAddress =
-    options.paymasterAddress ||
-    wallet.sessionPayload?.paymaster?.address ||
-    (await resolveDefaultPaymasterAddress());
-  if (!resolvedPaymasterAddress) {
+  const expectedDefaultPaymasterAddress =
+    wallet.sessionPayload?.paymaster?.address || (await resolveDefaultPaymasterAddress());
+  if (!options.paymasterAddress && !expectedDefaultPaymasterAddress) {
     throw new Error(
-      'Unable to resolve a paymaster address. Pass --paymaster-address explicitly or deploy the EraVM paymaster assets first.'
+      'Unable to resolve the tracked validated paymaster address. Pass --paymaster-address explicitly or deploy the EraVM paymaster assets first.'
     );
   }
 
-  const resolvedPaymasterToken =
-    options.paymasterToken ||
-    wallet.sessionPayload?.paymaster?.token ||
-    (await resolveDefaultPaymasterToken());
-  if (!resolvedPaymasterToken) {
+  const expectedDefaultPaymasterToken =
+    wallet.sessionPayload?.paymaster?.token || (await resolveDefaultPaymasterToken());
+  if (!options.paymasterToken && !expectedDefaultPaymasterToken) {
     throw new Error(
-      'Unable to resolve an EraVM fee token. Pass --paymaster-token explicitly or deploy the EraVM token assets first.'
+      'Unable to resolve the tracked validated EraVM fee token. Pass --paymaster-token explicitly or deploy the EraVM token assets first.'
     );
   }
+
+  const requestedPaymaster = {
+    mode: 'approval-based' as const,
+    ...(options.paymasterAddress ? { address: options.paymasterAddress } : {}),
+    ...(options.paymasterToken ? { token: options.paymasterToken } : {})
+  };
 
   const result = await tools.workflowRunTool.execute({
     walletName: options.walletName,
@@ -208,11 +210,7 @@ async function main(): Promise<void> {
       intent: 'send-native',
       to: resolvedTarget,
       amount: options.amount,
-      paymaster: {
-        mode: 'approval-based',
-        address: resolvedPaymasterAddress,
-        token: resolvedPaymasterToken
-      }
+      paymaster: requestedPaymaster
     }
   });
 
@@ -224,8 +222,9 @@ async function main(): Promise<void> {
       inputs: {
         to: resolvedTarget,
         amount: options.amount,
-        paymasterAddress: resolvedPaymasterAddress,
-        paymasterToken: resolvedPaymasterToken
+        requestedPaymaster,
+        expectedDefaultPaymasterAddress,
+        expectedDefaultPaymasterToken
       },
       error: result.error
     });
@@ -242,8 +241,9 @@ async function main(): Promise<void> {
       inputs: {
         to: resolvedTarget,
         amount: options.amount,
-        paymasterAddress: resolvedPaymasterAddress,
-        paymasterToken: resolvedPaymasterToken
+        requestedPaymaster,
+        expectedDefaultPaymasterAddress,
+        expectedDefaultPaymasterToken
       },
       message:
         'Expected the paymaster-backed workflow to execute the goal action directly, but it dispatched a separate funding step instead.',
@@ -262,6 +262,29 @@ async function main(): Promise<void> {
     throw new Error('Expected a broadcast txHash, but the workflow goal result did not include one.');
   }
 
+  const resolvedPaymaster =
+    'paymaster' in execution.goal ? execution.goal.paymaster : undefined;
+
+  if (
+    !options.paymasterAddress &&
+    expectedDefaultPaymasterAddress &&
+    resolvedPaymaster?.address?.toLowerCase() !== expectedDefaultPaymasterAddress.toLowerCase()
+  ) {
+    throw new Error(
+      `Expected fallback paymaster address ${expectedDefaultPaymasterAddress}, received ${resolvedPaymaster?.address || 'undefined'}.`
+    );
+  }
+
+  if (
+    !options.paymasterToken &&
+    expectedDefaultPaymasterToken &&
+    resolvedPaymaster?.token?.toLowerCase() !== expectedDefaultPaymasterToken.toLowerCase()
+  ) {
+    throw new Error(
+      `Expected fallback paymaster token ${expectedDefaultPaymasterToken}, received ${resolvedPaymaster?.token || 'undefined'}.`
+    );
+  }
+
   writeJson({
     ok: true,
     walletName: options.walletName,
@@ -269,14 +292,15 @@ async function main(): Promise<void> {
     inputs: {
       to: resolvedTarget,
       amount: options.amount,
-      paymasterAddress: resolvedPaymasterAddress,
-      paymasterToken: resolvedPaymasterToken
+      requestedPaymaster,
+      expectedDefaultPaymasterAddress,
+      expectedDefaultPaymasterToken
     },
     result: {
       stage: execution.stage,
       goalMode: 'mode' in execution.goal ? execution.goal.mode : undefined,
       txHash,
-      paymaster: 'paymaster' in execution.goal ? execution.goal.paymaster : undefined,
+      paymaster: resolvedPaymaster,
       nextCommand: execution.nextCommand,
       notes: execution.notes
     }

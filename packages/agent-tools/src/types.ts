@@ -1,5 +1,6 @@
 import type {
   DefiProvider,
+  ProjectConfig,
   WalletRequestRecord,
   WorkflowCheckpointRecord,
   WalletProvider,
@@ -37,6 +38,7 @@ export type AgentToolResult<Output> = AgentToolSuccess<Output> | AgentToolFailur
 export interface AgentToolContext {
   provider: WalletProvider;
   defiProvider?: DefiProvider;
+  loadProjectConfig(): Promise<ProjectConfig | null>;
   loadWallet(walletName: string): Promise<WalletSessionRecord | null>;
   saveWallet(wallet: WalletSessionRecord): Promise<void>;
   loadWalletRequest(requestId: string): Promise<WalletRequestRecord | null>;

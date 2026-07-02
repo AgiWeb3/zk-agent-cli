@@ -46,7 +46,14 @@ import {
   buildWalletRequestApproveRecommendedCommand,
   buildWalletRequestAwaitLocalRecommendedCommand,
   buildWalletRequestRelayApproveRecommendedCommand,
-  buildWalletRequestRelayStatusRecommendedCommand
+  buildWalletRequestRelayStatusRecommendedCommand,
+  buildWalletStatusRecommendedCommand,
+  buildWorkflowDeleteRecommendedCommand,
+  buildWorkflowListRecommendedCommand,
+  buildWorkflowNextRecommendedCommand,
+  buildWorkflowResumeRecommendedCommand,
+  buildWorkflowShowRecommendedCommand,
+  buildWorkflowStatusRecommendedCommand
 } from '../lib/recommended-commands.js';
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
 import { runWorkflow, type WorkflowGoalInput } from '../lib/workflow-run.js';
@@ -918,6 +925,12 @@ function printWorkflowRunCommandResult(
   execution: Awaited<ReturnType<typeof executeWorkflowRunCommand>>
 ): void {
   if (execution.result) {
+    const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+      requestId: execution.requestId,
+      walletName: execution.result.walletName,
+      nextAction: execution.result.nextCommand
+    });
+
     printResult(
       prependWorkflowRequestId(
         execution.requestId,
@@ -928,11 +941,18 @@ function printWorkflowRunCommandResult(
         ...serializeWorkflowRequestMeta(execution.requestId),
         result: execution.result,
         walletRequestId: execution.walletApproval?.request.requestId,
-        walletApproval: serializeWalletApproval(execution.walletApproval)
+        walletApproval: serializeWalletApproval(execution.walletApproval),
+        recommendedCommands
       }
     );
     return;
   }
+
+  const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+    requestId: execution.requestId,
+    walletName: execution.status.walletName,
+    nextAction: execution.status.recommendedCommand
+  });
 
   printResult(
     prependWorkflowRequestId(
@@ -945,9 +965,46 @@ function printWorkflowRunCommandResult(
       status: execution.status,
       checkpoint: execution.checkpoint,
       walletRequestId: execution.walletApproval?.request.requestId,
-      walletApproval: serializeWalletApproval(execution.walletApproval)
+      walletApproval: serializeWalletApproval(execution.walletApproval),
+      recommendedCommands
     }
   );
+}
+
+function resolveWorkflowNextCommand(result: WorkflowStatusResult): string | undefined {
+  return result.fundingProgress?.nextCommand || result.recommendedCommand;
+}
+
+function workflowNextLines(
+  result: WorkflowStatusResult
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['wallet', result.walletName],
+    ['intent', result.intent],
+    ['status', result.status],
+    ['ready', result.readyForGoal ? 'yes' : 'no']
+  ];
+
+  const nextCommand = resolveWorkflowNextCommand(result);
+  if (nextCommand) {
+    lines.push(['next', nextCommand]);
+  }
+
+  for (const actionId of result.blockingActionIds) {
+    lines.push(['blocking action', actionId]);
+  }
+
+  if (result.funding?.route) {
+    lines.push(['funding route', result.funding.route]);
+  }
+
+  if (result.fundingProgress) {
+    lines.push(['funding kind', result.fundingProgress.kind]);
+    lines.push(['funding txHash', result.fundingProgress.txHash]);
+    lines.push(['funding status', result.fundingProgress.status]);
+  }
+
+  return lines;
 }
 
 function overrideCheckpointRecommendedCommand(
@@ -987,6 +1044,64 @@ function serializeWorkflowRequestMeta(requestId: string | undefined) {
         workflowRequestId: undefined,
         requestId: undefined
       };
+}
+
+function buildWorkflowCheckpointRecommendedCommands(checkpoint: WorkflowCheckpointRecord): {
+  show: string;
+  status: string;
+  next: string;
+  resume: string;
+  delete: string;
+  list: string;
+  walletStatus: string;
+} {
+  return {
+    show: buildWorkflowShowRecommendedCommand(checkpoint.requestId),
+    status: buildWorkflowStatusRecommendedCommand(checkpoint.requestId),
+    next: buildWorkflowNextRecommendedCommand(checkpoint.requestId),
+    resume: buildWorkflowResumeRecommendedCommand(checkpoint.requestId),
+    delete: buildWorkflowDeleteRecommendedCommand(checkpoint.requestId),
+    list: buildWorkflowListRecommendedCommand(),
+    walletStatus: buildWalletStatusRecommendedCommand(checkpoint.walletName)
+  };
+}
+
+function buildWorkflowRuntimeRecommendedCommands(input: {
+  requestId?: string;
+  walletName?: string;
+  nextAction?: string;
+}): {
+  list: string;
+  show?: string;
+  status?: string;
+  next?: string;
+  resume?: string;
+  delete?: string;
+  walletStatus?: string;
+  nextAction?: string;
+} {
+  return {
+    list: buildWorkflowListRecommendedCommand(),
+    ...(input.requestId
+      ? {
+          show: buildWorkflowShowRecommendedCommand(input.requestId),
+          status: buildWorkflowStatusRecommendedCommand(input.requestId),
+          next: buildWorkflowNextRecommendedCommand(input.requestId),
+          resume: buildWorkflowResumeRecommendedCommand(input.requestId),
+          delete: buildWorkflowDeleteRecommendedCommand(input.requestId)
+        }
+      : {}),
+    ...(input.walletName
+      ? {
+          walletStatus: buildWalletStatusRecommendedCommand(input.walletName)
+        }
+      : {}),
+    ...(input.nextAction
+      ? {
+          nextAction: input.nextAction
+        }
+      : {})
+  };
 }
 
 function serializeWalletApproval(walletApproval: WorkflowWalletApprovalResult | undefined) {
@@ -1367,11 +1482,30 @@ function assertWorkflowResumeReady(
   );
 }
 
+function buildWorkflowHelpText(): string {
+  return [
+    '',
+    'Default workflow path:',
+    '  One-shot execution:',
+    '    zk-agent workflow run --wallet main --intent <intent> [goal flags]',
+    '',
+    '  Checkpointed execution:',
+    '    zk-agent workflow start --wallet main --intent <intent> [goal flags]',
+    '    zk-agent workflow next --request-id <id>',
+    '    zk-agent workflow resume --request-id <id> [--broadcast]',
+    '',
+    '  Funding-only step:',
+    '    zk-agent workflow fund --wallet main --amount <amount> --execute'
+  ].join('\n');
+}
+
 export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Command {
   const resolvedDeps = resolveWorkflowCommandDeps(deps);
   const workflow = new Command('workflow').description(
     'Build a higher-level CLI workflow for a stored wallet and a concrete action intent'
   );
+
+  workflow.addHelpText('after', buildWorkflowHelpText());
 
   workflow
     .command('plan')
@@ -1427,6 +1561,16 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     )
     .action(async (options: WorkflowListOptions) => {
       const checkpoints = await listWorkflowCheckpoints(options);
+      const checkpointRecommendations = checkpoints.map((checkpoint) => ({
+        requestId: checkpoint.requestId,
+        walletName: checkpoint.walletName,
+        recommendedCommands: {
+          show: buildWorkflowShowRecommendedCommand(checkpoint.requestId),
+          status: buildWorkflowStatusRecommendedCommand(checkpoint.requestId),
+          next: buildWorkflowNextRecommendedCommand(checkpoint.requestId),
+          resume: buildWorkflowResumeRecommendedCommand(checkpoint.requestId)
+        }
+      }));
 
       printResult(workflowCheckpointListLines(checkpoints), {
         ok: true,
@@ -1435,7 +1579,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           wallet: options.wallet?.trim() || undefined,
           intent: options.intent?.trim() ? parseWorkflowIntent(options.intent.trim()) : undefined
         },
-        checkpoints
+        checkpoints,
+        recommendedCommands:
+          checkpoints.length === 0
+            ? {
+                start: 'zk-agent workflow start --intent <intent> --wallet main'
+              }
+            : undefined,
+        checkpointRecommendations
       });
     });
 
@@ -1445,12 +1596,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     .requiredOption('--request-id <id>', 'Workflow checkpoint id')
     .action(async (options: WorkflowRequestIdOptions) => {
       const checkpoint = await requireWorkflowCheckpoint(options.requestId);
+      const recommendedCommands = buildWorkflowCheckpointRecommendedCommands(checkpoint);
 
       printResult(workflowCheckpointLines(checkpoint), {
         ok: true,
         ...serializeWorkflowRequestMeta(checkpoint.requestId),
         walletRequestId: checkpoint.walletRequestId,
-        checkpoint
+        checkpoint,
+        recommendedCommands
       });
     });
 
@@ -1473,12 +1626,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     .option('--clear-fund', 'Remove the stored separate funding payload', false)
     .action(async (options: WorkflowUpdateOptions) => {
       const result = await executeWorkflowUpdateCommand(options);
+      const recommendedCommands = buildWorkflowCheckpointRecommendedCommands(result.checkpoint);
 
       printResult(workflowCheckpointLines(result.checkpoint), {
         ok: true,
         ...serializeWorkflowRequestMeta(result.requestId),
         walletRequestId: result.checkpoint.walletRequestId,
-        checkpoint: result.checkpoint
+        checkpoint: result.checkpoint,
+        recommendedCommands
       });
     });
 
@@ -1488,19 +1643,26 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     .requiredOption('--request-id <id>', 'Workflow checkpoint id')
     .action(async (options: WorkflowRequestIdOptions) => {
       const result = await executeWorkflowDeleteCommand(options.requestId);
+      const recommendedCommands = {
+        list: buildWorkflowListRecommendedCommand(),
+        walletStatus: buildWalletStatusRecommendedCommand(result.checkpoint.walletName)
+      };
 
       printResult(
         [
           ['status', 'Workflow checkpoint deleted'],
           ['request', result.requestId],
           ['wallet', result.checkpoint.walletName],
-          ['intent', result.checkpoint.intent]
+          ['intent', result.checkpoint.intent],
+          ['list', recommendedCommands.list],
+          ['wallet status', recommendedCommands.walletStatus]
         ],
         {
           ok: true,
           ...serializeWorkflowRequestMeta(result.requestId),
           walletRequestId: result.checkpoint.walletRequestId,
-          checkpoint: result.checkpoint
+          checkpoint: result.checkpoint,
+          recommendedCommands
         }
       );
     });
@@ -1521,6 +1683,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeFundingStatus: true
   }).action(async (options: WorkflowCommandOptions) => {
     const started = await executeWorkflowStartCommand(options, resolvedDeps);
+    const recommendedCommands = buildWorkflowCheckpointRecommendedCommands(started.checkpoint);
 
     printResult(
       prependWorkflowRequestId(started.requestId, workflowStatusLines(started.status)),
@@ -1528,7 +1691,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ok: true,
         ...serializeWorkflowRequestMeta(started.requestId),
         checkpoint: started.checkpoint,
-        status: started.status
+        status: started.status,
+        recommendedCommands
       }
     );
   });
@@ -1567,6 +1731,11 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeLocalApproval: true
   }).action(async (options: WorkflowCommandOptions) => {
     const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
+    const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+      requestId: inspection.requestId,
+      walletName: inspection.result.walletName,
+      nextAction: inspection.result.recommendedCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -1579,7 +1748,62 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         result: inspection.result,
         checkpoint: inspection.checkpoint,
         walletRequestId: inspection.walletApproval?.request.requestId,
-        walletApproval: serializeWalletApproval(inspection.walletApproval)
+        walletApproval: serializeWalletApproval(inspection.walletApproval),
+        recommendedCommands
+      }
+    );
+  });
+
+  const next = workflow
+    .command('next')
+    .description('Summarize the shortest next CLI step for a workflow from fresh goal input or a stored checkpoint')
+    .option(
+      '--intent <intent>',
+      'send-native, send-token, call-write, swap, bridge, deposit, or withdraw'
+    )
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option('--request-id <id>', 'Load the workflow definition from a stored checkpoint');
+
+  addWorkflowGoalOptions(next, {
+    includeFundingStatus: true,
+    includeLocalApproval: true
+  }).action(async (options: WorkflowCommandOptions) => {
+    const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
+    const nextCommand = resolveWorkflowNextCommand(inspection.result);
+    const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+      requestId: inspection.requestId,
+      walletName: inspection.result.walletName,
+      nextAction: nextCommand
+    });
+
+    printResult(
+      prependWorkflowRequestId(
+        inspection.requestId,
+        [...workflowNextLines(inspection.result), ...workflowWalletApprovalLines(inspection.walletApproval)]
+      ),
+      {
+        ok: true,
+        ...serializeWorkflowRequestMeta(inspection.requestId),
+        summary: {
+          status: inspection.result.status,
+          readyForGoal: inspection.result.readyForGoal,
+          nextCommand,
+          blockingActionIds: inspection.result.blockingActionIds,
+          fundingProgress: inspection.result.fundingProgress
+            ? {
+                kind: inspection.result.fundingProgress.kind,
+                txHash: inspection.result.fundingProgress.txHash,
+                status: inspection.result.fundingProgress.status,
+                terminal: inspection.result.fundingProgress.terminal,
+                finalized: inspection.result.fundingProgress.finalized
+              }
+            : undefined
+        },
+        result: inspection.result,
+        checkpoint: inspection.checkpoint,
+        walletRequestId: inspection.walletApproval?.request.requestId,
+        walletApproval: serializeWalletApproval(inspection.walletApproval),
+        recommendedCommands
       }
     );
   });
@@ -1601,6 +1825,12 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
   }).action(async (options: WorkflowCommandOptions) => {
     const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
     if (inspection.walletApproval?.stage === 'request-created') {
+      const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+        requestId: inspection.requestId,
+        walletName: inspection.result.walletName,
+        nextAction: inspection.result.recommendedCommand
+      });
+
       printResult(
         prependWorkflowRequestId(
           inspection.requestId,
@@ -1612,7 +1842,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           status: inspection.result,
           checkpoint: inspection.checkpoint,
           walletRequestId: inspection.walletApproval.request.requestId,
-          walletApproval: serializeWalletApproval(inspection.walletApproval)
+          walletApproval: serializeWalletApproval(inspection.walletApproval),
+          recommendedCommands
         }
       );
       return;
@@ -1629,6 +1860,12 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     );
 
     if (!execution.result) {
+      const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+        requestId: execution.requestId,
+        walletName: execution.status.walletName,
+        nextAction: execution.status.recommendedCommand
+      });
+
       printResult(
         prependWorkflowRequestId(
           execution.requestId,
@@ -1640,11 +1877,18 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           status: execution.status,
           checkpoint: execution.checkpoint,
           walletRequestId: execution.walletApproval?.request.requestId,
-          walletApproval: serializeWalletApproval(execution.walletApproval)
+          walletApproval: serializeWalletApproval(execution.walletApproval),
+          recommendedCommands
         }
       );
       return;
     }
+
+    const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+      requestId: execution.requestId,
+      walletName: execution.result.walletName,
+      nextAction: execution.result.nextCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -1657,7 +1901,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         status: inspection.result,
         result: execution.result,
         walletRequestId: inspection.walletApproval?.request.requestId,
-        walletApproval: serializeWalletApproval(inspection.walletApproval)
+        walletApproval: serializeWalletApproval(inspection.walletApproval),
+        recommendedCommands
       }
     );
   });

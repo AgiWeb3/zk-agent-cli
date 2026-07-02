@@ -225,6 +225,83 @@ test('previewDeposit requires decimals when an ERC20 token is supplied', async (
   );
 });
 
+test('previewDeposit resolves ERC20 symbol and decimals from local deployment metadata when available', async () => {
+  const previousRpcUrl = process.env.ETHEREUM_SEPOLIA_RPC_URL;
+  const originalGetDepositTx = Wallet.prototype.getDepositTx;
+  const originalEstimateGasDeposit = Wallet.prototype.estimateGasDeposit;
+
+  process.env.ETHEREUM_SEPOLIA_RPC_URL = 'http://127.0.0.1:8545';
+  Wallet.prototype.getDepositTx = async function () {
+    return {
+      from: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      to: '0x1000000000000000000000000000000000000001',
+      data: '0xfeedcafe',
+      value: 0n,
+      gasLimit: 210000n,
+      maxFeePerGas: 100n,
+      maxPriorityFeePerGas: 2n,
+      type: 2
+    };
+  };
+  Wallet.prototype.estimateGasDeposit = async function () {
+    return 210000n;
+  };
+
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        return {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        };
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  try {
+    const result = await provider.previewDeposit({
+      wallet: writableEoaWallet(),
+      amount: '1',
+      tokenAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885'
+    });
+
+    assert.equal(result.token.address, '0xA0e40024ac1eC50416ab539AB533ce582080B885');
+    assert.equal(result.token.symbol, 'ZKAT');
+    assert.equal(result.token.decimals, 18);
+    assert.equal(result.token.isNative, false);
+  } finally {
+    Wallet.prototype.getDepositTx = originalGetDepositTx;
+    Wallet.prototype.estimateGasDeposit = originalEstimateGasDeposit;
+    if (previousRpcUrl === undefined) {
+      delete process.env.ETHEREUM_SEPOLIA_RPC_URL;
+    } else {
+      process.env.ETHEREUM_SEPOLIA_RPC_URL = previousRpcUrl;
+    }
+  }
+});
+
 test('previewDeposit requires an L1 RPC URL', async () => {
   const previousRpcUrl = process.env.ETHEREUM_SEPOLIA_RPC_URL;
   delete process.env.ETHEREUM_SEPOLIA_RPC_URL;
@@ -1147,6 +1224,61 @@ test('previewWithdraw requires decimals when an ERC20 token is supplied', async 
       return true;
     }
   );
+});
+
+test('previewWithdraw resolves ERC20 symbol and decimals from local deployment metadata when available', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        return {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        };
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        return {
+          from: '0x26920E7b9c7478C1227f27613BaDe04eF2ddE7bC',
+          to: '0x6000000000000000000000000000000000000006',
+          data: '0xfeedcafe',
+          value: 0n,
+          gasLimit: 123456n,
+          maxFeePerGas: 100n,
+          maxPriorityFeePerGas: 2n,
+          type: 113
+        };
+      },
+      async estimateGasWithdraw() {
+        return 123456n;
+      }
+    })
+  });
+
+  const result = await provider.previewWithdraw({
+    wallet: sampleWallet(),
+    amount: '1',
+    tokenAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885'
+  });
+
+  assert.equal(result.token.address, '0xA0e40024ac1eC50416ab539AB533ce582080B885');
+  assert.equal(result.token.symbol, 'ZKAT');
+  assert.equal(result.token.decimals, 18);
+  assert.equal(result.token.isNative, false);
 });
 
 test('previewWithdraw normalizes known validation failures into AgentError details', async () => {

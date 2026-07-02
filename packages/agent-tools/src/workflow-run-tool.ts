@@ -40,48 +40,54 @@ export interface WorkflowRunByCheckpointToolOutput {
   result: WorkflowRunResult;
 }
 
+export async function executeWorkflowRun(
+  context: AgentToolContext,
+  input: WorkflowRunToolInput
+): Promise<WorkflowRunToolOutput> {
+  return withWalletRecord(context, input, async (wallet, currentInput) => {
+    if (!context.defiProvider) {
+      throw new AgentError(
+        'DEFI_PROVIDER_UNAVAILABLE',
+        'This tool context does not include a zkSync DeFi provider.',
+        {
+          toolName: 'workflowRunTool'
+        }
+      );
+    }
+
+    return {
+      result: await runWorkflow(
+        {
+          wallet,
+          intent: currentInput.intent,
+          broadcast: Boolean(currentInput.broadcast),
+          autoSync: Boolean(currentInput.autoSync),
+          fund: currentInput.fund,
+          goal: currentInput.goal
+        },
+        {
+          provider: context.provider,
+          defiProvider: context.defiProvider,
+          syncWallet: async (currentWallet) => {
+            const synced = await syncStoredWalletRecord(context, currentWallet);
+            await context.saveWallet(synced.wallet);
+            return {
+              wallet: synced.wallet,
+              notes: synced.notes
+            };
+          }
+        }
+      )
+    };
+  });
+}
+
 export function createWorkflowRunTool(context: AgentToolContext) {
   return createAgentTool<WorkflowRunToolInput, WorkflowRunToolOutput>({
     name: 'workflowRunTool',
     description:
       'Execute a bounded wallet workflow: optionally sync, dispatch funding when needed, then run the goal action when ready.',
-    execute: async (input) =>
-      withWalletRecord(context, input, async (wallet, currentInput) => {
-        if (!context.defiProvider) {
-          throw new AgentError(
-            'DEFI_PROVIDER_UNAVAILABLE',
-            'This tool context does not include a zkSync DeFi provider.',
-            {
-              toolName: 'workflowRunTool'
-            }
-          );
-        }
-
-        return {
-          result: await runWorkflow(
-            {
-              wallet,
-              intent: currentInput.intent,
-              broadcast: Boolean(currentInput.broadcast),
-              autoSync: Boolean(currentInput.autoSync),
-              fund: currentInput.fund,
-              goal: currentInput.goal
-            },
-            {
-              provider: context.provider,
-              defiProvider: context.defiProvider,
-              syncWallet: async (currentWallet) => {
-                const synced = await syncStoredWalletRecord(context, currentWallet);
-                await context.saveWallet(synced.wallet);
-                return {
-                  wallet: synced.wallet,
-                  notes: synced.notes
-                };
-              }
-            }
-          )
-        };
-      })
+    execute: async (input) => executeWorkflowRun(context, input)
   });
 }
 

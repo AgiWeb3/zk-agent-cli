@@ -126,6 +126,28 @@ test('workflow list/show/delete manage stored checkpoints through the CLI', asyn
     assert.equal(listed.count, 2);
     assert.equal(listed.checkpoints[0].requestId, 'wf-test-002');
     assert.equal(listed.checkpoints[1].requestId, 'wf-test-001');
+    assert.deepEqual(listed.checkpointRecommendations, [
+      {
+        requestId: 'wf-test-002',
+        walletName: 'secondary',
+        recommendedCommands: {
+          show: 'zk-agent workflow show --request-id wf-test-002',
+          status: 'zk-agent workflow status --request-id wf-test-002',
+          next: 'zk-agent workflow next --request-id wf-test-002',
+          resume: 'zk-agent workflow resume --request-id wf-test-002'
+        }
+      },
+      {
+        requestId: 'wf-test-001',
+        walletName: 'main',
+        recommendedCommands: {
+          show: 'zk-agent workflow show --request-id wf-test-001',
+          status: 'zk-agent workflow status --request-id wf-test-001',
+          next: 'zk-agent workflow next --request-id wf-test-001',
+          resume: 'zk-agent workflow resume --request-id wf-test-001'
+        }
+      }
+    ]);
 
     const filtered = await runCliJson(['workflow', 'list', '--wallet', 'main'], env);
     assert.equal(filtered.count, 1);
@@ -138,12 +160,25 @@ test('workflow list/show/delete manage stored checkpoints through the CLI', asyn
     assert.equal(shown.checkpoint.requestId, 'wf-test-001');
     assert.equal(shown.checkpoint.walletRequestId, 'wr-test-001');
     assert.equal(shown.checkpoint.lastRun.txHash, '0x' + '44'.repeat(32));
+    assert.deepEqual(shown.recommendedCommands, {
+      show: 'zk-agent workflow show --request-id wf-test-001',
+      status: 'zk-agent workflow status --request-id wf-test-001',
+      next: 'zk-agent workflow next --request-id wf-test-001',
+      resume: 'zk-agent workflow resume --request-id wf-test-001',
+      delete: 'zk-agent workflow delete --request-id wf-test-001',
+      list: 'zk-agent workflow list',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
 
     const deleted = await runCliJson(['workflow', 'delete', '--request-id', 'wf-test-001'], env);
     assert.equal(deleted.ok, true);
     assert.equal(deleted.workflowRequestId, 'wf-test-001');
     assert.equal(deleted.requestId, 'wf-test-001');
     assert.equal(deleted.walletRequestId, 'wr-test-001');
+    assert.deepEqual(deleted.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
 
     const remaining = await runCliJson(['workflow', 'list'], env);
     assert.equal(remaining.count, 1);
@@ -195,6 +230,15 @@ test('workflow update changes stored checkpoint runtime settings without replaci
     assert.equal(updated.checkpoint.autoSync, true);
     assert.equal(updated.checkpoint.fundingCheck.kind, 'deposit');
     assert.equal(updated.checkpoint.goal.intent, 'send-native');
+    assert.deepEqual(updated.recommendedCommands, {
+      show: 'zk-agent workflow show --request-id wf-update-001',
+      status: 'zk-agent workflow status --request-id wf-update-001',
+      next: 'zk-agent workflow next --request-id wf-update-001',
+      resume: 'zk-agent workflow resume --request-id wf-update-001',
+      delete: 'zk-agent workflow delete --request-id wf-update-001',
+      list: 'zk-agent workflow list',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
 
     const cleared = await runCliJson(
       ['workflow', 'update', '--request-id', 'wf-update-001', '--clear-funding-check', '--clear-fund'],
@@ -204,6 +248,15 @@ test('workflow update changes stored checkpoint runtime settings without replaci
     assert.equal(cleared.workflowRequestId, 'wf-update-001');
     assert.equal(cleared.checkpoint.fundingCheck, undefined);
     assert.equal(cleared.checkpoint.fund, undefined);
+    assert.deepEqual(cleared.recommendedCommands, {
+      show: 'zk-agent workflow show --request-id wf-update-001',
+      status: 'zk-agent workflow status --request-id wf-update-001',
+      next: 'zk-agent workflow next --request-id wf-update-001',
+      resume: 'zk-agent workflow resume --request-id wf-update-001',
+      delete: 'zk-agent workflow delete --request-id wf-update-001',
+      list: 'zk-agent workflow list',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
 
     const stored = await storage.loadWorkflowCheckpoint('wf-update-001');
     assert.equal(stored?.broadcast, true);

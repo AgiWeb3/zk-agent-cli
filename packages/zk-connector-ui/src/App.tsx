@@ -112,6 +112,14 @@ function relayBaseUrl(relayRequestUrl: string): string {
   return relayRequestUrl.replace(/\/api\/requests\/[^/]+$/, '');
 }
 
+function operatorContinueCommand(request: SessionApprovalRequest | null): string {
+  if (!request?.walletName || request.walletName === 'main') {
+    return 'zk-agent next';
+  }
+
+  return `zk-agent next --wallet ${request.walletName}`;
+}
+
 function isSmartAccountRequest(request: SessionApprovalRequest | null): boolean {
   return request?.requestedAccountKind === 'smart-account';
 }
@@ -311,6 +319,7 @@ export function App() {
 
     return `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${encryptedRelayPackage?.code || '<code>'}`;
   }, [encryptedRelayPackage?.code, request]);
+  const continueCommand = useMemo(() => operatorContinueCommand(request), [request]);
   const relayShareUrl = useMemo(() => relayShareUrlFromStatus(relayStatus), [relayStatus]);
   const relayStatusLabel = relayStatus
     ? relayStatus.status
@@ -771,20 +780,27 @@ export function App() {
             </section>
 
             <section className="panel">
-              <h2>Next operator step</h2>
+              <h2>Operator next steps</h2>
               {callbackUrl ? (
                 <div className="helper-stack">
                   <p className="helper">
-                    The fastest path is still the in-page callback. Click
+                    Preferred path: click
                     {' '}
                     <code>Approve In CLI</code>
                     {' '}
-                    above and the waiting CLI process should complete immediately.
+                    above. If the operator still has the local CLI waiting on this request, that path completes immediately.
                   </p>
                   <p className="helper">
-                    If that callback path is unavailable, copy the JSON payload and finalize from the CLI:
+                    If the local callback path is unavailable, finalize the copied JSON payload from the CLI:
                   </p>
-                  <textarea className="command-block" readOnly value={finalizeCommand} />
+                  <label className="field-stack">
+                    <span>Fallback finalize command</span>
+                    <textarea className="command-block" readOnly value={finalizeCommand} />
+                  </label>
+                  <label className="field-stack">
+                    <span>After approval, continue with</span>
+                    <textarea className="command-block" readOnly value={continueCommand} />
+                  </label>
                   <div className="actions">
                     <button
                       type="button"
@@ -794,6 +810,15 @@ export function App() {
                       }}
                     >
                       Copy finalize command
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await copyText(continueCommand);
+                        setCopyStatus(ok ? 'Continue command copied to clipboard.' : 'Clipboard copy failed.');
+                      }}
+                    >
+                      Copy continue command
                     </button>
                   </div>
                 </div>
@@ -827,6 +852,10 @@ export function App() {
                         />
                       </label>
                       <label className="field-stack">
+                        <span>After relay finalization, continue with</span>
+                        <textarea className="command-block" readOnly value={continueCommand} />
+                      </label>
+                      <label className="field-stack">
                         <span>Approval code</span>
                         <input
                           readOnly
@@ -857,6 +886,15 @@ export function App() {
                         </button>
                         <button
                           type="button"
+                          onClick={async () => {
+                            const ok = await copyText(continueCommand);
+                            setCopyStatus(ok ? 'Continue command copied to clipboard.' : 'Clipboard copy failed.');
+                          }}
+                        >
+                          Copy continue command
+                        </button>
+                        <button
+                          type="button"
                           disabled={!encryptedRelayPackage?.code}
                           onClick={async () => {
                             const ok = encryptedRelayPackage?.code
@@ -874,7 +912,7 @@ export function App() {
               ) : (
                 <div className="helper-stack">
                   <p className="helper">
-                    No direct callback is active. Save the generated payload or encrypted package, then finalize from the CLI with one of these commands:
+                    No direct callback is active. Save the generated payload or encrypted package, finalize it from the CLI, then continue with the normal operator path.
                   </p>
                   <label className="field-stack">
                     <span>Plain payload finalize command</span>
@@ -883,6 +921,10 @@ export function App() {
                   <label className="field-stack">
                     <span>Encrypted payload finalize command</span>
                     <textarea className="command-block" readOnly value={encryptedFinalizeCommand} />
+                  </label>
+                  <label className="field-stack">
+                    <span>After approval, continue with</span>
+                    <textarea className="command-block" readOnly value={continueCommand} />
                   </label>
                   <div className="actions">
                     <button
@@ -902,6 +944,15 @@ export function App() {
                       }}
                     >
                       Copy encrypted finalize
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await copyText(continueCommand);
+                        setCopyStatus(ok ? 'Continue command copied to clipboard.' : 'Clipboard copy failed.');
+                      }}
+                    >
+                      Copy continue command
                     </button>
                   </div>
                 </div>

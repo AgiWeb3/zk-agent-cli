@@ -171,6 +171,91 @@ test('wallet next suppresses fund guidance when a saved paymaster can cover supp
   assert.match(summary.notes[0] || '', /paymaster mode approval-based is configured/);
 });
 
+test('wallet next supplements the tracked validated paymaster path when only approval-based mode is saved', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      capabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: true
+      }
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    funding: sampleFunding()
+  });
+
+  assert.equal(summary.status, 'ready');
+  assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
+  assert.ok(summary.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
+  assert.ok(summary.notes.some((note) => /is validated\./.test(note)));
+});
+
+test('wallet next adds a registry note for a tracked validated paymaster path', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      capabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: true
+      },
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        sessionScope: {
+          chainKeys: ['zksync-sepolia'],
+          chainIds: [300]
+        },
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        },
+        sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97',
+          token: '0xA0e40024ac1eC50416ab539AB533ce582080B885'
+        },
+        sessionPublicKey: '0x' + '11'.repeat(32),
+        permissions: {
+          expiresAt: '2026-06-24T01:00:00.000Z'
+        },
+        paymasterAddress: '0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97'
+      }
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    funding: sampleFunding()
+  });
+
+  assert.equal(summary.status, 'ready');
+  assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
+  assert.ok(summary.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
+  assert.ok(summary.notes.some((note) => /is validated\./.test(note)));
+});
+
 test('explicit paymaster none overrides a saved paymaster selection', () => {
   const resolved = resolveEffectivePaymasterSelection(
     {

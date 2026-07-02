@@ -5,6 +5,7 @@ import { createAgentToolContext, createStandardAgentTools } from './create-tools
 import type { AgentToolContext } from './types.js';
 
 export function createZkSyncAgentToolContext(options: {
+  loadProjectConfig?: AgentToolContext['loadProjectConfig'];
   loadWallet?: AgentToolContext['loadWallet'];
   saveWallet?: AgentToolContext['saveWallet'];
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];
@@ -23,6 +24,7 @@ export function createZkSyncAgentToolContext(options: {
     defiProvider: new ZkSyncDefiProvider({
       walletWriter: provider
     }),
+    loadProjectConfig: options.loadProjectConfig,
     loadWallet: options.loadWallet,
     saveWallet: options.saveWallet,
     loadWalletRequest: options.loadWalletRequest,
@@ -38,6 +40,7 @@ export function createZkSyncAgentToolContext(options: {
 }
 
 export function createZkSyncAgentTools(options: {
+  loadProjectConfig?: AgentToolContext['loadProjectConfig'];
   loadWallet?: AgentToolContext['loadWallet'];
   saveWallet?: AgentToolContext['saveWallet'];
   loadWalletRequest?: AgentToolContext['loadWalletRequest'];

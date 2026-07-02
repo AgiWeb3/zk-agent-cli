@@ -11,6 +11,7 @@
     "build": "node ./scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "pnpm run build && node --import tsx --test ./tests/*.test.ts",
+    "smoke:operator-path": "node --import tsx ./src/smoke-operator-path.ts",
     "smoke:readonly": "node --import tsx ./src/smoke-readonly.ts",
     "smoke:lifecycle": "node --import tsx ./src/smoke-lifecycle.ts",
     "smoke:policy": "node --import tsx ./src/smoke-policy.ts",

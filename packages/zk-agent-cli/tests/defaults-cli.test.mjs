@@ -71,6 +71,24 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(result.defaults.configured.uniswapV3ExactInputSingle.feeTier, '500');
     assert.equal(result.defaults.configured.uniswapV3ExactInputSingle.status, 'configured');
 
+    assert.equal(Array.isArray(result.defaults.registry.swapProtocols), true);
+    assert.equal(Array.isArray(result.defaults.registry.bridgeRoutes), true);
+    assert.equal(Array.isArray(result.defaults.registry.paymasterPaths), true);
+
+    const uniswap = result.defaults.registry.swapProtocols.find(
+      (entry) => entry.id === 'uniswap-v3-exact-input-single'
+    );
+    assert.equal(uniswap.status, 'supported');
+    assert.equal(uniswap.configuration, 'manual');
+    assert.equal(uniswap.routerAddress, '0x1111111111111111111111111111111111111111');
+    assert.equal(uniswap.feeTier, '500');
+
+    const syncswapRegistry = result.defaults.registry.swapProtocols.find(
+      (entry) => entry.id === 'syncswap-classic'
+    );
+    assert.equal(syncswapRegistry.status, 'validated');
+    assert.equal(syncswapRegistry.configuration, 'tracked-default');
+
     assert.equal(result.defaults.validated.swapSyncswapClassic.protocol, 'syncswap-classic');
     assert.equal(result.defaults.validated.swapSyncswapClassic.routerAddress, '0x3f39129e54d2331926c1E4bf034e111cf471AA97');
     assert.equal(result.defaults.validated.swapSyncswapClassic.factoryAddress, '0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09');
@@ -88,6 +106,24 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(result.defaults.experimental.feeTokenEvmInterpreter.address, '0xc4E33aa1c5b82142259D749EDab117a8B24348a6');
     assert.equal(result.defaults.experimental.feeTokenEvmInterpreter.deploymentMode, 'evm-interpreter');
     assert.match(result.defaults.experimental.feeTokenEvmInterpreter.note, /Prefer the EraVM token deployment/);
+
+    const l1ToL2Route = result.defaults.registry.bridgeRoutes.find(
+      (entry) => entry.id === 'ethereum-sepolia-to-zksync-sepolia'
+    );
+    assert.equal(l1ToL2Route.status, 'validated');
+    assert.equal(l1ToL2Route.direction, 'l1-to-l2');
+
+    const validatedPaymasterPath = result.defaults.registry.paymasterPaths.find(
+      (entry) => entry.id === 'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(validatedPaymasterPath.status, 'validated');
+    assert.equal(validatedPaymasterPath.feeTokenDeploymentMode, 'eravm');
+
+    const experimentalPaymasterPath = result.defaults.registry.paymasterPaths.find(
+      (entry) => entry.id === 'zksync-sepolia-approval-based-evm-interpreter'
+    );
+    assert.equal(experimentalPaymasterPath.status, 'experimental');
+    assert.equal(experimentalPaymasterPath.feeTokenDeploymentMode, 'evm-interpreter');
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

@@ -1,5 +1,8 @@
 import {
   AgentError,
+  buildBridgeRegistryNotes,
+  resolveLocalTokenMetadata,
+  buildSwapRegistryNotes,
   type WalletProvider,
   type BridgeStatusInput,
   type BridgeStatusResult,
@@ -100,6 +103,17 @@ const SHARED_BRIDGE_ERROR_SELECTORS = {
   assetHandlerDoesNotExist: '0xfde974f4',
   assetHandlerNotRegistered: '0x64107968'
 } as const;
+
+function resolveKnownTokenMetadata(tokenAddress: string): {
+  decimals?: number;
+  symbol?: string;
+} {
+  const metadata = resolveLocalTokenMetadata(tokenAddress);
+  return {
+    decimals: metadata?.decimals,
+    symbol: metadata?.symbol
+  };
+}
 
 interface BridgeChainRef {
   kind: 'l1' | 'zksync';
@@ -590,6 +604,8 @@ function resolveSwapToken(options: {
 }
 
 function buildSwapNotes(options: {
+  chain: string;
+  protocol: SwapExecutionResult['protocol'];
   recipientNote?: string;
   approvalNeeded: boolean;
   approvalMode: SwapExecutionResult['approval']['mode'];
@@ -598,7 +614,15 @@ function buildSwapNotes(options: {
   const notes: string[] = [];
 
   if (options.recipientNote) notes.push(options.recipientNote);
-  notes.push('Swap currently supports same-chain Uniswap V3 exactInputSingle only. Cross-chain routing and quote aggregation are not implemented yet.');
+  notes.push(
+    'Swap currently supports same-chain Uniswap V3 exactInputSingle and SyncSwap classic single-pool paths. Cross-chain routing and quote aggregation are not implemented yet.'
+  );
+  notes.push(
+    ...buildSwapRegistryNotes({
+      chain: options.chain,
+      protocol: options.protocol
+    })
+  );
 
   if (options.approvalNeeded) {
     if (options.approvalMode === 'none') {
@@ -1217,33 +1241,36 @@ function resolveDepositToken(
     });
   }
 
-  if (input.decimals === undefined) {
+  const normalizedAddress = ethers.getAddress(input.tokenAddress);
+  const knownTokenMetadata = resolveKnownTokenMetadata(normalizedAddress);
+  const decimals = input.decimals ?? knownTokenMetadata.decimals;
+
+  if (decimals === undefined) {
     throw new AgentError(
       'DEPOSIT_TOKEN_DECIMALS_REQUIRED',
-      'Token decimals are required until token registry resolution is implemented.',
+      'Deposit token decimals are required unless the token can be resolved from local deployment metadata.',
       {
         token: input.tokenAddress
       }
     );
   }
 
-  if (!Number.isInteger(input.decimals) || input.decimals < 0) {
+  if (!Number.isInteger(decimals) || decimals < 0) {
     throw new AgentError(
       'INVALID_DEPOSIT_TOKEN_DECIMALS',
       'Deposit token decimals must be a non-negative integer.',
       {
         token: input.tokenAddress,
-        decimals: input.decimals
+        decimals
       }
     );
   }
 
-  const normalizedAddress = ethers.getAddress(input.tokenAddress);
   return {
     address: normalizedAddress,
-    symbol: input.symbol || 'ERC20',
+    symbol: input.symbol || knownTokenMetadata.symbol || 'ERC20',
     amount: input.amount,
-    decimals: input.decimals,
+    decimals,
     isNative: normalizedAddress.toLowerCase() === utils.ETH_ADDRESS.toLowerCase()
   };
 }
@@ -1367,33 +1394,36 @@ function resolveToken(input: WithdrawPreviewInput, nativeSymbol: string): Withdr
     });
   }
 
-  if (input.decimals === undefined) {
+  const normalizedAddress = ethers.getAddress(input.tokenAddress);
+  const knownTokenMetadata = resolveKnownTokenMetadata(normalizedAddress);
+  const decimals = input.decimals ?? knownTokenMetadata.decimals;
+
+  if (decimals === undefined) {
     throw new AgentError(
       'WITHDRAW_TOKEN_DECIMALS_REQUIRED',
-      'Token decimals are required until token registry resolution is implemented.',
+      'Withdraw token decimals are required unless the token can be resolved from local deployment metadata.',
       {
         token: input.tokenAddress
       }
     );
   }
 
-  if (!Number.isInteger(input.decimals) || input.decimals < 0) {
+  if (!Number.isInteger(decimals) || decimals < 0) {
     throw new AgentError(
       'INVALID_WITHDRAW_TOKEN_DECIMALS',
       'Withdraw token decimals must be a non-negative integer.',
       {
         token: input.tokenAddress,
-        decimals: input.decimals
+        decimals
       }
     );
   }
 
-  const normalizedAddress = ethers.getAddress(input.tokenAddress);
   return {
     address: normalizedAddress,
-    symbol: input.symbol || 'ERC20',
+    symbol: input.symbol || knownTokenMetadata.symbol || 'ERC20',
     amount: input.amount,
-    decimals: input.decimals,
+    decimals,
     isNative: normalizedAddress.toLowerCase() === utils.ETH_ADDRESS.toLowerCase()
   };
 }
@@ -1731,7 +1761,13 @@ function buildBridgeNotes(
   walletName: string,
   txHash?: string
 ): { notes: string[]; statusCommand?: string } {
-  const notes = [...baseNotes];
+  const notes = [
+    ...baseNotes,
+    ...buildBridgeRegistryNotes({
+      fromChain: route.source.key,
+      toChain: route.destination.key
+    })
+  ];
   let statusCommand: string | undefined;
 
   if (mode === 'broadcast' && txHash) {
@@ -2473,6 +2509,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
         paymaster: swapResult.paymaster,
         preview: swapResult.preview,
         notes: buildSwapNotes({
+          chain: resolved.chain.key,
+          protocol: resolved.protocol,
           recipientNote: resolved.recipientNote,
           approvalNeeded,
           approvalMode: approvalNeeded ? resolved.approvalMode : 'none',
@@ -2547,6 +2585,8 @@ export class ZkSyncDefiProvider implements DefiProvider {
       txHash: swapBroadcast.txHash,
       explorerUrl: swapBroadcast.explorerUrl,
       notes: buildSwapNotes({
+        chain: resolved.chain.key,
+        protocol: resolved.protocol,
         recipientNote: resolved.recipientNote,
         approvalNeeded,
         approvalMode: approvalNeeded ? resolved.approvalMode : 'none',

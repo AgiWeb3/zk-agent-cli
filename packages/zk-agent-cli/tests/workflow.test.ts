@@ -143,6 +143,7 @@ test('workflow plan emits a protocol-specific swap goal command when requested',
   assert.match(plan.goalCommand, /--paymaster-mode approval-based/);
   assert.match(plan.goalCommand, /--paymaster-address 0x4444444444444444444444444444444444444444/);
   assert.match(plan.goalCommand, /--paymaster-token 0x5555555555555555555555555555555555555555/);
+  assert.ok(plan.notes.some((note) => /Registry: syncswap-classic on zksync-sepolia is a validated/.test(note)));
 });
 
 test('workflow plan respects an explicit paymaster none override', () => {
@@ -219,6 +220,27 @@ test('workflow plan adds a bridge note when destination chain is still missing',
   assert.equal(plan.status, 'planned');
   assert.match(plan.goalCommand, /--to-chain <chain>/);
   assert.match(plan.notes[0] || '', /Set --to-chain/);
+});
+
+test('workflow plan adds a registry note for a validated bridge route', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'bridge',
+    nativeBalance: '1.5',
+    nativeSymbol: 'ETH',
+    toChain: 'ethereum-sepolia'
+  });
+
+  assert.equal(plan.status, 'planned');
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry: zksync-sepolia -> ethereum-sepolia is a validated bridge route\./.test(note)
+    )
+  );
 });
 
 test('workflow plan skips fund when paymaster-backed swap can cover gas', () => {

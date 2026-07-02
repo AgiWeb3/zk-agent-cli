@@ -66,6 +66,22 @@ function finalizedFundingStatus(status: WorkflowFundingProgress['status']): bool
   return status === 'finalized';
 }
 
+function mergeNotes(...groups: Array<Array<string> | undefined>): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+
+  for (const group of groups) {
+    for (const note of group || []) {
+      const trimmed = note.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      merged.push(trimmed);
+    }
+  }
+
+  return merged;
+}
+
 function manualBlockingActionIds(plan: WorkflowPlan): string[] {
   return plan.steps
     .filter(
@@ -121,7 +137,7 @@ export async function inspectWorkflowStatus(
 
   const blockingActionIds = manualBlockingActionIds(plan);
   const fundingNeeded = plan.steps.some((step) => step.id === 'fund');
-  const notes: string[] = [];
+  const notes: string[] = [...plan.notes];
   let fundingProgress: WorkflowFundingProgress | undefined;
 
   if (input.fundingCheck) {
@@ -217,10 +233,10 @@ export async function inspectWorkflowStatus(
         }
       : undefined,
     fundingProgress,
-    notes,
+    notes: mergeNotes(notes, fundingProgress?.details.notes),
     recommendedCommand:
       status === 'ready'
-        ? (buildWorkflowGoalCommand(input.goal, input.wallet.walletName) ?? plan.goalCommand)
+        ? (buildWorkflowGoalCommand(input.goal, input.wallet) ?? plan.goalCommand)
         : status === 'funding-pending'
           ? (fundingProgress?.nextCommand ?? plan.recommendedCommand)
         : plan.recommendedCommand

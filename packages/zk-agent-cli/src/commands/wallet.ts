@@ -102,13 +102,18 @@ import {
 } from '../lib/io.js';
 import { buildWalletSubcommandPreviewNextCommand } from '../lib/preview-next-command.js';
 import {
+  buildTopLevelNextRecommendedCommand,
   buildWalletRequestApproveRecommendedCommand,
   buildWalletRequestAwaitLocalRecommendedCommand,
   buildWalletCreateRecommendedCommand,
+  buildWalletListRecommendedCommand,
   buildWalletNextRecommendedCommand,
   buildWalletRequestRelayApproveRecommendedCommand,
   buildWalletRequestRelayPublishRecommendedCommand,
   buildWalletRequestRelayStatusRecommendedCommand,
+  buildWalletRequestShowRecommendedCommand,
+  buildWalletRestoreRecommendedCommand,
+  buildWalletStatusRecommendedCommand,
   buildWalletReapproveRecommendedCommand
 } from '../lib/recommended-commands.js';
 import {
@@ -852,6 +857,40 @@ interface ResolvedSmartAccountCommandInput {
   profile?: BuiltinSmartAccountProfile;
 }
 
+interface SmartAccountCommandLineOptions extends SmartAccountCommandOptions {
+  name: string;
+  save?: boolean;
+}
+
+function pushCommandOption(parts: string[], flag: string, value: string | undefined): void {
+  const trimmed = value?.trim();
+  if (!trimmed) return;
+  parts.push(flag, trimmed);
+}
+
+function buildSmartAccountPredictCommand(options: SmartAccountCommandLineOptions): string {
+  const parts = ['zk-agent', 'wallet', 'smart-account', 'predict', '--name', options.name];
+  pushCommandOption(parts, '--artifact', options.artifact);
+  pushCommandOption(parts, '--profile', options.profile);
+  pushCommandOption(parts, '--constructor-args', options.constructorArgs);
+  pushCommandOption(parts, '--deployment-type', options.deploymentType);
+  pushCommandOption(parts, '--salt', options.salt);
+  return parts.join(' ');
+}
+
+function buildSmartAccountDeployCommand(options: SmartAccountCommandLineOptions): string {
+  const parts = ['zk-agent', 'wallet', 'smart-account', 'deploy', '--name', options.name];
+  pushCommandOption(parts, '--artifact', options.artifact);
+  pushCommandOption(parts, '--profile', options.profile);
+  pushCommandOption(parts, '--constructor-args', options.constructorArgs);
+  pushCommandOption(parts, '--deployment-type', options.deploymentType);
+  pushCommandOption(parts, '--salt', options.salt);
+  if (options.save === false) {
+    parts.push('--no-save');
+  }
+  return parts.join(' ');
+}
+
 function resolveSmartAccountCommandInput(
   wallet: WalletSessionRecord,
   options: SmartAccountCommandOptions
@@ -1321,7 +1360,8 @@ function walletExportLines(
     ['chain', `${wallet.chain} (${wallet.chainId})`],
     ['profile', wallet.smartAccountProfileId || 'none'],
     ['sensitive data', bundle.sensitiveDataIncluded ? 'included' : 'removed'],
-    ['exported', bundle.exportedAt]
+    ['exported', bundle.exportedAt],
+    ['restore', buildWalletRestoreRecommendedCommand(wallet.walletName)]
   ];
 }
 
@@ -1376,6 +1416,10 @@ function walletRestoreLines(
   }
 
   lines.push(['next', nextCommand]);
+  if (nextCommand !== buildWalletNextRecommendedCommand(wallet.walletName)) {
+    lines.push(['after reapprove', buildWalletNextRecommendedCommand(wallet.walletName)]);
+  }
+  lines.push(['status command', buildWalletStatusRecommendedCommand(wallet.walletName)]);
 
   return lines;
 }
@@ -1471,6 +1515,36 @@ function linesForWalletSubcommandWriteResult(
   );
 }
 
+function buildWalletSubcommandWriteRecommendedCommands(
+  result: TransactionExecutionResult,
+  options: {
+    walletName: string;
+    commandPath: string[];
+    args?: Array<readonly [string, string | number | Array<string | number> | undefined]>;
+  }
+): {
+  previewBroadcast?: string;
+  walletStatus: string;
+  walletNext: string;
+} {
+  const previewBroadcast = buildWalletSubcommandPreviewNextCommand({
+    commandPath: options.commandPath,
+    walletName: options.walletName,
+    args: options.args,
+    paymaster: result.paymaster
+  });
+
+  return {
+    ...(result.mode === 'preview' && previewBroadcast
+      ? {
+          previewBroadcast
+        }
+      : {}),
+    walletStatus: buildWalletStatusRecommendedCommand(options.walletName),
+    walletNext: buildWalletNextRecommendedCommand(options.walletName)
+  };
+}
+
 async function requireWalletRequest(requestId: string) {
   const request = await loadWalletRequest(requestId);
   if (!request) throw new Error(`Wallet request not found: ${requestId}`);
@@ -1519,8 +1593,78 @@ export function buildWalletApprovalLines(
     ['account', displayAccountKind(walletRecord)],
     ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
     ['paymaster', displayPaymasterMode(walletRecord)],
-    ['next', buildWalletNextRecommendedCommand(walletRecord.walletName)]
+    ['next', buildWalletNextRecommendedCommand(walletRecord.walletName)],
+    ['status command', buildWalletStatusRecommendedCommand(walletRecord.walletName)]
   ];
+}
+
+function buildWalletFollowUpRecommendedCommands(
+  walletRecord: WalletSessionRecord
+): {
+  next: string;
+  status: string;
+  reapprove?: string;
+} {
+  return {
+    next: buildWalletNextRecommendedCommand(walletRecord.walletName),
+    status: buildWalletStatusRecommendedCommand(walletRecord.walletName),
+    ...(!walletRecord.sessionPayload?.sessionPrivateKey
+      ? { reapprove: buildWalletReapproveRecommendedCommand(walletRecord.walletName) }
+      : {})
+  };
+}
+
+function walletFollowUpLines(walletRecord: WalletSessionRecord): Array<[string, string]> {
+  const recommendedCommands = buildWalletFollowUpRecommendedCommands(walletRecord);
+
+  return [
+    ['next', recommendedCommands.reapprove ?? recommendedCommands.next],
+    ...(recommendedCommands.reapprove
+      ? [['after reapprove', recommendedCommands.next] as [string, string]]
+      : []),
+    ['status command', recommendedCommands.status]
+  ];
+}
+
+function buildPendingRequestRecommendedCommands(
+  walletName: string,
+  requestId: string,
+  relayUrl?: string
+): {
+  awaitLocal: string;
+  approve: string;
+  relayStatus?: string;
+  relayApprove?: string;
+  afterApproval: string;
+  afterApprovalStatus: string;
+} {
+  return {
+    awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(requestId),
+    approve: buildWalletRequestApproveRecommendedCommand(requestId),
+    ...(relayUrl
+      ? {
+          relayStatus: buildWalletRequestRelayStatusRecommendedCommand(requestId, relayUrl),
+          relayApprove: buildWalletRequestRelayApproveRecommendedCommand(requestId, relayUrl)
+        }
+      : {}),
+    afterApproval: buildTopLevelNextRecommendedCommand(),
+    afterApprovalStatus: buildWalletStatusRecommendedCommand(walletName)
+  };
+}
+
+function buildRequestListEntryRecommendedCommands(
+  walletName: string,
+  requestId: string
+): {
+  show: string;
+  afterApproval: string;
+  afterApprovalStatus: string;
+} {
+  return {
+    show: buildWalletRequestShowRecommendedCommand(requestId),
+    afterApproval: buildTopLevelNextRecommendedCommand(),
+    afterApprovalStatus: buildWalletStatusRecommendedCommand(walletName)
+  };
 }
 
 function buildRelayCreateRequest(walletRequest: WalletRequestRecord): RelayCreateRequest {
@@ -1987,7 +2131,20 @@ async function printWalletList(): Promise<void> {
   }
 
   if (shouldJsonOutput()) {
-    printResult([], { ok: true, wallets: wallets.map((wallet) => sanitizeWalletRecord(wallet)) });
+    printResult([], {
+      ok: true,
+      wallets: wallets.map((wallet) => sanitizeWalletRecord(wallet)),
+      recommendedCommands:
+        wallets.length === 0
+          ? {
+              createWallet: buildWalletCreateRecommendedCommand()
+            }
+          : undefined,
+      walletRecommendations: wallets.map((wallet) => ({
+        walletName: wallet.walletName,
+        recommendedCommands: buildWalletFollowUpRecommendedCommands(wallet)
+      }))
+    });
     return;
   }
 
@@ -2004,6 +2161,9 @@ async function printWalletList(): Promise<void> {
 
   for (const wallet of wallets) {
     process.stdout.write(`${formatWalletSummary(wallet)}\n`);
+    for (const [label, value] of walletFollowUpLines(wallet)) {
+      process.stdout.write(`  ${label}: ${value}\n`);
+    }
   }
 }
 
@@ -2014,7 +2174,21 @@ async function printWalletRequestList(): Promise<void> {
     printResult([], {
       ok: true,
       requests: requests.map((request) => sanitizeWalletRequestRecord(request)),
-      removedExpiredRequestIds
+      removedExpiredRequestIds,
+      recommendedCommands:
+        requests.length === 0
+          ? {
+              createWallet: buildWalletCreateRecommendedCommand()
+            }
+          : undefined,
+      requestRecommendations: requests.map((request) => ({
+        requestId: request.requestId,
+        walletName: request.walletName,
+        recommendedCommands: buildRequestListEntryRecommendedCommands(
+          request.walletName,
+          request.requestId
+        )
+      }))
     });
     return;
   }
@@ -2035,6 +2209,9 @@ async function printWalletRequestList(): Promise<void> {
 
   for (const request of requests) {
     process.stdout.write(`${formatWalletRequestSummary(request)}\n`);
+    process.stdout.write(
+      `  show: ${buildWalletRequestShowRecommendedCommand(request.requestId)}\n`
+    );
   }
 
   if (removedExpiredRequestIds.length > 0) {
@@ -2084,6 +2261,25 @@ export function createWalletCommand(): Command {
   );
   const paymaster = new Command('paymaster').description(
     'Manage saved paymaster defaults for stored wallets'
+  );
+
+  wallet.addHelpText(
+    'after',
+    [
+      '',
+      'Default wallet path:',
+      '  First bootstrap:',
+      '    zk-agent wallet create --await-local',
+      '    zk-agent next',
+      '',
+      '  Restore a writable session for an existing wallet:',
+      '    zk-agent wallet reapprove --name main --await-local',
+      '    zk-agent next',
+      '',
+      '  Wallet-layer inspection:',
+      '    zk-agent wallet status --name main',
+      '    zk-agent wallet next --name main'
+    ].join('\n')
   );
 
   wallet
@@ -2152,7 +2348,8 @@ export function createWalletCommand(): Command {
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(walletRecord),
             callbackUrl,
-            approvalUrl
+            approvalUrl,
+            recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
           }
         );
         return;
@@ -2161,6 +2358,11 @@ export function createWalletCommand(): Command {
       const relay = options.relayUrl
         ? await publishWalletRequestToRelay(request, options.relayUrl)
         : undefined;
+      const recommendedCommands = buildPendingRequestRecommendedCommands(
+        request.walletName,
+        request.requestId,
+        options.relayUrl
+      );
 
       printResult(
         [
@@ -2182,14 +2384,16 @@ export function createWalletCommand(): Command {
             ? [
                 [
                   'next relay status',
-                  buildWalletRequestRelayStatusRecommendedCommand(request.requestId, options.relayUrl as string)
+                  recommendedCommands.relayStatus as string
                 ] as [string, string],
                 [
                   'next relay approve',
-                  buildWalletRequestRelayApproveRecommendedCommand(request.requestId, options.relayUrl as string)
+                  recommendedCommands.relayApprove as string
                 ] as [string, string]
               ]
-            : [['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)] as [string, string]]),
+            : [['next remote', recommendedCommands.approve] as [string, string]]),
+          ['after approval', recommendedCommands.afterApproval],
+          ['after approval status', recommendedCommands.afterApprovalStatus],
           [
             'note',
             relay
@@ -2210,24 +2414,7 @@ export function createWalletCommand(): Command {
           paymasterMode: request.requestedPaymasterMode,
           capabilities: request.requestedCapabilities,
           sessionScope: request.requestedSessionScope,
-          recommendedCommands: {
-            awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(request.requestId),
-            ...(relay
-              ? {
-                  relayStatus: buildWalletRequestRelayStatusRecommendedCommand(
-                    request.requestId,
-                    options.relayUrl as string
-                  ),
-                  relayApprove: buildWalletRequestRelayApproveRecommendedCommand(
-                    request.requestId,
-                    options.relayUrl as string
-                  ),
-                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
-                }
-              : {
-                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
-                })
-          }
+          recommendedCommands
         }
       );
       }
@@ -2280,7 +2467,8 @@ export function createWalletCommand(): Command {
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(approvedWallet),
             callbackUrl,
-            approvalUrl
+            approvalUrl,
+            recommendedCommands: buildWalletFollowUpRecommendedCommands(approvedWallet)
           }
         );
         return;
@@ -2289,6 +2477,11 @@ export function createWalletCommand(): Command {
       const relay = options.relayUrl
         ? await publishWalletRequestToRelay(request, options.relayUrl)
         : undefined;
+      const recommendedCommands = buildPendingRequestRecommendedCommands(
+        request.walletName,
+        request.requestId,
+        options.relayUrl
+      );
 
       printResult(
         [
@@ -2313,14 +2506,16 @@ export function createWalletCommand(): Command {
             ? [
                 [
                   'next relay status',
-                  buildWalletRequestRelayStatusRecommendedCommand(request.requestId, options.relayUrl as string)
+                  recommendedCommands.relayStatus as string
                 ] as [string, string],
                 [
                   'next relay approve',
-                  buildWalletRequestRelayApproveRecommendedCommand(request.requestId, options.relayUrl as string)
+                  recommendedCommands.relayApprove as string
                 ] as [string, string]
               ]
-            : [['next remote', buildWalletRequestApproveRecommendedCommand(request.requestId)] as [string, string]]),
+            : [['next remote', recommendedCommands.approve] as [string, string]]),
+          ['after approval', recommendedCommands.afterApproval],
+          ['after approval status', recommendedCommands.afterApprovalStatus],
           [
             'note',
             relay
@@ -2333,24 +2528,7 @@ export function createWalletCommand(): Command {
           wallet: sanitizeWalletRecord(walletRecord),
           request: sanitizeWalletRequestRecord(request),
           relay,
-          recommendedCommands: {
-            awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(request.requestId),
-            ...(relay
-              ? {
-                  relayStatus: buildWalletRequestRelayStatusRecommendedCommand(
-                    request.requestId,
-                    options.relayUrl as string
-                  ),
-                  relayApprove: buildWalletRequestRelayApproveRecommendedCommand(
-                    request.requestId,
-                    options.relayUrl as string
-                  ),
-                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
-                }
-              : {
-                  approve: buildWalletRequestApproveRecommendedCommand(request.requestId)
-                })
-          }
+          recommendedCommands
         }
       );
     }
@@ -2367,6 +2545,7 @@ export function createWalletCommand(): Command {
       const importedWallet = await provider.importSession(options.name, payload);
       const walletRecord = preserveExistingWalletMetadata(importedWallet, existingWallet);
       await saveWalletSession(walletRecord);
+      const recommendedCommands = buildWalletFollowUpRecommendedCommands(walletRecord);
 
       printResult(
         [
@@ -2379,9 +2558,9 @@ export function createWalletCommand(): Command {
           ['account', displayAccountKind(walletRecord)],
           ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
           ['paymaster', displayPaymasterMode(walletRecord)],
-          ['next', buildWalletNextRecommendedCommand(walletRecord.walletName)]
+          ...walletFollowUpLines(walletRecord)
         ],
-        { ok: true, wallet: sanitizeWalletRecord(walletRecord) }
+        { ok: true, wallet: sanitizeWalletRecord(walletRecord), recommendedCommands }
       );
     });
 
@@ -2405,7 +2584,8 @@ export function createWalletCommand(): Command {
           ['to', result.wallet.walletName],
           ['address', result.wallet.walletAddress],
           ['requests updated', String(result.updatedRequestIds.length)],
-          ['workflow checkpoints updated', String(result.updatedWorkflowRequestIds.length)]
+          ['workflow checkpoints updated', String(result.updatedWorkflowRequestIds.length)],
+          ...walletFollowUpLines(result.wallet)
         ],
         {
           ok: true,
@@ -2413,7 +2593,8 @@ export function createWalletCommand(): Command {
           previousWalletName: options.name,
           wallet: sanitizeWalletRecord(result.wallet),
           updatedRequestIds: result.updatedRequestIds,
-          updatedWorkflowRequestIds: result.updatedWorkflowRequestIds
+          updatedWorkflowRequestIds: result.updatedWorkflowRequestIds,
+          recommendedCommands: buildWalletFollowUpRecommendedCommands(result.wallet)
         }
       );
     });
@@ -2434,9 +2615,14 @@ export function createWalletCommand(): Command {
             ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
             : []),
           ['account', displayAccountKind(walletRecord)],
-          ['chain', `${walletRecord.chain} (${walletRecord.chainId})`]
+          ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
+          ...walletFollowUpLines(walletRecord)
         ],
-        { ok: true, wallet: sanitizeWalletRecord(walletRecord) }
+        {
+          ok: true,
+          wallet: sanitizeWalletRecord(walletRecord),
+          recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
+        }
       );
     });
 
@@ -2448,10 +2634,14 @@ export function createWalletCommand(): Command {
     .action(async (options: { name: string; includeSensitiveData?: boolean }) => {
       const walletRecord = await requireWalletRecord(options.name);
       const bundle = exportWalletRecord(walletRecord, Boolean(options.includeSensitiveData));
+      const recommendedCommands = {
+        restore: buildWalletRestoreRecommendedCommand(walletRecord.walletName)
+      };
 
       printResult(walletExportLines(walletRecord, bundle), {
         ok: true,
-        export: bundle
+        export: bundle,
+        recommendedCommands
       });
     });
 
@@ -2555,6 +2745,7 @@ export function createWalletCommand(): Command {
         restoredWallet = syncResult.wallet;
         await saveWalletSession(restoredWallet);
       }
+      const recommendedCommands = buildWalletFollowUpRecommendedCommands(restoredWallet);
 
       printResult(walletRestoreLines(restoredWallet, bundle, syncResult), {
         ok: true,
@@ -2576,7 +2767,8 @@ export function createWalletCommand(): Command {
               syncedAt: restoredWallet.syncedAt,
               notes: syncResult.notes
             }
-          : undefined
+          : undefined,
+        recommendedCommands
       });
     }
     );
@@ -2592,9 +2784,18 @@ export function createWalletCommand(): Command {
       printResult(
         [
           ['status', 'Wallet removed'],
-          ['wallet', options.name]
+          ['wallet', options.name],
+          ['next', buildWalletCreateRecommendedCommand()],
+          ['list', buildWalletListRecommendedCommand()]
         ],
-        { ok: true, walletName: options.name }
+        {
+          ok: true,
+          walletName: options.name,
+          recommendedCommands: {
+            createWallet: buildWalletCreateRecommendedCommand(),
+            listWallets: buildWalletListRecommendedCommand()
+          }
+        }
       );
     });
 
@@ -2614,6 +2815,10 @@ export function createWalletCommand(): Command {
       if (status === 'expired') {
         await deleteWalletRequest(walletRequest.requestId);
       }
+      const recommendedCommands =
+        status === 'pending'
+          ? buildPendingRequestRecommendedCommands(walletRequest.walletName, walletRequest.requestId)
+          : undefined;
 
       printResult(
         [
@@ -2627,8 +2832,10 @@ export function createWalletCommand(): Command {
           ['approval url', walletRequest.approvalUrl],
           ...(status === 'pending'
             ? [
-                ['next local', buildWalletRequestAwaitLocalRecommendedCommand(walletRequest.requestId)] as [string, string],
-                ['next remote', buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)] as [string, string]
+                ['next local', recommendedCommands?.awaitLocal as string] as [string, string],
+                ['next remote', recommendedCommands?.approve as string] as [string, string],
+                ['after approval', recommendedCommands?.afterApproval as string] as [string, string],
+                ['after approval status', recommendedCommands?.afterApprovalStatus as string] as [string, string]
               ]
             : [])
         ],
@@ -2637,13 +2844,7 @@ export function createWalletCommand(): Command {
           request: sanitizeWalletRequestRecord(walletRequest),
           requestStatus: status,
           removed: status === 'expired',
-          recommendedCommands:
-            status === 'pending'
-              ? {
-                  awaitLocal: buildWalletRequestAwaitLocalRecommendedCommand(walletRequest.requestId),
-                  approve: buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)
-                }
-              : undefined
+          recommendedCommands
         }
       );
     });
@@ -2682,7 +2883,8 @@ export function createWalletCommand(): Command {
           payload: sanitizeSessionPayload(payload),
           wallet: sanitizeWalletRecord(walletRecord),
           callbackUrl,
-          approvalUrl
+          approvalUrl,
+          recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
         });
       }
     );
@@ -2840,7 +3042,8 @@ export function createWalletCommand(): Command {
             ? 'payload'
             : options.encryptedPayload
               ? 'encrypted-payload'
-              : 'relay-url'
+              : 'relay-url',
+          recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
         }
       );
     });
@@ -2909,7 +3112,8 @@ export function createWalletCommand(): Command {
             ok: true,
             request: sanitizeWalletRequestRecord(walletRequest),
             payload: sanitizeSessionPayload(payload),
-            wallet: sanitizeWalletRecord(walletRecord)
+            wallet: sanitizeWalletRecord(walletRecord),
+            recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
           }
         );
       }
@@ -3119,6 +3323,14 @@ export function createWalletCommand(): Command {
           ['--init-data', initData]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'hook-add'],
+        args: [
+          ['--hook', options.hook],
+          ['--init-data', initData]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['init data', initData]);
 
@@ -3129,7 +3341,8 @@ export function createWalletCommand(): Command {
           hookAddress: options.hook,
           initData
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3168,6 +3381,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'hook-remove'],
         args: [['--hook', options.hook]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'hook-remove'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -3176,7 +3394,8 @@ export function createWalletCommand(): Command {
           operation: 'hook-remove',
           hookAddress: options.hook
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3238,6 +3457,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'owner-set'],
         args: [['--address', options.address]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'owner-set'],
+        args: [['--address', options.address]]
+      });
       lines.splice(5, 0, ['new owner', options.address]);
 
       printResult(lines, {
@@ -3246,7 +3470,8 @@ export function createWalletCommand(): Command {
           operation: 'owner-set',
           ownerAddress: options.address
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3310,6 +3535,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'validator-set'],
         args: [['--address', options.address]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'validator-set'],
+        args: [['--address', options.address]]
+      });
       lines.splice(5, 0, ['new validator', options.address]);
 
       printResult(lines, {
@@ -3318,7 +3548,8 @@ export function createWalletCommand(): Command {
           operation: 'validator-set',
           validatorAddress: options.address
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3386,6 +3617,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'module-add'],
         args: [['--module', options.module]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'module-add'],
+        args: [['--module', options.module]]
+      });
       lines.splice(5, 0, ['module', options.module]);
 
       printResult(lines, {
@@ -3394,7 +3630,8 @@ export function createWalletCommand(): Command {
           operation: 'module-add',
           moduleAddress: options.module
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3433,6 +3670,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'module-remove'],
         args: [['--module', options.module]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'module-remove'],
+        args: [['--module', options.module]]
+      });
       lines.splice(5, 0, ['module', options.module]);
 
       printResult(lines, {
@@ -3441,7 +3683,8 @@ export function createWalletCommand(): Command {
           operation: 'module-remove',
           moduleAddress: options.module
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3509,6 +3752,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'limit-set'],
         args: [['--amount', options.amount]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'limit-set'],
+        args: [['--amount', options.amount]]
+      });
       lines.splice(5, 0, ['max per tx', options.amount]);
       lines.splice(6, 0, ['max per tx wei', amountWei.toString()]);
 
@@ -3520,7 +3768,8 @@ export function createWalletCommand(): Command {
           maxPerTxWei: amountWei.toString(),
           decimals: NATIVE_TOKEN_DECIMALS
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3548,15 +3797,22 @@ export function createWalletCommand(): Command {
         paymaster: resolvePaymasterInput(options)
       });
 
-      printResult(linesForWalletSubcommandWriteResult(result, {
+      const lines = linesForWalletSubcommandWriteResult(result, {
         walletName: walletRecord.walletName,
         commandPath: ['smart-account', 'sed-lite', 'limit-remove']
-      }), {
+      });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'limit-remove']
+      });
+
+      printResult(lines, {
         ok: true,
         sedLite: {
           operation: 'limit-remove'
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3640,6 +3896,14 @@ export function createWalletCommand(): Command {
           ['--amount', options.amount]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'enable'],
+        args: [
+          ['--hook', options.hook],
+          ['--amount', options.amount]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['max per tx', options.amount]);
       lines.splice(7, 0, ['max per tx wei', amountWei.toString()]);
@@ -3653,7 +3917,8 @@ export function createWalletCommand(): Command {
           maxPerTxWei: amountWei.toString(),
           decimals: NATIVE_TOKEN_DECIMALS
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3702,6 +3967,14 @@ export function createWalletCommand(): Command {
           ['--amount', options.amount]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'set'],
+        args: [
+          ['--hook', options.hook],
+          ['--amount', options.amount]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['max per tx', options.amount]);
       lines.splice(7, 0, ['max per tx wei', amountWei.toString()]);
@@ -3715,7 +3988,8 @@ export function createWalletCommand(): Command {
           maxPerTxWei: amountWei.toString(),
           decimals: NATIVE_TOKEN_DECIMALS
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3754,6 +4028,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'remove'],
         args: [['--hook', options.hook]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'remove'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -3762,7 +4041,8 @@ export function createWalletCommand(): Command {
           operation: 'native-cap-hook-remove',
           hookAddress: options.hook
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3801,6 +4081,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'disable'],
         args: [['--hook', options.hook]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'native-cap-hook', 'disable'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -3809,7 +4094,8 @@ export function createWalletCommand(): Command {
           operation: 'native-cap-hook-disable',
           hookAddress: options.hook
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3929,6 +4215,14 @@ export function createWalletCommand(): Command {
           ['--target', options.target]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'enable'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['targets', options.target.join(', ')]);
 
@@ -3939,7 +4233,8 @@ export function createWalletCommand(): Command {
           hookAddress: options.hook,
           targets: options.target
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -3986,6 +4281,14 @@ export function createWalletCommand(): Command {
           ['--target', options.target]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'add'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -3996,7 +4299,8 @@ export function createWalletCommand(): Command {
           hookAddress: options.hook,
           targetAddress: options.target
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4043,6 +4347,14 @@ export function createWalletCommand(): Command {
           ['--target', options.target]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'remove'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -4053,7 +4365,8 @@ export function createWalletCommand(): Command {
           hookAddress: options.hook,
           targetAddress: options.target
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4092,6 +4405,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'disable'],
         args: [['--hook', options.hook]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'target-allowlist-hook', 'disable'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -4100,7 +4418,8 @@ export function createWalletCommand(): Command {
           operation: 'target-allowlist-hook-disable',
           hookAddress: options.hook
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4299,6 +4618,18 @@ export function createWalletCommand(): Command {
           ]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'enable'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target],
+          [
+            '--selector-rule',
+            selectorRules.map((rule) => `${rule.target}:${rule.selector}`)
+          ]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['targets', options.target.length > 0 ? options.target.join(', ') : 'none']);
       lines.splice(
@@ -4320,7 +4651,8 @@ export function createWalletCommand(): Command {
           targets: options.target,
           selectorRules
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4369,6 +4701,14 @@ export function createWalletCommand(): Command {
           ['--target', options.target]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'target-add'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -4379,7 +4719,8 @@ export function createWalletCommand(): Command {
           hookAddress: options.hook,
           targetAddress: options.target
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4428,6 +4769,14 @@ export function createWalletCommand(): Command {
           ['--target', options.target]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'target-remove'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
 
@@ -4438,7 +4787,8 @@ export function createWalletCommand(): Command {
           hookAddress: options.hook,
           targetAddress: options.target
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4489,6 +4839,15 @@ export function createWalletCommand(): Command {
           ['--selector', selector]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'selector-add'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target],
+          ['--selector', selector]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
       lines.splice(7, 0, ['selector', selector]);
@@ -4501,7 +4860,8 @@ export function createWalletCommand(): Command {
           targetAddress: options.target,
           selector
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4554,6 +4914,15 @@ export function createWalletCommand(): Command {
           ['--selector', selector]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'selector-remove'],
+        args: [
+          ['--hook', options.hook],
+          ['--target', options.target],
+          ['--selector', selector]
+        ]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
       lines.splice(6, 0, ['target', options.target]);
       lines.splice(7, 0, ['selector', selector]);
@@ -4566,7 +4935,8 @@ export function createWalletCommand(): Command {
           targetAddress: options.target,
           selector
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4605,6 +4975,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'disable'],
         args: [['--hook', options.hook]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'sed-lite', 'selector-allowlist-hook', 'disable'],
+        args: [['--hook', options.hook]]
+      });
       lines.splice(5, 0, ['hook', options.hook]);
 
       printResult(lines, {
@@ -4613,7 +4988,8 @@ export function createWalletCommand(): Command {
           operation: 'selector-allowlist-hook-disable',
           hookAddress: options.hook
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4697,6 +5073,14 @@ export function createWalletCommand(): Command {
           ['--token', options.token]
         ]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'daily-spend-limit', 'set'],
+        args: [
+          ['--amount', options.amount],
+          ['--token', options.token]
+        ]
+      });
       lines.splice(5, 0, ['limit', options.amount]);
       lines.splice(6, 0, ['limit wei', amountWei.toString()]);
       lines.splice(7, 0, ['limit token', tokenAddress]);
@@ -4709,7 +5093,8 @@ export function createWalletCommand(): Command {
           amountWei: amountWei.toString(),
           decimals: NATIVE_TOKEN_DECIMALS
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4748,6 +5133,11 @@ export function createWalletCommand(): Command {
         commandPath: ['smart-account', 'daily-spend-limit', 'remove'],
         args: [['--token', options.token]]
       });
+      const recommendedCommands = buildWalletSubcommandWriteRecommendedCommands(result, {
+        walletName: walletRecord.walletName,
+        commandPath: ['smart-account', 'daily-spend-limit', 'remove'],
+        args: [['--token', options.token]]
+      });
       lines.splice(5, 0, ['limit token', tokenAddress]);
 
       printResult(lines, {
@@ -4755,7 +5145,8 @@ export function createWalletCommand(): Command {
         dailySpendLimit: {
           tokenAddress
         },
-        ...result
+        ...result,
+        recommendedCommands
       });
     }
   );
@@ -4794,6 +5185,12 @@ export function createWalletCommand(): Command {
         if (resolved.profile) {
           lines.splice(1, 0, ['profile', resolved.profile.id]);
         }
+        const recommendedCommands = {
+          deploy: buildSmartAccountDeployCommand(options),
+          walletStatus: buildWalletStatusRecommendedCommand(walletRecord.walletName)
+        };
+        lines.push(['deploy', recommendedCommands.deploy]);
+        lines.push(['wallet status', recommendedCommands.walletStatus]);
 
         printResult(lines, {
           ok: true,
@@ -4803,7 +5200,8 @@ export function createWalletCommand(): Command {
                 displayName: resolved.profile.displayName
               }
             : undefined,
-          plan
+          plan,
+          recommendedCommands
         });
       }
     );
@@ -4854,8 +5252,15 @@ export function createWalletCommand(): Command {
           lines.splice(1, 0, ['profile', resolved.profile.id]);
         }
         lines.push(['saved', options.save === false ? 'no' : 'yes']);
-        if (savedWallet) {
-          lines.push(['next', `zk-agent wallet status --name ${savedWallet.walletName}`]);
+        const recommendedCommands = savedWallet
+          ? {
+              status: buildWalletStatusRecommendedCommand(savedWallet.walletName),
+              next: buildWalletNextRecommendedCommand(savedWallet.walletName)
+            }
+          : undefined;
+        if (recommendedCommands) {
+          lines.push(['after deploy', recommendedCommands.status]);
+          lines.push(['after deploy next', recommendedCommands.next]);
         }
 
         printResult(lines, {
@@ -4867,7 +5272,8 @@ export function createWalletCommand(): Command {
               }
             : undefined,
           result,
-          wallet: savedWallet ? sanitizeWalletRecord(savedWallet) : undefined
+          wallet: savedWallet ? sanitizeWalletRecord(savedWallet) : undefined,
+          recommendedCommands
         });
       }
     );

@@ -7,7 +7,7 @@ import {
   encodeSedLiteValidatorRead
 } from '@zk-agent/account-profiles';
 import { bytesToHex, encryptSession, generateX25519Keypair } from '@zk-agent/agent-session-protocol';
-import { AgentError, resolveChain, type WalletSessionRecord } from '@zk-agent/agent-core';
+import { AgentError, resolveChain, type ProjectConfig, type WalletSessionRecord } from '@zk-agent/agent-core';
 
 import {
   createAgentToolContext,
@@ -34,6 +34,16 @@ const sampleWallet: WalletSessionRecord = {
 const approvalKeypair = generateX25519Keypair();
 const approvalSessionPublicKey = bytesToHex(approvalKeypair.publicKey);
 const approvalSessionSecretKey = bytesToHex(approvalKeypair.secretKey);
+
+function sampleProjectConfig(): ProjectConfig {
+  return {
+    defaultChain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    provider: 'zksync-sso',
+    createdAt: '2026-06-18T00:00:00.000Z',
+    updatedAt: '2026-06-18T00:00:00.000Z'
+  };
+}
 
 function sampleSessionPayload(overrides = {}) {
   return {
@@ -820,6 +830,134 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
   }
 });
 
+test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow branches', async () => {
+  const baseProvider = createProviderStub();
+
+  const setupTools = createStandardAgentTools(
+    createAgentToolContext({
+      provider: baseProvider,
+      defiProvider: baseProvider,
+      loadProjectConfig: async () => null,
+      loadWallet: async () => null
+    })
+  );
+  const setup = await setupTools.topLevelNextTool.execute({});
+  assert.equal(setup.ok, true);
+  if (setup.ok) {
+    assert.equal(setup.data.scope, 'setup');
+    assert.equal(setup.data.nextCommand, 'zk-agent setup');
+  }
+
+  const walletBootstrapTools = createStandardAgentTools(
+    createAgentToolContext({
+      provider: baseProvider,
+      defiProvider: baseProvider,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async () => null
+    })
+  );
+  const walletBootstrap = await walletBootstrapTools.topLevelNextTool.execute({});
+  assert.equal(walletBootstrap.ok, true);
+  if (walletBootstrap.ok) {
+    assert.equal(walletBootstrap.data.scope, 'wallet-bootstrap');
+    assert.equal(walletBootstrap.data.nextCommand, 'zk-agent wallet create --await-local');
+    assert.equal(walletBootstrap.data.recommendedCommands.afterApproval, 'zk-agent next');
+  }
+
+  const readyWallet = {
+    ...sampleWallet,
+    syncedAt: '2026-06-18T00:05:00.000Z',
+    sessionPayload: {
+      ...sampleSessionPayload(),
+      sessionPrivateKey: '0x' + '22'.repeat(32)
+    }
+  };
+  const readyProvider = {
+    ...createProviderStub(),
+    async inspectWallet(wallet) {
+      return {
+        walletName: wallet.walletName,
+        executionAddress: wallet.walletAddress,
+        ownerAddress: wallet.ownerAddress,
+        chain: wallet.chain,
+        chainId: wallet.chainId,
+        accountKind: wallet.accountKind,
+        paymasterMode: wallet.paymasterMode,
+        deploymentStatus: 'deployed',
+        codeLength: 123,
+        sessionPrivateKeyStored: true,
+        writeReady: true,
+        blockers: [],
+        notes: ['ready']
+      };
+    }
+  };
+  const readyTools = createStandardAgentTools(
+    createAgentToolContext({
+      provider: readyProvider,
+      defiProvider: readyProvider,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async () => readyWallet
+    })
+  );
+  const ready = await readyTools.topLevelNextTool.execute({});
+  assert.equal(ready.ok, true);
+  if (ready.ok) {
+    assert.equal(ready.data.scope, 'wallet');
+    assert.equal(ready.data.summary.status, 'ready');
+    assert.equal(
+      ready.data.nextCommand,
+      'zk-agent workflow run --wallet main --intent <intent> [goal flags]'
+    );
+    assert.equal(
+      ready.data.recommendedCommands.workflowRun,
+      'zk-agent workflow run --wallet main --intent <intent> [goal flags]'
+    );
+  }
+
+  const checkpoints = new Map<string, any>();
+  checkpoints.set('wf-top-001', {
+    format: 'zk-agent-workflow-checkpoint',
+    version: 1,
+    requestId: 'wf-top-001',
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    },
+    broadcast: false,
+    autoSync: true,
+    createdAt: '2026-06-18T00:00:00.000Z',
+    updatedAt: '2026-06-18T00:00:00.000Z'
+  });
+  const workflowTools = createStandardAgentTools(
+    createAgentToolContext({
+      provider: baseProvider,
+      defiProvider: baseProvider,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async () => sampleWallet,
+      loadWorkflowCheckpoint: async (requestId) => checkpoints.get(requestId) || null,
+      saveWorkflowCheckpoint: async (checkpoint) => {
+        checkpoints.set(checkpoint.requestId, checkpoint);
+      }
+    })
+  );
+  const workflow = await workflowTools.topLevelNextTool.execute({
+    requestId: 'wf-top-001'
+  });
+  assert.equal(workflow.ok, true);
+  if (workflow.ok) {
+    assert.equal(workflow.data.scope, 'workflow');
+    assert.equal(workflow.data.summary.status, 'blocked');
+    assert.equal(
+      workflow.data.nextCommand,
+      'zk-agent wallet reapprove --name main --await-local'
+    );
+  }
+});
+
 test('deposit status tool can wait until the mapped deposit finalizes', async () => {
   let callCount = 0;
   const context = createAgentToolContext({
@@ -1307,6 +1445,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
 
   assert.deepEqual(listStandardAgentToolNames(), [
     'createWalletTool',
+    'topLevelNextTool',
     'createWalletRequestTool',
     'approveWalletRequestTool',
     'walletApprovalOrchestratorTool',
@@ -1316,19 +1455,30 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'workflowPlanTool',
     'workflowOrchestratorTool',
     'workflowStatusTool',
+    'workflowNextTool',
     'workflowRunTool',
+    'workflowSendNativeTool',
+    'workflowSendTokenTool',
+    'workflowCallWriteTool',
+    'workflowSwapTool',
+    'workflowBridgeTool',
+    'workflowDepositTool',
+    'workflowWithdrawTool',
     'startWorkflowCheckpointTool',
     'listWorkflowCheckpointsTool',
     'getWorkflowCheckpointTool',
     'updateWorkflowCheckpointTool',
     'deleteWorkflowCheckpointTool',
     'workflowStatusByCheckpointTool',
+    'workflowNextByCheckpointTool',
     'workflowRunByCheckpointTool',
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',
     'getBalancesTool',
+    'getDefaultsTool',
     'getFundingInfoTool',
+    'workflowFundTool',
     'callContractTool',
     'swapPreviewTool',
     'bridgePreviewTool',
@@ -1346,9 +1496,10 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 37);
+  assert.equal(listed.length, 49);
   assert.equal(listed[0]?.name, 'createWalletTool');
   assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
+  assert.equal(listed[1]?.name, 'topLevelNextTool');
 });
 
 test('runStandardAgentTool dispatches by name and normalizes unknown tool errors', async () => {
@@ -1381,6 +1532,25 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       'zk-agent wallet reapprove --name main --await-local'
     );
     assert.equal((next.data as { summary: { status: string } }).summary.status, 'action-required');
+  }
+
+  const topLevelNext = await runStandardAgentTool(
+    createAgentToolContext({
+      provider,
+      defiProvider: provider,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async () => sampleWallet
+    }),
+    'topLevelNextTool',
+    {}
+  );
+  assert.equal(topLevelNext.ok, true);
+  if (topLevelNext.ok) {
+    assert.equal((topLevelNext.data as { scope: string }).scope, 'wallet');
+    assert.equal(
+      (topLevelNext.data as { nextCommand: string }).nextCommand,
+      'zk-agent wallet reapprove --name main --await-local'
+    );
   }
 
   const workflow = await runStandardAgentTool(context, 'workflowPlanTool', {
@@ -1448,6 +1618,50 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     );
   }
 
+  const workflowSendNative = await runStandardAgentTool(
+    runnableContext,
+    'workflowSendNativeTool',
+    {
+      walletName: 'main',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    }
+  );
+  assert.equal(workflowSendNative.ok, true);
+  if (workflowSendNative.ok) {
+    assert.equal(
+      (workflowSendNative.data as { result: { stage: string } }).result.stage,
+      'goal-executed'
+    );
+    assert.equal(
+      (workflowSendNative.data as { result: { goal: { mode: string } } }).result.goal.mode,
+      'preview'
+    );
+  }
+
+  const workflowSwap = await runStandardAgentTool(runnableContext, 'workflowSwapTool', {
+    walletName: 'main',
+    routerAddress: '0x9000000000000000000000000000000000000009',
+    tokenInAddress: '0x7000000000000000000000000000000000000007',
+    tokenOutAddress: '0x8000000000000000000000000000000000000008',
+    amountIn: '1.5',
+    amountOutMin: '1200',
+    tokenInDecimals: 18,
+    tokenOutDecimals: 6,
+    feeTier: 3000
+  });
+  assert.equal(workflowSwap.ok, true);
+  if (workflowSwap.ok) {
+    assert.equal(
+      (workflowSwap.data as { result: { stage: string } }).result.stage,
+      'goal-executed'
+    );
+    assert.equal(
+      (workflowSwap.data as { result: { goal: { protocol: string } } }).result.goal.protocol,
+      'uniswap-v3-exact-input-single'
+    );
+  }
+
   const workflowStatus = await runStandardAgentTool(context, 'workflowStatusTool', {
     walletName: 'main',
     intent: 'send-native',
@@ -1466,6 +1680,27 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     assert.equal(
       (workflowStatus.data as { result: { blockingActionIds: string[] } }).result.blockingActionIds[0],
       'reapprove'
+    );
+  }
+
+  const workflowNext = await runStandardAgentTool(context, 'workflowNextTool', {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '0.1'
+    }
+  });
+  assert.equal(workflowNext.ok, true);
+  if (workflowNext.ok) {
+    assert.equal(
+      (workflowNext.data as { summary: { status: string } }).summary.status,
+      'blocked'
+    );
+    assert.equal(
+      (workflowNext.data as { summary: { nextCommand?: string } }).summary.nextCommand,
+      'zk-agent wallet reapprove --name main --await-local'
     );
   }
 
@@ -1538,6 +1773,33 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   if (workflowStart.ok) {
     assert.equal(
       (workflowStart.data as { checkpoint: { requestId: string } }).checkpoint.requestId,
+      'wf-tool-001'
+    );
+  }
+
+  const workflowNextByCheckpoint = await runStandardAgentTool(
+    workflowContext,
+    'workflowNextByCheckpointTool',
+    {
+      requestId: 'wf-tool-001'
+    }
+  );
+  assert.equal(workflowNextByCheckpoint.ok, true);
+  if (workflowNextByCheckpoint.ok) {
+    assert.equal(
+      (workflowNextByCheckpoint.data as { summary: { status: string } }).summary.status,
+      'blocked'
+    );
+    assert.equal(
+      (
+        workflowNextByCheckpoint.data as { summary: { nextCommand?: string } }
+      ).summary.nextCommand,
+      'zk-agent wallet reapprove --name main --await-local'
+    );
+    assert.equal(
+      (
+        workflowNextByCheckpoint.data as { checkpoint: { requestId: string } }
+      ).checkpoint.requestId,
       'wf-tool-001'
     );
   }
@@ -1767,6 +2029,58 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (funding.data as { suggestedCommands: string[] }).suggestedCommands[0] || '',
       /--amount 0.25/
     );
+  }
+
+  const defaults = await runStandardAgentTool(context, 'getDefaultsTool', {});
+  assert.equal(defaults.ok, true);
+  if (defaults.ok) {
+    assert.equal(
+      Array.isArray(
+        (defaults.data as { registry: { swapProtocols: Array<unknown> } }).registry.swapProtocols
+      ),
+      true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          registry: {
+            bridgeRoutes: Array<{ id: string }>;
+          };
+        }
+      ).registry.bridgeRoutes.some((entry) => entry.id === 'ethereum-sepolia-to-zksync-sepolia'),
+      true
+    );
+  }
+
+  const workflowFundingGuidance = await runStandardAgentTool(context, 'workflowFundTool', {
+    walletName: 'main',
+    amount: '0.25',
+    tokenAddress: '0x7777777777777777777777777777777777777777',
+    symbol: 'USDC',
+    decimals: 6
+  });
+  assert.equal(workflowFundingGuidance.ok, true);
+  if (workflowFundingGuidance.ok) {
+    assert.equal(
+      (workflowFundingGuidance.data as { recommendedAction: string }).recommendedAction,
+      'deposit'
+    );
+    assert.match(
+      (workflowFundingGuidance.data as { suggestedCommands: string[] }).suggestedCommands[0] || '',
+      /--amount 0.25/
+    );
+  }
+
+  const workflowFundingPreview = await runStandardAgentTool(context, 'workflowFundTool', {
+    walletName: 'main',
+    amount: '0.05',
+    execute: true,
+    broadcast: false
+  });
+  assert.equal(workflowFundingPreview.ok, true);
+  if (workflowFundingPreview.ok) {
+    assert.equal((workflowFundingPreview.data as { mode: string }).mode, 'preview');
+    assert.equal((workflowFundingPreview.data as { l1ChainId: number }).l1ChainId, 11155111);
   }
 
   const deposit = await runStandardAgentTool(context, 'depositPreviewTool', {

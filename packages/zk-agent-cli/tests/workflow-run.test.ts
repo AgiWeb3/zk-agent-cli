@@ -17,6 +17,9 @@ const sampleWallet: WalletSessionRecord = {
   createdAt: '2026-06-23T00:00:00.000Z'
 };
 
+const trackedPaymasterAddress = '0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97';
+const trackedPaymasterToken = '0xA0e40024ac1eC50416ab539AB533ce582080B885';
+
 function sampleInspection(
   overrides: Partial<WalletInspectionResult> = {}
 ): WalletInspectionResult {
@@ -222,6 +225,7 @@ test('workflow run can auto-sync before executing the goal action', async () => 
   assert.equal(sendNativeCalls, 1);
   assert.equal(result.stage, 'goal-executed');
   assert.equal(result.sync?.applied, true);
+  assert.ok(result.notes.some((note) => /synced/.test(note)));
 });
 
 test('workflow run forwards paymaster selection for send-native goals', async () => {
@@ -257,8 +261,8 @@ test('workflow run forwards paymaster selection for send-native goals', async ()
         value: '100000000000000000',
         paymaster: {
           mode: 'approval-based' as const,
-          address: '0x4444444444444444444444444444444444444444',
-          token: '0x5555555555555555555555555555555555555555',
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken,
           source: 'command' as const,
           supported: true
         },
@@ -298,8 +302,8 @@ test('workflow run forwards paymaster selection for send-native goals', async ()
         amount: '0.1',
         paymaster: {
           mode: 'approval-based',
-          address: '0x4444444444444444444444444444444444444444',
-          token: '0x5555555555555555555555555555555555555555'
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken
         }
       }
     },
@@ -311,13 +315,13 @@ test('workflow run forwards paymaster selection for send-native goals', async ()
 
   assert.deepEqual(receivedPaymaster, {
     mode: 'approval-based',
-    address: '0x4444444444444444444444444444444444444444',
-    token: '0x5555555555555555555555555555555555555555'
+    address: trackedPaymasterAddress,
+    token: trackedPaymasterToken
   });
   assert.equal(result.stage, 'goal-executed');
   assert.match(result.nextCommand || '', /--paymaster-mode approval-based/);
-  assert.match(result.nextCommand || '', /--paymaster-address 0x4444444444444444444444444444444444444444/);
-  assert.match(result.nextCommand || '', /--paymaster-token 0x5555555555555555555555555555555555555555/);
+  assert.match(result.nextCommand || '', new RegExp(`--paymaster-address ${trackedPaymasterAddress}`));
+  assert.match(result.nextCommand || '', new RegExp(`--paymaster-token ${trackedPaymasterToken}`));
 });
 
 test('workflow run requires a funding amount before dispatching a separate funding step', async () => {
@@ -480,6 +484,7 @@ test('workflow run dispatches funding first and does not immediately execute the
   assert.equal(depositCalls, 1);
   assert.equal(sendNativeCalls, 0);
   assert.match(result.nextCommand, /zk-agent workflow send-native --wallet main/);
+  assert.ok(result.notes.some((note) => /A separate funding step was dispatched/.test(note)));
 });
 
 test('workflow run emits a concrete swap retry command after preview', async () => {
@@ -612,6 +617,13 @@ test('workflow run emits a concrete swap retry command after preview', async () 
   assert.match(result.nextCommand || '', /--auto-approve/);
   assert.match(result.nextCommand || '', /--approve-max/);
   assert.match(result.nextCommand || '', /--paymaster-mode approval-based/);
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry: syncswap-classic on zksync-sepolia is a validated tracked-default swap path\./.test(
+        note
+      )
+    )
+  );
 });
 
 test('workflow run does not require separate funding when paymaster-backed send-native can cover gas', async () => {
@@ -647,8 +659,8 @@ test('workflow run does not require separate funding when paymaster-backed send-
         value: '100000000000000000',
         paymaster: {
           mode: 'approval-based' as const,
-          address: '0x4444444444444444444444444444444444444444',
-          token: '0x5555555555555555555555555555555555555555',
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken,
           source: 'command' as const,
           supported: true
         },
@@ -688,8 +700,8 @@ test('workflow run does not require separate funding when paymaster-backed send-
         amount: '0.1',
         paymaster: {
           mode: 'approval-based',
-          address: '0x4444444444444444444444444444444444444444',
-          token: '0x5555555555555555555555555555555555555555'
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken
         }
       }
     },
@@ -701,6 +713,103 @@ test('workflow run does not require separate funding when paymaster-backed send-
 
   assert.equal(sendNativeCalls, 1);
   assert.equal(result.stage, 'goal-executed');
+  assert.ok(result.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
+  assert.ok(result.notes.some((note) => /is validated\./.test(note)));
+});
+
+test('workflow run supplements the tracked validated paymaster path when only approval-based mode is requested', async () => {
+  let sendNativeCalls = 0;
+  let receivedPaymaster: unknown;
+
+  const provider = {
+    async inspectWallet() {
+      return sampleInspection();
+    },
+    async getBalances() {
+      return {
+        walletName: 'main',
+        walletAddress: sampleWallet.walletAddress,
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        balances: [{ type: 'native', symbol: 'ETH', balance: '0', decimals: 18 }]
+      };
+    },
+    async getFundingInfo() {
+      throw new Error('getFundingInfo should not run when tracked paymaster defaults can cover gas');
+    },
+    async sendNative(input: { paymaster?: unknown; wallet: WalletSessionRecord }) {
+      sendNativeCalls += 1;
+      receivedPaymaster = input.paymaster;
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        chain: input.wallet.chain,
+        chainId: input.wallet.chainId,
+        accountKind: input.wallet.accountKind,
+        mode: 'preview' as const,
+        to: '0x3333333333333333333333333333333333333333',
+        data: '0x',
+        value: '100000000000000000',
+        paymaster: {
+          mode: 'approval-based' as const,
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken,
+          source: 'command' as const,
+          supported: true
+        },
+        preview: {}
+      };
+    },
+    async sendToken() {
+      throw new Error('sendToken should not run in this test');
+    },
+    async writeContract() {
+      throw new Error('writeContract should not run in this test');
+    }
+  };
+  const defiProvider = {
+    async swap() {
+      throw new Error('swap should not run in this test');
+    },
+    async bridge() {
+      throw new Error('bridge should not run in this test');
+    },
+    async deposit() {
+      throw new Error('deposit should not run in this test');
+    },
+    async withdraw() {
+      throw new Error('withdraw should not run in this test');
+    }
+  };
+
+  const result = await runWorkflow(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      broadcast: false,
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1',
+        paymaster: {
+          mode: 'approval-based'
+        }
+      }
+    },
+    {
+      provider,
+      defiProvider
+    }
+  );
+
+  assert.equal(sendNativeCalls, 1);
+  assert.deepEqual(receivedPaymaster, {
+    mode: 'approval-based'
+  });
+  assert.equal(result.stage, 'goal-executed');
+  assert.match(result.nextCommand || '', /--paymaster-mode approval-based/);
+  assert.match(result.nextCommand || '', new RegExp(`--paymaster-address ${trackedPaymasterAddress}`));
+  assert.match(result.nextCommand || '', new RegExp(`--paymaster-token ${trackedPaymasterToken}`));
 });
 
 test('workflow run does not treat an explicit paymaster none override as gas coverage', async () => {

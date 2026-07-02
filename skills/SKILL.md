@@ -1,6 +1,6 @@
 ---
 name: zk-agent-cli
-description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> wallet create/reapprove -> wallet next/status -> workflow fund -> workflow run.
+description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> next -> wallet create/reapprove -> next -> workflow fund -> workflow run.
 ---
 
 # zk-agent-cli Skill
@@ -68,7 +68,16 @@ pnpm zk-agent setup
 
 This creates local config and records the default chain and connector URL.
 
-### 2. Create a writable local wallet session
+### 2. Ask for the shortest valid next step
+
+```bash
+pnpm zk-agent next
+```
+
+This is the default decision point across setup, wallet bootstrap/recovery, and
+stored workflow continuation.
+
+### 3. Create or refresh a writable local wallet session
 
 ```bash
 pnpm zk-agent wallet create --await-local
@@ -106,7 +115,14 @@ Encrypted relay path:
 pnpm zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>
 ```
 
-### 3. Inspect the shortest next step
+### 4. Ask for the shortest next step again after wallet approval
+
+```bash
+pnpm zk-agent next
+```
+
+Use the wallet-scoped view only when the question is specifically about one
+stored wallet record:
 
 ```bash
 pnpm zk-agent wallet next --name main
@@ -120,7 +136,7 @@ pnpm zk-agent wallet status --name main
 
 when you need the same recommendation plus the underlying readiness details.
 
-### 4. Fund only when the CLI says funding is required
+### 5. Fund only when the CLI says funding is required
 
 ```bash
 pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
@@ -134,7 +150,7 @@ pnpm zk-agent workflow fund --wallet main
 
 Do not hardcode a funding path. Use the CLI-provided route and `next` command.
 
-### 5. Execute the real goal through workflow orchestration
+### 6. Execute the real goal through workflow orchestration
 
 Example preview:
 
@@ -160,12 +176,21 @@ shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
 `workflow deposit`, and `workflow withdraw`. These are thin wrappers around
 `workflow run --intent ...`.
 
+### Help entrypoints
+
+Use the help layer that matches the current question:
+
+- `pnpm zk-agent --help` for the top-level product path
+- `pnpm zk-agent wallet --help` for wallet/session recovery
+- `pnpm zk-agent workflow --help` for workflow execution and resume
+
 ## Core commands
 
 ### Setup and wallet lifecycle
 
 ```bash
 pnpm zk-agent setup [--default-chain <chain>] [--connector-url <url>] [--force]
+pnpm zk-agent next [--wallet <name>] [--request-id <id>]
 pnpm zk-agent wallet create [--name <name>] [--chain <chain>] [--await-local] [--relay-url <url>]
 pnpm zk-agent wallet reapprove [--name <name>] [--await-local] [--relay-url <url>]
 pnpm zk-agent wallet status [--name <name>]
@@ -307,6 +332,7 @@ Important rule:
 
 - do **not** assume any ERC-20 can be used for approval-based fee payment
 - fee-token compatibility is a validated matrix, not a generic ERC-20 property
+- on `zksync-sepolia`, if only `--paymaster-mode approval-based` is set, the CLI/provider will try the tracked validated paymaster + EraVM fee-token defaults from `zk-agent defaults`
 
 When a swap or send path is failing under approval-based estimation, first
 separate the base transaction path from the fee-token path:

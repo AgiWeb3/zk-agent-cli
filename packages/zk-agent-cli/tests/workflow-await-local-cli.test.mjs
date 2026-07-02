@@ -267,6 +267,67 @@ async function approveReusableRequest(port) {
   assert.equal(callbackResponse.status, 200, await callbackResponse.text());
 }
 
+test('workflow start returns checkpoint follow-up commands through commander', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-start-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveWalletSession(sampleWallet());
+
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fixtureEntry,
+        'start',
+        '--wallet',
+        'main',
+        '--request-id',
+        'wf-start-001',
+        '--intent',
+        'send-native',
+        '--to',
+        '0x3333333333333333333333333333333333333333',
+        '--amount',
+        '0.1'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow start JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.workflowRequestId, 'wf-start-001');
+    assert.equal(result.requestId, 'wf-start-001');
+    assert.equal(result.checkpoint.requestId, 'wf-start-001');
+    assert.deepEqual(result.recommendedCommands, {
+      show: 'zk-agent workflow show --request-id wf-start-001',
+      status: 'zk-agent workflow status --request-id wf-start-001',
+      next: 'zk-agent workflow next --request-id wf-start-001',
+      resume: 'zk-agent workflow resume --request-id wf-start-001',
+      delete: 'zk-agent workflow delete --request-id wf-start-001',
+      list: 'zk-agent workflow list',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('workflow status can await local approval through commander with injected provider deps', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-await-local-'));
 
@@ -311,6 +372,16 @@ test('workflow status can await local approval through commander with injected p
     assert.equal(result.checkpoint.requestId, 'wf-await-001');
     assert.equal(result.checkpoint.walletRequestId, undefined);
     assert.match(result.result.recommendedCommand, /zk-agent workflow send-native --wallet main/);
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-await-001',
+      status: 'zk-agent workflow status --request-id wf-await-001',
+      next: 'zk-agent workflow next --request-id wf-await-001',
+      resume: 'zk-agent workflow resume --request-id wf-await-001',
+      delete: 'zk-agent workflow delete --request-id wf-await-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction: result.result.recommendedCommand
+    });
 
     assert.deepEqual(await storage.listWalletRequestIds(), []);
     const storedWallet = await storage.loadWalletSession('main');
@@ -366,6 +437,10 @@ test('workflow send-native shortcut executes the same path as workflow run with 
     assert.equal(result.result.goal.txHash, '0x' + '99'.repeat(32));
     assert.equal(result.result.goal.to, '0x3333333333333333333333333333333333333333');
     assert.equal(result.walletApproval, undefined);
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -433,9 +508,80 @@ test('workflow status can emit relay follow-up commands through commander when r
       relayApprove:
         'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code> --wait'
     });
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-await-001',
+      status: 'zk-agent workflow status --request-id wf-await-001',
+      next: 'zk-agent workflow next --request-id wf-await-001',
+      resume: 'zk-agent workflow resume --request-id wf-await-001',
+      delete: 'zk-agent workflow delete --request-id wf-await-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction:
+        'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    });
 
     const storedRequest = await storage.loadWalletRequest('wr-reuse-001');
     assert.equal(storedRequest?.requestId, 'wr-reuse-001');
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('workflow next can emit relay follow-up commands through commander when relayUrl is supplied', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-next-relay-guidance-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    await seedWorkflowAwaitLocalState(homeDir);
+
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fixtureEntry,
+        'next',
+        '--request-id',
+        'wf-await-001',
+        '--ensure-wallet-session',
+        '--relay-url',
+        'http://127.0.0.1:4445'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow next JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.workflowRequestId, 'wf-await-001');
+    assert.equal(result.summary.status, 'blocked');
+    assert.equal(
+      result.summary.nextCommand,
+      'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    );
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-await-001',
+      status: 'zk-agent workflow status --request-id wf-await-001',
+      next: 'zk-agent workflow next --request-id wf-await-001',
+      resume: 'zk-agent workflow resume --request-id wf-await-001',
+      delete: 'zk-agent workflow delete --request-id wf-await-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction:
+        'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -481,12 +627,71 @@ test('workflow resume can await local approval and continue to goal execution th
     assert.equal(result.result.goal.to, '0x3333333333333333333333333333333333333333');
     assert.equal(result.walletApproval.stage, 'approved');
     assert.equal(result.walletApproval.walletRequestId, 'wr-reuse-001');
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-await-001',
+      status: 'zk-agent workflow status --request-id wf-await-001',
+      next: 'zk-agent workflow next --request-id wf-await-001',
+      resume: 'zk-agent workflow resume --request-id wf-await-001',
+      delete: 'zk-agent workflow delete --request-id wf-await-001',
+      walletStatus: 'zk-agent wallet status --name main'
+    });
 
     const storedCheckpoint = await storage.loadWorkflowCheckpoint('wf-await-001');
     assert.equal(storedCheckpoint?.walletRequestId, undefined);
     assert.equal(storedCheckpoint?.lastRun?.stage, 'goal-executed');
     assert.equal(storedCheckpoint?.lastRun?.txHash, '0x' + '99'.repeat(32));
     assert.deepEqual(await storage.listWalletRequestIds(), []);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('workflow next can await local approval through commander and return the goal command', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-next-await-local-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    await seedWorkflowAwaitLocalState(homeDir);
+
+    const port = await getFreePort();
+    const child = spawn(
+      process.execPath,
+      ['--import', 'tsx', fixtureEntry, 'next', '--request-id', 'wf-await-001', '--ensure-wallet-session', '--await-local', '--port', String(port), '--timeout-seconds', '15'],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    await approveReusableRequest(port);
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow next JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.workflowRequestId, 'wf-await-001');
+    assert.equal(result.summary.status, 'ready');
+    assert.equal(result.summary.readyForGoal, true);
+    assert.match(result.summary.nextCommand, /zk-agent workflow send-native --wallet main/);
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-await-001',
+      status: 'zk-agent workflow status --request-id wf-await-001',
+      next: 'zk-agent workflow next --request-id wf-await-001',
+      resume: 'zk-agent workflow resume --request-id wf-await-001',
+      delete: 'zk-agent workflow delete --request-id wf-await-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction: result.summary.nextCommand
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

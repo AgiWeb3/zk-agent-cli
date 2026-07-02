@@ -20,6 +20,9 @@ const sampleWallet: WalletSessionRecord = {
   createdAt: '2026-06-23T00:00:00.000Z'
 };
 
+const trackedPaymasterAddress = '0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97';
+const trackedPaymasterToken = '0xA0e40024ac1eC50416ab539AB533ce582080B885';
+
 function sampleInspection(
   overrides: Partial<WalletInspectionResult> = {}
 ): WalletInspectionResult {
@@ -184,8 +187,8 @@ test('workflow status stays ready when paymaster-backed send-native can cover ze
         amount: '0.1',
         paymaster: {
           mode: 'approval-based',
-          address: '0x4444444444444444444444444444444444444444',
-          token: '0x5555555555555555555555555555555555555555'
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken
         }
       }
     },
@@ -214,4 +217,6 @@ test('workflow status stays ready when paymaster-backed send-native can cover ze
   assert.equal(result.readyForGoal, true);
   assert.equal(result.fundingNeeded, false);
   assert.equal(result.funding, undefined);
+  assert.ok(result.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
+  assert.ok(result.notes.some((note) => /is validated\./.test(note)));
 });

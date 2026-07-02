@@ -15,7 +15,11 @@ import type {
   WithdrawExecutionResult
 } from './providers.js';
 import { buildWorkflowPlan, type WorkflowIntent, type WorkflowPlan, type WorkflowSwapProtocol } from './workflow-plan.js';
-import { canUsePaymasterForGas, isZeroBalance } from './wallet-next.js';
+import {
+  canUsePaymasterForGas,
+  isZeroBalance,
+  resolveEffectivePaymasterSelection
+} from './wallet-next.js';
 
 export interface WorkflowRunFundInput {
   amount: string;
@@ -186,18 +190,36 @@ interface WorkflowRuntimeState {
   plan: WorkflowPlan;
 }
 
+function mergeNotes(...groups: Array<Array<string> | undefined>): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+
+  for (const group of groups) {
+    for (const note of group || []) {
+      const trimmed = note.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      merged.push(trimmed);
+    }
+  }
+
+  return merged;
+}
+
 function appendPaymasterCommandArgs(
   command: string,
+  wallet: WalletSessionRecord,
   paymaster: PaymasterSelectionInput | undefined
 ): string {
-  if (!paymaster?.mode) return command;
+  const resolved = resolveEffectivePaymasterSelection(wallet, paymaster);
+  if (!resolved?.mode || resolved.mode === 'none') return command;
 
-  let nextCommand = `${command} --paymaster-mode ${paymaster.mode}`;
-  if (paymaster.address) {
-    nextCommand += ` --paymaster-address ${paymaster.address}`;
+  let nextCommand = `${command} --paymaster-mode ${resolved.mode}`;
+  if (resolved.address) {
+    nextCommand += ` --paymaster-address ${resolved.address}`;
   }
-  if (paymaster.token) {
-    nextCommand += ` --paymaster-token ${paymaster.token}`;
+  if (resolved.token) {
+    nextCommand += ` --paymaster-token ${resolved.token}`;
   }
 
   return nextCommand;
@@ -290,22 +312,27 @@ function manualBlockingActionIds(plan: WorkflowPlan): string[] {
 
 export function buildWorkflowGoalCommand(
   goal: WorkflowGoalInput,
-  walletName: string
+  wallet: WalletSessionRecord
 ): string | undefined {
+  const walletName = wallet.walletName;
+
   switch (goal.intent) {
     case 'send-native':
       return appendPaymasterCommandArgs(
         `zk-agent workflow send-native --wallet ${walletName} --to ${goal.to} --amount ${goal.amount} --broadcast`,
+        wallet,
         goal.paymaster
       );
     case 'send-token':
       return appendPaymasterCommandArgs(
         `zk-agent workflow send-token --wallet ${walletName} --token ${goal.tokenAddress} --amount ${goal.amount} --to ${goal.to} --broadcast`,
+        wallet,
         goal.paymaster
       );
     case 'call-write':
       return appendPaymasterCommandArgs(
         `zk-agent workflow call-write --wallet ${walletName} --to ${goal.to} --data ${goal.data} --broadcast`,
+        wallet,
         goal.paymaster
       );
     case 'swap': {
@@ -332,7 +359,7 @@ export function buildWorkflowGoalCommand(
       command = appendBooleanCommandFlag(command, '--auto-approve', goal.autoApprove);
       command = appendBooleanCommandFlag(command, '--approve-max', goal.approveMax);
 
-      return appendPaymasterCommandArgs(command, goal.paymaster);
+      return appendPaymasterCommandArgs(command, wallet, goal.paymaster);
     }
     case 'bridge': {
       let command =
@@ -575,11 +602,16 @@ export async function runWorkflow(
       inspection: state.inspection,
       sync,
       funding,
-      notes: [
-        `A separate funding step was dispatched for ${wallet.walletName}.`,
-        `Wait until funds arrive on ${state.plan.chain} before retrying the goal action.`
-      ],
-      nextCommand: buildWorkflowGoalCommand(input.goal, wallet.walletName) ?? state.plan.goalCommand
+      notes: mergeNotes(
+        state.plan.notes,
+        sync?.notes,
+        funding.notes,
+        [
+          `A separate funding step was dispatched for ${wallet.walletName}.`,
+          `Wait until funds arrive on ${state.plan.chain} before retrying the goal action.`
+        ]
+      ),
+      nextCommand: buildWorkflowGoalCommand(input.goal, wallet) ?? state.plan.goalCommand
     };
   }
 
@@ -593,13 +625,17 @@ export async function runWorkflow(
     inspection: state.inspection,
     sync,
     goal,
-    notes:
+    notes: mergeNotes(
+      state.plan.notes,
+      sync?.notes,
+      'notes' in goal ? goal.notes : undefined,
       input.broadcast || goal.mode !== 'preview'
         ? []
-        : ['Goal action was previewed only. Re-run with --broadcast to submit it.'],
+        : ['Goal action was previewed only. Re-run with --broadcast to submit it.']
+    ),
     nextCommand:
       !input.broadcast && 'mode' in goal && goal.mode === 'preview'
-        ? buildWorkflowGoalCommand(input.goal, wallet.walletName)
+        ? buildWorkflowGoalCommand(input.goal, wallet)
         : undefined
   };
 }
