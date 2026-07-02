@@ -245,13 +245,21 @@ when the current result is still a preview.
 List tools:
 
 ```bash
-pnpm --filter @zk-agent/agent-tools tool:run -- --list
+pnpm tool:list
 ```
 
 Run a tool:
 
 ```bash
-pnpm --filter @zk-agent/agent-tools tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
+pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
+```
+
+Preferred root wrappers for the validated product smokes:
+
+```bash
+pnpm smoke:operator-path -- --wallet <name>
+pnpm smoke:paymaster-success -- --wallet <name>
+pnpm validate:phase3
 ```
 
 ## Known constraints

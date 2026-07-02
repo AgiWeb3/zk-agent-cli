@@ -9,7 +9,17 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r --if-present run test",
     "zk-agent": "node --import tsx packages/zk-agent-cli/src/index.ts",
-    "zksync-agent": "node --import tsx packages/zk-agent-cli/src/index.ts"
+    "zksync-agent": "node --import tsx packages/zk-agent-cli/src/index.ts",
+    "tool:list": "pnpm --filter @zk-agent/agent-tools tool:run -- --list",
+    "tool:run": "pnpm --filter @zk-agent/agent-tools tool:run --",
+    "smoke:readonly": "pnpm --filter @zk-agent/agent-tools smoke:readonly --",
+    "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",
+    "smoke:lifecycle": "pnpm --filter @zk-agent/agent-tools smoke:lifecycle --",
+    "smoke:policy": "pnpm --filter @zk-agent/agent-tools smoke:policy --",
+    "smoke:paymaster-success": "pnpm --filter @zk-agent/agent-tools smoke:paymaster-success --",
+    "smoke:withdraw-followup": "pnpm --filter @zk-agent/agent-tools smoke:withdraw-followup --",
+    "smoke:broadcast": "pnpm --filter @zk-agent/agent-tools smoke:broadcast --",
+    "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter @zk-agent/cli test"
   },
   "engines": {
     "node": ">=24"

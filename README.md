@@ -427,10 +427,27 @@ zk-agent-cli/
 pnpm install
 pnpm zk-agent --help
 pnpm zksync-agent --help
+pnpm tool:list
+pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
+pnpm smoke:operator-path -- --wallet <name>
+pnpm smoke:paymaster-success -- --wallet <name>
+pnpm validate:phase3
 pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+Recommended root wrappers for the current stable product surface:
+
+- `pnpm tool:list` and `pnpm tool:run -- --tool <toolName> --input <json|@file>`
+  expose the agent-tools registry without repeating package-filter boilerplate
+- `pnpm smoke:operator-path -- --wallet <name>` validates the canonical
+  `next -> wallet -> workflow fund -> workflow run` preview path
+- `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` validates the
+  tracked approval-based Sepolia paymaster path, including the mode-only
+  fallback to the tracked validated paymaster address and EraVM fee token
+- `pnpm validate:phase3` runs the current Phase 3 regression set across
+  `agent-core`, `agent-tools`, and `zk-agent-cli`
 
 Test ERC-20 utility:
 
