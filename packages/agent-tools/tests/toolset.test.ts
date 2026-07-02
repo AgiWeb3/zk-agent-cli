@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
@@ -1432,6 +1435,39 @@ test('createZkSyncAgentToolContext wires a real zkSync provider', async () => {
     assert.equal(result.data.chain, 'zksync-sepolia');
     assert.equal(result.data.provider, 'zksync-sso');
     assert.match(result.data.approvalUrl, /^http:\/\/localhost:4444\/link\?/);
+  }
+});
+
+test('createZkSyncAgentToolContext loads rpc env values from the local .env file', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tools-dotenv-'));
+  const previousRpcUrl = process.env.ZKSYNC_SEPOLIA_RPC_URL;
+  const previousCwd = process.cwd();
+
+  try {
+    await writeFile(
+      path.join(tempDir, '.env'),
+      'ZKSYNC_SEPOLIA_RPC_URL=https://rpc.example.invalid/from-dotenv\n',
+      'utf8'
+    );
+    delete process.env.ZKSYNC_SEPOLIA_RPC_URL;
+    process.chdir(tempDir);
+
+    createZkSyncAgentToolContext({
+      loadWallet: async () => sampleWallet
+    });
+
+    assert.equal(
+      process.env.ZKSYNC_SEPOLIA_RPC_URL,
+      'https://rpc.example.invalid/from-dotenv'
+    );
+  } finally {
+    process.chdir(previousCwd);
+    if (previousRpcUrl === undefined) {
+      delete process.env.ZKSYNC_SEPOLIA_RPC_URL;
+    } else {
+      process.env.ZKSYNC_SEPOLIA_RPC_URL = previousRpcUrl;
+    }
+    await rm(tempDir, { recursive: true, force: true });
   }
 });
 

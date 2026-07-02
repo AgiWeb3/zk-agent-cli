@@ -1874,7 +1874,7 @@ test('previewWithdrawFinalize returns modern and legacy finalize params', async 
   assert.equal(result.notes.some((note) => /finalizeDeposit/.test(note)), true);
 });
 
-test('previewWithdrawFinalize wraps provider failures in a stable AgentError', async () => {
+test('previewWithdrawFinalize classifies missing L2 receipts as a retryable not-ready error', async () => {
   const provider = new ZkSyncDefiProvider({
     providerFactory: () => ({
       async getCode() {
@@ -1914,10 +1914,147 @@ test('previewWithdrawFinalize wraps provider failures in a stable AgentError', a
         txHash: '0x' + 'ef'.repeat(32)
       }),
     (error: unknown) => {
-      assert.equal((error as { code?: string }).code, 'WITHDRAW_FINALIZE_PREVIEW_FAILED');
+      assert.equal((error as { code?: string }).code, 'WITHDRAW_FINALIZE_NOT_READY');
       assert.match(
         (error as { details?: { cause?: string } }).details?.cause || '',
         /Transaction is not mined!/
+      );
+      assert.equal(
+        (error as { details?: { finalizationStatus?: string } }).details?.finalizationStatus,
+        'l2-tx-pending'
+      );
+      assert.match(
+        (error as { details?: { suggestedAction?: string } }).details?.suggestedAction || '',
+        /withdraw-status --wallet <wallet> --tx-hash 0x(?:ef){32} --chain zksync-sepolia/
+      );
+      return true;
+    }
+  );
+});
+
+test('previewWithdrawFinalize classifies missing log proofs as a retryable not-ready error', async () => {
+  const message = '0x1234abcd';
+  const senderTopic = ethers.zeroPadValue(
+    '0x1111111111111111111111111111111111111111',
+    32
+  );
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      },
+      async getTransactionReceipt() {
+        return {
+          logs: [
+            {
+              address: '0x0000000000000000000000000000000000008008',
+              topics: [
+                ethers.id('L1MessageSent(address,bytes32,bytes)'),
+                senderTopic
+              ],
+              data: ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]),
+              l1BatchNumber: 88
+            }
+          ],
+          l1BatchTxIndex: 3,
+          l2ToL1Logs: [
+            {
+              sender: '0x0000000000000000000000000000000000008008'
+            }
+          ]
+        };
+      },
+      async getLogProof() {
+        throw new Error('Log proof not found!');
+      }
+    })
+  });
+
+  await assert.rejects(
+    () =>
+      provider.previewWithdrawFinalize({
+        chain: 'zksync-sepolia',
+        txHash: '0x' + 'ab'.repeat(32)
+      }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'WITHDRAW_FINALIZE_NOT_READY');
+      assert.equal(
+        (error as { details?: { finalizationStatus?: string } }).details?.finalizationStatus,
+        'proof-pending'
+      );
+      assert.match(
+        (error as { details?: { suggestedAction?: string } }).details?.suggestedAction || '',
+        /withdraw-finalize --wallet <wallet> --tx-hash 0x(?:ab){32} --chain zksync-sepolia/
+      );
+      return true;
+    }
+  );
+});
+
+test('finalizeWithdraw keeps proof-pending failures on the retryable not-ready path', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        throw new Error('getDefaultBridgeAddresses should not be reached');
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      },
+      async getTransactionReceipt() {
+        throw new Error('Transaction is not mined!');
+      },
+      async getLogProof() {
+        throw new Error('getLogProof should not be reached');
+      }
+    })
+  });
+
+  await assert.rejects(
+    () =>
+      provider.finalizeWithdraw({
+        wallet: writableEoaWallet(),
+        chain: 'zksync-sepolia',
+        txHash: '0x' + 'cd'.repeat(32),
+        broadcast: true
+      }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'WITHDRAW_FINALIZE_NOT_READY');
+      assert.equal(
+        (error as { details?: { finalizationStatus?: string } }).details?.finalizationStatus,
+        'l2-tx-pending'
       );
       return true;
     }

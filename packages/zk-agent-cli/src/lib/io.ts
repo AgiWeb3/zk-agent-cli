@@ -79,6 +79,16 @@ function pushDetailLine(
   }
 }
 
+function pushBooleanDetailLine(
+  lines: string[],
+  label: string,
+  value: unknown
+): void {
+  if (typeof value === 'boolean') {
+    lines.push(`${label}: ${value ? 'yes' : 'no'}`);
+  }
+}
+
 export function formatHumanErrorMessage(error: unknown): string {
   const payload = formatErrorPayload(error);
   const lines = [payload.error];
@@ -90,6 +100,10 @@ export function formatHumanErrorMessage(error: unknown): string {
     return lines.join('\n');
   }
 
+  pushDetailLine(lines, 'finalization status', details.finalizationStatus);
+  pushBooleanDetailLine(lines, 'retryable', details.retryable);
+  pushDetailLine(lines, 'reason', details.reason);
+  pushDetailLine(lines, 'note', details.note);
   pushDetailLine(lines, 'suggested action', details.suggestedAction);
   pushDetailLine(lines, 'validation domain', details.validationDomain);
   pushDetailLine(lines, 'validation stage', details.validationStage);

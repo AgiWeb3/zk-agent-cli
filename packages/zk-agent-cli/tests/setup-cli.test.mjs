@@ -148,3 +148,19 @@ test('wallet help prints the default wallet path', async () => {
     await rm(homeDir, { recursive: true, force: true });
   }
 });
+
+test('withdraw-status help exposes wait options for finalize follow-up', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-withdraw-status-help-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['withdraw-status', '--help'], env);
+
+    assert.match(help, /Inspect the lifecycle of a previously broadcast zkSync withdraw transaction/);
+    assert.match(help, /--wait/);
+    assert.match(help, /--interval-seconds <seconds>/);
+    assert.match(help, /--timeout-seconds <seconds>/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});

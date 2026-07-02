@@ -63,6 +63,37 @@ test('formatHumanErrorMessage renders top-level suggested actions', () => {
   );
 });
 
+test('formatHumanErrorMessage renders top-level retryable finalize details', () => {
+  const error = new AgentError(
+    'WITHDRAW_FINALIZE_NOT_READY',
+    'Withdraw finalization is not ready yet because the L2 receipt or proof is still unavailable.',
+    {
+      finalizationStatus: 'proof-pending',
+      retryable: true,
+      reason: 'log-proof-not-found',
+      note:
+        'The withdraw receipt exists, but zkSync has not exposed the required log proof yet for L1 finalization.',
+      suggestedAction:
+        'Re-run zk-agent withdraw-status --wallet <wallet> --tx-hash 0xabc --chain zksync-sepolia, then retry zk-agent withdraw-finalize --wallet <wallet> --tx-hash 0xabc --chain zksync-sepolia once the proof is available.'
+    }
+  );
+
+  const message = formatHumanErrorMessage(error);
+
+  assert.match(message, /code: WITHDRAW_FINALIZE_NOT_READY/);
+  assert.match(message, /finalization status: proof-pending/);
+  assert.match(message, /retryable: yes/);
+  assert.match(message, /reason: log-proof-not-found/);
+  assert.match(
+    message,
+    /note: The withdraw receipt exists, but zkSync has not exposed the required log proof yet for L1 finalization\./
+  );
+  assert.match(
+    message,
+    /suggested action: Re-run zk-agent withdraw-status --wallet <wallet> --tx-hash 0xabc --chain zksync-sepolia, then retry zk-agent withdraw-finalize --wallet <wallet> --tx-hash 0xabc --chain zksync-sepolia once the proof is available\./
+  );
+});
+
 test('formatHumanErrorMessage renders bridge-router validation details', () => {
   const error = new AgentError(
     'WITHDRAW_ESTIMATION_BRIDGE_ROUTER_REJECTED',

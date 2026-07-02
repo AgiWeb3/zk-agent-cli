@@ -169,6 +169,12 @@ function isDepositStatusTerminal(
   return status === 'finalized' || status === 'failed';
 }
 
+function isWithdrawStatusTerminal(
+  status: Awaited<ReturnType<ZkSyncDefiProvider['withdrawStatus']>>['status']
+): boolean {
+  return status === 'finalized' || status === 'failed';
+}
+
 function isBridgeStatusTerminal(
   status: Awaited<ReturnType<ZkSyncDefiProvider['bridgeStatus']>>['status']
 ): boolean {
@@ -1456,17 +1462,62 @@ export function createWithdrawStatusCommand(): Command {
     .requiredOption('--tx-hash <hash>', 'Previously broadcast L2 withdraw transaction hash')
     .option('--wallet <name>', 'Wallet name used to infer the default chain', 'main')
     .option('--chain <chain>', 'Chain override. Defaults to the stored wallet chain')
+    .option('--wait', 'Poll until the withdraw reaches a terminal status', false)
+    .option('--interval-seconds <seconds>', 'Polling interval when using --wait', '10')
+    .option('--timeout-seconds <seconds>', 'Maximum time to wait when using --wait', '600')
     .action(
       async (options: {
         txHash: string;
         wallet: string;
         chain?: string;
+        wait?: boolean;
+        intervalSeconds?: string;
+        timeoutSeconds?: string;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const result = await defiProvider.withdrawStatus({
+        const chain = options.chain || wallet.chain;
+        const wait = Boolean(options.wait);
+        const intervalSeconds = wait
+          ? requirePositiveInteger(options.intervalSeconds, '--interval-seconds')
+          : 0;
+        const timeoutSeconds = wait
+          ? requirePositiveInteger(options.timeoutSeconds, '--timeout-seconds')
+          : 0;
+
+        let result = await defiProvider.withdrawStatus({
           txHash: options.txHash,
-          chain: options.chain || wallet.chain
+          chain
         });
+
+        if (wait && !isWithdrawStatusTerminal(result.status)) {
+          const startedAt = Date.now();
+          const deadline = startedAt + timeoutSeconds * 1000;
+
+          if (!shouldJsonOutput()) {
+            humanLine(
+              'wait',
+              `Polling every ${intervalSeconds}s for up to ${timeoutSeconds}s until status becomes finalized or failed`
+            );
+          }
+
+          while (!isWithdrawStatusTerminal(result.status)) {
+            if (Date.now() >= deadline) {
+              throw new Error(
+                `Timed out waiting for withdraw finalization after ${timeoutSeconds} seconds. Last status: ${result.status}`
+              );
+            }
+
+            await delay(intervalSeconds * 1000);
+            result = await defiProvider.withdrawStatus({
+              txHash: options.txHash,
+              chain
+            });
+
+            if (!shouldJsonOutput()) {
+              humanLine('wait', `Observed status: ${result.status}`);
+            }
+          }
+        }
 
         printResult(linesForWithdrawStatusResult(result, wallet.walletName), {
           ok: true,

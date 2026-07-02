@@ -457,6 +457,61 @@ function classifyKnownWithdrawBridgeFailure(
   return undefined;
 }
 
+interface KnownWithdrawFinalizePendingFailure {
+  kind: 'l2-tx-pending' | 'proof-pending';
+  reason: string;
+  note: string;
+  suggestedAction: string;
+}
+
+function buildWithdrawStatusRetryCommand(chainKey: string, txHash: string): string {
+  return `zk-agent withdraw-status --wallet <wallet> --tx-hash ${txHash} --chain ${chainKey}`;
+}
+
+function buildWithdrawFinalizeRetryCommand(
+  chainKey: string,
+  txHash: string,
+  index: number
+): string {
+  const indexSuffix = index === 0 ? '' : ` --index ${index}`;
+  return `zk-agent withdraw-finalize --wallet <wallet> --tx-hash ${txHash} --chain ${chainKey}${indexSuffix}`;
+}
+
+function classifyKnownWithdrawFinalizePendingFailure(
+  error: unknown,
+  chainKey: string,
+  txHash: string,
+  index: number
+): KnownWithdrawFinalizePendingFailure | undefined {
+  const cause = formatCause(error).toLowerCase();
+  const statusCommand = buildWithdrawStatusRetryCommand(chainKey, txHash);
+  const finalizeCommand = buildWithdrawFinalizeRetryCommand(chainKey, txHash, index);
+
+  if (cause.includes('transaction is not mined')) {
+    return {
+      kind: 'l2-tx-pending',
+      reason: 'transaction-not-mined',
+      note:
+        'The withdraw transaction does not expose a mined L2 receipt yet, so zkSync cannot derive the L1 finalization proof.',
+      suggestedAction:
+        `Re-run ${statusCommand} until the withdraw reaches the finalized L2 state, then retry ${finalizeCommand}.`
+    };
+  }
+
+  if (cause.includes('log proof not found')) {
+    return {
+      kind: 'proof-pending',
+      reason: 'log-proof-not-found',
+      note:
+        'The withdraw receipt exists, but zkSync has not exposed the required log proof yet for L1 finalization.',
+      suggestedAction:
+        `Re-run ${statusCommand} to monitor the finalized batch telemetry, then retry ${finalizeCommand} once the proof is available.`
+    };
+  }
+
+  return undefined;
+}
+
 function resolveExecutionAddress(wallet: WalletSessionRecord): string {
   return wallet.sessionPayload?.account?.address || wallet.walletAddress;
 }
@@ -3135,6 +3190,31 @@ export class ZkSyncDefiProvider implements DefiProvider {
 
       return preview;
     } catch (error) {
+      const pendingFailure = classifyKnownWithdrawFinalizePendingFailure(
+        error,
+        chain.key,
+        txHash,
+        index
+      );
+      if (pendingFailure) {
+        throw new AgentError(
+          'WITHDRAW_FINALIZE_NOT_READY',
+          'Withdraw finalization is not ready yet because the L2 receipt or proof is still unavailable.',
+          {
+            chain: chain.key,
+            l1ChainId,
+            txHash,
+            index,
+            cause: formatCause(error),
+            finalizationStatus: pendingFailure.kind,
+            reason: pendingFailure.reason,
+            note: pendingFailure.note,
+            retryable: true,
+            suggestedAction: pendingFailure.suggestedAction
+          }
+        );
+      }
+
       throw new AgentError(
         'WITHDRAW_FINALIZE_PREVIEW_FAILED',
         'Failed to derive withdraw finalization parameters from the L2 transaction.',
@@ -3201,6 +3281,31 @@ export class ZkSyncDefiProvider implements DefiProvider {
         })
       };
     } catch (error) {
+      const pendingFailure = classifyKnownWithdrawFinalizePendingFailure(
+        error,
+        chain.key,
+        txHash,
+        index
+      );
+      if (pendingFailure) {
+        throw new AgentError(
+          'WITHDRAW_FINALIZE_NOT_READY',
+          'Withdraw finalization is not ready yet because the L2 receipt or proof is still unavailable.',
+          {
+            chain: chain.key,
+            l1ChainId,
+            txHash,
+            index,
+            cause: formatCause(error),
+            finalizationStatus: pendingFailure.kind,
+            reason: pendingFailure.reason,
+            note: pendingFailure.note,
+            retryable: true,
+            suggestedAction: pendingFailure.suggestedAction
+          }
+        );
+      }
+
       const code = input.broadcast
         ? 'WITHDRAW_FINALIZE_BROADCAST_FAILED'
         : 'WITHDRAW_FINALIZE_PREVIEW_FAILED';

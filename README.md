@@ -130,6 +130,7 @@ What is already in place:
   - default `createZkSyncAgentTools()` / `createZkSyncAgentToolContext()` factories
   - `pnpm --filter @zk-agent/agent-tools tool:run -- --list`
   - `pnpm --filter @zk-agent/agent-tools tool:run -- --tool <toolName> --input <json|@file>`
+  - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
   - `pnpm --filter @zk-agent/agent-tools smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
   - `pnpm --filter @zk-agent/agent-tools smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow fund -> workflow run` operator path on one stored wallet
   - `pnpm --filter @zk-agent/agent-tools smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
@@ -202,6 +203,7 @@ What is already in place:
   - opt-in L2 withdraw broadcast for locally writable sessions
   - post-broadcast L2 and batch status inspection
   - direct `withdraw-status` guidance for the later `withdraw-finalize` step once the L2 side is finalized
+  - optional `withdraw-status --wait` polling so the follow-up can block until the L2 side reaches a terminal state
   - L1 finalize-parameter preview and opt-in L1 finalize broadcast for later nullifier finalization
   - structured shared-bridge router error classification, so unsupported or local-only assets fail with explicit `bridge-router` metadata instead of a raw revert blob
 - structured paymaster validation errors now classify known zkSync Sepolia
@@ -217,7 +219,7 @@ What is already in place:
   - approval-based live broadcast now works on the validated EraVM token path
   - smart-account approval-based live broadcast is validated on `sed-lite-sa-v2` with tx hash `0x2783de9185bcd6af21822c9c0ffa35e5329e96c8137ff41598d3cd001344ce8c`
   - native L2 withdraw broadcast works from `paymaster-eoa` with tx hash `0xea192d3fda23a747328c1d63b6d2e22664fd353511faf327ba8f28c408800ba8`
-  - immediate withdraw follow-up reaches `included`, but L1 finalize preview can still fail with `WITHDRAW_FINALIZE_PREVIEW_FAILED` and cause `Log proof not found!` before the chain exposes the required log proof
+  - immediate withdraw follow-up reaches `included`, and early L1 finalize attempts now return retryable `WITHDRAW_FINALIZE_NOT_READY` guidance with explicit `withdraw-status` / `withdraw-finalize` retry commands while the receipt or log proof is still unavailable
 - background docs in `docs/`
 - execution plan in `PLANS.md`
 - cross-environment handoff snapshot in `PROJECT_STATE.md`

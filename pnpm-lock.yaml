@@ -88,6 +88,9 @@ importers:
       '@zk-agent/provider-zksync-wallet':
         specifier: workspace:*
         version: link:../provider-zksync-wallet
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
     devDependencies:
       esbuild:
         specifier: ^0.28.0

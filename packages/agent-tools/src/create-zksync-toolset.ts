@@ -1,3 +1,4 @@
+import { config as loadEnv } from 'dotenv';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
@@ -18,6 +19,7 @@ export function createZkSyncAgentToolContext(options: {
   listWorkflowCheckpointIds?: AgentToolContext['listWorkflowCheckpointIds'];
   deleteWorkflowCheckpoint?: AgentToolContext['deleteWorkflowCheckpoint'];
 } = {}): AgentToolContext {
+  loadEnv({ quiet: true });
   const provider = new ZkSyncWalletProvider();
   return createAgentToolContext({
     provider,
