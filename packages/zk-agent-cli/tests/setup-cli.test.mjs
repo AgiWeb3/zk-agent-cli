@@ -121,6 +121,7 @@ test('workflow help prints the default workflow path', async () => {
     const help = await runCliText(['workflow', '--help'], env);
 
     assert.match(help, /Default workflow path:/);
+    assert.match(help, /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/);
     assert.match(help, /zk-agent workflow run --wallet main --intent <intent> \[goal flags\]/);
     assert.match(help, /zk-agent workflow start --wallet main --intent <intent> \[goal flags\]/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);

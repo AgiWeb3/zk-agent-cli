@@ -56,7 +56,7 @@ import {
   buildWorkflowStatusRecommendedCommand
 } from '../lib/recommended-commands.js';
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
-import { runWorkflow, type WorkflowGoalInput } from '../lib/workflow-run.js';
+import { runWorkflow, type WorkflowGoalInput, type WorkflowRunResult } from '../lib/workflow-run.js';
 import {
   createFundCommand,
 } from './operations.js';
@@ -102,6 +102,8 @@ interface WorkflowCommandOptions {
   intent?: string;
   wallet: string;
   requestId?: string;
+  createCheckpoint?: boolean;
+  executeWhenReady?: boolean;
   broadcast?: boolean;
   autoSync?: boolean;
   ensureWalletSession?: boolean;
@@ -177,6 +179,11 @@ interface ResolvedWorkflowExecutionContext {
   fundingCheck?: WorkflowFundingStatusCheck;
   broadcast: boolean;
   autoSync: boolean;
+}
+
+interface ResolvedWorkflowAutoExecutionContext extends ResolvedWorkflowExecutionContext {
+  source: 'input' | 'checkpoint';
+  persistCheckpoint: boolean;
 }
 
 export interface WorkflowWalletApprovalResult {
@@ -687,6 +694,43 @@ async function resolveWorkflowExecutionContext(
   };
 }
 
+async function resolveWorkflowAutoExecutionContext(
+  options: WorkflowCommandOptions
+): Promise<ResolvedWorkflowAutoExecutionContext> {
+  const requestedId = options.requestId?.trim();
+
+  if (requestedId) {
+    const existingCheckpoint = await loadWorkflowCheckpoint(requestedId);
+    if (existingCheckpoint) {
+      return {
+        source: 'checkpoint',
+        persistCheckpoint: true,
+        ...(await loadStoredWorkflowContext(requestedId, options))
+      };
+    }
+
+    if (!options.createCheckpoint) {
+      throw new Error(`Workflow checkpoint not found: ${requestedId}`);
+    }
+  }
+
+  const intent = resolveWorkflowIntentOption(options);
+  const wallet = await requireWalletRecord(options.wallet);
+
+  return {
+    source: 'input',
+    persistCheckpoint: Boolean(options.createCheckpoint),
+    requestId: options.createCheckpoint ? await reserveWorkflowRequestId(requestedId) : undefined,
+    wallet,
+    intent,
+    goal: resolveWorkflowGoalInput(intent, options),
+    fund: resolveWorkflowFundInput(options),
+    fundingCheck: resolveWorkflowFundingStatusCheck(options),
+    broadcast: Boolean(options.broadcast),
+    autoSync: Boolean(options.autoSync)
+  };
+}
+
 async function persistWorkflowCheckpoint(
   requestId: string | undefined,
   checkpoint: WorkflowCheckpointRecord | undefined
@@ -1032,6 +1076,193 @@ function overrideCheckpointWalletRequestId(
     walletRequestId:
       walletApproval.stage === 'request-created' ? walletApproval.request.requestId : undefined
   };
+}
+
+function buildWorkflowAutoCheckpoint(
+  context: ResolvedWorkflowAutoExecutionContext,
+  status: WorkflowStatusResult
+): WorkflowCheckpointRecord | undefined {
+  if (context.checkpoint) {
+    return applyWorkflowStatusToCheckpoint(context.checkpoint, status, {
+      fundingCheck: context.fundingCheck
+    });
+  }
+
+  if (!context.persistCheckpoint || !context.requestId) {
+    return undefined;
+  }
+
+  return createWorkflowCheckpointRecord({
+    requestId: context.requestId,
+    walletName: context.wallet.walletName,
+    intent: context.intent,
+    goal: context.goal,
+    fund: context.fund,
+    fundingCheck: context.fundingCheck,
+    broadcast: context.broadcast,
+    autoSync: context.autoSync,
+    status
+  });
+}
+
+interface WorkflowAutoCommandResult {
+  source: 'input' | 'checkpoint';
+  action: WorkflowStatusResult['status'] | WorkflowWalletApprovalResult['stage'] | WorkflowRunResult['stage'];
+  requestId?: string;
+  checkpointPersisted: boolean;
+  checkpoint?: WorkflowCheckpointRecord;
+  status: WorkflowStatusResult;
+  result?: WorkflowRunResult;
+  walletApproval?: WorkflowWalletApprovalResult;
+}
+
+async function executeWorkflowAutoCommand(
+  options: WorkflowCommandOptions,
+  deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
+): Promise<WorkflowAutoCommandResult> {
+  const { provider, defiProvider } = deps;
+  const context = await resolveWorkflowAutoExecutionContext(options);
+  let wallet = context.wallet;
+  let status = await inspectWorkflowStatus(
+    {
+      wallet,
+      intent: context.intent,
+      goal: context.goal,
+      fundingCheck: context.fundingCheck
+    },
+    {
+      provider,
+      defiProvider
+    }
+  );
+
+  let checkpoint = buildWorkflowAutoCheckpoint(context, status);
+  await persistWorkflowCheckpoint(context.requestId, checkpoint);
+
+  let walletApproval: WorkflowWalletApprovalResult | undefined;
+  let recommendedCommand = status.recommendedCommand;
+
+  if (workflowShouldEnsureWalletSession(options)) {
+    const sessionResolution = await ensureWorkflowWalletSession(
+      {
+        wallet,
+        intent: context.intent,
+        goal: context.goal,
+        fundingCheck: context.fundingCheck,
+        status,
+        options
+      },
+      {
+        findReusableWalletRequest,
+        createWalletReapprovalRequest,
+        publishWalletRequestToRelay: deps.publishWalletRequestToRelay,
+        awaitLocalWalletApproval,
+        inspectWorkflowStatus: async (input) =>
+          inspectWorkflowStatus(input, {
+            provider,
+            defiProvider
+          })
+      }
+    );
+
+    wallet = sessionResolution.wallet;
+    status = sessionResolution.status;
+    walletApproval = sessionResolution.walletApproval;
+    recommendedCommand = sessionResolution.recommendedCommand;
+
+    checkpoint = checkpoint
+      ? applyWorkflowStatusToCheckpoint(checkpoint, status, {
+          fundingCheck: context.fundingCheck
+        })
+      : buildWorkflowAutoCheckpoint(context, status);
+    checkpoint = overrideCheckpointRecommendedCommand(checkpoint, recommendedCommand);
+    checkpoint = overrideCheckpointWalletRequestId(checkpoint, walletApproval);
+    await persistWorkflowCheckpoint(context.requestId, checkpoint);
+  }
+
+  let result: WorkflowRunResult | undefined;
+  if (options.executeWhenReady && status.readyForGoal) {
+    result = await runWorkflow(
+      {
+        wallet,
+        intent: context.intent,
+        broadcast: context.broadcast,
+        autoSync: context.autoSync,
+        fund: context.fund,
+        goal: context.goal
+      },
+      {
+        provider,
+        defiProvider,
+        syncWallet: async (currentWallet) => {
+          const synced = await syncWalletRecord(currentWallet);
+          await saveWalletSession(synced.wallet);
+          return {
+            wallet: synced.wallet,
+            notes: synced.notes
+          };
+        }
+      }
+    );
+
+    checkpoint = overrideCheckpointWalletRequestId(
+      checkpoint ? applyWorkflowRunToCheckpoint(checkpoint, result) : checkpoint,
+      walletApproval
+    );
+    await persistWorkflowCheckpoint(context.requestId, checkpoint);
+  }
+
+  return {
+    source: context.source,
+    action: result ? result.stage : (walletApproval?.stage ?? status.status),
+    requestId: context.requestId,
+    checkpointPersisted: Boolean(checkpoint),
+    checkpoint,
+    status,
+    result,
+    walletApproval
+  };
+}
+
+function printWorkflowAutoCommandResult(
+  execution: WorkflowAutoCommandResult
+): void {
+  const nextAction = execution.result
+    ? execution.result.nextCommand
+    : (execution.walletApproval?.nextCommand || resolveWorkflowNextCommand(execution.status));
+  const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
+    requestId: execution.requestId,
+    walletName: execution.status.walletName,
+    nextAction
+  });
+  const summaryLines: Array<[string, string]> = [
+    ['source', execution.source],
+    ['action', execution.action],
+    ['checkpoint persisted', execution.checkpointPersisted ? 'yes' : 'no']
+  ];
+  const detailLines = execution.result
+    ? workflowRunLines(execution.result)
+    : workflowStatusLines(execution.status);
+
+  printResult(
+    prependWorkflowRequestId(
+      execution.requestId,
+      [...summaryLines, ...detailLines, ...workflowWalletApprovalLines(execution.walletApproval)]
+    ),
+    {
+      ok: true,
+      source: execution.source,
+      action: execution.action,
+      checkpointPersisted: execution.checkpointPersisted,
+      ...serializeWorkflowRequestMeta(execution.requestId),
+      status: execution.status,
+      result: execution.result,
+      checkpoint: execution.checkpoint,
+      walletRequestId: execution.walletApproval?.request.requestId,
+      walletApproval: serializeWalletApproval(execution.walletApproval),
+      recommendedCommands
+    }
+  );
 }
 
 function serializeWorkflowRequestMeta(requestId: string | undefined) {
@@ -1486,6 +1717,9 @@ function buildWorkflowHelpText(): string {
   return [
     '',
     'Default workflow path:',
+    '  Guided orchestration:',
+    '    zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+    '',
     '  One-shot execution:',
     '    zk-agent workflow run --wallet main --intent <intent> [goal flags]',
     '',
@@ -1695,6 +1929,28 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         recommendedCommands
       }
     );
+  });
+
+  const auto = workflow
+    .command('auto')
+    .description('Inspect, persist, and optionally execute the next workflow step from fresh goal input or a stored checkpoint')
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option(
+      '--intent <intent>',
+      'send-native, send-token, call-write, swap, bridge, deposit, or withdraw'
+    )
+    .option('--request-id <id>', 'Load the workflow definition from a stored checkpoint, or reserve this id when creating a new checkpoint')
+    .option('--create-checkpoint', 'Persist or update a workflow checkpoint while orchestrating', false)
+    .option('--execute-when-ready', 'Execute the next workflow step immediately when current status is ready', false);
+
+  addWorkflowGoalOptions(auto, {
+    includeExecutionFlags: true,
+    includeFundingDispatch: true,
+    includeFundingStatus: true,
+    includeLocalApproval: true
+  }).action(async (options: WorkflowCommandOptions) => {
+    const execution = await executeWorkflowAutoCommand(options, resolvedDeps);
+    printWorkflowAutoCommandResult(execution);
   });
 
   const run = workflow

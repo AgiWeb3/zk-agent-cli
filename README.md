@@ -70,6 +70,7 @@ What is already in place:
 - `workflow fund` as a workflow-first alias for the default funding step, so the canonical operator path no longer has to jump back out to the top-level `fund` command family
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
+- `workflow auto` for guided orchestration from either fresh goal input or a stored checkpoint, so one command can inspect readiness, optionally persist a checkpoint, resolve wallet-session blockers, and execute immediately when the workflow is ready
 - `workflow next` for the shortest next-step CLI guidance at the workflow layer, from either fresh goal input or a stored checkpoint
 - intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
 - `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and one-step relay publish plus relay status/approve guidance
@@ -266,7 +267,9 @@ Interpretation:
 4. `wallet next` and `wallet status` are the wallet-layer detailed views when
    the question is specifically about one stored wallet.
 5. `workflow fund`, `workflow run`, `workflow start`, `workflow next`, and
-   `workflow resume` are the default execution surface for actual intents.
+   `workflow resume` are the explicit execution surface for actual intents.
+6. `workflow auto` is the guided execution shortcut when you want one command
+   to inspect, persist, and continue the workflow for you.
 
 Use the help entrypoint that matches the current question:
 
@@ -329,6 +332,7 @@ Use `pnpm zk-agent workflow --help` when the user intent is already known and
 you want the execution path. This is the action-layer view:
 
 ```bash
+pnpm zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
 pnpm zk-agent workflow run --wallet main --intent <intent> [goal flags]
 pnpm zk-agent workflow start --wallet main --intent <intent> [goal flags]
 pnpm zk-agent workflow next --request-id <id>
@@ -336,9 +340,9 @@ pnpm zk-agent workflow resume --request-id <id> [--broadcast]
 pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
-Use `workflow run` for one-shot execution, `workflow start/next/resume` for
-checkpointed execution, and `workflow fund` when you only want to dispatch the
-gas-funding step.
+Use `workflow auto` for the guided default path, `workflow run` for one-shot
+execution, `workflow start/next/resume` for explicit checkpointed execution,
+and `workflow fund` when you only want to dispatch the gas-funding step.
 
 ### 4. Direct commands
 
