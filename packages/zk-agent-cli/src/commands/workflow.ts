@@ -42,12 +42,9 @@ import {
   type WorkflowSwapProtocol
 } from '../lib/workflow.js';
 import { printResult } from '../lib/io.js';
-import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
 import {
-  requireTokenDecimals,
-  resolveOptionalLabel,
+  resolveOptionalTokenInput,
   resolveRequiredTokenInput,
-  resolveTokenDecimalsOrLocalMetadata
 } from '../lib/token-input.js';
 import {
   buildWalletRequestApproveRecommendedCommand,
@@ -507,57 +504,66 @@ function resolveWorkflowGoalInput(
           }`
         );
       }
-      const symbol =
-        options.token
-          ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-          : resolveOptionalLabel(options.symbol);
+      const token = resolveOptionalTokenInput({
+        tokenAddress: options.token,
+        symbol: options.symbol,
+        decimals: options.decimals,
+        chain: options.fromChain || wallet.chain,
+        tokenOptionLabel: '--token',
+        symbolOptionLabel: '--symbol',
+        decimalsOptionLabel: '--decimals'
+      });
       return {
         intent,
         amount: options.amount,
         toChain: resolvedBridgeRoute.toChain,
         fromChain: options.fromChain,
         to: options.to,
-        tokenAddress: options.token,
-        symbol,
-        decimals: options.token
-          ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-          : undefined,
+        tokenAddress: token?.address,
+        symbol: token?.symbol,
+        decimals: token?.decimals,
         bridgeAddress: options.bridgeAddress
       };
     }
     case 'deposit': {
       if (!options.amount) throw new Error('--amount is required for --intent deposit');
-      const symbol =
-        options.token
-          ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-          : resolveOptionalLabel(options.symbol);
+      const token = resolveOptionalTokenInput({
+        tokenAddress: options.token,
+        symbol: options.symbol,
+        decimals: options.decimals,
+        chain: wallet.chain,
+        tokenOptionLabel: '--token',
+        symbolOptionLabel: '--symbol',
+        decimalsOptionLabel: '--decimals'
+      });
       return {
         intent,
         amount: options.amount,
         to: options.to,
-        tokenAddress: options.token,
-        symbol,
-        decimals: options.token
-          ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-          : undefined,
+        tokenAddress: token?.address,
+        symbol: token?.symbol,
+        decimals: token?.decimals,
         bridgeAddress: options.bridgeAddress
       };
     }
     case 'withdraw': {
       if (!options.amount) throw new Error('--amount is required for --intent withdraw');
-      const symbol =
-        options.token
-          ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-          : resolveOptionalLabel(options.symbol);
+      const token = resolveOptionalTokenInput({
+        tokenAddress: options.token,
+        symbol: options.symbol,
+        decimals: options.decimals,
+        chain: wallet.chain,
+        tokenOptionLabel: '--token',
+        symbolOptionLabel: '--symbol',
+        decimalsOptionLabel: '--decimals'
+      });
       return {
         intent,
         amount: options.amount,
         to: options.to,
-        tokenAddress: options.token,
-        symbol,
-        decimals: options.token
-          ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-          : undefined,
+        tokenAddress: token?.address,
+        symbol: token?.symbol,
+        decimals: token?.decimals,
         bridgeAddress: options.bridgeAddress
       };
     }
@@ -584,22 +590,29 @@ function resolveWorkflowFundingStatusCheck(
   };
 }
 
-function resolveWorkflowFundInput(options: WorkflowFundOptionSource): WorkflowRunFundInput | undefined {
+function resolveWorkflowFundInput(
+  options: WorkflowFundOptionSource,
+  chain?: string
+): WorkflowRunFundInput | undefined {
   if (!options.fundAmount) return undefined;
+
+  const token = resolveOptionalTokenInput({
+    tokenAddress: options.fundToken,
+    symbol: options.fundSymbol,
+    decimals: options.fundDecimals,
+    chain,
+    tokenOptionLabel: '--fund-token',
+    symbolOptionLabel: '--fund-symbol',
+    decimalsOptionLabel: '--fund-decimals'
+  });
 
   return {
     amount: options.fundAmount,
     via: options.fundVia === 'deposit' || options.fundVia === 'bridge' ? options.fundVia : undefined,
     to: options.fundTo,
-    tokenAddress: options.fundToken,
-    symbol:
-      options.fundToken
-        ? resolveOptionalLabel(options.fundSymbol) ??
-          resolveLocalTokenMetadata(options.fundToken)?.symbol
-        : resolveOptionalLabel(options.fundSymbol),
-    decimals: options.fundToken
-      ? resolveTokenDecimalsOrLocalMetadata(options.fundDecimals, '--fund-decimals', options.fundToken)
-      : undefined,
+    tokenAddress: token?.address,
+    symbol: token?.symbol,
+    decimals: token?.decimals,
     bridgeAddress: options.fundBridgeAddress
   };
 }
@@ -680,7 +693,7 @@ async function resolveWorkflowExecutionContext(
     wallet,
     intent,
     goal: resolveWorkflowGoalInput(intent, options, wallet),
-    fund: resolveWorkflowFundInput(options),
+    fund: resolveWorkflowFundInput(options, wallet.chain),
     fundingCheck: resolveWorkflowFundingStatusCheck(options),
     broadcast: Boolean(options.broadcast),
     autoSync: Boolean(options.autoSync)
@@ -717,7 +730,7 @@ async function resolveWorkflowAutoExecutionContext(
     wallet,
     intent,
     goal: resolveWorkflowGoalInput(intent, options, wallet),
-    fund: resolveWorkflowFundInput(options),
+    fund: resolveWorkflowFundInput(options, wallet.chain),
     fundingCheck: resolveWorkflowFundingStatusCheck(options),
     broadcast: Boolean(options.broadcast),
     autoSync: Boolean(options.autoSync)
@@ -1363,8 +1376,11 @@ function addWorkflowGoalOptions(
       .option('--fund-amount <value>', 'Optional amount to use when the workflow needs a separate funding step')
       .option('--fund-via <mode>', 'Optional funding execution override: deposit or bridge')
       .option('--fund-to <address>', 'Optional funding recipient override')
-      .option('--fund-token <address>', 'Optional funding token address')
-      .option('--fund-symbol <symbol>', 'Optional funding token symbol')
+      .option(
+        '--fund-token <address>',
+        'Optional funding token address. Also optional when --fund-symbol resolves from local deployment records'
+      )
+      .option('--fund-symbol <symbol>', 'Optional funding token symbol or local lookup key')
       .option('--fund-decimals <value>', 'Optional funding token decimals')
       .option('--fund-bridge-address <address>', 'Optional funding bridge override');
   }
@@ -1399,9 +1415,9 @@ function addWorkflowGoalOptions(
     .option('--amount <value>', 'Amount for send-native, send-token, bridge, deposit, or withdraw')
     .option(
       '--token <address>',
-      'Token address for send-token, bridge, deposit, or withdraw. Optional for send-token when --symbol resolves locally'
+      'Token address for send-token, bridge, deposit, or withdraw. Optional when the relevant symbol resolves from local deployment records'
     )
-    .option('--symbol <symbol>', 'Optional token symbol. Also used for local lookup when send-token omits --token')
+    .option('--symbol <symbol>', 'Optional token symbol. Also used for local lookup when tokenized intents omit --token')
     .option('--decimals <value>', 'Optional token decimals when not found in local deployment metadata')
     .option('--data <hex>', 'Hex call data for call-write')
     .option('--value <wei>', 'Optional call value for call-write')
@@ -1472,7 +1488,7 @@ async function executeWorkflowStartCommand(
     walletName: wallet.walletName,
     intent,
     goal,
-    fund: resolveWorkflowFundInput(options),
+    fund: resolveWorkflowFundInput(options, wallet.chain),
     fundingCheck,
     broadcast: Boolean(options.broadcast),
     autoSync: Boolean(options.autoSync),
@@ -1501,8 +1517,9 @@ async function executeWorkflowDeleteCommand(requestId: string) {
 async function executeWorkflowUpdateCommand(options: WorkflowUpdateOptions) {
   const checkpoint = await requireWorkflowCheckpoint(options.requestId);
   const nextFundingCheck = resolveWorkflowFundingStatusCheck(options);
-  const nextFund = resolveWorkflowFundInput(options);
   const hasFundOverride = hasWorkflowFundOverride(options);
+  const wallet = hasFundOverride ? await requireWalletRecord(checkpoint.walletName) : undefined;
+  const nextFund = hasFundOverride ? resolveWorkflowFundInput(options, wallet?.chain) : undefined;
 
   if (options.clearFundingCheck && nextFundingCheck) {
     throw new Error('--clear-funding-check cannot be combined with --funding-kind/--funding-tx-hash');

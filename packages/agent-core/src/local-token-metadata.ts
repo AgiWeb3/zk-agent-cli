@@ -85,6 +85,20 @@ function readDeploymentMetadata(directory: string): LocalTokenMetadata[] {
     });
 }
 
+export function listLocalTokenMetadata(
+  options?: {
+    deploymentsDir?: string;
+    network?: string;
+  }
+): LocalTokenMetadata[] {
+  const deploymentsDir = options?.deploymentsDir || defaultDeploymentsDir();
+  const normalizedNetwork = options?.network?.trim();
+  const entries = readDeploymentMetadata(deploymentsDir);
+
+  if (!normalizedNetwork) return entries;
+  return entries.filter((entry) => entry.network === normalizedNetwork);
+}
+
 export function resolveLocalTokenMetadata(
   tokenAddress: string,
   options?: {
@@ -94,8 +108,7 @@ export function resolveLocalTokenMetadata(
   const address = normalizeAddress(tokenAddress);
   if (!address) return undefined;
 
-  const deploymentsDir = options?.deploymentsDir || defaultDeploymentsDir();
-  return readDeploymentMetadata(deploymentsDir).find((entry) => entry.address === address);
+  return listLocalTokenMetadata(options).find((entry) => entry.address === address);
 }
 
 export function findLocalTokenMetadataBySymbol(
@@ -109,9 +122,7 @@ export function findLocalTokenMetadataBySymbol(
   if (!normalizedSymbol) return [];
 
   const normalizedNetwork = options?.network?.trim();
-  const deploymentsDir = options?.deploymentsDir || defaultDeploymentsDir();
-
-  return readDeploymentMetadata(deploymentsDir).filter((entry) => {
+  return listLocalTokenMetadata(options).filter((entry) => {
     if (normalizeSymbol(entry.symbol || '') !== normalizedSymbol) return false;
     if (!normalizedNetwork) return true;
     return entry.network === normalizedNetwork;

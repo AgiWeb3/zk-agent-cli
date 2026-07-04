@@ -2088,28 +2088,46 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   if (defaults.ok) {
     assert.equal(
       Array.isArray(
-        (defaults.data as { registry: { swapProtocols: Array<unknown> } }).registry.swapProtocols
+        (
+          defaults.data as {
+            defaults: { registry: { swapProtocols: Array<unknown> } };
+          }
+        ).defaults.registry.swapProtocols
       ),
       true
     );
     assert.equal(
       (
         defaults.data as {
-          surfaceMatrix: {
-            swap: { validatedDefaultEntryId: string | null };
+          defaults: {
+            surfaceMatrix: {
+              swap: { validatedDefaultEntryId: string | null };
+            };
           };
         }
-      ).surfaceMatrix.swap.validatedDefaultEntryId,
+      ).defaults.surfaceMatrix.swap.validatedDefaultEntryId,
       'syncswap-classic'
     );
     assert.equal(
       (
         defaults.data as {
-          registry: {
-            bridgeRoutes: Array<{ id: string }>;
+          defaults: {
+            registry: {
+              bridgeRoutes: Array<{ id: string }>;
+            };
           };
         }
-      ).registry.bridgeRoutes.some((entry) => entry.id === 'ethereum-sepolia-to-zksync-sepolia'),
+      ).defaults.registry.bridgeRoutes.some((entry) => entry.id === 'ethereum-sepolia-to-zksync-sepolia'),
+      true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          localTokenRegistry: Array<{ chainKey: string; symbol: string }>;
+        }
+      ).localTokenRegistry.some(
+        (entry) => entry.chainKey === 'zksync-sepolia' && entry.symbol === 'ZKAT'
+      ),
       true
     );
   }

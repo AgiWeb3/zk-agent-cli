@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import type {
@@ -8,6 +11,7 @@ import type {
   WalletSessionRecord
 } from '@zk-agent/agent-core';
 
+import { executeFundCommand } from '../src/commands/operations.ts';
 import { executeFundAction, resolveFundExecutionMode } from '../src/lib/fund.ts';
 
 const sampleWallet: WalletSessionRecord = {
@@ -190,4 +194,74 @@ test('executeFundAction requires amount for execution', async () => {
       return true;
     }
   );
+});
+
+test('executeFundCommand resolves local token metadata from --symbol before requesting funding guidance', async () => {
+  const previousWorkspaceRoot = process.env.ZK_AGENT_WORKSPACE_ROOT;
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zk-agent-workspace-'));
+  const deploymentsDir = path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments');
+  fs.mkdirSync(deploymentsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(deploymentsDir, 'token-a.json'),
+    JSON.stringify({
+      network: 'zksync-sepolia',
+      contractAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885',
+      symbol: 'ZKAT',
+      decimals: 18
+    }),
+    'utf8'
+  );
+
+  let fundingCall: Record<string, unknown> | undefined;
+
+  try {
+    process.env.ZK_AGENT_WORKSPACE_ROOT = workspaceRoot;
+
+    await executeFundCommand(
+      {
+        wallet: 'main',
+        amount: '1',
+        symbol: 'ZKAT'
+      },
+      {
+        provider: {
+          async getFundingInfo(input) {
+            fundingCall = input as unknown as Record<string, unknown>;
+            return sampleFunding({
+              requestedAmount: input.amount,
+              token: input.tokenAddress
+                ? {
+                    address: input.tokenAddress,
+                    symbol: input.symbol,
+                    decimals: input.decimals,
+                    amount: input.amount || '1',
+                    isNative: false
+                  }
+                : undefined,
+              suggestedCommands: ['zk-agent deposit --wallet main --amount 1'],
+              notes: []
+            });
+          }
+        } as never,
+        defiProvider: {} as never,
+        async loadWallet() {
+          return sampleWallet;
+        }
+      }
+    );
+
+    assert.equal(
+      fundingCall?.tokenAddress,
+      '0xa0e40024ac1ec50416ab539ab533ce582080b885'
+    );
+    assert.equal(fundingCall?.symbol, 'ZKAT');
+    assert.equal(fundingCall?.decimals, 18);
+  } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.ZK_AGENT_WORKSPACE_ROOT;
+    } else {
+      process.env.ZK_AGENT_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
 });

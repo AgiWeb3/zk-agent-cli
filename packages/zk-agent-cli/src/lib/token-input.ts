@@ -9,6 +9,16 @@ export interface ResolvedTokenInput {
   decimals: number;
 }
 
+export interface TokenInputResolutionOptions {
+  tokenAddress?: string;
+  symbol?: string;
+  decimals?: string;
+  chain?: string;
+  tokenOptionLabel: string;
+  symbolOptionLabel: string;
+  decimalsOptionLabel: string;
+}
+
 export function requireTokenDecimals(value: string | undefined): number {
   if (!value) {
     throw new Error('--decimals is required until token registry resolution is implemented');
@@ -44,15 +54,7 @@ export function resolveTokenDecimalsOrLocalMetadata(
   );
 }
 
-export function resolveRequiredTokenInput(options: {
-  tokenAddress?: string;
-  symbol?: string;
-  decimals?: string;
-  chain?: string;
-  tokenOptionLabel: string;
-  symbolOptionLabel: string;
-  decimalsOptionLabel: string;
-}): ResolvedTokenInput {
+export function resolveRequiredTokenInput(options: TokenInputResolutionOptions): ResolvedTokenInput {
   const explicitTokenAddress = options.tokenAddress?.trim();
   const explicitSymbol = resolveOptionalLabel(options.symbol);
 
@@ -109,4 +111,14 @@ export function resolveRequiredTokenInput(options: {
     symbol: explicitSymbol ?? match.symbol,
     decimals
   };
+}
+
+export function resolveOptionalTokenInput(
+  options: TokenInputResolutionOptions
+): ResolvedTokenInput | undefined {
+  if (!options.tokenAddress?.trim() && !resolveOptionalLabel(options.symbol)) {
+    return undefined;
+  }
+
+  return resolveRequiredTokenInput(options);
 }

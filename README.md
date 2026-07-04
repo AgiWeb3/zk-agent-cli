@@ -47,7 +47,8 @@ What is already in place:
 - local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
 - `defaults` for a machine-readable registry view of the built-in chains plus the supported, validated, experimental, and manually configured zkSync Sepolia defaults
   including a top-level `surfaceMatrix` that summarizes the current validated
-  default swap, bridge, and paymaster paths
+  default swap, bridge, and paymaster paths, plus a local token registry view
+  derived from `packages/paymaster-test-assets/deployments`
 - `zksync-ethers` read path for balances and contract calls
 - `balances` now supports:
   - stored-wallet default chain reads
@@ -375,9 +376,10 @@ Use these for scripting, debugging, or when you explicitly want to bypass the
 workflow-oriented UX.
 
 For local test assets under `packages/paymaster-test-assets/deployments`,
-`send-token`, `swap`, and the corresponding `workflow` intents can now resolve
-token address/decimals from the stored symbol on the active chain instead of
-requiring a raw address every time.
+tokenized `fund`, `send-token`, `swap`, `bridge`, `deposit`, `withdraw`, and
+the corresponding `workflow` intents can now resolve token address/decimals
+from the stored symbol on the active chain instead of requiring a raw address
+every time.
 
 ## Agent Skills
 

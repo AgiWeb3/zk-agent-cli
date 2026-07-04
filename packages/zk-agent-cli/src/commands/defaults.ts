@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { listLocalTokenRegistryEntries } from '@zk-agent/agent-core';
 
 import { printResult } from '../lib/io.js';
 import { loadValidatedDefaults } from '../lib/validated-defaults.js';
@@ -8,6 +9,7 @@ export function createDefaultsCommand(): Command {
     .description('Show the machine-readable registry of supported, validated, experimental, and manually configured defaults')
     .action(async () => {
       const defaults = loadValidatedDefaults();
+      const localTokenRegistry = listLocalTokenRegistryEntries();
 
       const lines: Array<[string, string]> = [
         [
@@ -113,13 +115,21 @@ export function createDefaultsCommand(): Command {
         defaults.surfaceMatrix.paymaster.validatedDefaultEntryId || 'none'
       ]);
 
+      for (const token of localTokenRegistry) {
+        lines.push([
+          'local token',
+          `${token.chainKey} ${token.symbol} ${token.address} (${token.decimals})`
+        ]);
+      }
+
       for (const note of defaults.notes) {
         lines.push(['note', note]);
       }
 
       printResult(lines, {
         ok: true,
-        defaults
+        defaults,
+        localTokenRegistry
       });
     });
 }

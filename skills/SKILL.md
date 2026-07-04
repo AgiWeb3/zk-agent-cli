@@ -286,9 +286,10 @@ For `syncswap-classic`, the CLI can fill the tracked zkSync Sepolia router and
 factory defaults when those flags are omitted.
 
 For locally deployed test assets recorded under
-`packages/paymaster-test-assets/deployments`, `send-token`, `swap`, and the
-matching workflow intents can also resolve token address/decimals from the
-stored symbol on the active chain.
+`packages/paymaster-test-assets/deployments`, tokenized `fund`,
+`send-token`, `swap`, `bridge`, `deposit`, `withdraw`, and the matching
+workflow intents can also resolve token address/decimals from the stored
+symbol on the active chain.
 
 ### Built-in smart-account profiles
 

@@ -17,12 +17,9 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 import { executeFundAction } from '../lib/fund.js';
-import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
 import {
-  requireTokenDecimals,
-  resolveOptionalLabel,
+  resolveOptionalTokenInput,
   resolveRequiredTokenInput,
-  resolveTokenDecimalsOrLocalMetadata
 } from '../lib/token-input.js';
 import {
   buildBridgePreviewNextCommand,
@@ -635,23 +632,23 @@ export async function executeFundCommand(
 
   const walletName = options.wallet;
   const wallet = await requireFundCommandWallet(walletName, deps);
-  const symbol =
-    options.token
-      ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-      : resolveOptionalLabel(options.symbol);
-  const localTokenMetadata = options.token ? resolveLocalTokenMetadata(options.token) : undefined;
-  const decimalsForGuidance = options.token
-    ? localTokenMetadata?.decimals ??
-      (options.decimals?.trim() ? requireTokenDecimals(options.decimals) : undefined)
-    : undefined;
+  const token = resolveOptionalTokenInput({
+    tokenAddress: options.token,
+    symbol: options.symbol,
+    decimals: options.decimals,
+    chain: wallet.chain,
+    tokenOptionLabel: '--token',
+    symbolOptionLabel: '--symbol',
+    decimalsOptionLabel: '--decimals'
+  });
   const funding = await deps.provider.getFundingInfo({
     walletName,
     walletAddress: wallet.walletAddress,
     chain: wallet.chain,
     amount: options.amount,
-    tokenAddress: options.token,
-    symbol,
-    decimals: decimalsForGuidance
+    tokenAddress: token?.address,
+    symbol: token?.symbol,
+    decimals: token?.decimals
   });
 
   if (options.execute) {
@@ -660,11 +657,9 @@ export async function executeFundCommand(
         wallet,
         funding,
         amount: options.amount,
-        tokenAddress: options.token,
-        symbol,
-        decimals: options.token
-          ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-          : undefined,
+        tokenAddress: token?.address,
+        symbol: token?.symbol,
+        decimals: token?.decimals,
         to: options.to,
         bridgeAddress: options.bridgeAddress,
         via:
@@ -762,8 +757,11 @@ export function createFundCommand(deps?: Partial<FundCommandDeps>): Command {
     .description('Explain or execute the default funding step for the active chain')
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--amount <value>', 'Optional amount to embed into the suggested funding commands')
-    .option('--token <address>', 'Optional token address to embed into the suggested funding commands')
-    .option('--symbol <symbol>', 'Optional token symbol label for the suggested funding commands')
+    .option(
+      '--token <address>',
+      'Optional token address to embed into the suggested funding commands. Also optional when --symbol resolves from local deployment records'
+    )
+    .option('--symbol <symbol>', 'Optional token symbol label or local lookup key for the funding commands')
     .option('--to <address>', 'Optional recipient override for executed funding actions')
     .option('--bridge-address <address>', 'Optional bridge override for executed funding actions')
     .option('--via <mode>', 'Execution mode override: deposit or bridge')
@@ -990,8 +988,11 @@ export function createWithdrawCommand(): Command {
     .description('Preview or broadcast an L2 to L1 withdraw transaction through the active zkSync wallet session')
     .requiredOption('--amount <value>', 'Amount in human-readable token units')
     .option('--to <address>', 'L1 recipient address. Defaults to owner address when available')
-    .option('--token <address>', 'L2 token contract address. Omit for the native token path')
-    .option('--symbol <symbol>', 'Optional token symbol for display')
+    .option(
+      '--token <address>',
+      'L2 token contract address. Omit for the native token path or when --symbol resolves from local deployment records'
+    )
+    .option('--symbol <symbol>', 'Optional token symbol for display or local lookup key')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in local deployment records'
@@ -1011,19 +1012,22 @@ export function createWithdrawCommand(): Command {
         broadcast?: boolean;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const symbol =
-          options.token
-            ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-            : resolveOptionalLabel(options.symbol);
+        const token = resolveOptionalTokenInput({
+          tokenAddress: options.token,
+          symbol: options.symbol,
+          decimals: options.decimals,
+          chain: wallet.chain,
+          tokenOptionLabel: '--token',
+          symbolOptionLabel: '--symbol',
+          decimalsOptionLabel: '--decimals'
+        });
         const result = await defiProvider.withdraw({
           wallet,
           amount: options.amount,
           to: options.to,
-          tokenAddress: options.token,
-          symbol,
-          decimals: options.token
-            ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-            : undefined,
+          tokenAddress: token?.address,
+          symbol: token?.symbol,
+          decimals: token?.decimals,
           bridgeAddress: options.bridgeAddress,
           broadcast: Boolean(options.broadcast)
         });
@@ -1050,8 +1054,11 @@ export function createDepositCommand(): Command {
     .description('Preview or broadcast an L1 to L2 deposit transaction for the active zkSync wallet session')
     .requiredOption('--amount <value>', 'Amount in human-readable token units')
     .option('--to <address>', 'L2 recipient address. Defaults to the wallet execution address')
-    .option('--token <address>', 'L1 token contract address. Omit for the native token path')
-    .option('--symbol <symbol>', 'Optional token symbol for display')
+    .option(
+      '--token <address>',
+      'L1 token contract address. Omit for the native token path or when --symbol resolves from local deployment records'
+    )
+    .option('--symbol <symbol>', 'Optional token symbol for display or local lookup key')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in local deployment records'
@@ -1071,19 +1078,22 @@ export function createDepositCommand(): Command {
         broadcast?: boolean;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const symbol =
-          options.token
-            ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-            : resolveOptionalLabel(options.symbol);
+        const token = resolveOptionalTokenInput({
+          tokenAddress: options.token,
+          symbol: options.symbol,
+          decimals: options.decimals,
+          chain: wallet.chain,
+          tokenOptionLabel: '--token',
+          symbolOptionLabel: '--symbol',
+          decimalsOptionLabel: '--decimals'
+        });
         const result = await defiProvider.deposit({
           wallet,
           amount: options.amount,
           to: options.to,
-          tokenAddress: options.token,
-          symbol,
-          decimals: options.token
-            ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-            : undefined,
+          tokenAddress: token?.address,
+          symbol: token?.symbol,
+          decimals: token?.decimals,
           bridgeAddress: options.bridgeAddress,
           broadcast: Boolean(options.broadcast)
         });
@@ -1246,8 +1256,11 @@ export function createBridgeCommand(): Command {
     )
     .option('--from-chain <chain>', 'Source chain key or id. Defaults to the stored wallet chain')
     .option('--to <address>', 'Recipient override')
-    .option('--token <address>', 'L1 token address for deposits or L2 token address for withdraws')
-    .option('--symbol <symbol>', 'Optional token symbol label')
+    .option(
+      '--token <address>',
+      'L1 token address for deposits or L2 token address for withdraws. Optional when --symbol resolves from local deployment records'
+    )
+    .option('--symbol <symbol>', 'Optional token symbol label or local lookup key')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in local deployment records'
@@ -1280,21 +1293,24 @@ export function createBridgeCommand(): Command {
             }`
           );
         }
-        const symbol =
-          options.token
-            ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
-            : resolveOptionalLabel(options.symbol);
+        const token = resolveOptionalTokenInput({
+          tokenAddress: options.token,
+          symbol: options.symbol,
+          decimals: options.decimals,
+          chain: options.fromChain || wallet.chain,
+          tokenOptionLabel: '--token',
+          symbolOptionLabel: '--symbol',
+          decimalsOptionLabel: '--decimals'
+        });
         const result = await defiProvider.bridge({
           wallet,
           amount: options.amount,
           fromChain: options.fromChain,
           toChain: resolvedBridgeRoute.toChain,
           to: options.to,
-          tokenAddress: options.token,
-          symbol,
-          decimals: options.token
-            ? resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token)
-            : undefined,
+          tokenAddress: token?.address,
+          symbol: token?.symbol,
+          decimals: token?.decimals,
           bridgeAddress: options.bridgeAddress,
           broadcast: Boolean(options.broadcast)
         });

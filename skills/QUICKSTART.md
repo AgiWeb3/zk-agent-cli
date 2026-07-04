@@ -219,9 +219,10 @@ For `syncswap-classic`, tracked Sepolia router/factory defaults are used when
 `--router` and `--factory` are omitted.
 
 For local test assets already recorded under
-`packages/paymaster-test-assets/deployments`, `send-token`, `swap`, and the
-matching workflow intents can resolve token address/decimals from the stored
-symbol on the active chain.
+`packages/paymaster-test-assets/deployments`, tokenized `fund`,
+`send-token`, `swap`, `bridge`, `deposit`, `withdraw`, and the matching
+workflow intents can resolve token address/decimals from the stored symbol on
+the active chain.
 
 For `workflow plan`, the CLI now also fills the tracked default swap or bridge
 route when the current registry/default set makes that path unambiguous.

@@ -75,6 +75,7 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(Array.isArray(result.defaults.registry.bridgeRoutes), true);
     assert.equal(Array.isArray(result.defaults.registry.paymasterPaths), true);
     assert.equal(typeof result.defaults.surfaceMatrix, 'object');
+    assert.equal(Array.isArray(result.localTokenRegistry), true);
 
     const uniswap = result.defaults.registry.swapProtocols.find(
       (entry) => entry.id === 'uniswap-v3-exact-input-single'
@@ -149,6 +150,14 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.deepEqual(result.defaults.surfaceMatrix.paymaster.experimentalEntryIds, [
       'zksync-sepolia-approval-based-evm-interpreter'
     ]);
+
+    const localEraVmToken = result.localTokenRegistry.find(
+      (entry) =>
+        entry.chainKey === 'zksync-sepolia' &&
+        entry.symbol === 'ZKAT' &&
+        entry.address === '0xa0e40024ac1ec50416ab539ab533ce582080b885'
+    );
+    assert.equal(localEraVmToken.decimals, 18);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
