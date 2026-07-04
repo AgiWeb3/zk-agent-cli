@@ -9,6 +9,7 @@ import {
   type WalletSessionRecord,
   loadProjectConfig,
   loadWalletSession,
+  resolveTrackedBridgeRoute,
   resolveChain
 } from '@zk-agent/agent-core';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
@@ -17,6 +18,12 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 import { executeFundAction } from '../lib/fund.js';
 import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
+import {
+  requireTokenDecimals,
+  resolveOptionalLabel,
+  resolveRequiredTokenInput,
+  resolveTokenDecimalsOrLocalMetadata
+} from '../lib/token-input.js';
 import {
   buildBridgePreviewNextCommand,
   buildCallWritePreviewNextCommand,
@@ -113,41 +120,6 @@ function linesForWriteResult(
   }
 
   return lines;
-}
-
-function requireTokenDecimals(value: string | undefined): number {
-  if (!value) {
-    throw new Error('--decimals is required until token registry resolution is implemented');
-  }
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error('--decimals must be a non-negative integer');
-  }
-
-  return parsed;
-}
-
-function resolveOptionalLabel(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function resolveTokenDecimalsOrLocalMetadata(
-  value: string | undefined,
-  optionLabel: string,
-  tokenAddress: string
-): number {
-  if (value?.trim()) return requireTokenDecimals(value);
-
-  const localMetadata = resolveLocalTokenMetadata(tokenAddress);
-  if (localMetadata?.decimals !== undefined) {
-    return localMetadata.decimals;
-  }
-
-  throw new Error(
-    `${optionLabel} is required unless the token exists in local deployment records under packages/paymaster-test-assets/deployments`
-  );
 }
 
 function requirePositiveInteger(value: string | undefined, label: string): number {
@@ -853,8 +825,14 @@ export function createSendTokenCommand(): Command {
     .description('Send an ERC-20 token through the active zkSync wallet session')
     .requiredOption('--to <address>', 'Recipient address')
     .requiredOption('--amount <value>', 'Amount in human-readable token units')
-    .requiredOption('--token <address>', 'ERC-20 token contract address')
-    .option('--symbol <symbol>', 'Optional token symbol for display')
+    .option(
+      '--token <address>',
+      'ERC-20 token contract address. Optional when --symbol resolves from local deployment records'
+    )
+    .option(
+      '--symbol <symbol>',
+      'Token symbol for display. Also used for local deployment lookup when --token is omitted'
+    )
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in local deployment records'
@@ -865,29 +843,32 @@ export function createSendTokenCommand(): Command {
       async (options: {
         to: string;
         amount: string;
-        token: string;
+        token?: string;
         symbol?: string;
-        decimals: string;
+        decimals?: string;
         wallet: string;
         broadcast?: boolean;
         paymasterMode?: string;
         paymasterAddress?: string;
         paymasterToken?: string;
       }) => {
-        const decimals = resolveTokenDecimalsOrLocalMetadata(
-          options.decimals,
-          '--decimals',
-          options.token
-        );
-        const symbol = resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol;
         const wallet = await requireWallet(options.wallet);
+        const token = resolveRequiredTokenInput({
+          tokenAddress: options.token,
+          symbol: options.symbol,
+          decimals: options.decimals,
+          chain: wallet.chain,
+          tokenOptionLabel: '--token',
+          symbolOptionLabel: '--symbol',
+          decimalsOptionLabel: '--decimals'
+        });
         const result = await provider.sendToken({
           wallet,
           to: options.to,
-          tokenAddress: options.token,
+          tokenAddress: token.address,
           amount: options.amount,
-          decimals,
-          symbol,
+          decimals: token.decimals,
+          symbol: token.symbol,
           broadcast: Boolean(options.broadcast),
           paymaster: resolvePaymasterInput(options)
         });
@@ -895,24 +876,24 @@ export function createSendTokenCommand(): Command {
         const nextCommand = buildSendTokenPreviewNextCommand({
           walletName: wallet.walletName,
           to: options.to,
-          tokenAddress: options.token,
+          tokenAddress: token.address,
           amount: options.amount,
-          decimals,
-          symbol,
+          decimals: token.decimals,
+          symbol: token.symbol,
           paymaster: result.paymaster
         });
         const lines = linesForWriteResult(result, nextCommand);
-        if (symbol) lines.splice(5, 0, ['token', symbol]);
-        lines.splice(symbol ? 6 : 5, 0, ['token address', options.token]);
-        lines.splice(symbol ? 7 : 6, 0, ['amount', options.amount]);
+        if (token.symbol) lines.splice(5, 0, ['token', token.symbol]);
+        lines.splice(token.symbol ? 6 : 5, 0, ['token address', token.address]);
+        lines.splice(token.symbol ? 7 : 6, 0, ['amount', options.amount]);
 
         printResult(lines, {
           ok: true,
           token: {
-            address: options.token,
-            symbol,
+            address: token.address,
+            symbol: token.symbol,
             amount: options.amount,
-            decimals
+            decimals: token.decimals
           },
           ...result
         });
@@ -1137,8 +1118,14 @@ export function createSwapCommand(): Command {
       '--factory <address>',
       'Optional factory address override for protocol-specific pool lookup. For syncswap-classic, tracked defaults are used when omitted'
     )
-    .requiredOption('--token-in <address>', 'Input ERC-20 token contract address')
-    .requiredOption('--token-out <address>', 'Output ERC-20 token contract address')
+    .option(
+      '--token-in <address>',
+      'Input ERC-20 token contract address. Optional when --token-in-symbol resolves from local deployment records'
+    )
+    .option(
+      '--token-out <address>',
+      'Output ERC-20 token contract address. Optional when --token-out-symbol resolves from local deployment records'
+    )
     .requiredOption('--amount-in <value>', 'Input amount in human-readable token units')
     .requiredOption('--amount-out-min <value>', 'Minimum output amount in human-readable token units')
     .option(
@@ -1150,8 +1137,8 @@ export function createSwapCommand(): Command {
       'Output token decimals. Optional when the token exists in local deployment records'
     )
     .option('--fee-tier <value>', 'Uniswap V3 pool fee tier')
-    .option('--token-in-symbol <symbol>', 'Optional input token symbol label')
-    .option('--token-out-symbol <symbol>', 'Optional output token symbol label')
+    .option('--token-in-symbol <symbol>', 'Input token symbol label or local lookup key')
+    .option('--token-out-symbol <symbol>', 'Output token symbol label or local lookup key')
     .option('--recipient <address>', 'Recipient override. Defaults to the wallet execution address')
     .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
     .option('--auto-approve', 'If allowance is insufficient, send an approval transaction before the swap', false)
@@ -1163,8 +1150,8 @@ export function createSwapCommand(): Command {
         protocol?: string;
         router: string;
         factory?: string;
-        tokenIn: string;
-        tokenOut: string;
+        tokenIn?: string;
+        tokenOut?: string;
         amountIn: string;
         amountOutMin: string;
         tokenInDecimals?: string;
@@ -1189,31 +1176,37 @@ export function createSwapCommand(): Command {
           factory: options.factory,
           feeTier: options.feeTier
         });
-        const tokenInSymbol =
-          resolveOptionalLabel(options.tokenInSymbol) ?? resolveLocalTokenMetadata(options.tokenIn)?.symbol;
-        const tokenOutSymbol =
-          resolveOptionalLabel(options.tokenOutSymbol) ?? resolveLocalTokenMetadata(options.tokenOut)?.symbol;
+        const tokenIn = resolveRequiredTokenInput({
+          tokenAddress: options.tokenIn,
+          symbol: options.tokenInSymbol,
+          decimals: options.tokenInDecimals,
+          chain: wallet.chain,
+          tokenOptionLabel: '--token-in',
+          symbolOptionLabel: '--token-in-symbol',
+          decimalsOptionLabel: '--token-in-decimals'
+        });
+        const tokenOut = resolveRequiredTokenInput({
+          tokenAddress: options.tokenOut,
+          symbol: options.tokenOutSymbol,
+          decimals: options.tokenOutDecimals,
+          chain: wallet.chain,
+          tokenOptionLabel: '--token-out',
+          symbolOptionLabel: '--token-out-symbol',
+          decimalsOptionLabel: '--token-out-decimals'
+        });
         const result = await defiProvider.swap({
           wallet,
           protocol,
           routerAddress,
           factoryAddress,
-          tokenInAddress: options.tokenIn,
-          tokenOutAddress: options.tokenOut,
+          tokenInAddress: tokenIn.address,
+          tokenOutAddress: tokenOut.address,
           amountIn: options.amountIn,
           amountOutMin: options.amountOutMin,
-          tokenInDecimals: resolveTokenDecimalsOrLocalMetadata(
-            options.tokenInDecimals,
-            '--token-in-decimals',
-            options.tokenIn
-          ),
-          tokenOutDecimals: resolveTokenDecimalsOrLocalMetadata(
-            options.tokenOutDecimals,
-            '--token-out-decimals',
-            options.tokenOut
-          ),
-          tokenInSymbol,
-          tokenOutSymbol,
+          tokenInDecimals: tokenIn.decimals,
+          tokenOutDecimals: tokenOut.decimals,
+          tokenInSymbol: tokenIn.symbol,
+          tokenOutSymbol: tokenOut.symbol,
           recipient: options.recipient,
           feeTier,
           sqrtPriceLimitX96: options.sqrtPriceLimitX96,
@@ -1247,7 +1240,10 @@ export function createBridgeCommand(): Command {
   return new Command('bridge')
     .description('Preview or broadcast a supported L1 <-> zkSync bridge route')
     .requiredOption('--amount <value>', 'Token amount in decimal form')
-    .requiredOption('--to-chain <chain>', 'Destination chain key or id')
+    .option(
+      '--to-chain <chain>',
+      'Destination chain key or id. Optional when the current chain has a tracked default bridge route'
+    )
     .option('--from-chain <chain>', 'Source chain key or id. Defaults to the stored wallet chain')
     .option('--to <address>', 'Recipient override')
     .option('--token <address>', 'L1 token address for deposits or L2 token address for withdraws')
@@ -1263,7 +1259,7 @@ export function createBridgeCommand(): Command {
       async (options: {
         amount: string;
         fromChain?: string;
-        toChain: string;
+        toChain?: string;
         to?: string;
         token?: string;
         symbol?: string;
@@ -1273,6 +1269,17 @@ export function createBridgeCommand(): Command {
         broadcast?: boolean;
       }) => {
         const wallet = await requireWallet(options.wallet);
+        const resolvedBridgeRoute = resolveTrackedBridgeRoute({
+          fromChain: options.fromChain || wallet.chain,
+          toChain: options.toChain
+        });
+        if (!resolvedBridgeRoute.toChain) {
+          throw new Error(
+            `--to-chain is required when no tracked default bridge route exists for ${
+              options.fromChain || wallet.chain
+            }`
+          );
+        }
         const symbol =
           options.token
             ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
@@ -1281,7 +1288,7 @@ export function createBridgeCommand(): Command {
           wallet,
           amount: options.amount,
           fromChain: options.fromChain,
-          toChain: options.toChain,
+          toChain: resolvedBridgeRoute.toChain,
           to: options.to,
           tokenAddress: options.token,
           symbol,

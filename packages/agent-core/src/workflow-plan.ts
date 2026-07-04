@@ -7,7 +7,10 @@ import type {
 import {
   buildBridgeRegistryNotes,
   buildPaymasterRegistryNotes,
-  buildSwapRegistryNotes
+  buildSwapRegistryNotes,
+  findSwapProtocolRegistryEntry,
+  loadValidatedDefaults,
+  resolveTrackedBridgeRoute
 } from './validated-defaults.js';
 import {
   buildWalletPreparationActions,
@@ -95,6 +98,121 @@ function appendWalletPaymasterCommandArgs(
   return nextCommand;
 }
 
+function buildSwapGoalStep(input: {
+  wallet: WalletSessionRecord;
+  protocol?: WorkflowSwapProtocol;
+  paymaster?: PaymasterSelectionInput;
+}): GoalStepResult {
+  const defaults = loadValidatedDefaults();
+  const preferredProtocol =
+    input.protocol ||
+    (defaults.surfaceMatrix.swap.validatedDefaultEntryId as WorkflowSwapProtocol | null) ||
+    (defaults.surfaceMatrix.swap.manualFallbackEntryId as WorkflowSwapProtocol | null) ||
+    undefined;
+
+  if (preferredProtocol === 'syncswap-classic') {
+    const entry = findSwapProtocolRegistryEntry({
+      chain: input.wallet.chain,
+      protocol: 'syncswap-classic',
+      defaults
+    });
+    const routerAddress = entry?.routerAddress || '<address>';
+    const factoryAddress = entry?.factoryAddress || '<address>';
+
+    return {
+      goal: 'Broadcast a SyncSwap classic swap',
+      command: appendWalletPaymasterCommandArgs(
+        input.wallet,
+        `zk-agent workflow swap --wallet ${input.wallet.walletName} --protocol syncswap-classic ` +
+          `--router ${routerAddress} --factory ${factoryAddress} --token-in <address> --token-out <address> ` +
+          '--amount-in <amount> --amount-out-min <amount> --broadcast',
+        input.paymaster
+      ),
+      notes:
+        input.protocol === undefined
+          ? [
+              'Command skeleton uses the current registry-backed default swap path. Override --protocol if you need another route.'
+            ]
+          : []
+    };
+  }
+
+  if (preferredProtocol === 'uniswap-v3-exact-input-single') {
+    const entry = findSwapProtocolRegistryEntry({
+      chain: input.wallet.chain,
+      protocol: 'uniswap-v3-exact-input-single',
+      defaults
+    });
+    const routerAddress = entry?.routerAddress || '<address>';
+    const feeTier = entry?.feeTier || '<fee>';
+
+    return {
+      goal: 'Broadcast a Uniswap V3 exactInputSingle swap',
+      command: appendWalletPaymasterCommandArgs(
+        input.wallet,
+        `zk-agent workflow swap --wallet ${input.wallet.walletName} --protocol uniswap-v3-exact-input-single ` +
+          `--router ${routerAddress} --fee-tier ${feeTier} --token-in <address> --token-out <address> ` +
+          '--amount-in <amount> --amount-out-min <amount> --broadcast',
+        input.paymaster
+      ),
+      notes:
+        input.protocol === undefined
+          ? [
+              'Command skeleton uses the current registry-backed default swap path. Override --protocol if you need another route.'
+            ]
+          : []
+    };
+  }
+
+  return {
+    goal: 'Broadcast a supported same-chain swap',
+    command: appendWalletPaymasterCommandArgs(
+      input.wallet,
+      `zk-agent workflow swap --wallet ${input.wallet.walletName} --protocol <protocol> ` +
+        '--router <address> --token-in <address> --token-out <address> ' +
+        '--amount-in <amount> --amount-out-min <amount> --broadcast',
+      input.paymaster
+    ),
+    notes: [
+      'When protocol is syncswap-classic, also supply --factory <address>.',
+      'When protocol is uniswap-v3-exact-input-single, also supply --fee-tier <fee>.'
+    ]
+  };
+}
+
+function buildBridgeGoalStep(input: {
+  wallet: WalletSessionRecord;
+  toChain?: string;
+}): GoalStepResult {
+  const resolvedTarget = resolveTrackedBridgeRoute({
+    fromChain: input.wallet.chain,
+    toChain: input.toChain
+  });
+
+  if (resolvedTarget.toChain) {
+    return {
+      goal: 'Broadcast a supported bridge route',
+      command:
+        `zk-agent workflow bridge --wallet ${input.wallet.walletName} --to-chain ${resolvedTarget.toChain} ` +
+        '--amount <amount> --broadcast',
+      notes:
+        input.toChain === undefined && resolvedTarget.defaulted
+          ? [
+              'Command skeleton uses the current registry-backed default bridge route. Override --to-chain if you need another destination.'
+            ]
+          : []
+    };
+  }
+
+  return {
+    goal: 'Broadcast a supported bridge route',
+    command:
+      `zk-agent workflow bridge --wallet ${input.wallet.walletName} --to-chain <chain> ` +
+      '--amount <amount> --broadcast',
+    notes: ['Set --to-chain to the destination chain before execution.']
+  };
+}
+
 function buildGoalStep(input: {
   wallet: WalletSessionRecord;
   intent: WorkflowIntent;
@@ -138,56 +256,16 @@ function buildGoalStep(input: {
         notes: []
       };
     case 'swap':
-      if (input.protocol === 'syncswap-classic') {
-        return {
-          goal: 'Broadcast a SyncSwap classic swap',
-          command: appendWalletPaymasterCommandArgs(
-            wallet,
-            `zk-agent workflow swap --wallet ${wallet.walletName} --protocol syncswap-classic ` +
-              '--router <address> --factory <address> --token-in <address> --token-out <address> ' +
-              '--amount-in <amount> --amount-out-min <amount> --broadcast',
-            input.paymaster
-          ),
-          notes: []
-        };
-      }
-
-      if (input.protocol === 'uniswap-v3-exact-input-single') {
-        return {
-          goal: 'Broadcast a Uniswap V3 exactInputSingle swap',
-          command: appendWalletPaymasterCommandArgs(
-            wallet,
-            `zk-agent workflow swap --wallet ${wallet.walletName} --protocol uniswap-v3-exact-input-single ` +
-              '--router <address> --fee-tier <fee> --token-in <address> --token-out <address> ' +
-              '--amount-in <amount> --amount-out-min <amount> --broadcast',
-            input.paymaster
-          ),
-          notes: []
-        };
-      }
-
-      return {
-        goal: 'Broadcast a supported same-chain swap',
-        command: appendWalletPaymasterCommandArgs(
-          wallet,
-          `zk-agent workflow swap --wallet ${wallet.walletName} --protocol <protocol> ` +
-            '--router <address> --token-in <address> --token-out <address> ' +
-            '--amount-in <amount> --amount-out-min <amount> --broadcast',
-          input.paymaster
-        ),
-        notes: [
-          'When protocol is syncswap-classic, also supply --factory <address>.',
-          'When protocol is uniswap-v3-exact-input-single, also supply --fee-tier <fee>.'
-        ]
-      };
+      return buildSwapGoalStep({
+        wallet,
+        protocol: input.protocol,
+        paymaster: input.paymaster
+      });
     case 'bridge':
-      return {
-        goal: 'Broadcast a supported bridge route',
-        command:
-          `zk-agent workflow bridge --wallet ${wallet.walletName} --to-chain ${input.toChain || '<chain>'} ` +
-          '--amount <amount> --broadcast',
-        notes: input.toChain ? [] : ['Set --to-chain to the destination chain before execution.']
-      };
+      return buildBridgeGoalStep({
+        wallet,
+        toChain: input.toChain
+      });
     case 'deposit':
       return {
         goal: 'Broadcast an L1 to L2 deposit',
@@ -241,6 +319,13 @@ export function buildWorkflowPlan(input: {
     toChain: input.toChain,
     paymaster: input.paymaster
   });
+  const resolvedBridgeTarget =
+    input.intent === 'bridge'
+      ? resolveTrackedBridgeRoute({
+          fromChain: input.wallet.chain,
+          toChain: input.toChain
+        }).toChain
+      : undefined;
   const goalStep: WorkflowPlanStep = {
     id: input.intent,
     kind: 'goal',
@@ -278,11 +363,10 @@ export function buildWorkflowPlan(input: {
           protocol: input.protocol
         })
       : []),
-    ...(input.intent === 'bridge' && input.toChain
+    ...(input.intent === 'bridge' && resolvedBridgeTarget
       ? buildBridgeRegistryNotes({
-          fromChain:
-            input.toChain === input.wallet.chain ? 'ethereum-sepolia' : input.wallet.chain,
-          toChain: input.toChain
+          fromChain: input.wallet.chain,
+          toChain: resolvedBridgeTarget
         })
       : []),
     ...(input.intent === 'deposit'

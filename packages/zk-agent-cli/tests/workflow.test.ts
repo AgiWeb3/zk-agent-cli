@@ -139,11 +139,37 @@ test('workflow plan emits a protocol-specific swap goal command when requested',
   assert.equal(plan.readyForGoal, true);
   assert.equal(plan.steps.length, 1);
   assert.match(plan.goalCommand, /--protocol syncswap-classic/);
-  assert.match(plan.goalCommand, /--factory <address>/);
+  assert.match(plan.goalCommand, /--router 0x3f39129e54d2331926c1E4bf034e111cf471AA97/);
+  assert.match(plan.goalCommand, /--factory 0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09/);
   assert.match(plan.goalCommand, /--paymaster-mode approval-based/);
   assert.match(plan.goalCommand, /--paymaster-address 0x4444444444444444444444444444444444444444/);
   assert.match(plan.goalCommand, /--paymaster-token 0x5555555555555555555555555555555555555555/);
   assert.ok(plan.notes.some((note) => /Registry: syncswap-classic on zksync-sepolia is a validated/.test(note)));
+  assert.ok(plan.notes.some((note) => /Registry default: this is the current validated default swap path\./.test(note)));
+});
+
+test('workflow plan defaults generic swap skeleton to the current validated swap path', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'swap',
+    nativeBalance: '1.5',
+    nativeSymbol: 'ETH'
+  });
+
+  assert.equal(plan.status, 'planned');
+  assert.equal(plan.readyForGoal, true);
+  assert.match(plan.goalCommand, /--protocol syncswap-classic/);
+  assert.match(plan.goalCommand, /--router 0x3f39129e54d2331926c1E4bf034e111cf471AA97/);
+  assert.match(plan.goalCommand, /--factory 0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09/);
+  assert.ok(
+    plan.notes.some((note) =>
+      /Command skeleton uses the current registry-backed default swap path\./.test(note)
+    )
+  );
 });
 
 test('workflow plan respects an explicit paymaster none override', () => {
@@ -205,7 +231,7 @@ test('workflow plan respects an explicit paymaster none override', () => {
   assert.doesNotMatch(plan.goalCommand, /--paymaster-token/);
 });
 
-test('workflow plan adds a bridge note when destination chain is still missing', () => {
+test('workflow plan defaults bridge skeleton to the current validated route', () => {
   const plan = buildWorkflowPlan({
     wallet: {
       ...sampleWallet,
@@ -218,8 +244,40 @@ test('workflow plan adds a bridge note when destination chain is still missing',
   });
 
   assert.equal(plan.status, 'planned');
+  assert.match(plan.goalCommand, /--to-chain ethereum-sepolia/);
+  assert.ok(
+    plan.notes.some((note) =>
+      /Command skeleton uses the current registry-backed default bridge route\./.test(note)
+    )
+  );
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry default: this is the current validated withdraw route\./.test(note)
+    )
+  );
+});
+
+test('workflow plan keeps a destination-chain placeholder when no tracked route exists', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      chain: 'zksync-local-dev',
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection({
+      chain: 'zksync-local-dev',
+      chainId: 270
+    }),
+    intent: 'bridge',
+    nativeBalance: '1.5',
+    nativeSymbol: 'ETH'
+  });
+
+  assert.equal(plan.status, 'planned');
   assert.match(plan.goalCommand, /--to-chain <chain>/);
-  assert.match(plan.notes[0] || '', /Set --to-chain/);
+  assert.ok(
+    plan.notes.some((note) => /Set --to-chain to the destination chain before execution\./.test(note))
+  );
 });
 
 test('workflow plan adds a registry note for a validated bridge route', () => {
@@ -239,6 +297,11 @@ test('workflow plan adds a registry note for a validated bridge route', () => {
   assert.ok(
     plan.notes.some((note) =>
       /Registry: zksync-sepolia -> ethereum-sepolia is a validated bridge route\./.test(note)
+    )
+  );
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry default: this is the current validated withdraw route\./.test(note)
     )
   );
 });

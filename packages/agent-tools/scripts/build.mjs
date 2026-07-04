@@ -20,6 +20,7 @@ async function main() {
   await esbuild.build({
     entryPoints: {
       'run-tool': 'src/run-tool.ts',
+      'smoke-product-path': 'src/smoke-product-path.ts',
       'smoke-readonly': 'src/smoke-readonly.ts',
       'smoke-lifecycle': 'src/smoke-lifecycle.ts',
       'smoke-policy': 'src/smoke-policy.ts',

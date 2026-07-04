@@ -13,6 +13,7 @@ import {
   listWorkflowCheckpointIds,
   listWalletRequestIds,
   loadWorkflowCheckpoint,
+  resolveTrackedBridgeRoute,
   saveWalletSession,
   saveWorkflowCheckpoint,
   type PaymasterSelectionInput,
@@ -42,6 +43,12 @@ import {
 } from '../lib/workflow.js';
 import { printResult } from '../lib/io.js';
 import { resolveLocalTokenMetadata } from '../lib/local-token-metadata.js';
+import {
+  requireTokenDecimals,
+  resolveOptionalLabel,
+  resolveRequiredTokenInput,
+  resolveTokenDecimalsOrLocalMetadata
+} from '../lib/token-input.js';
 import {
   buildWalletRequestApproveRecommendedCommand,
   buildWalletRequestAwaitLocalRecommendedCommand,
@@ -347,41 +354,6 @@ async function reserveWorkflowRequestId(requestId?: string): Promise<string> {
   throw new Error('Unable to allocate a unique workflow checkpoint id. Please pass --request-id.');
 }
 
-function requireTokenDecimals(value: string | undefined): number {
-  if (!value) {
-    throw new Error('--decimals is required until token registry resolution is implemented');
-  }
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error('--decimals must be a non-negative integer');
-  }
-
-  return parsed;
-}
-
-function resolveOptionalLabel(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function resolveTokenDecimalsOrLocalMetadata(
-  value: string | undefined,
-  optionLabel: string,
-  tokenAddress: string
-): number {
-  if (value?.trim()) return requireTokenDecimals(value);
-
-  const localMetadata = resolveLocalTokenMetadata(tokenAddress);
-  if (localMetadata?.decimals !== undefined) {
-    return localMetadata.decimals;
-  }
-
-  throw new Error(
-    `${optionLabel} is required unless the token exists in local deployment records under packages/paymaster-test-assets/deployments`
-  );
-}
-
 async function loadWorkflowPlanState(
   walletName: string,
   intent: WorkflowIntent,
@@ -427,7 +399,8 @@ async function loadWorkflowPlanState(
 
 function resolveWorkflowGoalInput(
   intent: WorkflowIntent,
-  options: WorkflowCommandOptions
+  options: WorkflowCommandOptions,
+  wallet: Pick<WalletSessionRecord, 'chain'>
 ): WorkflowGoalInput {
   switch (intent) {
     case 'send-native':
@@ -442,16 +415,22 @@ function resolveWorkflowGoalInput(
     case 'send-token': {
       if (!options.to) throw new Error('--to is required for --intent send-token');
       if (!options.amount) throw new Error('--amount is required for --intent send-token');
-      if (!options.token) throw new Error('--token is required for --intent send-token');
-      const symbol =
-        resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol;
+      const token = resolveRequiredTokenInput({
+        tokenAddress: options.token,
+        symbol: options.symbol,
+        decimals: options.decimals,
+        chain: wallet.chain,
+        tokenOptionLabel: '--token',
+        symbolOptionLabel: '--symbol',
+        decimalsOptionLabel: '--decimals'
+      });
       return {
         intent,
         to: options.to,
         amount: options.amount,
-        tokenAddress: options.token,
-        decimals: resolveTokenDecimalsOrLocalMetadata(options.decimals, '--decimals', options.token),
-        symbol,
+        tokenAddress: token.address,
+        decimals: token.decimals,
+        symbol: token.symbol,
         paymaster: resolveWorkflowPaymasterInput(options)
       };
     }
@@ -466,8 +445,6 @@ function resolveWorkflowGoalInput(
         paymaster: resolveWorkflowPaymasterInput(options)
       };
     case 'swap': {
-      if (!options.tokenIn) throw new Error('--token-in is required for --intent swap');
-      if (!options.tokenOut) throw new Error('--token-out is required for --intent swap');
       if (!options.amountIn) throw new Error('--amount-in is required for --intent swap');
       if (!options.amountOutMin) throw new Error('--amount-out-min is required for --intent swap');
 
@@ -477,32 +454,38 @@ function resolveWorkflowGoalInput(
         factory: options.factory,
         feeTier: options.feeTier
       });
+      const tokenIn = resolveRequiredTokenInput({
+        tokenAddress: options.tokenIn,
+        symbol: options.tokenInSymbol,
+        decimals: options.tokenInDecimals,
+        chain: wallet.chain,
+        tokenOptionLabel: '--token-in',
+        symbolOptionLabel: '--token-in-symbol',
+        decimalsOptionLabel: '--token-in-decimals'
+      });
+      const tokenOut = resolveRequiredTokenInput({
+        tokenAddress: options.tokenOut,
+        symbol: options.tokenOutSymbol,
+        decimals: options.tokenOutDecimals,
+        chain: wallet.chain,
+        tokenOptionLabel: '--token-out',
+        symbolOptionLabel: '--token-out-symbol',
+        decimalsOptionLabel: '--token-out-decimals'
+      });
 
       return {
         intent,
         protocol,
         routerAddress,
         factoryAddress,
-        tokenInAddress: options.tokenIn,
-        tokenOutAddress: options.tokenOut,
+        tokenInAddress: tokenIn.address,
+        tokenOutAddress: tokenOut.address,
         amountIn: options.amountIn,
         amountOutMin: options.amountOutMin,
-        tokenInDecimals: resolveTokenDecimalsOrLocalMetadata(
-          options.tokenInDecimals,
-          '--token-in-decimals',
-          options.tokenIn
-        ),
-        tokenOutDecimals: resolveTokenDecimalsOrLocalMetadata(
-          options.tokenOutDecimals,
-          '--token-out-decimals',
-          options.tokenOut
-        ),
-        tokenInSymbol:
-          resolveOptionalLabel(options.tokenInSymbol) ??
-          resolveLocalTokenMetadata(options.tokenIn)?.symbol,
-        tokenOutSymbol:
-          resolveOptionalLabel(options.tokenOutSymbol) ??
-          resolveLocalTokenMetadata(options.tokenOut)?.symbol,
+        tokenInDecimals: tokenIn.decimals,
+        tokenOutDecimals: tokenOut.decimals,
+        tokenInSymbol: tokenIn.symbol,
+        tokenOutSymbol: tokenOut.symbol,
         recipient: options.recipient,
         feeTier,
         sqrtPriceLimitX96: options.sqrtPriceLimitX96,
@@ -513,7 +496,17 @@ function resolveWorkflowGoalInput(
     }
     case 'bridge': {
       if (!options.amount) throw new Error('--amount is required for --intent bridge');
-      if (!options.toChain) throw new Error('--to-chain is required for --intent bridge');
+      const resolvedBridgeRoute = resolveTrackedBridgeRoute({
+        fromChain: options.fromChain || wallet.chain,
+        toChain: options.toChain
+      });
+      if (!resolvedBridgeRoute.toChain) {
+        throw new Error(
+          `--to-chain is required for --intent bridge when no tracked default route exists for ${
+            options.fromChain || wallet.chain
+          }`
+        );
+      }
       const symbol =
         options.token
           ? resolveOptionalLabel(options.symbol) ?? resolveLocalTokenMetadata(options.token)?.symbol
@@ -521,7 +514,7 @@ function resolveWorkflowGoalInput(
       return {
         intent,
         amount: options.amount,
-        toChain: options.toChain,
+        toChain: resolvedBridgeRoute.toChain,
         fromChain: options.fromChain,
         to: options.to,
         tokenAddress: options.token,
@@ -686,7 +679,7 @@ async function resolveWorkflowExecutionContext(
   return {
     wallet,
     intent,
-    goal: resolveWorkflowGoalInput(intent, options),
+    goal: resolveWorkflowGoalInput(intent, options, wallet),
     fund: resolveWorkflowFundInput(options),
     fundingCheck: resolveWorkflowFundingStatusCheck(options),
     broadcast: Boolean(options.broadcast),
@@ -723,7 +716,7 @@ async function resolveWorkflowAutoExecutionContext(
     requestId: options.createCheckpoint ? await reserveWorkflowRequestId(requestedId) : undefined,
     wallet,
     intent,
-    goal: resolveWorkflowGoalInput(intent, options),
+    goal: resolveWorkflowGoalInput(intent, options, wallet),
     fund: resolveWorkflowFundInput(options),
     fundingCheck: resolveWorkflowFundingStatusCheck(options),
     broadcast: Boolean(options.broadcast),
@@ -1404,8 +1397,11 @@ function addWorkflowGoalOptions(
   return command
     .option('--to <address>', 'Recipient or target address override')
     .option('--amount <value>', 'Amount for send-native, send-token, bridge, deposit, or withdraw')
-    .option('--token <address>', 'Token address for send-token, bridge, deposit, or withdraw')
-    .option('--symbol <symbol>', 'Optional token symbol')
+    .option(
+      '--token <address>',
+      'Token address for send-token, bridge, deposit, or withdraw. Optional for send-token when --symbol resolves locally'
+    )
+    .option('--symbol <symbol>', 'Optional token symbol. Also used for local lookup when send-token omits --token')
     .option('--decimals <value>', 'Optional token decimals when not found in local deployment metadata')
     .option('--data <hex>', 'Hex call data for call-write')
     .option('--value <wei>', 'Optional call value for call-write')
@@ -1421,15 +1417,21 @@ function addWorkflowGoalOptions(
       '--factory <address>',
       'Optional swap factory override. For syncswap-classic, tracked defaults are used when omitted'
     )
-    .option('--token-in <address>', 'Swap input token address')
-    .option('--token-out <address>', 'Swap output token address')
+    .option(
+      '--token-in <address>',
+      'Swap input token address. Optional when --token-in-symbol resolves from local deployment records'
+    )
+    .option(
+      '--token-out <address>',
+      'Swap output token address. Optional when --token-out-symbol resolves from local deployment records'
+    )
     .option('--amount-in <value>', 'Swap input amount')
     .option('--amount-out-min <value>', 'Swap minimum output amount')
     .option('--token-in-decimals <value>', 'Swap input token decimals')
     .option('--token-out-decimals <value>', 'Swap output token decimals')
     .option('--fee-tier <value>', 'Uniswap V3 fee tier')
-    .option('--token-in-symbol <symbol>', 'Swap input token symbol')
-    .option('--token-out-symbol <symbol>', 'Swap output token symbol')
+    .option('--token-in-symbol <symbol>', 'Swap input token symbol or local lookup key')
+    .option('--token-out-symbol <symbol>', 'Swap output token symbol or local lookup key')
     .option('--recipient <address>', 'Swap recipient override')
     .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
     .option('--auto-approve', 'Allow swap to send an approval transaction before the swap if needed', false)
@@ -1449,7 +1451,7 @@ async function executeWorkflowStartCommand(
   const { provider, defiProvider } = deps;
   const intent = resolveWorkflowIntentOption(options);
   const wallet = await requireWalletRecord(options.wallet);
-  const goal = resolveWorkflowGoalInput(intent, options);
+  const goal = resolveWorkflowGoalInput(intent, options, wallet);
   const fundingCheck = resolveWorkflowFundingStatusCheck(options);
   const requestId = await reserveWorkflowRequestId(options.requestId);
   const status = await inspectWorkflowStatus(
@@ -1717,20 +1719,50 @@ function buildWorkflowHelpText(): string {
   return [
     '',
     'Default workflow path:',
-    '  Guided orchestration:',
+    '  Guided default:',
     '    zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
-    '',
-    '  One-shot execution:',
-    '    zk-agent workflow run --wallet main --intent <intent> [goal flags]',
     '',
     '  Checkpointed execution:',
     '    zk-agent workflow start --wallet main --intent <intent> [goal flags]',
+    '    zk-agent workflow status --request-id <id>',
     '    zk-agent workflow next --request-id <id>',
     '    zk-agent workflow resume --request-id <id> [--broadcast]',
     '',
     '  Funding-only step:',
-    '    zk-agent workflow fund --wallet main --amount <amount> --execute'
+    '    zk-agent workflow fund --wallet main --amount <amount> --execute',
+    '',
+    '  Lower-level one-shot escape hatch:',
+    '    zk-agent workflow run --wallet main --intent <intent> [goal flags]'
   ].join('\n');
+}
+
+const WORKFLOW_HELP_COMMAND_ORDER = [
+  'auto',
+  'start',
+  'status',
+  'next',
+  'resume',
+  'fund',
+  'run',
+  'plan',
+  'list',
+  'show',
+  'update',
+  'delete',
+  ...WORKFLOW_INTENT_SUBCOMMANDS
+] as const;
+
+function applyWorkflowHelpCommandOrder(workflow: Command): void {
+  const order = new Map(WORKFLOW_HELP_COMMAND_ORDER.map((name, index) => [name, index]));
+  workflow.commands.sort((left, right) => {
+    const leftOrder = order.get(left.name()) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = order.get(right.name()) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.name().localeCompare(right.name());
+  });
 }
 
 export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Command {
@@ -2166,7 +2198,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
   for (const intent of WORKFLOW_INTENT_SUBCOMMANDS) {
     const command = workflow
       .command(intent)
-      .description(`Shortcut for workflow run --intent ${intent}`)
+      .description(`Shortcut for the lower-level one-shot workflow path with fixed intent ${intent}`)
       .option('--wallet <name>', 'Wallet name', 'main');
 
     addWorkflowGoalOptions(command, {
@@ -2192,6 +2224,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       defiProvider: resolvedDeps.defiProvider
     }).description('Workflow-first alias for the default funding step on the active chain')
   );
+
+  applyWorkflowHelpCommandOrder(workflow);
 
   return workflow;
 }

@@ -194,6 +194,13 @@ test('wallet next supplements the tracked validated paymaster path when only app
   assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
   assert.ok(summary.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
   assert.ok(summary.notes.some((note) => /is validated\./.test(note)));
+  assert.ok(
+    summary.notes.some((note) =>
+      /Registry default: this is the current validated default approval-based paymaster path\./.test(
+        note
+      )
+    )
+  );
 });
 
 test('wallet next adds a registry note for a tracked validated paymaster path', () => {
@@ -254,6 +261,13 @@ test('wallet next adds a registry note for a tracked validated paymaster path', 
   assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
   assert.ok(summary.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
   assert.ok(summary.notes.some((note) => /is validated\./.test(note)));
+  assert.ok(
+    summary.notes.some((note) =>
+      /Registry default: this is the current validated default approval-based paymaster path\./.test(
+        note
+      )
+    )
+  );
 });
 
 test('explicit paymaster none overrides a saved paymaster selection', () => {

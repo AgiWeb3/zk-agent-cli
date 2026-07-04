@@ -212,12 +212,17 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.equal(result.scope, 'wallet');
     assert.equal(result.walletName, 'main');
     assert.equal(result.summary.status, 'ready');
-    assert.equal(result.nextCommand, 'zk-agent workflow run --wallet main --intent <intent> [goal flags]');
+    assert.equal(
+      result.nextCommand,
+      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
+    );
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
       walletStatus: 'zk-agent wallet status --name main',
-      workflowRun: 'zk-agent workflow run --wallet main --intent <intent> [goal flags]',
-      nextAction: 'zk-agent workflow run --wallet main --intent <intent> [goal flags]'
+      workflowAuto:
+        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+      nextAction:
+        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });

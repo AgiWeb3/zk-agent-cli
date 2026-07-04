@@ -74,6 +74,7 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(Array.isArray(result.defaults.registry.swapProtocols), true);
     assert.equal(Array.isArray(result.defaults.registry.bridgeRoutes), true);
     assert.equal(Array.isArray(result.defaults.registry.paymasterPaths), true);
+    assert.equal(typeof result.defaults.surfaceMatrix, 'object');
 
     const uniswap = result.defaults.registry.swapProtocols.find(
       (entry) => entry.id === 'uniswap-v3-exact-input-single'
@@ -124,6 +125,30 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     );
     assert.equal(experimentalPaymasterPath.status, 'experimental');
     assert.equal(experimentalPaymasterPath.feeTokenDeploymentMode, 'evm-interpreter');
+
+    assert.equal(
+      result.defaults.surfaceMatrix.swap.validatedDefaultEntryId,
+      'syncswap-classic'
+    );
+    assert.equal(
+      result.defaults.surfaceMatrix.swap.manualFallbackEntryId,
+      'uniswap-v3-exact-input-single'
+    );
+    assert.equal(
+      result.defaults.surfaceMatrix.bridge.validatedDepositEntryId,
+      'ethereum-sepolia-to-zksync-sepolia'
+    );
+    assert.equal(
+      result.defaults.surfaceMatrix.bridge.validatedWithdrawEntryId,
+      'zksync-sepolia-to-ethereum-sepolia'
+    );
+    assert.equal(
+      result.defaults.surfaceMatrix.paymaster.validatedDefaultEntryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.deepEqual(result.defaults.surfaceMatrix.paymaster.experimentalEntryIds, [
+      'zksync-sepolia-approval-based-evm-interpreter'
+    ]);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

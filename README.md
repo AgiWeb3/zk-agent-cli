@@ -46,6 +46,8 @@ What is already in place:
 - local wallet record maintenance via `wallet rename`
 - local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
 - `defaults` for a machine-readable registry view of the built-in chains plus the supported, validated, experimental, and manually configured zkSync Sepolia defaults
+  including a top-level `surfaceMatrix` that summarizes the current validated
+  default swap, bridge, and paymaster paths
 - `zksync-ethers` read path for balances and contract calls
 - `balances` now supports:
   - stored-wallet default chain reads
@@ -66,7 +68,7 @@ What is already in place:
   - the shortest remediation path for local execution
 - `next` as the top-level operator entrypoint, so one command can route the user to `setup`, wallet bootstrap/recovery, or the next workflow checkpoint action
 - `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
-- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`
+- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`, and now fills the current registry-backed default swap/bridge path when the tracked route is unambiguous
 - `workflow fund` as a workflow-first alias for the default funding step, so the canonical operator path no longer has to jump back out to the top-level `fund` command family
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
@@ -79,6 +81,7 @@ What is already in place:
 - `workflow` and `wallet next` now treat supported paymaster-backed smart-account writes as gas-satisfied even when the stored native balance is zero, so `send` / `send-token` / `call` / `swap` do not get blocked behind an unnecessary fund step before paymaster validation is attempted
 - on `zksync-sepolia`, approval-based paymaster mode can now fall back to the tracked validated paymaster + EraVM fee-token defaults when the wallet or workflow only specifies the mode and omits the explicit address/token
 - `workflow status|next|resume` for checking whether a previously prepared workflow is still blocked, still waiting on funding, or ready to continue, with optional `--request-id` loading from the stored checkpoint
+- `workflow` bridge goals now resolve the tracked validated destination route automatically when the stored wallet chain makes the default path unambiguous, so `workflow plan|status|next|run|auto` can emit and reuse concrete bridge commands without forcing `--to-chain` every time
 - `workflow list|show|update|delete` for local checkpoint inspection, runtime-setting adjustments, and cleanup, so longer-running operator flows do not accumulate opaque local state
 - `wallet sync` for refreshing local smart-account metadata from deployed onchain state, including saved built-in profile context such as `sed-lite`
 - `wallet export|restore` for portable local wallet backups and recovery across machines, with optional post-restore resync against deployed onchain state
@@ -129,16 +132,17 @@ What is already in place:
   - contract write
   - smart-account plan/deploy wrappers
   - default `createZkSyncAgentTools()` / `createZkSyncAgentToolContext()` factories
-  - `pnpm --filter @zk-agent/agent-tools tool:run -- --list`
-  - `pnpm --filter @zk-agent/agent-tools tool:run -- --tool <toolName> --input <json|@file>`
+  - `pnpm tool:list`
+  - `pnpm tool:run -- --tool <toolName> --input <json|@file>`
+  - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowAutoTool` as the recommended guided workflow entry, and keeps `workflowOrchestratorTool` as its compatibility alias
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
-  - `pnpm --filter @zk-agent/agent-tools smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
-  - `pnpm --filter @zk-agent/agent-tools smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow fund -> workflow run` operator path on one stored wallet
-  - `pnpm --filter @zk-agent/agent-tools smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
-  - `pnpm --filter @zk-agent/agent-tools smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
-  - `pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
-  - `pnpm --filter @zk-agent/agent-tools smoke:withdraw-followup -- --wallet <name> --tx-hash <hash> [--execute]` for withdraw-status -> finalize-preview / finalize-broadcast follow-up on a previously broadcast L2 withdraw
-  - `pnpm --filter @zk-agent/agent-tools smoke:broadcast -- --wallet <name> --execute` for the opt-in live legacy fee-token incompatibility smoke, which may now fail during estimation or broadcast depending on current Sepolia behavior
+  - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
+  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet
+  - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
+  - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
+  - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
+  - `pnpm smoke:withdraw-followup -- --wallet <name> --tx-hash <hash> [--execute]` for withdraw-status -> finalize-preview / finalize-broadcast follow-up on a previously broadcast L2 withdraw
+  - `pnpm smoke:broadcast -- --wallet <name> --execute` for the opt-in live legacy fee-token incompatibility smoke, which may now fail during estimation or broadcast depending on current Sepolia behavior
   - built `dist` entrypoints now also run directly, for example `node packages/agent-tools/dist/run-tool.js --list`
   - tool errors now also expose normalized validation `classification` and
     `suggestedAction` fields when the provider returns a known structured
@@ -184,6 +188,7 @@ What is already in place:
   - route-aware dispatch onto the validated `deposit` / `withdraw` paths
   - the currently supported `ethereum-sepolia <-> zksync-sepolia` bridge pair
   - machine-readable route metadata and post-broadcast status-command hints
+  - tracked default destination-route resolution for the direct `bridge` CLI path, so `--to-chain` can be omitted when the stored wallet chain maps to one unambiguous validated route
   - unified `bridge-status` inspection on top of the deposit / withdraw lifecycle trackers
   - preserved lifecycle-specific next-step guidance in `bridge-status`, including deposit polling and withdraw finalization follow-up
 - `swap` support through `packages/provider-zksync-defi`, including:
@@ -227,14 +232,16 @@ What is already in place:
 
 ## Current Product Focus
 
-For the current stage, the remaining product gap versus `polygon-agent-cli` is
-now mostly validation breadth, registry/default coverage, and packaging polish,
-not raw chain mechanics or the absence of a usable operator path.
+For the current stage, the repo already has a usable zkSync-native execution
+core. The remaining work is mostly productization: making the command surface,
+defaults, docs, and operator path easier to consume and validate.
 
 The active focus is:
 
 - keep one obvious default path for setup, wallet recovery, funding, and
   execution across CLI help, connector handoff, and follow-up commands
+- raise the command surface from address-first primitives toward
+  product-level, symbol/discovery-assisted operator flows
 - keep one installable agent-facing surface through `skills/`
 - keep one connector flow that works both for colocated `--await-local`
   approval and relay/manual approval return
@@ -253,8 +260,9 @@ pnpm zk-agent setup
 pnpm zk-agent next
 pnpm zk-agent wallet create --await-local
 pnpm zk-agent next
+pnpm zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
+# Only if the CLI reports that gas funding is still required:
 pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
-pnpm zk-agent workflow run --wallet main --intent <intent> [goal flags]
 ```
 
 Interpretation:
@@ -266,10 +274,11 @@ Interpretation:
    preferred connector path for obtaining a writable local session.
 4. `wallet next` and `wallet status` are the wallet-layer detailed views when
    the question is specifically about one stored wallet.
-5. `workflow fund`, `workflow run`, `workflow start`, `workflow next`, and
-   `workflow resume` are the explicit execution surface for actual intents.
-6. `workflow auto` is the guided execution shortcut when you want one command
-   to inspect, persist, and continue the workflow for you.
+5. `workflow auto` is the default guided execution surface when you want one
+   command to inspect readiness, persist checkpoints, and continue the flow.
+6. `workflow start`, `workflow status`, `workflow next`, `workflow resume`, and
+   `workflow fund` cover explicit checkpoint, resume, and funding-only cases.
+7. `workflow run` remains available as the lower-level one-shot path.
 
 Use the help entrypoint that matches the current question:
 
@@ -302,11 +311,13 @@ pnpm zk-agent setup
 pnpm zk-agent next
 pnpm zk-agent wallet create --await-local
 pnpm zk-agent next
-pnpm zk-agent workflow run --wallet main --intent <intent> [goal flags]
+pnpm zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
 ```
 
 `zk-agent next` is the default decision point. It chooses between setup,
-wallet bootstrap/recovery, and workflow continuation.
+wallet bootstrap/recovery, and workflow continuation. `workflow auto` is the
+default guided action entry once the wallet is writable; if gas is still
+missing, it points to `workflow fund` as the next step.
 
 ### 2. Wallet entrypoint
 
@@ -333,16 +344,18 @@ you want the execution path. This is the action-layer view:
 
 ```bash
 pnpm zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
-pnpm zk-agent workflow run --wallet main --intent <intent> [goal flags]
 pnpm zk-agent workflow start --wallet main --intent <intent> [goal flags]
+pnpm zk-agent workflow status --request-id <id>
 pnpm zk-agent workflow next --request-id <id>
 pnpm zk-agent workflow resume --request-id <id> [--broadcast]
 pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
+pnpm zk-agent workflow run --wallet main --intent <intent> [goal flags]
 ```
 
-Use `workflow auto` for the guided default path, `workflow run` for one-shot
-execution, `workflow start/next/resume` for explicit checkpointed execution,
-and `workflow fund` when you only want to dispatch the gas-funding step.
+Use `workflow auto` for the guided default path. Use
+`workflow start/status/next/resume` for explicit checkpointed execution,
+`workflow fund` when you only want to dispatch the gas-funding step, and
+`workflow run` only when you explicitly want the lower-level one-shot path.
 
 ### 4. Direct commands
 
@@ -360,6 +373,11 @@ pnpm zk-agent withdraw ...
 
 Use these for scripting, debugging, or when you explicitly want to bypass the
 workflow-oriented UX.
+
+For local test assets under `packages/paymaster-test-assets/deployments`,
+`send-token`, `swap`, and the corresponding `workflow` intents can now resolve
+token address/decimals from the stored symbol on the active chain instead of
+requiring a raw address every time.
 
 ## Agent Skills
 
@@ -435,7 +453,9 @@ pnpm zk-agent --help
 pnpm zksync-agent --help
 pnpm tool:list
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
+pnpm tool:run -- --tool workflowAutoTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"createCheckpoint":true}'
 pnpm smoke:operator-path -- --wallet <name>
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]
 pnpm smoke:paymaster-success -- --wallet <name>
 pnpm validate:phase3
 pnpm typecheck
@@ -447,8 +467,19 @@ Recommended root wrappers for the current stable product surface:
 
 - `pnpm tool:list` and `pnpm tool:run -- --tool <toolName> --input <json|@file>`
   expose the agent-tools registry without repeating package-filter boilerplate
+  and now return the closest `cliCommand` equivalent for each listed tool
+- key tools on the default operator path also expose `operatorPathStage`, so an
+  agent can distinguish routing, session acquisition, guided execution,
+  funding fallback, and checkpoint follow-up without maintaining its own map
+- `pnpm tool:list` now also returns a top-level `recommendedSequence`, so an
+  agent can consume the default product path directly instead of reconstructing
+  stage order from individual tool rows
 - `pnpm smoke:operator-path -- --wallet <name>` validates the canonical
-  `next -> wallet -> workflow fund -> workflow run` preview path
+  `next -> wallet -> workflow auto -> funding fallback or goal preview` path
+- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]`
+  aggregates the current product-level live validation sequence:
+  canonical operator path, validated paymaster-backed workflow-auto path, and
+  optional withdraw follow-up when a previous withdraw tx hash is supplied
 - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` validates the
   tracked approval-based Sepolia paymaster path, including the mode-only
   fallback to the tracked validated paymaster address and EraVM fee token

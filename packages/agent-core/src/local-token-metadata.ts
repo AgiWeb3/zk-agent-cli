@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export interface LocalTokenMetadata {
+  network?: string;
   address: string;
   decimals?: number;
   symbol?: string;
@@ -39,6 +40,11 @@ function normalizeAddress(value: string): string | undefined {
   return trimmed.toLowerCase();
 }
 
+function normalizeSymbol(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed.toUpperCase() : undefined;
+}
+
 function readDeploymentMetadata(directory: string): LocalTokenMetadata[] {
   if (!fs.existsSync(directory)) return [];
 
@@ -60,11 +66,13 @@ function readDeploymentMetadata(directory: string): LocalTokenMetadata[] {
             ? raw.decimals
             : undefined;
         const symbol = typeof raw.symbol === 'string' && raw.symbol.trim() ? raw.symbol.trim() : undefined;
+        const network = typeof raw.network === 'string' && raw.network.trim() ? raw.network.trim() : undefined;
 
         if (!address || (decimals === undefined && symbol === undefined)) return [];
 
         return [
           {
+            network,
             address,
             decimals,
             symbol,
@@ -88,4 +96,36 @@ export function resolveLocalTokenMetadata(
 
   const deploymentsDir = options?.deploymentsDir || defaultDeploymentsDir();
   return readDeploymentMetadata(deploymentsDir).find((entry) => entry.address === address);
+}
+
+export function findLocalTokenMetadataBySymbol(
+  symbol: string,
+  options?: {
+    deploymentsDir?: string;
+    network?: string;
+  }
+): LocalTokenMetadata[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+  if (!normalizedSymbol) return [];
+
+  const normalizedNetwork = options?.network?.trim();
+  const deploymentsDir = options?.deploymentsDir || defaultDeploymentsDir();
+
+  return readDeploymentMetadata(deploymentsDir).filter((entry) => {
+    if (normalizeSymbol(entry.symbol || '') !== normalizedSymbol) return false;
+    if (!normalizedNetwork) return true;
+    return entry.network === normalizedNetwork;
+  });
+}
+
+export function resolveLocalTokenMetadataBySymbol(
+  symbol: string,
+  options?: {
+    deploymentsDir?: string;
+    network?: string;
+  }
+): LocalTokenMetadata | undefined {
+  const matches = findLocalTokenMetadataBySymbol(symbol, options);
+  if (matches.length !== 1) return undefined;
+  return matches[0];
 }

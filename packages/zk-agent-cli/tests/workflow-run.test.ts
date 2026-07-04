@@ -626,6 +626,107 @@ test('workflow run emits a concrete swap retry command after preview', async () 
   );
 });
 
+test('workflow run can execute bridge with the tracked default route when toChain is omitted', async () => {
+  let receivedToChain: string | undefined;
+
+  const provider = {
+    async inspectWallet() {
+      return sampleInspection();
+    },
+    async getBalances() {
+      return {
+        walletName: 'main',
+        walletAddress: sampleWallet.walletAddress,
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        balances: [{ type: 'native', symbol: 'ETH', balance: '1.0', decimals: 18 }]
+      };
+    },
+    async getFundingInfo() {
+      return sampleFunding();
+    },
+    async sendNative() {
+      throw new Error('sendNative should not run in this test');
+    },
+    async sendToken() {
+      throw new Error('sendToken should not run in this test');
+    },
+    async writeContract() {
+      throw new Error('writeContract should not run in this test');
+    }
+  };
+  const defiProvider = {
+    async swap() {
+      throw new Error('swap should not run in this test');
+    },
+    async bridge(input: { wallet: WalletSessionRecord; toChain: string; amount: string }) {
+      receivedToChain = input.toChain;
+      return {
+        walletName: input.wallet.walletName,
+        walletAddress: input.wallet.walletAddress,
+        route: 'l2-to-l1' as const,
+        operation: 'withdraw' as const,
+        mode: 'preview' as const,
+        fromChain: input.wallet.chain,
+        fromChainId: input.wallet.chainId,
+        toChain: input.toChain,
+        toChainId: 11155111,
+        sender: input.wallet.walletAddress,
+        recipient: input.wallet.walletAddress,
+        bridgeAddresses: {
+          erc20L1: '0x' + '11'.repeat(20),
+          erc20L2: '0x' + '22'.repeat(20),
+          wethL1: '0x' + '33'.repeat(20),
+          wethL2: '0x' + '44'.repeat(20),
+          sharedL1: '0x' + '55'.repeat(20),
+          sharedL2: '0x' + '66'.repeat(20)
+        },
+        estimatedGas: '123456',
+        token: {
+          address: '0x0000000000000000000000000000000000000000',
+          symbol: 'ETH',
+          amount: input.amount,
+          decimals: 18,
+          isNative: true
+        },
+        preview: {},
+        notes: []
+      };
+    },
+    async deposit() {
+      throw new Error('deposit should not run in this test');
+    },
+    async withdraw() {
+      throw new Error('withdraw should not run in this test');
+    }
+  };
+
+  const result = await runWorkflow(
+    {
+      wallet: sampleWallet,
+      intent: 'bridge',
+      broadcast: false,
+      goal: {
+        intent: 'bridge',
+        amount: '0.1'
+      }
+    },
+    {
+      provider,
+      defiProvider
+    }
+  );
+
+  assert.equal(receivedToChain, 'ethereum-sepolia');
+  assert.equal(result.stage, 'goal-executed');
+  assert.equal(result.nextCommand, 'zk-agent workflow bridge --wallet main --to-chain ethereum-sepolia --amount 0.1 --broadcast');
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry default: this is the current validated withdraw route\./.test(note)
+    )
+  );
+});
+
 test('workflow run does not require separate funding when paymaster-backed send-native can cover gas', async () => {
   let sendNativeCalls = 0;
 
@@ -715,6 +816,13 @@ test('workflow run does not require separate funding when paymaster-backed send-
   assert.equal(result.stage, 'goal-executed');
   assert.ok(result.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
   assert.ok(result.notes.some((note) => /is validated\./.test(note)));
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry default: this is the current validated default approval-based paymaster path\./.test(
+        note
+      )
+    )
+  );
 });
 
 test('workflow run supplements the tracked validated paymaster path when only approval-based mode is requested', async () => {

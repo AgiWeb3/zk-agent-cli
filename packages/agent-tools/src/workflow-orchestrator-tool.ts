@@ -129,7 +129,8 @@ async function reserveWorkflowCheckpointId(
 }
 
 function requireWorkflowIntentAndGoal(
-  input: WorkflowOrchestratorToolInput
+  input: WorkflowOrchestratorToolInput,
+  toolName: string
 ): asserts input is WorkflowOrchestratorToolInput & {
   walletName: string;
   intent: WorkflowIntent;
@@ -138,7 +139,7 @@ function requireWorkflowIntentAndGoal(
   if (!input.walletName?.trim()) {
     throw new AgentError(
       'WALLET_NAME_REQUIRED',
-      'workflowOrchestratorTool requires walletName when no stored checkpoint is supplied.',
+      `${toolName} requires walletName when no stored checkpoint is supplied.`,
       {}
     );
   }
@@ -146,7 +147,7 @@ function requireWorkflowIntentAndGoal(
   if (!input.intent) {
     throw new AgentError(
       'WORKFLOW_INTENT_REQUIRED',
-      'workflowOrchestratorTool requires intent when no stored checkpoint is supplied.',
+      `${toolName} requires intent when no stored checkpoint is supplied.`,
       {
         walletName: input.walletName
       }
@@ -156,7 +157,7 @@ function requireWorkflowIntentAndGoal(
   if (!input.goal) {
     throw new AgentError(
       'WORKFLOW_GOAL_REQUIRED',
-      'workflowOrchestratorTool requires goal when no stored checkpoint is supplied.',
+      `${toolName} requires goal when no stored checkpoint is supplied.`,
       {
         walletName: input.walletName,
         intent: input.intent
@@ -179,7 +180,8 @@ function requireWorkflowIntentAndGoal(
 
 async function resolveWorkflowOrchestratorInput(
   context: AgentToolContext,
-  input: WorkflowOrchestratorToolInput
+  input: WorkflowOrchestratorToolInput,
+  toolName: string
 ): Promise<ResolvedWorkflowOrchestratorInput> {
   const requestedId = input.requestId?.trim();
   const existingCheckpoint = requestedId
@@ -235,7 +237,7 @@ async function resolveWorkflowOrchestratorInput(
     );
   }
 
-  requireWorkflowIntentAndGoal(input);
+  requireWorkflowIntentAndGoal(input, toolName);
 
   const wallet = await requireWalletRecord(context, input.walletName);
   const persistCheckpoint = Boolean(input.createCheckpoint);
@@ -330,13 +332,16 @@ function overrideCheckpointRecommendedCommand(
   };
 }
 
-export function createWorkflowOrchestratorTool(context: AgentToolContext) {
+function createWorkflowOrchestratorToolWithName(
+  context: AgentToolContext,
+  name: 'workflowAutoTool' | 'workflowOrchestratorTool'
+) {
   return createAgentTool<WorkflowOrchestratorToolInput, WorkflowOrchestratorToolOutput>({
-    name: 'workflowOrchestratorTool',
+    name,
     description:
       'Resolve a workflow from fresh goal input or a stored checkpoint, persist checkpoint state when requested, inspect readiness, and optionally execute the next step when ready.',
     execute: async (input) => {
-      const resolved = await resolveWorkflowOrchestratorInput(context, input);
+      const resolved = await resolveWorkflowOrchestratorInput(context, input, name);
       let wallet = resolved.wallet;
       let status = await inspectWorkflowStatus(
         {
@@ -409,9 +414,9 @@ export function createWorkflowOrchestratorTool(context: AgentToolContext) {
         if (!context.defiProvider) {
           throw new AgentError(
             'DEFI_PROVIDER_UNAVAILABLE',
-            'workflowOrchestratorTool execution requires a zkSync DeFi provider.',
+            `${name} execution requires a zkSync DeFi provider.`,
             {
-              toolName: 'workflowOrchestratorTool'
+              toolName: name
             }
           );
         }
@@ -459,4 +464,12 @@ export function createWorkflowOrchestratorTool(context: AgentToolContext) {
       };
     }
   });
+}
+
+export function createWorkflowAutoTool(context: AgentToolContext) {
+  return createWorkflowOrchestratorToolWithName(context, 'workflowAutoTool');
+}
+
+export function createWorkflowOrchestratorTool(context: AgentToolContext) {
+  return createWorkflowOrchestratorToolWithName(context, 'workflowOrchestratorTool');
 }

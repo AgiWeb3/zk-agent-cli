@@ -153,6 +153,30 @@ export interface ValidatedDefaultsPayload {
       notes: string[];
     }>;
   };
+  surfaceMatrix: {
+    swap: {
+      validatedDefaultEntryId: string | null;
+      manualFallbackEntryId: string | null;
+      validatedEntryIds: string[];
+      supportedEntryIds: string[];
+      experimentalEntryIds: string[];
+      notes: string[];
+    };
+    bridge: {
+      validatedDepositEntryId: string | null;
+      validatedWithdrawEntryId: string | null;
+      validatedEntryIds: string[];
+      supportedEntryIds: string[];
+      experimentalEntryIds: string[];
+      notes: string[];
+    };
+    paymaster: {
+      validatedDefaultEntryId: string | null;
+      validatedEntryIds: string[];
+      experimentalEntryIds: string[];
+      notes: string[];
+    };
+  };
   notes: string[];
 }
 
@@ -232,6 +256,13 @@ function equalsIgnoreCase(left: string | null | undefined, right: string | null 
   return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
 }
 
+function collectRegistryIdsByStatus<T extends { id: string; status: RegistryEntryStatus }>(
+  entries: T[],
+  status: RegistryEntryStatus
+): string[] {
+  return entries.filter((entry) => entry.status === status).map((entry) => entry.id);
+}
+
 export function loadValidatedDefaults(): ValidatedDefaultsPayload {
   const workspaceRoot = findWorkspaceRoot();
   const builtins = listBuiltinChains();
@@ -266,6 +297,130 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
     envValue('ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_A') || syncswap?.tokenA?.address || null;
   const syncswapTokenB =
     envValue('ZKSYNC_SYNCSWAP_CLASSIC_TOKEN_B') || syncswap?.tokenB?.address || null;
+
+  const swapProtocols: ValidatedDefaultsPayload['registry']['swapProtocols'] = [
+    {
+      id: 'uniswap-v3-exact-input-single',
+      chain: 'zksync-sepolia',
+      status: 'supported',
+      configuration: 'manual',
+      routerAddress: uniswapRouterAddress,
+      factoryAddress: null,
+      poolAddress: null,
+      feeTier: uniswapFeeTier,
+      notes: [
+        'This path is supported, but it remains an explicit-router/manual-configuration path until a validated pool or tracked deployment set is promoted into the registry.'
+      ]
+    },
+    {
+      id: 'syncswap-classic',
+      chain: 'zksync-sepolia',
+      status: syncswap ? 'validated' : 'supported',
+      configuration: 'tracked-default',
+      routerAddress:
+        normalizeOptionalString(syncswap?.routerAddress) || syncswapRouterAddress,
+      factoryAddress:
+        normalizeOptionalString(syncswap?.factoryAddress) || syncswapFactoryAddress,
+      poolAddress: normalizeOptionalString(syncswap?.poolAddress),
+      feeTier: null,
+      notes: syncswap
+        ? [
+            'This is the currently tracked validated SyncSwap classic Sepolia router/factory/pool path.'
+          ]
+        : [
+            'This path is supported and seeded from tracked defaults, but no locally validated deployment record is present.'
+          ]
+    }
+  ];
+
+  const bridgeRoutes: ValidatedDefaultsPayload['registry']['bridgeRoutes'] = [
+    {
+      id: 'ethereum-sepolia-to-zksync-sepolia',
+      fromChain: 'ethereum-sepolia',
+      toChain: 'zksync-sepolia',
+      direction: 'l1-to-l2',
+      status: 'validated',
+      configuration: 'tracked-default',
+      notes: ['This is the currently tracked validated Sepolia deposit route.']
+    },
+    {
+      id: 'zksync-sepolia-to-ethereum-sepolia',
+      fromChain: 'zksync-sepolia',
+      toChain: 'ethereum-sepolia',
+      direction: 'l2-to-l1',
+      status: 'validated',
+      configuration: 'tracked-default',
+      notes: [
+        'This is the currently tracked validated Sepolia withdraw route. Finalization still depends on later proof availability.'
+      ]
+    }
+  ];
+
+  const paymasterPaths: ValidatedDefaultsPayload['registry']['paymasterPaths'] = [
+    ...(paymaster && eraVmToken
+      ? [
+          {
+            id: 'zksync-sepolia-approval-based-eravm',
+            chain: 'zksync-sepolia',
+            mode: 'approval-based' as const,
+            status: 'validated' as const,
+            configuration: 'tracked-default' as const,
+            paymasterAddress: paymaster.contractAddress,
+            feeTokenAddress: eraVmToken.contractAddress,
+            feeTokenSymbol: normalizeOptionalString(eraVmToken.symbol),
+            feeTokenDeploymentMode: normalizeOptionalString(eraVmToken.deploymentMode),
+            notes: [
+              'This is the currently tracked validated approval-based paymaster path on zkSync Sepolia.'
+            ]
+          }
+        ]
+      : []),
+    ...(paymaster && evmToken
+      ? [
+          {
+            id: 'zksync-sepolia-approval-based-evm-interpreter',
+            chain: 'zksync-sepolia',
+            mode: 'approval-based' as const,
+            status: 'experimental' as const,
+            configuration: 'tracked-default' as const,
+            paymasterAddress: paymaster.contractAddress,
+            feeTokenAddress: evmToken.contractAddress,
+            feeTokenSymbol: normalizeOptionalString(evmToken.symbol),
+            feeTokenDeploymentMode: normalizeOptionalString(evmToken.deploymentMode),
+            notes: [
+              'This path is tracked for comparison, but it is not treated as a validated Sepolia approval-based broadcast path.'
+            ]
+          }
+        ]
+      : [])
+  ];
+
+  const validatedSwapDefault =
+    swapProtocols.find(
+      (entry) => entry.status === 'validated' && entry.configuration === 'tracked-default'
+    ) || null;
+  const manualSwapFallback =
+    swapProtocols.find(
+      (entry) => entry.status === 'supported' && entry.configuration === 'manual'
+    ) || null;
+  const validatedDepositRoute =
+    bridgeRoutes.find(
+      (entry) =>
+        entry.direction === 'l1-to-l2' &&
+        entry.status === 'validated' &&
+        entry.configuration === 'tracked-default'
+    ) || null;
+  const validatedWithdrawRoute =
+    bridgeRoutes.find(
+      (entry) =>
+        entry.direction === 'l2-to-l1' &&
+        entry.status === 'validated' &&
+        entry.configuration === 'tracked-default'
+    ) || null;
+  const validatedPaymasterDefault =
+    paymasterPaths.find(
+      (entry) => entry.status === 'validated' && entry.configuration === 'tracked-default'
+    ) || null;
 
   const payload: ValidatedDefaultsPayload = {
     generatedAt: new Date().toISOString(),
@@ -349,100 +504,57 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
         : undefined
     },
     registry: {
-      swapProtocols: [
-        {
-          id: 'uniswap-v3-exact-input-single',
-          chain: 'zksync-sepolia',
-          status: 'supported',
-          configuration: 'manual',
-          routerAddress: uniswapRouterAddress,
-          factoryAddress: null,
-          poolAddress: null,
-          feeTier: uniswapFeeTier,
-          notes: [
-            'This path is supported, but it remains an explicit-router/manual-configuration path until a validated pool or tracked deployment set is promoted into the registry.'
-          ]
-        },
-        {
-          id: 'syncswap-classic',
-          chain: 'zksync-sepolia',
-          status: syncswap ? 'validated' : 'supported',
-          configuration: 'tracked-default',
-          routerAddress:
-            normalizeOptionalString(syncswap?.routerAddress) || syncswapRouterAddress,
-          factoryAddress:
-            normalizeOptionalString(syncswap?.factoryAddress) || syncswapFactoryAddress,
-          poolAddress: normalizeOptionalString(syncswap?.poolAddress),
-          feeTier: null,
-          notes: syncswap
-            ? [
-                'This is the currently tracked validated SyncSwap classic Sepolia router/factory/pool path.'
-              ]
-            : [
-                'This path is supported and seeded from tracked defaults, but no locally validated deployment record is present.'
-              ]
-        }
-      ],
-      bridgeRoutes: [
-        {
-          id: 'ethereum-sepolia-to-zksync-sepolia',
-          fromChain: 'ethereum-sepolia',
-          toChain: 'zksync-sepolia',
-          direction: 'l1-to-l2',
-          status: 'validated',
-          configuration: 'tracked-default',
-          notes: ['This is the currently tracked validated Sepolia deposit route.']
-        },
-        {
-          id: 'zksync-sepolia-to-ethereum-sepolia',
-          fromChain: 'zksync-sepolia',
-          toChain: 'ethereum-sepolia',
-          direction: 'l2-to-l1',
-          status: 'validated',
-          configuration: 'tracked-default',
-          notes: [
-            'This is the currently tracked validated Sepolia withdraw route. Finalization still depends on later proof availability.'
-          ]
-        }
-      ],
-      paymasterPaths: [
-        ...(paymaster && eraVmToken
-          ? [
-              {
-                id: 'zksync-sepolia-approval-based-eravm',
-                chain: 'zksync-sepolia',
-                mode: 'approval-based' as const,
-                status: 'validated' as const,
-                configuration: 'tracked-default' as const,
-                paymasterAddress: paymaster.contractAddress,
-                feeTokenAddress: eraVmToken.contractAddress,
-                feeTokenSymbol: normalizeOptionalString(eraVmToken.symbol),
-                feeTokenDeploymentMode: normalizeOptionalString(eraVmToken.deploymentMode),
-                notes: [
-                  'This is the currently tracked validated approval-based paymaster path on zkSync Sepolia.'
-                ]
-              }
-            ]
-          : []),
-        ...(paymaster && evmToken
-          ? [
-              {
-                id: 'zksync-sepolia-approval-based-evm-interpreter',
-                chain: 'zksync-sepolia',
-                mode: 'approval-based' as const,
-                status: 'experimental' as const,
-                configuration: 'tracked-default' as const,
-                paymasterAddress: paymaster.contractAddress,
-                feeTokenAddress: evmToken.contractAddress,
-                feeTokenSymbol: normalizeOptionalString(evmToken.symbol),
-                feeTokenDeploymentMode: normalizeOptionalString(evmToken.deploymentMode),
-                notes: [
-                  'This path is tracked for comparison, but it is not treated as a validated Sepolia approval-based broadcast path.'
-                ]
-              }
-            ]
-          : [])
-      ]
+      swapProtocols,
+      bridgeRoutes,
+      paymasterPaths
+    },
+    surfaceMatrix: {
+      swap: {
+        validatedDefaultEntryId: validatedSwapDefault?.id || null,
+        manualFallbackEntryId: manualSwapFallback?.id || null,
+        validatedEntryIds: collectRegistryIdsByStatus(swapProtocols, 'validated'),
+        supportedEntryIds: collectRegistryIdsByStatus(swapProtocols, 'supported'),
+        experimentalEntryIds: collectRegistryIdsByStatus(swapProtocols, 'experimental'),
+        notes: [
+          validatedSwapDefault
+            ? `Validated default swap path: ${validatedSwapDefault.id}.`
+            : 'No validated default swap path is currently promoted into the registry.',
+          manualSwapFallback
+            ? `Manual fallback swap path: ${manualSwapFallback.id}.`
+            : 'No manual fallback swap path is currently recorded.'
+        ]
+      },
+      bridge: {
+        validatedDepositEntryId: validatedDepositRoute?.id || null,
+        validatedWithdrawEntryId: validatedWithdrawRoute?.id || null,
+        validatedEntryIds: collectRegistryIdsByStatus(bridgeRoutes, 'validated'),
+        supportedEntryIds: collectRegistryIdsByStatus(bridgeRoutes, 'supported'),
+        experimentalEntryIds: collectRegistryIdsByStatus(bridgeRoutes, 'experimental'),
+        notes: [
+          validatedDepositRoute
+            ? `Validated deposit route: ${validatedDepositRoute.id}.`
+            : 'No validated deposit route is currently promoted into the registry.',
+          validatedWithdrawRoute
+            ? `Validated withdraw route: ${validatedWithdrawRoute.id}.`
+            : 'No validated withdraw route is currently promoted into the registry.'
+        ]
+      },
+      paymaster: {
+        validatedDefaultEntryId: validatedPaymasterDefault?.id || null,
+        validatedEntryIds: collectRegistryIdsByStatus(paymasterPaths, 'validated'),
+        experimentalEntryIds: collectRegistryIdsByStatus(paymasterPaths, 'experimental'),
+        notes: [
+          validatedPaymasterDefault
+            ? `Validated default paymaster path: ${validatedPaymasterDefault.id}.`
+            : 'No validated default paymaster path is currently promoted into the registry.',
+          collectRegistryIdsByStatus(paymasterPaths, 'experimental').length > 0
+            ? `Experimental comparison paths: ${collectRegistryIdsByStatus(
+                paymasterPaths,
+                'experimental'
+              ).join(', ')}.`
+            : 'No experimental comparison paymaster paths are currently tracked.'
+        ]
+      }
     },
     notes: [
       'The managed paymaster and EraVM fee token below are the currently tracked validated Sepolia approval-based path.',
@@ -474,6 +586,61 @@ export function findBridgeRouteRegistryEntry(input: {
   return defaults.registry.bridgeRoutes.find(
     (entry) => entry.fromChain === input.fromChain && entry.toChain === input.toChain
   );
+}
+
+export function resolveTrackedBridgeRoute(input: {
+  fromChain: string;
+  toChain?: string | null;
+  defaults?: ValidatedDefaultsPayload;
+}): {
+  toChain?: string;
+  entry?: BridgeRouteRegistryEntry;
+  defaulted: boolean;
+} {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const explicitToChain = normalizeOptionalString(input.toChain);
+
+  if (explicitToChain) {
+    return {
+      toChain: explicitToChain,
+      entry: findBridgeRouteRegistryEntry({
+        fromChain: input.fromChain,
+        toChain: explicitToChain,
+        defaults
+      }),
+      defaulted: false
+    };
+  }
+
+  const preferredIds = [
+    defaults.surfaceMatrix.bridge.validatedDepositEntryId,
+    defaults.surfaceMatrix.bridge.validatedWithdrawEntryId
+  ].filter((entryId): entryId is string => Boolean(entryId));
+
+  for (const entryId of preferredIds) {
+    const entry = defaults.registry.bridgeRoutes.find(
+      (candidate) => candidate.id === entryId && candidate.fromChain === input.fromChain
+    );
+    if (entry) {
+      return {
+        toChain: entry.toChain,
+        entry,
+        defaulted: true
+      };
+    }
+  }
+
+  const fallbackEntry =
+    defaults.registry.bridgeRoutes.find(
+      (candidate) => candidate.fromChain === input.fromChain && candidate.status === 'validated'
+    ) ||
+    defaults.registry.bridgeRoutes.find((candidate) => candidate.fromChain === input.fromChain);
+
+  return {
+    toChain: fallbackEntry?.toChain,
+    entry: fallbackEntry,
+    defaulted: Boolean(fallbackEntry)
+  };
 }
 
 export function findPaymasterPathRegistryEntry(input: {
@@ -539,24 +706,34 @@ export function buildSwapRegistryNotes(input: {
   protocol: 'uniswap-v3-exact-input-single' | 'syncswap-classic';
   defaults?: ValidatedDefaultsPayload;
 }): string[] {
-  const entry = findSwapProtocolRegistryEntry(input);
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findSwapProtocolRegistryEntry({
+    ...input,
+    defaults
+  });
   if (!entry) return [];
 
+  const notes: string[] = [];
+
   if (entry.status === 'validated') {
-    return [
-      `Registry: ${entry.id} on ${entry.chain} is a validated ${entry.configuration} swap path.`
-    ];
-  }
-
-  if (entry.status === 'supported') {
-    return [
+    notes.push(`Registry: ${entry.id} on ${entry.chain} is a validated ${entry.configuration} swap path.`);
+  } else if (entry.status === 'supported') {
+    notes.push(
       `Registry: ${entry.id} on ${entry.chain} is supported, but it currently remains ${entry.configuration} rather than a validated default path.`
-    ];
+    );
+  } else {
+    notes.push(`Registry: ${entry.id} on ${entry.chain} is marked ${entry.status}.`);
   }
 
-  return [
-    `Registry: ${entry.id} on ${entry.chain} is marked ${entry.status}.`
-  ];
+  if (entry.id === defaults.surfaceMatrix.swap.validatedDefaultEntryId) {
+    notes.push('Registry default: this is the current validated default swap path.');
+  }
+
+  if (entry.id === defaults.surfaceMatrix.swap.manualFallbackEntryId) {
+    notes.push('Registry fallback: this is the current manual fallback swap path.');
+  }
+
+  return notes;
 }
 
 export function buildBridgeRegistryNotes(input: {
@@ -564,12 +741,22 @@ export function buildBridgeRegistryNotes(input: {
   toChain: string;
   defaults?: ValidatedDefaultsPayload;
 }): string[] {
-  const entry = findBridgeRouteRegistryEntry(input);
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findBridgeRouteRegistryEntry({
+    ...input,
+    defaults
+  });
   if (!entry) return [];
 
-  return [
-    `Registry: ${entry.fromChain} -> ${entry.toChain} is a ${entry.status} bridge route.`
-  ];
+  const notes = [`Registry: ${entry.fromChain} -> ${entry.toChain} is a ${entry.status} bridge route.`];
+  if (entry.id === defaults.surfaceMatrix.bridge.validatedDepositEntryId) {
+    notes.push('Registry default: this is the current validated deposit route.');
+  }
+  if (entry.id === defaults.surfaceMatrix.bridge.validatedWithdrawEntryId) {
+    notes.push('Registry default: this is the current validated withdraw route.');
+  }
+
+  return notes;
 }
 
 export function buildPaymasterRegistryNotes(input: {
@@ -579,7 +766,11 @@ export function buildPaymasterRegistryNotes(input: {
   tokenAddress?: string | null;
   defaults?: ValidatedDefaultsPayload;
 }): string[] {
-  const entry = findPaymasterPathRegistryEntry(input);
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findPaymasterPathRegistryEntry({
+    ...input,
+    defaults
+  });
   if (!entry) return [];
 
   const tokenLabel = entry.feeTokenSymbol || entry.feeTokenAddress || 'unknown token';
@@ -587,7 +778,13 @@ export function buildPaymasterRegistryNotes(input: {
     ? ` (${entry.feeTokenDeploymentMode})`
     : '';
 
-  return [
+  const notes = [
     `Registry: ${entry.mode} paymaster on ${entry.chain} with fee token ${tokenLabel}${deploymentMode} is ${entry.status}.`
   ];
+
+  if (entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryId) {
+    notes.push('Registry default: this is the current validated default approval-based paymaster path.');
+  }
+
+  return notes;
 }

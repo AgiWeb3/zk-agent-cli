@@ -92,6 +92,27 @@ export function createDefaultsCommand(): Command {
         }
       }
 
+      lines.push([
+        'swap matrix default',
+        defaults.surfaceMatrix.swap.validatedDefaultEntryId || 'none'
+      ]);
+      lines.push([
+        'swap matrix fallback',
+        defaults.surfaceMatrix.swap.manualFallbackEntryId || 'none'
+      ]);
+      lines.push([
+        'bridge matrix deposit',
+        defaults.surfaceMatrix.bridge.validatedDepositEntryId || 'none'
+      ]);
+      lines.push([
+        'bridge matrix withdraw',
+        defaults.surfaceMatrix.bridge.validatedWithdrawEntryId || 'none'
+      ]);
+      lines.push([
+        'paymaster matrix default',
+        defaults.surfaceMatrix.paymaster.validatedDefaultEntryId || 'none'
+      ]);
+
       for (const note of defaults.notes) {
         lines.push(['note', note]);
       }

@@ -34,11 +34,11 @@ function printUsage(): void {
       '  pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute] [--to <address>] [--amount <native>] [--paymaster-address <address>] [--paymaster-token <address>]',
       '',
       'What it does:',
-      '  1. Validates the approval-based workflow-backed send-native path.',
+      '  1. Validates the approval-based workflow-auto send-native path.',
       '  2. By default, only requests paymaster mode and relies on tracked validated Sepolia defaults to fill address/token.',
-      '  3. Runs a real workflow-backed send-native preview by default.',
+      '  3. Runs a real guided workflow send-native preview by default.',
       '  4. With --execute, broadcasts the real paymaster-backed send-native transaction.',
-      '  5. Asserts that workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
+      '  5. Asserts that guided workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
       '',
       'Safety:',
       '  Without --execute this command only performs a live preview.',
@@ -202,10 +202,12 @@ async function main(): Promise<void> {
     ...(options.paymasterToken ? { token: options.paymasterToken } : {})
   };
 
-  const result = await tools.workflowRunTool.execute({
+  const result = await tools.workflowAutoTool.execute({
     walletName: options.walletName,
     intent: 'send-native',
     broadcast: options.execute,
+    createCheckpoint: false,
+    executeWhenReady: true,
     goal: {
       intent: 'send-native',
       to: resolvedTarget,
@@ -232,8 +234,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const execution = result.data.result;
-  if (execution.stage !== 'goal-executed') {
+  const execution = result.data.run;
+  if (result.data.action !== 'goal-executed' || execution?.stage !== 'goal-executed') {
     writeJson({
       ok: false,
       walletName: options.walletName,
@@ -246,8 +248,8 @@ async function main(): Promise<void> {
         expectedDefaultPaymasterToken
       },
       message:
-        'Expected the paymaster-backed workflow to execute the goal action directly, but it dispatched a separate funding step instead.',
-      result: execution
+        'Expected the paymaster-backed workflow auto path to execute the goal action directly, but it remained blocked or dispatched a separate funding step instead.',
+      result: result.data
     });
     process.exitCode = 1;
     return;

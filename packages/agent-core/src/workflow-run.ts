@@ -15,6 +15,7 @@ import type {
   WithdrawExecutionResult
 } from './providers.js';
 import { buildWorkflowPlan, type WorkflowIntent, type WorkflowPlan, type WorkflowSwapProtocol } from './workflow-plan.js';
+import { resolveTrackedBridgeRoute } from './validated-defaults.js';
 import {
   canUsePaymasterForGas,
   isZeroBalance,
@@ -80,7 +81,7 @@ export interface SwapWorkflowGoalInput {
 export interface BridgeWorkflowGoalInput {
   intent: 'bridge';
   amount: string;
-  toChain: string;
+  toChain?: string;
   fromChain?: string;
   to?: string;
   tokenAddress?: string;
@@ -362,8 +363,14 @@ export function buildWorkflowGoalCommand(
       return appendPaymasterCommandArgs(command, wallet, goal.paymaster);
     }
     case 'bridge': {
+      const resolvedTarget = resolveTrackedBridgeRoute({
+        fromChain: goal.fromChain || wallet.chain,
+        toChain: goal.toChain
+      }).toChain;
+      if (!resolvedTarget) return undefined;
+
       let command =
-        `zk-agent workflow bridge --wallet ${walletName} --to-chain ${goal.toChain} --amount ${goal.amount} --broadcast`;
+        `zk-agent workflow bridge --wallet ${walletName} --to-chain ${resolvedTarget} --amount ${goal.amount} --broadcast`;
       command = appendOptionalCommandArg(command, '--from-chain', goal.fromChain);
       command = appendOptionalCommandArg(command, '--to', goal.to);
       command = appendOptionalCommandArg(command, '--token', goal.tokenAddress);
@@ -453,11 +460,31 @@ async function executeGoal(
         paymaster: goal.paymaster
       });
     case 'bridge':
+      {
+        const resolvedTarget = resolveTrackedBridgeRoute({
+          fromChain: goal.fromChain || wallet.chain,
+          toChain: goal.toChain
+        }).toChain;
+        if (!resolvedTarget) {
+          throw new AgentError(
+            'WORKFLOW_BRIDGE_ROUTE_REQUIRED',
+            `Workflow bridge requires --to-chain or a tracked default route for ${goal.fromChain || wallet.chain}.`,
+            {
+              walletName: wallet.walletName,
+              fromChain: goal.fromChain || wallet.chain,
+              intent: goal.intent,
+              suggestedAction:
+                `zk-agent workflow bridge --wallet ${wallet.walletName} --to-chain <chain> --amount ${goal.amount}` +
+                (goal.fromChain ? ` --from-chain ${goal.fromChain}` : '')
+            }
+          );
+        }
+
       return deps.defiProvider.bridge({
         wallet,
         amount: goal.amount,
         fromChain: goal.fromChain,
-        toChain: goal.toChain,
+        toChain: resolvedTarget,
         to: goal.to,
         tokenAddress: goal.tokenAddress,
         symbol: goal.symbol,
@@ -465,6 +492,7 @@ async function executeGoal(
         bridgeAddress: goal.bridgeAddress,
         broadcast
       });
+      }
     case 'deposit':
       return deps.defiProvider.deposit({
         wallet,

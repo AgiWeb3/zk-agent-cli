@@ -29,6 +29,7 @@ import {
   jsonOut,
   shouldJsonOutput
 } from './lib/io.js';
+import { buildWorkflowAutoRecommendedCommand } from './lib/recommended-commands.js';
 
 function buildDefaultOperatorPathHelpText(): string {
   return [
@@ -38,7 +39,7 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
-    '  zk-agent workflow run --wallet main --intent <intent> [goal flags]',
+    `  ${buildWorkflowAutoRecommendedCommand('main')}`,
     '',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.'
   ].join('\n');

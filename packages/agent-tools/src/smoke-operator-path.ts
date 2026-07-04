@@ -15,12 +15,12 @@ function printUsage(): void {
       'What it does:',
       '  1. Reads the current top-level operator next-step for the wallet.',
       '  2. Reads wallet status and wallet next-step guidance.',
-      '  3. Reads workflow funding guidance for the requested amount.',
-      '  4. Runs a preview-only workflow send-native execution for the same wallet.',
+      '  3. Runs guided workflow orchestration for a preview-only send-native intent.',
+      '  4. If the guided workflow reports a separate funding step, reads workflow funding guidance for the same amount.',
       '',
       'Interpretation:',
       '  - success means the canonical operator path is coherent enough to reach either',
-      '    a concrete workflow preview or a concrete funding-dispatch step',
+      '    a concrete workflow preview or a concrete workflow-funding follow-up step',
       '  - failure means setup, wallet readiness, or workflow execution is still blocked',
       '',
       'Defaults:',
@@ -140,14 +140,11 @@ async function main(): Promise<void> {
   const walletNext = await tools.walletNextTool.execute({
     walletName: options.walletName
   });
-  const workflowFund = await tools.workflowFundTool.execute({
-    walletName: options.walletName,
-    amount: options.amount
-  });
-  const workflowRun = await tools.workflowRunTool.execute({
+  const workflowAuto = await tools.workflowAutoTool.execute({
     walletName: options.walletName,
     intent: 'send-native',
-    broadcast: false,
+    createCheckpoint: false,
+    executeWhenReady: true,
     goal: {
       intent: 'send-native',
       to: targetAddress,
@@ -155,13 +152,24 @@ async function main(): Promise<void> {
     }
   });
 
-  const workflowStage = workflowRun.ok ? workflowRun.data.result.stage : undefined;
+  const workflowNeedsFunding =
+    workflowAuto.ok &&
+    workflowAuto.data.action === 'blocked' &&
+    workflowAuto.data.recommendedCommand?.startsWith(
+      `zk-agent workflow fund --wallet ${options.walletName}`
+    );
+  const workflowFund = workflowNeedsFunding
+    ? await tools.workflowFundTool.execute({
+        walletName: options.walletName,
+        amount: options.amount
+      })
+    : undefined;
+  const workflowStage = workflowAuto.ok ? workflowAuto.data.run?.stage : undefined;
   const ok =
     walletStatus.ok &&
     walletNext.ok &&
-    workflowFund.ok &&
-    workflowRun.ok &&
-    (workflowStage === 'goal-executed' || workflowStage === 'funding-dispatched');
+    workflowAuto.ok &&
+    (workflowStage === 'goal-executed' || Boolean(workflowNeedsFunding && workflowFund?.ok));
 
   writeJson({
     ok,
@@ -171,15 +179,18 @@ async function main(): Promise<void> {
     topLevelNext,
     walletStatus,
     walletNext,
+    workflowAuto,
     workflowFund,
-    workflowRun,
     summary: {
       topLevelScope: topLevelNext.data.scope,
       topLevelNextCommand: topLevelNext.data.nextCommand,
       walletNextCommand:
         walletNext.ok ? walletNext.data.summary.recommendedCommand : undefined,
+      workflowAction: workflowAuto.ok ? workflowAuto.data.action : undefined,
       workflowStage,
-      workflowNextCommand: workflowRun.ok ? workflowRun.data.result.nextCommand : undefined
+      workflowNextCommand: workflowAuto.ok
+        ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
+        : undefined
     }
   });
 

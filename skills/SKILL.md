@@ -1,6 +1,6 @@
 ---
 name: zk-agent-cli
-description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> next -> wallet create/reapprove -> next -> workflow fund -> workflow run.
+description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> next -> wallet create/reapprove -> next -> workflow auto -> workflow fund fallback or goal execution.
 ---
 
 # zk-agent-cli Skill
@@ -155,26 +155,30 @@ Do not hardcode a funding path. Use the CLI-provided route and `next` command.
 Example preview:
 
 ```bash
-pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount>
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready
 ```
 
 Example broadcast:
 
 ```bash
-pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount> --broadcast
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready --broadcast
 ```
 
-`workflow run` is the preferred action entrypoint because it can:
+`workflow auto` is the preferred action entrypoint because it can:
 
 - stop on missing prerequisites instead of failing late
 - dispatch a separate funding step first when needed
 - auto-sync metadata when requested
+- persist a checkpoint when requested
 - create or reuse a session approval request when `--ensure-wallet-session` is supplied, with `await-local`, manual `wallet request approve`, or auto-publish to relay plus relay-driven follow-up when `--relay-url <url>` is supplied
+
+Use `workflow run` only when you explicitly want the lower-level one-shot
+execution surface without the guided checkpoint-oriented wrapper.
 
 For the common direct execution path, the CLI also exposes intent-specific
 shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
 `workflow deposit`, and `workflow withdraw`. These are thin wrappers around
-`workflow run --intent ...`.
+the lower-level `workflow run --intent ...` path.
 
 ### Help entrypoints
 
@@ -223,17 +227,28 @@ pnpm zk-agent wallet request approve-local --request-id <id> --wallet-address <a
 ```bash
 pnpm zk-agent workflow plan --wallet <name> --intent <intent> ...
 pnpm zk-agent workflow fund --wallet <name> [--amount <amount>] [--execute]
-pnpm zk-agent workflow run --wallet <name> --intent <intent> ...
+pnpm zk-agent workflow auto --wallet <name> --intent <intent> ... [--create-checkpoint] [--execute-when-ready]
+pnpm zk-agent workflow status --request-id <id>
+pnpm zk-agent workflow next --request-id <id>
+pnpm zk-agent workflow resume --request-id <id> [--broadcast]
 pnpm zk-agent workflow send-native --wallet <name> --to <address> --amount <amount> ...
-pnpm zk-agent workflow swap --wallet <name> --token-in <address> --token-out <address> ...
-pnpm zk-agent workflow bridge --wallet <name> --amount <amount> --to-chain <chain> ...
-pnpm zk-agent workflow status --wallet <name> --intent <intent> ...
-pnpm zk-agent workflow resume --wallet <name> --intent <intent> ...
+pnpm zk-agent workflow swap --wallet <name> [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] ...
+pnpm zk-agent workflow bridge --wallet <name> --amount <amount> [--to-chain <chain>] ...
+pnpm zk-agent workflow run --wallet <name> --intent <intent> ...
 pnpm zk-agent workflow list
 pnpm zk-agent workflow show --request-id <id>
 pnpm zk-agent workflow update --request-id <id> ...
 pnpm zk-agent workflow delete --request-id <id>
 ```
+
+`workflow plan` now fills the tracked default `swap` or `bridge` route when the
+current registry/default set makes the destination unambiguous; the broader
+`workflow` bridge path also reuses that tracked default when `--to-chain` is
+omitted. Override `--protocol` or `--to-chain` when you intentionally want a
+different path.
+
+The direct `bridge` command also reuses the tracked default destination route
+for the current wallet chain when `--to-chain` is omitted.
 
 Valid intents:
 
@@ -255,10 +270,10 @@ raw alias.
 pnpm zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>]
 pnpm zk-agent fund [--wallet <name>] [--amount <value>] [--execute] [--broadcast]
 pnpm zk-agent send --wallet <name> --to <address> --amount <value> [--broadcast]
-pnpm zk-agent send-token --wallet <name> --token <address> --to <address> --amount <value> [--broadcast]
+pnpm zk-agent send-token --wallet <name> [--token <address>|--symbol <symbol>] --to <address> --amount <value> [--broadcast]
 pnpm zk-agent call --wallet <name> --mode read|write --to <address> --data <hex> [--broadcast]
-pnpm zk-agent swap --wallet <name> --protocol <protocol> ...
-pnpm zk-agent bridge --wallet <name> --to-chain <chain> --amount <value> [--broadcast]
+pnpm zk-agent swap --wallet <name> --protocol <protocol> [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] ...
+pnpm zk-agent bridge --wallet <name> --amount <value> [--to-chain <chain>] [--broadcast]
 pnpm zk-agent bridge-status --wallet <name> --tx-hash <hash> --from-chain <chain> --to-chain <chain>
 pnpm zk-agent deposit --wallet <name> --amount <value> [--token <address>] [--broadcast]
 pnpm zk-agent deposit-status --tx-hash <hash> --chain <chain>
@@ -269,6 +284,11 @@ pnpm zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
 
 For `syncswap-classic`, the CLI can fill the tracked zkSync Sepolia router and
 factory defaults when those flags are omitted.
+
+For locally deployed test assets recorded under
+`packages/paymaster-test-assets/deployments`, `send-token`, `swap`, and the
+matching workflow intents can also resolve token address/decimals from the
+stored symbol on the active chain.
 
 ### Built-in smart-account profiles
 
@@ -352,13 +372,29 @@ This repo also ships agent-facing tool wrappers under `packages/agent-tools`.
 List available tools:
 
 ```bash
-pnpm --filter @zk-agent/agent-tools tool:run -- --list
+pnpm tool:list
 ```
+
+In that list, high-frequency entries are surfaced first and each item includes a
+`group` field plus the closest `cliCommand` equivalent. Prefer
+`workflowAutoTool` for guided workflow orchestration. `workflowOrchestratorTool`
+is kept as a compatibility alias for the same path.
+
+For the canonical operator path, key tools also expose `operatorPathStage`:
+
+- `decide-next` for the top-level routing step
+- `acquire-session` for wallet create/reapprove approval paths
+- `guided-execution` for `workflowAutoTool`
+- `funding-fallback` for `workflowFundTool`
+- `checkpoint-follow-up` for stored workflow status/next/resume tools
+
+The list response also includes a top-level `recommendedSequence` that orders
+those stages into the default product path.
 
 Run one tool:
 
 ```bash
-pnpm --filter @zk-agent/agent-tools tool:run -- --tool <toolName> --input <json|@file>
+pnpm tool:run -- --tool <toolName> --input <json|@file>
 ```
 
 Use the tool surface when you need stable programmatic input/output rather than
@@ -383,7 +419,7 @@ sandbox:
 - there is no guarantee that custom local ERC-20 assets can bridge through the
   shared bridge path
 - there is no guarantee that every direct action command is the preferred path;
-  prefer `wallet next` and `workflow run`
+  prefer `wallet next` and `workflow auto`
 
 ## Quickstart
 

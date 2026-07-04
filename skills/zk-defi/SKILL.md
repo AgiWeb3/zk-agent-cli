@@ -47,7 +47,7 @@ Important limitation:
 ## General rules
 
 - preview first, then add `--broadcast`
-- prefer `workflow run` when the task is part of a broader operator flow
+- prefer `workflow auto` when the task is part of a broader operator flow
 - use direct action commands when you intentionally want to drive the lower-
   level path
 - when approval-based paymaster estimation fails, separate the base action path
@@ -285,10 +285,10 @@ or local session recovery to be part of the same operator path.
 Examples:
 
 ```bash
-pnpm zk-agent workflow run --wallet main --intent swap ...
-pnpm zk-agent workflow run --wallet main --intent bridge ...
-pnpm zk-agent workflow run --wallet main --intent deposit ...
-pnpm zk-agent workflow run --wallet main --intent withdraw ...
+pnpm zk-agent workflow auto --wallet main --intent swap ... --create-checkpoint --execute-when-ready
+pnpm zk-agent workflow auto --wallet main --intent bridge ... --create-checkpoint --execute-when-ready
+pnpm zk-agent workflow auto --wallet main --intent deposit ... --create-checkpoint --execute-when-ready
+pnpm zk-agent workflow auto --wallet main --intent withdraw ... --create-checkpoint --execute-when-ready
 ```
 
 ## Paymaster caveats

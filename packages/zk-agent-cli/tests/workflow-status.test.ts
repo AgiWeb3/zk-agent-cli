@@ -176,6 +176,53 @@ test('workflow status reports ready when no blocker and no funding gap remain', 
   );
 });
 
+test('workflow status fills the tracked default bridge route when the goal omits toChain', async () => {
+  const result = await inspectWorkflowStatus(
+    {
+      wallet: {
+        ...sampleWallet,
+        syncedAt: '2026-06-23T01:00:00.000Z'
+      },
+      intent: 'bridge',
+      goal: {
+        intent: 'bridge',
+        amount: '0.1'
+      }
+    },
+    {
+      provider: {
+        async inspectWallet() {
+          return sampleInspection();
+        },
+        async getBalances() {
+          return {
+            walletName: 'main',
+            walletAddress: sampleWallet.walletAddress,
+            chain: 'zksync-sepolia',
+            chainId: 300,
+            balances: [{ type: 'native', symbol: 'ETH', balance: '1.0', decimals: 18 }]
+          };
+        },
+        async getFundingInfo() {
+          return sampleFunding();
+        }
+      }
+    }
+  );
+
+  assert.equal(result.status, 'ready');
+  assert.equal(result.readyForGoal, true);
+  assert.equal(
+    result.recommendedCommand,
+    'zk-agent workflow bridge --wallet main --to-chain ethereum-sepolia --amount 0.1 --broadcast'
+  );
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry default: this is the current validated withdraw route\./.test(note)
+    )
+  );
+});
+
 test('workflow status stays ready when paymaster-backed send-native can cover zero native balance', async () => {
   const result = await inspectWorkflowStatus(
     {
@@ -219,4 +266,11 @@ test('workflow status stays ready when paymaster-backed send-native can cover ze
   assert.equal(result.funding, undefined);
   assert.ok(result.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
   assert.ok(result.notes.some((note) => /is validated\./.test(note)));
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry default: this is the current validated default approval-based paymaster path\./.test(
+        note
+      )
+    )
+  );
 });

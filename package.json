@@ -14,6 +14,7 @@
     "tool:run": "pnpm --filter @zk-agent/agent-tools tool:run --",
     "smoke:readonly": "pnpm --filter @zk-agent/agent-tools smoke:readonly --",
     "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",
+    "smoke:product-path": "pnpm --filter @zk-agent/agent-tools smoke:product-path --",
     "smoke:lifecycle": "pnpm --filter @zk-agent/agent-tools smoke:lifecycle --",
     "smoke:policy": "pnpm --filter @zk-agent/agent-tools smoke:policy --",
     "smoke:paymaster-success": "pnpm --filter @zk-agent/agent-tools smoke:paymaster-success --",

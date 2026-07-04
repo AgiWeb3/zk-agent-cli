@@ -910,11 +910,11 @@ test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow bra
     assert.equal(ready.data.summary.status, 'ready');
     assert.equal(
       ready.data.nextCommand,
-      'zk-agent workflow run --wallet main --intent <intent> [goal flags]'
+      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
     );
     assert.equal(
-      ready.data.recommendedCommands.workflowRun,
-      'zk-agent workflow run --wallet main --intent <intent> [goal flags]'
+      ready.data.recommendedCommands.workflowAuto,
+      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
     );
   }
 
@@ -1489,6 +1489,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletStatusTool',
     'walletNextTool',
     'workflowPlanTool',
+    'workflowAutoTool',
     'workflowOrchestratorTool',
     'workflowStatusTool',
     'workflowNextTool',
@@ -1532,10 +1533,25 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 49);
-  assert.equal(listed[0]?.name, 'createWalletTool');
-  assert.match(listed[0]?.description || '', /Create a zkSync smart-account session request/);
-  assert.equal(listed[1]?.name, 'topLevelNextTool');
+  assert.equal(listed.length, 50);
+  assert.equal(listed[0]?.name, 'topLevelNextTool');
+  assert.equal(listed[0]?.group, 'entrypoint');
+  assert.equal(listed[1]?.name, 'workflowAutoTool');
+  assert.equal(listed[1]?.group, 'workflow');
+  assert.equal(listed[2]?.name, 'walletStatusTool');
+  assert.equal(listed[2]?.group, 'wallet');
+  const listedWorkflowAuto = listed.find((entry) => entry.name === 'workflowAutoTool');
+  assert.equal(listedWorkflowAuto?.recommended, true);
+  assert.equal(listedWorkflowAuto?.aliasOf, undefined);
+  const listedWorkflowOrchestrator = listed.find(
+    (entry) => entry.name === 'workflowOrchestratorTool'
+  );
+  assert.equal(listedWorkflowOrchestrator?.group, 'workflow');
+  assert.equal(listedWorkflowOrchestrator?.recommended, undefined);
+  assert.equal(listedWorkflowOrchestrator?.aliasOf, 'workflowAutoTool');
+  const listedCreateWallet = listed.find((entry) => entry.name === 'createWalletTool');
+  assert.equal(listedCreateWallet?.group, 'wallet');
+  assert.match(listedCreateWallet?.description || '', /Create a zkSync smart-account session request/);
 });
 
 test('runStandardAgentTool dispatches by name and normalizes unknown tool errors', async () => {
@@ -1754,9 +1770,9 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     deleteWorkflowCheckpoint: async (requestId) => workflowCheckpoints.delete(requestId)
   });
 
-  const blockedWorkflowOrchestrator = await runStandardAgentTool(
+  const blockedWorkflowAuto = await runStandardAgentTool(
     workflowContext,
-    'workflowOrchestratorTool',
+    'workflowAutoTool',
     {
       walletName: 'main',
       requestId: 'wf-tool-orch-001',
@@ -1769,15 +1785,15 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       createCheckpoint: true
     }
   );
-  assert.equal(blockedWorkflowOrchestrator.ok, true);
-  if (blockedWorkflowOrchestrator.ok) {
+  assert.equal(blockedWorkflowAuto.ok, true);
+  if (blockedWorkflowAuto.ok) {
     assert.equal(
-      (blockedWorkflowOrchestrator.data as { action: string }).action,
+      (blockedWorkflowAuto.data as { action: string }).action,
       'blocked'
     );
     assert.equal(
       (
-        blockedWorkflowOrchestrator.data as {
+        blockedWorkflowAuto.data as {
           checkpointPersisted: boolean;
         }
       ).checkpointPersisted,
@@ -1785,7 +1801,7 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     );
     assert.equal(
       (
-        blockedWorkflowOrchestrator.data as {
+        blockedWorkflowAuto.data as {
           checkpoint: { requestId: string };
         }
       ).checkpoint.requestId,
@@ -2075,6 +2091,16 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
         (defaults.data as { registry: { swapProtocols: Array<unknown> } }).registry.swapProtocols
       ),
       true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          surfaceMatrix: {
+            swap: { validatedDefaultEntryId: string | null };
+          };
+        }
+      ).surfaceMatrix.swap.validatedDefaultEntryId,
+      'syncswap-classic'
     );
     assert.equal(
       (

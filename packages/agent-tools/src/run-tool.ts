@@ -4,6 +4,7 @@ import {
   createZkSyncAgentToolContext
 } from './create-zksync-toolset.js';
 import {
+  buildRecommendedOperatorSequence,
   listStandardAgentTools,
   runStandardAgentTool
 } from './run-standard-tool.js';
@@ -20,6 +21,15 @@ function printUsage(): void {
       'Usage:',
       '  pnpm --filter @zk-agent/agent-tools tool:run -- --list',
       '  pnpm --filter @zk-agent/agent-tools tool:run -- --tool <toolName> --input <json|@file>',
+      '',
+      'List semantics:',
+      '  - high-frequency entry tools are listed first',
+      '  - each tool entry includes a group field for rough functional area',
+      '  - each tool entry also includes a cliCommand field for the closest CLI equivalent',
+      '  - key tools on the default product path include an operatorPathStage field',
+      '  - the list response also includes a recommendedSequence for the default product path',
+      '  - workflowAutoTool is the recommended guided workflow entry',
+      '  - workflowOrchestratorTool is kept as a compatibility alias',
       '',
       'Examples:',
       '  pnpm --filter @zk-agent/agent-tools tool:run -- --list',
@@ -102,9 +112,11 @@ async function main(): Promise<void> {
   const context = createZkSyncAgentToolContext();
 
   if (options.list) {
+    const tools = listStandardAgentTools(context);
     writeJson({
       ok: true,
-      tools: listStandardAgentTools(context)
+      recommendedSequence: buildRecommendedOperatorSequence(tools),
+      tools
     });
     return;
   }

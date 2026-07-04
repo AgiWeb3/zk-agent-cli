@@ -54,6 +54,10 @@ export function buildWorkflowListRecommendedCommand(): string {
   return 'zk-agent workflow list';
 }
 
+export function buildWorkflowAutoRecommendedCommand(walletName: string): string {
+  return `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] --create-checkpoint --execute-when-ready`;
+}
+
 export function buildWorkflowShowRecommendedCommand(requestId: string): string {
   return `zk-agent workflow show --request-id ${requestId}`;
 }

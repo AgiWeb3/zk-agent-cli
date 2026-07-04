@@ -121,12 +121,12 @@ Dispatch the suggested funding route:
 pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
-## 6. Run a workflow instead of jumping straight to direct write commands
+## 6. Use workflow auto as the default guided write path
 
 Preview a native send:
 
 ```bash
-pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount>
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready
 ```
 
 Equivalent shortcut:
@@ -138,7 +138,7 @@ pnpm zk-agent workflow send-native --wallet main --to <address> --amount <amount
 Broadcast the same send:
 
 ```bash
-pnpm zk-agent workflow run --wallet main --intent send-native --to <address> --amount <amount> --broadcast
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready --broadcast
 ```
 
 The same workflow surface also supports:
@@ -156,7 +156,10 @@ When you need the canonical workflow command sequence, run:
 pnpm zk-agent workflow --help
 ```
 
-If `workflow run|status|resume` is blocked on a missing writable session, add
+Use `workflow run` only when you explicitly want the lower-level one-shot
+orchestration surface without the guided wrapper.
+
+If `workflow auto|run|status|resume` is blocked on a missing writable session, add
 `--ensure-wallet-session`. Add `--relay-url <url>` when you want the workflow
 command to auto-publish the approval request to the relay and emit relay
 status/approve follow-up commands instead of only local callback guidance.
@@ -187,8 +190,8 @@ Ask for the single shortest next step:
 pnpm zk-agent workflow next --request-id <id>
 ```
 
-`workflow start`, `workflow status`, `workflow run`, `workflow resume`, and the
-`workflow next` and the intent shortcut commands now also return explicit
+`workflow auto`, `workflow start`, `workflow status`, `workflow next`,
+`workflow resume`, `workflow run`, and the intent shortcut commands now also return explicit
 `recommendedCommands` in JSON mode, so agent-driven callers can keep moving
 without rebuilding the next CLI step themselves.
 
@@ -205,8 +208,8 @@ Examples:
 ```bash
 pnpm zk-agent balances --wallet main
 pnpm zk-agent send --wallet main --to <address> --amount <amount>
-pnpm zk-agent swap --wallet main --protocol syncswap-classic --token-in <address> --token-out <address> --amount-in <amount> --amount-out-min <amount>
-pnpm zk-agent bridge --wallet main --to-chain zksync-sepolia --amount <amount>
+pnpm zk-agent swap --wallet main --protocol syncswap-classic [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] --amount-in <amount> --amount-out-min <amount>
+pnpm zk-agent bridge --wallet main --amount <amount> [--to-chain zksync-sepolia]
 pnpm zk-agent withdraw --wallet main --amount <amount>
 pnpm zk-agent withdraw-status --wallet main --tx-hash <hash>
 pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash>
@@ -214,6 +217,20 @@ pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash>
 
 For `syncswap-classic`, tracked Sepolia router/factory defaults are used when
 `--router` and `--factory` are omitted.
+
+For local test assets already recorded under
+`packages/paymaster-test-assets/deployments`, `send-token`, `swap`, and the
+matching workflow intents can resolve token address/decimals from the stored
+symbol on the active chain.
+
+For `workflow plan`, the CLI now also fills the tracked default swap or bridge
+route when the current registry/default set makes that path unambiguous.
+
+For workflow bridge goals, `workflow auto|run|status|next` can also reuse the
+tracked default destination route for the current wallet chain when `--to-chain`
+is omitted.
+
+The direct `bridge` command now follows the same rule.
 
 ## 9. Smart-account path
 
@@ -254,10 +271,28 @@ Run a tool:
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
 ```
 
+When listing tools with `pnpm tool:run -- --list`, high-frequency entries now
+appear first and each item includes a `group` field plus the closest
+`cliCommand` equivalent. Treat `workflowAutoTool` as the default guided
+workflow entry. `workflowOrchestratorTool` remains available as a compatibility
+alias.
+
+For the default product path, key tools also expose `operatorPathStage`:
+
+- `decide-next`: start from `topLevelNextTool`
+- `acquire-session`: wallet create/reapprove/orchestrated approval
+- `guided-execution`: `workflowAutoTool`
+- `funding-fallback`: `workflowFundTool`
+- `checkpoint-follow-up`: `workflowStatusByCheckpointTool`, `workflowNextByCheckpointTool`, `workflowRunByCheckpointTool`
+
+The list response also includes a top-level `recommendedSequence`, which
+already orders those stages for the default product path.
+
 Preferred root wrappers for the validated product smokes:
 
 ```bash
 pnpm smoke:operator-path -- --wallet <name>
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]
 pnpm smoke:paymaster-success -- --wallet <name>
 pnpm validate:phase3
 ```
@@ -273,7 +308,7 @@ pnpm validate:phase3
   - `wallet reapprove --await-local`
   - `wallet next`
   - `wallet status`
-  - `workflow run`
+  - `workflow auto`
 
 For detailed action-path examples, read:
 

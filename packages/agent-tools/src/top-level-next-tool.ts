@@ -48,7 +48,7 @@ export interface TopLevelNextToolOutputWallet {
   recommendedCommands: {
     walletNext: string;
     walletStatus: string;
-    workflowRun: string;
+    workflowAuto: string;
     nextAction: string;
   };
 }
@@ -104,8 +104,8 @@ function buildWalletStatusCommand(walletName: string): string {
   return `zk-agent wallet status --name ${walletName}`;
 }
 
-function buildWorkflowRunCommand(walletName: string): string {
-  return `zk-agent workflow run --wallet ${walletName} --intent <intent> [goal flags]`;
+function buildWorkflowAutoCommand(walletName: string): string {
+  return `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] --create-checkpoint --execute-when-ready`;
 }
 
 function buildWorkflowListCommand(): string {
@@ -234,8 +234,8 @@ export function createTopLevelNextTool(context: AgentToolContext) {
         nativeSymbol: nativeBalance?.symbol,
         funding
       });
-      const workflowRun = buildWorkflowRunCommand(wallet.walletName);
-      const nextCommand = summary.recommendedCommand || workflowRun;
+      const workflowAuto = buildWorkflowAutoCommand(wallet.walletName);
+      const nextCommand = summary.recommendedCommand || workflowAuto;
 
       return {
         scope: 'wallet',
@@ -246,7 +246,7 @@ export function createTopLevelNextTool(context: AgentToolContext) {
         recommendedCommands: {
           walletNext: buildWalletNextCommand(wallet.walletName),
           walletStatus: buildWalletStatusCommand(wallet.walletName),
-          workflowRun,
+          workflowAuto,
           nextAction: nextCommand
         }
       };

@@ -20,6 +20,7 @@ import {
   buildWalletCreateRecommendedCommand,
   buildWalletNextRecommendedCommand,
   buildWalletStatusRecommendedCommand,
+  buildWorkflowAutoRecommendedCommand,
   buildWorkflowDeleteRecommendedCommand,
   buildWorkflowListRecommendedCommand,
   buildWorkflowNextRecommendedCommand,
@@ -58,10 +59,6 @@ function buildSetupCommand(): string {
 
 function buildTopLevelNextRecommendedCommand(requestId?: string): string {
   return requestId ? `zk-agent next --request-id ${requestId}` : 'zk-agent next';
-}
-
-function buildWorkflowRunRecommendedCommand(walletName: string): string {
-  return `zk-agent workflow run --wallet ${walletName} --intent <intent> [goal flags]`;
 }
 
 function topLevelNextLines(
@@ -230,19 +227,19 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         funding
       });
 
-      const workflowRun = buildWorkflowRunRecommendedCommand(wallet.walletName);
-      const nextCommand = summary.recommendedCommand || workflowRun;
+      const workflowAuto = buildWorkflowAutoRecommendedCommand(wallet.walletName);
+      const nextCommand = summary.recommendedCommand || workflowAuto;
       const recommendedCommands = {
         walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
         walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
-        workflowRun,
+        workflowAuto,
         nextAction: nextCommand
       };
 
       printResult(
         topLevelNextLines('wallet', [
           ...walletNextLines(summary),
-          ...(summary.recommendedCommand ? [] : [['next', workflowRun] as [string, string]])
+          ...(summary.recommendedCommand ? [] : [['next', workflowAuto] as [string, string]])
         ]),
         {
           ok: true,
