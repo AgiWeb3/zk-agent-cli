@@ -274,7 +274,7 @@ For funding, prefer `workflow fund`; the top-level `fund` command remains as the
 raw alias.
 
 ```bash
-pnpm zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>]
+pnpm zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>] [--owned-tokens]
 pnpm zk-agent fund [--wallet <name>] [--amount <value>] [--execute] [--broadcast]
 pnpm zk-agent send --wallet <name> --to <address> --amount <value> [--broadcast]
 pnpm zk-agent send-token --wallet <name> [--token <address>|--symbol <symbol>] --to <address> --amount <value> [--broadcast]
@@ -288,6 +288,10 @@ pnpm zk-agent withdraw --wallet <name> --amount <value> [--token <address>] [--b
 pnpm zk-agent withdraw-status --wallet <name> --tx-hash <hash>
 pnpm zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
 ```
+
+Use `--owned-tokens` only on the single-chain path. It probes the current
+local-first token registry and merges any non-zero ERC-20 holdings into the
+returned balances view.
 
 For `syncswap-classic`, the CLI can fill the tracked zkSync Sepolia router and
 factory defaults when those flags are omitted.

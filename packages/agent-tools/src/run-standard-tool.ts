@@ -234,7 +234,7 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
     group: 'wallet',
     cliCommand: 'zk-agent wallet restore --payload <json|@file> [--name <name>]'
   },
-  getBalancesTool: { group: 'read', cliCommand: 'zk-agent balances --wallet <name>' },
+  getBalancesTool: { group: 'read', cliCommand: 'zk-agent balances --wallet <name> [--owned-tokens]' },
   getDefaultsTool: { group: 'read', cliCommand: 'zk-agent defaults' },
   getFundingInfoTool: { group: 'read', cliCommand: 'zk-agent fund --wallet <name>' },
   listTokensTool: {

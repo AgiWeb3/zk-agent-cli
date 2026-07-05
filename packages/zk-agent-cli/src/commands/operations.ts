@@ -1,10 +1,13 @@
 import { Command } from 'commander';
 
 import {
+  discoverOwnedDefaultTokenRegistry,
   type DefiProvider,
   type GetBalancesResult,
   type MultiChainBalancesResult,
+  type OwnedTokenProbeFailure,
   type PaymasterSelectionInput,
+  type WalletBalance,
   type WalletProvider,
   type WalletSessionRecord,
   loadProjectConfig,
@@ -39,6 +42,29 @@ const defiProvider = new ZkSyncDefiProvider({
 });
 const BALANCES_MAX_CHAINS = 20;
 
+interface BalancesCommandOptions {
+  wallet: string;
+  chain?: string;
+  chains?: string;
+  ownedTokens?: boolean;
+}
+
+interface BalancesCommandDeps {
+  provider: Pick<WalletProvider, 'getBalances' | 'call'>;
+  loadWallet(walletName: string): Promise<WalletSessionRecord | null>;
+}
+
+interface OwnedTokenRegistrySummary {
+  enabled: true;
+  entryCount: number;
+  probeFailureCount: number;
+  probeFailures: OwnedTokenProbeFailure[];
+}
+
+interface ExtendedSingleChainBalancesResult extends GetBalancesResult {
+  ownedTokenRegistry?: OwnedTokenRegistrySummary;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -47,6 +73,19 @@ async function requireWallet(walletName: string) {
   const wallet = await loadWalletSession(walletName);
   if (!wallet) throw new Error(`Wallet not found: ${walletName}`);
   return wallet;
+}
+
+function resolveBalancesCommandDeps(
+  deps: Partial<BalancesCommandDeps> | undefined
+): BalancesCommandDeps {
+  return {
+    provider: deps?.provider ?? provider,
+    loadWallet:
+      deps?.loadWallet ??
+      (async (walletName: string) => {
+        return loadWalletSession(walletName);
+      })
+  };
 }
 
 interface FundCommandOptions {
@@ -524,13 +563,60 @@ function parseChainList(value: string | undefined): string[] {
   return [...new Set(chains.map((entry) => resolveChain(entry).key))];
 }
 
-function linesForSingleBalances(result: GetBalancesResult): Array<[string, string]> {
-  return [
+function linesForSingleBalances(result: ExtendedSingleChainBalancesResult): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
     ['wallet', result.walletName],
     ['address', result.walletAddress],
     ['chain', `${result.chain} (${result.chainId})`],
     ...result.balances.map((balance) => [balance.symbol, balance.balance] as [string, string])
   ];
+
+  if (result.ownedTokenRegistry) {
+    lines.push(['owned registry tokens', String(result.ownedTokenRegistry.entryCount)]);
+    if (result.ownedTokenRegistry.probeFailureCount > 0) {
+      lines.push(['owned token probe failures', String(result.ownedTokenRegistry.probeFailureCount)]);
+    }
+  }
+
+  return lines;
+}
+
+function ownedTokenRegistryBalances(entries: Array<{
+  symbol: string;
+  address: string;
+  decimals: number;
+  balance: string;
+}>): WalletBalance[] {
+  return entries.map((entry) => ({
+    type: 'erc20',
+    symbol: entry.symbol,
+    balance: entry.balance,
+    decimals: entry.decimals,
+    contractAddress: entry.address
+  }));
+}
+
+async function extendSingleChainBalancesWithOwnedTokens(input: {
+  base: GetBalancesResult;
+  provider: Pick<WalletProvider, 'call'>;
+}): Promise<ExtendedSingleChainBalancesResult> {
+  const owned = await discoverOwnedDefaultTokenRegistry({
+    walletName: input.base.walletName,
+    walletAddress: input.base.walletAddress,
+    chain: input.base.chain,
+    provider: input.provider
+  });
+
+  return {
+    ...input.base,
+    balances: [...input.base.balances, ...ownedTokenRegistryBalances(owned.entries)],
+    ownedTokenRegistry: {
+      enabled: true,
+      entryCount: owned.entryCount,
+      probeFailureCount: owned.probeFailureCount,
+      probeFailures: owned.probeFailures
+    }
+  };
 }
 
 function linesForMultiBalances(result: MultiChainBalancesResult): Array<[string, string]> {
@@ -572,24 +658,34 @@ function resolvePaymasterInput(options: {
   };
 }
 
-export function createBalancesCommand(): Command {
+export function createBalancesCommand(deps?: Partial<BalancesCommandDeps>): Command {
+  const resolvedDeps = resolveBalancesCommandDeps(deps);
+
   return new Command('balances')
-    .description('Fetch native balances for the active zkSync wallet session')
+    .description('Fetch balances for the active zkSync wallet session')
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Single chain override')
     .option(
       '--chains <csv>',
       'Comma-separated chain keys or ids. When set, returns multi-chain balances.'
     )
-    .action(async (options: { wallet: string; chain?: string; chains?: string }) => {
+    .option(
+      '--owned-tokens',
+      'Also probe registry-backed ERC-20 balances for the requested single-chain wallet view'
+    )
+    .action(async (options: BalancesCommandOptions) => {
       const walletName = options.wallet;
-      const wallet = await requireWallet(walletName);
+      const wallet = await resolvedDeps.loadWallet(walletName);
+      if (!wallet) throw new Error(`Wallet not found: ${walletName}`);
       const requestedChains = parseChainList(options.chains);
 
       if (requestedChains.length > 0) {
+        if (options.ownedTokens) {
+          throw new Error('--owned-tokens currently supports only the single-chain balances path');
+        }
         const results = await Promise.all(
           requestedChains.map((chain) =>
-            provider.getBalances({
+            resolvedDeps.provider.getBalances({
               walletName,
               walletAddress: wallet.walletAddress,
               chain
@@ -612,13 +708,20 @@ export function createBalancesCommand(): Command {
         return;
       }
 
-      const balances = await provider.getBalances({
+      const balances = await resolvedDeps.provider.getBalances({
         walletName,
         walletAddress: wallet.walletAddress,
         chain: options.chain || wallet.chain
       });
 
-      printResult(linesForSingleBalances(balances), { ok: true, ...balances });
+      const payload = options.ownedTokens
+        ? await extendSingleChainBalancesWithOwnedTokens({
+            base: balances,
+            provider: resolvedDeps.provider
+          })
+        : balances;
+
+      printResult(linesForSingleBalances(payload), { ok: true, ...payload });
     });
 }
 

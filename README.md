@@ -412,6 +412,10 @@ Use `pnpm zk-agent tokens --wallet main --owned` when you want the current
 stored wallet's registry-backed ERC-20 holdings on its active chain, instead
 of the full discoverable registry universe.
 
+Use `pnpm zk-agent balances --wallet main --owned-tokens` when you want the
+normal native balance view plus the same registry-backed ERC-20 holdings merged
+into one single-chain balances result.
+
 Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need to confirm how the current local-first registry resolves one exact token
 query before trying `fund`, `send-token`, or `swap`.

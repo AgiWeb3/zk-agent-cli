@@ -1078,6 +1078,127 @@ test('get balances tool aggregates supported zkSync chains when chains are reque
   }
 });
 
+test('get balances tool can include registry-backed ERC-20 balances on the single-chain path', async () => {
+  const previousWorkspaceRoot = process.env.ZK_AGENT_WORKSPACE_ROOT;
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-balances-workspace-'));
+
+  try {
+    await mkdir(path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments'), {
+      recursive: true
+    });
+    await writeFile(
+      path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments', 'local-usdc.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        symbol: 'USDC',
+        decimals: 6
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments', 'local-usdt.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        symbol: 'USDT',
+        decimals: 6
+      }),
+      'utf8'
+    );
+
+    process.env.ZK_AGENT_WORKSPACE_ROOT = workspaceRoot;
+
+    const provider = {
+      ...createProviderStub(),
+      async call(input) {
+        const rawBalance =
+          input.to.toLowerCase() === '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ? 1230000n : 0n;
+        return {
+          ...input,
+          chainId: 300,
+          result: `0x${rawBalance.toString(16).padStart(64, '0')}`
+        };
+      }
+    };
+    const context = createAgentToolContext({
+      provider,
+      defiProvider: provider,
+      loadWallet: async () => sampleWallet
+    });
+    const tools = createStandardAgentTools(context);
+
+    const result = await tools.getBalancesTool.execute({
+      walletName: 'main',
+      ownedTokens: true
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.data.chain, 'zksync-sepolia');
+    assert.deepEqual(
+      result.data.balances.map((balance) => ({
+        type: balance.type,
+        symbol: balance.symbol,
+        balance: balance.balance,
+        contractAddress: balance.contractAddress
+      })),
+      [
+        {
+          type: 'native',
+          symbol: 'ETH',
+          balance: '1.0',
+          contractAddress: undefined
+        },
+        {
+          type: 'erc20',
+          symbol: 'USDC',
+          balance: '1.23',
+          contractAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        }
+      ]
+    );
+    if ('multiChain' in result.data) {
+      assert.fail('expected single-chain balances result');
+    }
+    assert.deepEqual(result.data.ownedTokenRegistry, {
+      enabled: true,
+      entryCount: 1,
+      probeFailureCount: 0,
+      probeFailures: []
+    });
+  } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.ZK_AGENT_WORKSPACE_ROOT;
+    } else {
+      process.env.ZK_AGENT_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('get balances tool rejects owned token probing on the multi-chain path', async () => {
+  const provider = createProviderStub();
+  const context = createAgentToolContext({
+    provider,
+    defiProvider: provider,
+    loadWallet: async () => sampleWallet
+  });
+  const tools = createStandardAgentTools(context);
+
+  const result = await tools.getBalancesTool.execute({
+    walletName: 'main',
+    chains: ['zksync-era', 'zksync-sepolia'],
+    ownedTokens: true
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.code, 'OWNED_TOKEN_BALANCES_MULTICHAIN_UNSUPPORTED');
+    assert.deepEqual(result.error.details?.requestedChains, ['zksync-era', 'zksync-sepolia']);
+  }
+});
+
 test('wallet-scoped tools return stable WALLET_NOT_FOUND errors', async () => {
   const context = createAgentToolContext({
     provider: createProviderStub(),
