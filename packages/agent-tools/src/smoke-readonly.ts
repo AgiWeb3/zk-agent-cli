@@ -99,6 +99,9 @@ async function main(): Promise<void> {
   const walletStatus = await tools.walletStatusTool.execute({
     walletName: options.walletName
   });
+  const assets = await tools.getAssetsTool.execute({
+    walletName: options.walletName
+  });
   const balances = await tools.getBalancesTool.execute({
     walletName: options.walletName
   });
@@ -108,20 +111,22 @@ async function main(): Promise<void> {
     | undefined;
 
   if (options.callTo && options.callData) {
-    const balancesChain =
-      balances.ok
-        ? 'multiChain' in balances.data
-          ? balances.data.chains[0]?.chain
-          : balances.data.chain
+    const preferredChain =
+      assets.ok
+        ? assets.data.chain
+        : balances.ok
+          ? 'multiChain' in balances.data
+            ? balances.data.chains[0]?.chain
+            : balances.data.chain
         : undefined;
     const chain =
       options.callChain ||
       (walletStatus.ok ? walletStatus.data.chain : undefined) ||
-      balancesChain;
+      preferredChain;
 
     if (!chain) {
       throw new Error(
-        'Unable to resolve call chain from wallet status/balances. Pass --call-chain explicitly.'
+        'Unable to resolve call chain from wallet status/assets/balances. Pass --call-chain explicitly.'
       );
     }
 
@@ -132,7 +137,7 @@ async function main(): Promise<void> {
     });
   }
 
-  const allResults = [walletStatus, balances, contractCall].filter(
+  const allResults = [walletStatus, assets, balances, contractCall].filter(
     (value): value is Exclude<typeof value, undefined> => value !== undefined
   );
   const ok = allResults.every((result) => result.ok);
@@ -141,6 +146,7 @@ async function main(): Promise<void> {
     ok,
     walletName: options.walletName,
     walletStatus,
+    assets,
     balances,
     ...(contractCall ? { contractCall } : {})
   });

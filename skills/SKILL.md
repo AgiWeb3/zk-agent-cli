@@ -292,7 +292,8 @@ pnpm zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
 
 Use `--owned-tokens` only on the single-chain path. It probes the current
 local-first token registry and merges any non-zero ERC-20 holdings into the
-returned balances view.
+returned balances view. Keep it for the raw `balances` surface; otherwise
+prefer `assets`.
 
 Use `assets` when that richer single-chain view is the intent and you do not
 need multi-chain aggregation.
@@ -326,6 +327,8 @@ token address.
 
 Use `pnpm zk-agent tokens --wallet main --owned` when you want the stored
 wallet's currently held registry-backed ERC-20 assets on its active chain.
+Treat this as the narrower ERC-20 subset view; for the default asset view,
+start with `assets`.
 
 Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need a direct token-resolution check before running a tokenized command.

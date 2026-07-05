@@ -146,7 +146,7 @@ What is already in place:
   - `pnpm tool:run -- --tool <toolName> --input <json|@file>`
   - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowAutoTool` as the recommended guided workflow entry, and keeps `workflowOrchestratorTool` as its compatibility alias
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
-  - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke
+  - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke, now returning both the preferred single-chain `assets` view and the raw `balances` view
   - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
@@ -414,14 +414,17 @@ address to pass explicitly.
 
 Use `pnpm zk-agent tokens --wallet main --owned` when you want the current
 stored wallet's registry-backed ERC-20 holdings on its active chain, instead
-of the full discoverable registry universe.
+of the full discoverable registry universe. This is the narrower ERC-20 subset
+view, not the main asset entrypoint.
 
 Use `pnpm zk-agent balances --wallet main --owned-tokens` when you want the
 normal native balance view plus the same registry-backed ERC-20 holdings merged
-into one single-chain balances result.
+into one single-chain balances result. Keep this for the raw balances surface
+or when you may switch to `--chains`; otherwise prefer `assets`.
 
 Use `pnpm zk-agent assets --wallet main` when you want that richer single-chain
-asset view directly, without remembering the extra balances flag.
+asset view directly, without remembering the extra balances flag. This is the
+preferred product-facing asset command.
 
 Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need to confirm how the current local-first registry resolves one exact token

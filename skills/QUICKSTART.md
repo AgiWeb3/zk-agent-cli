@@ -251,6 +251,10 @@ pnpm zk-agent tokens --wallet main --owned
 pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC
 ```
 
+Use `assets` as the default single-chain asset entrypoint. Keep
+`balances --owned-tokens` for the raw balances surface and `tokens --owned`
+for the narrower owned ERC-20 registry subset.
+
 `pnpm zk-agent defaults` now also shows that source order and token-directory
 chain coverage explicitly.
 

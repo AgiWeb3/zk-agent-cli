@@ -690,7 +690,7 @@ export function createBalancesCommand(deps?: Partial<BalancesCommandDeps>): Comm
   const resolvedDeps = resolveBalancesCommandDeps(deps);
 
   return new Command('balances')
-    .description('Fetch balances for the active zkSync wallet session')
+    .description('Fetch balances for the active zkSync wallet session, including the multi-chain aggregation path')
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Single chain override')
     .option(
@@ -699,7 +699,7 @@ export function createBalancesCommand(deps?: Partial<BalancesCommandDeps>): Comm
     )
     .option(
       '--owned-tokens',
-      'Also probe registry-backed ERC-20 balances for the requested single-chain wallet view'
+      'Also probe registry-backed ERC-20 balances for the requested single-chain wallet view. Prefer `assets` when you do not need the raw multi-chain balances surface.'
     )
     .action(async (options: BalancesCommandOptions) => {
       const walletName = options.wallet;
@@ -752,7 +752,7 @@ export function createAssetsCommand(deps?: Partial<BalancesCommandDeps>): Comman
   const resolvedDeps = resolveBalancesCommandDeps(deps);
 
   return new Command('assets')
-    .description('Fetch a single-chain asset view with native balance plus registry-backed ERC-20 holdings')
+    .description('Fetch the preferred single-chain asset view with native balance plus registry-backed ERC-20 holdings')
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Single chain override')
     .action(async (options: AssetsCommandOptions) => {

@@ -93,7 +93,7 @@ export function createTokensCommand(
   const resolvedDeps = resolveTokensCommandDeps(deps);
 
   return new Command('tokens')
-    .description('List discoverable tokens from the configured local-first token registry')
+    .description('List discoverable tokens from the configured local-first token registry, or inspect the owned ERC-20 registry subset for one wallet')
     .option('--wallet <name>', 'Optional stored wallet name to infer the active chain')
     .option('--chain <chain>', 'Chain key or chain id override')
     .option('--symbol <symbol>', 'Optional exact symbol filter')
@@ -103,7 +103,7 @@ export function createTokensCommand(
     )
     .option(
       '--owned',
-      'Restrict output to registry-backed ERC-20 entries that the stored wallet currently holds on its active chain'
+      'Restrict output to registry-backed ERC-20 entries that the stored wallet currently holds on its active chain. Prefer `assets` for the full single-chain asset view.'
     )
     .action(async (options: TokensCommandOptions) => {
       const source = normalizeSource(options.source);
