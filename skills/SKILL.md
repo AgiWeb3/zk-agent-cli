@@ -177,9 +177,9 @@ execution surface without the guided checkpoint-oriented wrapper.
 
 In JSON mode, the workflow surfaces and `zk-agent next --request-id <id>` now
 return structured `recommendedCommands`. For tokenized intents, those follow-up
-commands also include `discoverOwnedTokens`, `discoverTokens`, and
-`inspectToken` so a caller can stay on the local-first registry path without
-scraping human notes.
+commands also include `discoverAssets`, `discoverOwnedTokens`,
+`discoverTokens`, and `inspectToken` so a caller can stay on the local-first
+registry path without scraping human notes.
 
 For the common direct execution path, the CLI also exposes intent-specific
 shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
@@ -275,6 +275,7 @@ raw alias.
 
 ```bash
 pnpm zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>] [--owned-tokens]
+pnpm zk-agent assets [--wallet <name>] [--chain <chain>]
 pnpm zk-agent fund [--wallet <name>] [--amount <value>] [--execute] [--broadcast]
 pnpm zk-agent send --wallet <name> --to <address> --amount <value> [--broadcast]
 pnpm zk-agent send-token --wallet <name> [--token <address>|--symbol <symbol>] --to <address> --amount <value> [--broadcast]
@@ -292,6 +293,9 @@ pnpm zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
 Use `--owned-tokens` only on the single-chain path. It probes the current
 local-first token registry and merges any non-zero ERC-20 holdings into the
 returned balances view.
+
+Use `assets` when that richer single-chain view is the intent and you do not
+need multi-chain aggregation.
 
 For `syncswap-classic`, the CLI can fill the tracked zkSync Sepolia router and
 factory defaults when those flags are omitted.
@@ -431,6 +435,7 @@ Run one tool:
 
 ```bash
 pnpm tool:run -- --tool <toolName> --input <json|@file>
+pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
 ```
 
 Use the tool surface when you need stable programmatic input/output rather than

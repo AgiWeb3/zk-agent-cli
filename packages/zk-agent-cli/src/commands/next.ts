@@ -72,6 +72,7 @@ function buildTopLevelWorkflowRecommendedCommands(input: {
     ...(input.nextAction ? { nextAction: input.nextAction } : {}),
     ...(workflowIntentSupportsTokenDiscovery(input.intent)
       ? {
+          discoverAssets: `zk-agent assets --wallet ${input.walletName}`,
           discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`,
           discoverTokens: `zk-agent tokens --chain ${input.chain}`,
           inspectToken: `zk-agent resolve-token --chain ${input.chain} --symbol <symbol>`

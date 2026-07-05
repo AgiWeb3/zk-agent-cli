@@ -55,6 +55,9 @@ What is already in place:
   - stored-wallet default chain reads
   - single-chain override
   - multi-chain aggregation across the built-in zkSync chain registry
+  - optional registry-backed ERC-20 discovery through `--owned-tokens`
+- `assets` as the opinionated single-chain asset view:
+  - native balance plus registry-backed ERC-20 holdings in one command
 - thin AA-oriented transaction commands for:
   - `fund` with route-aware funding guidance for the active chain, including optional concrete `deposit` / `bridge` command suggestions when amount or token context is provided
   - `fund --execute` to dispatch onto the validated `deposit` or `bridge` path instead of only printing guidance
@@ -76,8 +79,8 @@ What is already in place:
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
 - `workflow auto` for guided orchestration from either fresh goal input or a stored checkpoint, so one command can inspect readiness, optionally persist a checkpoint, resolve wallet-session blockers, and execute immediately when the workflow is ready
 - `workflow next` for the shortest next-step CLI guidance at the workflow layer, from either fresh goal input or a stored checkpoint
-- tokenized `workflow status|next|auto|resume|run` JSON outputs now also surface `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` follow-ups alongside the concrete next action, so operator tooling does not need to infer local token-registry recovery paths from free-form notes
-- `zk-agent next --request-id <id>` now mirrors that tokenized workflow follow-up shape for stored checkpoints, including `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` when the checkpoint intent depends on token resolution
+- tokenized `workflow status|next|auto|resume|run` JSON outputs now also surface `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` follow-ups alongside the concrete next action, so operator tooling does not need to infer local token-registry recovery paths from free-form notes
+- `zk-agent next --request-id <id>` now mirrors that tokenized workflow follow-up shape for stored checkpoints, including `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` when the checkpoint intent depends on token resolution
 - intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
 - `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and one-step relay publish plus relay status/approve guidance
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
@@ -108,7 +111,7 @@ What is already in place:
   - bounded workflow execution for concrete write intents
   - workflow status inspection for resume-safe orchestration
   - workflow next-step guidance from fresh goal input or a stored checkpoint
-  - structured workflow follow-up commands aligned with the CLI, including token-registry recovery fields such as `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` for tokenized intents
+  - structured workflow follow-up commands aligned with the CLI, including token-registry recovery fields such as `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` for tokenized intents
   - `workflowAutoTool` / `workflowOrchestratorTool` now expose workflow follow-up commands separately from wallet-approval follow-up commands, so callers do not have to infer whether `recommendedCommands` refers to wallet session recovery or workflow continuation
   - create wallet request
   - create stored wallet approval request
@@ -126,6 +129,7 @@ What is already in place:
   - wallet sync
   - wallet export
   - wallet restore
+  - single-chain asset view with registry-backed ERC-20 discovery
   - balances
   - defaults / registry readout for supported, validated, experimental, and manual paths
   - contract read
@@ -416,6 +420,9 @@ Use `pnpm zk-agent balances --wallet main --owned-tokens` when you want the
 normal native balance view plus the same registry-backed ERC-20 holdings merged
 into one single-chain balances result.
 
+Use `pnpm zk-agent assets --wallet main` when you want that richer single-chain
+asset view directly, without remembering the extra balances flag.
+
 Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need to confirm how the current local-first registry resolves one exact token
 query before trying `fund`, `send-token`, or `swap`.
@@ -503,6 +510,7 @@ pnpm install
 pnpm zk-agent --help
 pnpm zksync-agent --help
 pnpm tool:list
+pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool workflowAutoTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"createCheckpoint":true}'
 pnpm smoke:operator-path -- --wallet <name>

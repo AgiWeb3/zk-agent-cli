@@ -32,6 +32,15 @@ export interface ExtendedGetBalancesToolOutput extends GetBalancesResult {
 
 export type GetBalancesToolOutput = ExtendedGetBalancesToolOutput | MultiChainBalancesResult;
 
+export interface ReadBalancesInput {
+  walletName: string;
+  walletAddress: string;
+  walletChain: string;
+  chain?: string;
+  chains?: string[];
+  ownedTokens?: boolean;
+}
+
 function normalizeRequestedChains(input: GetBalancesToolInput, walletChain: string): string[] {
   const chains = (input.chains || []).map((value) => value.trim()).filter(Boolean);
   if (chains.length > BALANCES_MAX_CHAINS) {
@@ -67,6 +76,67 @@ function ownedTokenRegistryBalances(entries: Array<{
   }));
 }
 
+export async function readBalances(
+  context: AgentToolContext,
+  input: ReadBalancesInput
+): Promise<GetBalancesToolOutput> {
+  const requestedChains = normalizeRequestedChains(input, input.walletChain);
+  if (input.ownedTokens && requestedChains.length > 1) {
+    throw new AgentError(
+      'OWNED_TOKEN_BALANCES_MULTICHAIN_UNSUPPORTED',
+      'ownedTokens=true currently supports only the single-chain balances path.',
+      {
+        requestedChains
+      }
+    );
+  }
+
+  const results = await Promise.all(
+    requestedChains.map((chain) =>
+      context.provider.getBalances({
+        walletName: input.walletName,
+        walletAddress: input.walletAddress,
+        chain
+      })
+    )
+  );
+
+  if (results.length === 1) {
+    if (!input.ownedTokens) {
+      return results[0];
+    }
+
+    const owned = await discoverOwnedDefaultTokenRegistry({
+      walletName: input.walletName,
+      walletAddress: input.walletAddress,
+      chain: results[0].chain,
+      provider: context.provider
+    });
+
+    return {
+      ...results[0],
+      balances: [...results[0].balances, ...ownedTokenRegistryBalances(owned.entries)],
+      ownedTokenRegistry: {
+        enabled: true,
+        entryCount: owned.entryCount,
+        probeFailureCount: owned.probeFailureCount,
+        probeFailures: owned.probeFailures
+      }
+    };
+  }
+
+  return {
+    walletName: input.walletName,
+    walletAddress: input.walletAddress,
+    multiChain: true,
+    chains: results.map((result) => ({
+      chain: result.chain,
+      chainId: result.chainId,
+      balances: result.balances
+    }))
+  };
+}
+
 export function createGetBalancesTool(
   context: AgentToolContext
 ) {
@@ -76,61 +146,14 @@ export function createGetBalancesTool(
       'Read balances for a locally stored wallet on one or more supported zkSync chains, with optional registry-backed ERC-20 discovery on the single-chain path.',
     execute: async (input) =>
       withWalletRecord(context, input, async (wallet) => {
-        const requestedChains = normalizeRequestedChains(input, wallet.chain);
-        if (input.ownedTokens && requestedChains.length > 1) {
-          throw new AgentError(
-            'OWNED_TOKEN_BALANCES_MULTICHAIN_UNSUPPORTED',
-            'ownedTokens=true currently supports only the single-chain balances path.',
-            {
-              requestedChains
-            }
-          );
-        }
-
-        const results = await Promise.all(
-          requestedChains.map((chain) =>
-            context.provider.getBalances({
-              walletName: wallet.walletName,
-              walletAddress: wallet.walletAddress,
-              chain
-            })
-          )
-        );
-
-        if (results.length === 1) {
-          if (!input.ownedTokens) {
-            return results[0];
-          }
-
-          const owned = await discoverOwnedDefaultTokenRegistry({
-            walletName: wallet.walletName,
-            walletAddress: wallet.walletAddress,
-            chain: results[0].chain,
-            provider: context.provider
-          });
-
-          return {
-            ...results[0],
-            balances: [...results[0].balances, ...ownedTokenRegistryBalances(owned.entries)],
-            ownedTokenRegistry: {
-              enabled: true,
-              entryCount: owned.entryCount,
-              probeFailureCount: owned.probeFailureCount,
-              probeFailures: owned.probeFailures
-            }
-          };
-        }
-
-        return {
+        return readBalances(context, {
           walletName: wallet.walletName,
           walletAddress: wallet.walletAddress,
-          multiChain: true,
-          chains: results.map((result) => ({
-            chain: result.chain,
-            chainId: result.chainId,
-            balances: result.balances
-          }))
-        };
+          walletChain: wallet.chain,
+          chain: input.chain,
+          chains: input.chains,
+          ownedTokens: input.ownedTokens
+        });
       })
   });
 }

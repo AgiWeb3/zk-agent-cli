@@ -2,6 +2,7 @@ import { Command, CommanderError } from 'commander';
 import { config as loadEnv } from 'dotenv';
 
 import {
+  createAssetsCommand,
   createBalancesCommand,
   createBridgeCommand,
   createBridgeStatusCommand,
@@ -65,6 +66,7 @@ function createProgram(): Command {
   program.addCommand(createRelayCommand());
   program.addCommand(createWalletCommand());
   program.addCommand(createWorkflowCommand());
+  program.addCommand(createAssetsCommand());
   program.addCommand(createBalancesCommand());
   program.addCommand(createFundCommand());
   program.addCommand(createSendCommand());

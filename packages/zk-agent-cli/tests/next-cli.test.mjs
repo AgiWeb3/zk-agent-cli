@@ -307,6 +307,7 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
       delete: 'zk-agent workflow delete --request-id wf-next-token-001',
       walletStatus: 'zk-agent wallet status --name main',
       nextAction: result.nextCommand,
+      discoverAssets: 'zk-agent assets --wallet main',
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'

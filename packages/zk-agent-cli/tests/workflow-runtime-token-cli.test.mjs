@@ -62,6 +62,7 @@ test('workflow next returns token discovery commands for tokenized ready checkpo
       delete: 'zk-agent workflow delete --request-id wf-token-runtime-001',
       walletStatus: 'zk-agent wallet status --name main',
       nextAction: result.summary.nextCommand,
+      discoverAssets: 'zk-agent assets --wallet main',
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'

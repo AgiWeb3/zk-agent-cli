@@ -91,6 +91,12 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
   );
   assert.equal(workflowFundTool?.operatorPathStage, 'funding-fallback');
 
+  const assetsTool = result.tools.find(
+    (entry: { name: string }) => entry.name === 'getAssetsTool'
+  );
+  assert.equal(assetsTool?.group, 'read');
+  assert.equal(assetsTool?.cliCommand, 'zk-agent assets --wallet <name>');
+
   const workflowBridgeTool = result.tools.find(
     (entry: { name: string }) => entry.name === 'workflowBridgeTool'
   );

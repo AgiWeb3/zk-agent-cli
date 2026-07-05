@@ -1325,6 +1325,7 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
   delete?: string;
   walletStatus?: string;
   nextAction?: string;
+  discoverAssets?: string;
   discoverOwnedTokens?: string;
   discoverTokens?: string;
   inspectToken?: string;
@@ -1354,6 +1355,7 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
       ? {
           ...(input.walletName
             ? {
+                discoverAssets: `zk-agent assets --wallet ${input.walletName}`,
                 discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`
               }
             : {}),

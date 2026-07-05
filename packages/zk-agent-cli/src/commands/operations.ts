@@ -49,6 +49,11 @@ interface BalancesCommandOptions {
   ownedTokens?: boolean;
 }
 
+interface AssetsCommandOptions {
+  wallet: string;
+  chain?: string;
+}
+
 interface BalancesCommandDeps {
   provider: Pick<WalletProvider, 'getBalances' | 'call'>;
   loadWallet(walletName: string): Promise<WalletSessionRecord | null>;
@@ -619,6 +624,29 @@ async function extendSingleChainBalancesWithOwnedTokens(input: {
   };
 }
 
+async function loadSingleChainBalancesPayload(input: {
+  walletName: string;
+  walletAddress: string;
+  chain: string;
+  provider: Pick<WalletProvider, 'getBalances' | 'call'>;
+  ownedTokens?: boolean;
+}): Promise<GetBalancesResult | ExtendedSingleChainBalancesResult> {
+  const balances = await input.provider.getBalances({
+    walletName: input.walletName,
+    walletAddress: input.walletAddress,
+    chain: input.chain
+  });
+
+  if (!input.ownedTokens) {
+    return balances;
+  }
+
+  return extendSingleChainBalancesWithOwnedTokens({
+    base: balances,
+    provider: input.provider
+  });
+}
+
 function linesForMultiBalances(result: MultiChainBalancesResult): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['wallet', result.walletName],
@@ -708,18 +736,37 @@ export function createBalancesCommand(deps?: Partial<BalancesCommandDeps>): Comm
         return;
       }
 
-      const balances = await resolvedDeps.provider.getBalances({
+      const payload = await loadSingleChainBalancesPayload({
         walletName,
         walletAddress: wallet.walletAddress,
-        chain: options.chain || wallet.chain
+        chain: options.chain || wallet.chain,
+        provider: resolvedDeps.provider,
+        ownedTokens: options.ownedTokens
       });
 
-      const payload = options.ownedTokens
-        ? await extendSingleChainBalancesWithOwnedTokens({
-            base: balances,
-            provider: resolvedDeps.provider
-          })
-        : balances;
+      printResult(linesForSingleBalances(payload), { ok: true, ...payload });
+    });
+}
+
+export function createAssetsCommand(deps?: Partial<BalancesCommandDeps>): Command {
+  const resolvedDeps = resolveBalancesCommandDeps(deps);
+
+  return new Command('assets')
+    .description('Fetch a single-chain asset view with native balance plus registry-backed ERC-20 holdings')
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option('--chain <chain>', 'Single chain override')
+    .action(async (options: AssetsCommandOptions) => {
+      const walletName = options.wallet;
+      const wallet = await resolvedDeps.loadWallet(walletName);
+      if (!wallet) throw new Error(`Wallet not found: ${walletName}`);
+
+      const payload = await loadSingleChainBalancesPayload({
+        walletName,
+        walletAddress: wallet.walletAddress,
+        chain: options.chain || wallet.chain,
+        provider: resolvedDeps.provider,
+        ownedTokens: true
+      });
 
       printResult(linesForSingleBalances(payload), { ok: true, ...payload });
     });

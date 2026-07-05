@@ -11,6 +11,7 @@ export interface WorkflowToolRecommendedCommands {
   walletStatus?: string;
   workflowHelp?: string;
   nextAction?: string;
+  discoverAssets?: string;
   discoverOwnedTokens?: string;
   discoverTokens?: string;
   inspectToken?: string;
@@ -74,6 +75,7 @@ export function buildWorkflowRuntimeToolRecommendedCommands(input: {
       ? {
           ...(input.walletName
             ? {
+                discoverAssets: `zk-agent assets --wallet ${input.walletName}`,
                 discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`
               }
             : {}),

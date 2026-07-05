@@ -198,9 +198,9 @@ pnpm zk-agent workflow next --request-id <id>
 `workflow resume`, `workflow run`, the intent shortcut commands, and
 `zk-agent next --request-id <id>` now also return explicit
 `recommendedCommands` in JSON mode. Tokenized workflow outputs additionally
-surface `discoverOwnedTokens`, `discoverTokens`, and `inspectToken`, so
-agent-driven callers can keep moving without rebuilding token-registry recovery
-paths themselves.
+surface `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and
+`inspectToken`, so agent-driven callers can keep moving without rebuilding
+token-registry recovery paths themselves.
 
 Resume when ready:
 
@@ -215,6 +215,7 @@ Examples:
 ```bash
 pnpm zk-agent balances --wallet main
 pnpm zk-agent balances --wallet main --owned-tokens
+pnpm zk-agent assets --wallet main
 pnpm zk-agent send --wallet main --to <address> --amount <amount>
 pnpm zk-agent swap --wallet main --protocol syncswap-classic [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] --amount-in <amount> --amount-out-min <amount>
 pnpm zk-agent bridge --wallet main --amount <amount> [--to-chain zksync-sepolia]
@@ -299,6 +300,7 @@ Run a tool:
 
 ```bash
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
+pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
 ```
 
 When listing tools with `pnpm tool:run -- --list`, high-frequency entries now

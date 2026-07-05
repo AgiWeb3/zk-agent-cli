@@ -18,6 +18,7 @@ import { createBridgeStatusTool } from './bridge-status-tool.js';
 import { createWalletTool } from './create-wallet-tool.js';
 import { createDepositPreviewTool } from './deposit-preview-tool.js';
 import { createDepositStatusTool } from './deposit-status-tool.js';
+import { createGetAssetsTool } from './get-assets-tool.js';
 import { createGetBalancesTool } from './get-balances-tool.js';
 import { createGetDefaultsTool } from './get-defaults-tool.js';
 import { createGetFundingInfoTool } from './get-funding-info-tool.js';
@@ -152,6 +153,7 @@ export function createStandardAgentTools(context: AgentToolContext) {
     walletSyncTool: createWalletSyncTool(context),
     walletExportTool: createWalletExportTool(context),
     walletRestoreTool: createWalletRestoreTool(context),
+    getAssetsTool: createGetAssetsTool(context),
     getBalancesTool: createGetBalancesTool(context),
     getDefaultsTool: createGetDefaultsTool(context),
     getFundingInfoTool: createGetFundingInfoTool(context),
@@ -212,6 +214,7 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',
+    'getAssetsTool',
     'getBalancesTool',
     'getDefaultsTool',
     'getFundingInfoTool',

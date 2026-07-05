@@ -1,6 +1,6 @@
 import { loadWalletSession, saveWalletSession } from '@zk-agent/agent-core';
 
-import { createBalancesCommand } from '../../src/commands/operations.ts';
+import { createAssetsCommand, createBalancesCommand } from '../../src/commands/operations.ts';
 
 await saveWalletSession({
   walletName: 'main',
@@ -72,10 +72,13 @@ const provider = {
 
 process.env.ZK_AGENT_OUTPUT = 'json';
 
-const command = createBalancesCommand({
+const [commandName = 'balances', ...args] = process.argv.slice(2);
+const commandFactory = commandName === 'assets' ? createAssetsCommand : createBalancesCommand;
+
+const command = commandFactory({
   provider,
   loadWallet: async (walletName) => loadWalletSession(walletName)
 });
 
 command.exitOverride();
-await command.parseAsync(['node', 'balances', ...process.argv.slice(2)]);
+await command.parseAsync(['node', commandName, ...args]);

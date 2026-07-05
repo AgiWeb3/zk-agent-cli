@@ -16,6 +16,7 @@ export * from './bridge-preview-tool.js';
 export * from './bridge-status-tool.js';
 export * from './deposit-preview-tool.js';
 export * from './deposit-status-tool.js';
+export * from './get-assets-tool.js';
 export * from './get-balances-tool.js';
 export * from './get-defaults-tool.js';
 export * from './get-funding-info-tool.js';

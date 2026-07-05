@@ -26,7 +26,7 @@ function collectOutput(stream) {
   return () => output;
 }
 
-test('balances command can include registry-backed ERC-20 holdings on the single-chain path', async () => {
+async function runOwnedBalancesFixture(args) {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-balances-home-'));
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-balances-workspace-'));
 
@@ -56,7 +56,7 @@ test('balances command can include registry-backed ERC-20 holdings on the single
 
     const child = spawn(
       process.execPath,
-      ['--import', 'tsx', runnerPath, '--wallet', 'main', '--owned-tokens'],
+      ['--import', 'tsx', runnerPath, ...args],
       {
         cwd: packageRoot,
         env: {
@@ -80,39 +80,52 @@ test('balances command can include registry-backed ERC-20 holdings on the single
     assert.equal(exitCode, 0, stderr || stdout || `balances CLI exited with code ${exitCode}`);
     assert.notEqual(stdout, '', 'balances CLI JSON output was empty');
 
-    const result = JSON.parse(stdout);
-    assert.equal(result.ok, true);
-    assert.equal(result.chain, 'zksync-sepolia');
-    assert.deepEqual(
-      result.balances.map((balance) => ({
-        type: balance.type,
-        symbol: balance.symbol,
-        balance: balance.balance,
-        contractAddress: balance.contractAddress
-      })),
-      [
-        {
-          type: 'native',
-          symbol: 'ETH',
-          balance: '1.0',
-          contractAddress: undefined
-        },
-        {
-          type: 'erc20',
-          symbol: 'USDC',
-          balance: '1.23',
-          contractAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-        }
-      ]
-    );
-    assert.deepEqual(result.ownedTokenRegistry, {
-      enabled: true,
-      entryCount: 1,
-      probeFailureCount: 0,
-      probeFailures: []
-    });
+    return JSON.parse(stdout);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
     await rm(workspaceRoot, { recursive: true, force: true });
   }
+}
+
+function assertOwnedBalancesResult(result) {
+  assert.equal(result.ok, true);
+  assert.equal(result.chain, 'zksync-sepolia');
+  assert.deepEqual(
+    result.balances.map((balance) => ({
+      type: balance.type,
+      symbol: balance.symbol,
+      balance: balance.balance,
+      contractAddress: balance.contractAddress
+    })),
+    [
+      {
+        type: 'native',
+        symbol: 'ETH',
+        balance: '1.0',
+        contractAddress: undefined
+      },
+      {
+        type: 'erc20',
+        symbol: 'USDC',
+        balance: '1.23',
+        contractAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      }
+    ]
+  );
+  assert.deepEqual(result.ownedTokenRegistry, {
+    enabled: true,
+    entryCount: 1,
+    probeFailureCount: 0,
+    probeFailures: []
+  });
+}
+
+test('balances command can include registry-backed ERC-20 holdings on the single-chain path', async () => {
+  const result = await runOwnedBalancesFixture(['balances', '--wallet', 'main', '--owned-tokens']);
+  assertOwnedBalancesResult(result);
+});
+
+test('assets command returns the owned-token asset view without extra flags', async () => {
+  const result = await runOwnedBalancesFixture(['assets', '--wallet', 'main']);
+  assertOwnedBalancesResult(result);
 });
