@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -959,6 +959,58 @@ test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow bra
       'zk-agent wallet reapprove --name main --await-local'
     );
   }
+
+  checkpoints.set('wf-top-token-001', {
+    format: 'zk-agent-workflow-checkpoint',
+    version: 1,
+    requestId: 'wf-top-token-001',
+    walletName: 'main',
+    intent: 'send-token',
+    goal: {
+      intent: 'send-token',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '1',
+      tokenAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+      decimals: 18,
+      symbol: 'ZKAT'
+    },
+    broadcast: false,
+    autoSync: true,
+    createdAt: '2026-06-18T00:00:00.000Z',
+    updatedAt: '2026-06-18T00:00:00.000Z'
+  });
+  const tokenWorkflowTools = createStandardAgentTools(
+    createAgentToolContext({
+      provider: readyProvider,
+      defiProvider: readyProvider,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async () => readyWallet,
+      loadWorkflowCheckpoint: async (requestId) => checkpoints.get(requestId) || null,
+      saveWorkflowCheckpoint: async (checkpoint) => {
+        checkpoints.set(checkpoint.requestId, checkpoint);
+      }
+    })
+  );
+  const tokenWorkflow = await tokenWorkflowTools.topLevelNextTool.execute({
+    requestId: 'wf-top-token-001'
+  });
+  assert.equal(tokenWorkflow.ok, true);
+  if (tokenWorkflow.ok) {
+    assert.equal(tokenWorkflow.data.scope, 'workflow');
+    assert.equal(tokenWorkflow.data.result.intent, 'send-token');
+    assert.equal(
+      tokenWorkflow.data.recommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
+    );
+    assert.equal(
+      tokenWorkflow.data.recommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
+    );
+    assert.equal(
+      tokenWorkflow.data.recommendedCommands.inspectToken,
+      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+    );
+  }
 });
 
 test('deposit status tool can wait until the mapped deposit finalizes', async () => {
@@ -1471,6 +1523,372 @@ test('createZkSyncAgentToolContext loads rpc env values from the local .env file
   }
 });
 
+test('resolveTokenTool returns local-first matches before token-directory matches', async () => {
+  const previousWorkspaceRoot = process.env.ZK_AGENT_WORKSPACE_ROOT;
+  const previousTokenDirectoryRoot = process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-workspace-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-token-dir-'));
+
+  try {
+    await mkdir(path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments'), {
+      recursive: true
+    });
+    await mkdir(path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia'), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments', 'local-usdc.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        symbol: 'USDC',
+        decimals: 6
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'index.json'),
+      JSON.stringify({
+        index: {
+          'zksync-sepolia': {
+            chainId: 300,
+            tokenLists: {
+              'erc20.json': 'mock'
+            }
+          }
+        }
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia', 'erc20.json'),
+      JSON.stringify({
+        tokens: [
+          {
+            chainId: 300,
+            address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            symbol: 'USDC',
+            decimals: 6,
+            extensions: {
+              verified: true
+            }
+          }
+        ]
+      }),
+      'utf8'
+    );
+
+    process.env.ZK_AGENT_WORKSPACE_ROOT = workspaceRoot;
+    process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT = tokenDirectoryRoot;
+
+    const context = createAgentToolContext({
+      provider: {
+        async call() {
+          throw new Error('not used');
+        }
+      } as never,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async (walletName) => (walletName === 'main' ? sampleWallet : null),
+      saveWallet: async () => {},
+      loadWalletRequest: async () => null,
+      saveWalletRequest: async () => {},
+      deleteWalletRequest: async () => false,
+      publishWalletRequestToRelay: async () => {
+        throw new Error('not used');
+      },
+      fetchRelayApproval: async () => {
+        throw new Error('not used');
+      },
+      loadWorkflowCheckpoint: async () => null,
+      saveWorkflowCheckpoint: async () => {},
+      listWorkflowCheckpointIds: async () => [],
+      deleteWorkflowCheckpoint: async () => false
+    });
+
+    const result = await runStandardAgentTool(context, 'resolveTokenTool', {
+      chain: 'zksync-sepolia',
+      symbol: 'USDC'
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal((result.data as { matchCount: number }).matchCount, 2);
+      assert.equal(
+        (result.data as { primaryMatch: { source: string; address: string } }).primaryMatch.source,
+        'local-deployments'
+      );
+      assert.equal(
+        (
+          result.data as {
+            matches: Array<{ source: string; address: string }>;
+          }
+        ).matches[1]?.source,
+        'token-directory'
+      );
+    }
+  } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.ZK_AGENT_WORKSPACE_ROOT;
+    } else {
+      process.env.ZK_AGENT_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
+    if (previousTokenDirectoryRoot === undefined) {
+      delete process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
+    } else {
+      process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT = previousTokenDirectoryRoot;
+    }
+    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('listTokensTool exposes discoverable local-first entries for one chain', async () => {
+  const previousWorkspaceRoot = process.env.ZK_AGENT_WORKSPACE_ROOT;
+  const previousTokenDirectoryRoot = process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-workspace-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-token-dir-'));
+
+  try {
+    await mkdir(path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments'), {
+      recursive: true
+    });
+    await mkdir(path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia'), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments', 'local-usdc.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        symbol: 'USDC',
+        decimals: 6
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'index.json'),
+      JSON.stringify({
+        index: {
+          'zksync-sepolia': {
+            chainId: 300,
+            tokenLists: {
+              'erc20.json': 'mock'
+            }
+          }
+        }
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia', 'erc20.json'),
+      JSON.stringify({
+        tokens: [
+          {
+            chainId: 300,
+            address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            symbol: 'USDT',
+            decimals: 6,
+            extensions: {
+              verified: true
+            }
+          }
+        ]
+      }),
+      'utf8'
+    );
+
+    process.env.ZK_AGENT_WORKSPACE_ROOT = workspaceRoot;
+    process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT = tokenDirectoryRoot;
+
+    const context = createAgentToolContext({
+      provider: {
+        async call() {
+          throw new Error('not used');
+        }
+      } as never,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async (walletName) => (walletName === 'main' ? sampleWallet : null),
+      saveWallet: async () => {},
+      loadWalletRequest: async () => null,
+      saveWalletRequest: async () => {},
+      deleteWalletRequest: async () => false,
+      publishWalletRequestToRelay: async () => {
+        throw new Error('not used');
+      },
+      fetchRelayApproval: async () => {
+        throw new Error('not used');
+      },
+      loadWorkflowCheckpoint: async () => null,
+      saveWorkflowCheckpoint: async () => {},
+      listWorkflowCheckpointIds: async () => [],
+      deleteWorkflowCheckpoint: async () => false
+    });
+
+    const result = await runStandardAgentTool(context, 'listTokensTool', {
+      chain: 'zksync-sepolia'
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal((result.data as { entryCount: number }).entryCount, 2);
+      assert.deepEqual(
+        (
+          result.data as {
+            entries: Array<{ symbol: string; source: string }>;
+          }
+        ).entries.map((entry) => `${entry.symbol}:${entry.source}`),
+        ['USDC:local-deployments', 'USDT:token-directory']
+      );
+    }
+  } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.ZK_AGENT_WORKSPACE_ROOT;
+    } else {
+      process.env.ZK_AGENT_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
+    if (previousTokenDirectoryRoot === undefined) {
+      delete process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
+    } else {
+      process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT = previousTokenDirectoryRoot;
+    }
+    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('listTokensTool can restrict output to registry-backed ERC-20 balances held by a stored wallet', async () => {
+  const previousWorkspaceRoot = process.env.ZK_AGENT_WORKSPACE_ROOT;
+  const previousTokenDirectoryRoot = process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-owned-workspace-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tool-owned-token-dir-'));
+
+  try {
+    await mkdir(path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments'), {
+      recursive: true
+    });
+    await mkdir(path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia'), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments', 'local-usdc.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        symbol: 'USDC',
+        decimals: 6
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'index.json'),
+      JSON.stringify({
+        index: {
+          'zksync-sepolia': {
+            chainId: 300,
+            tokenLists: {
+              'erc20.json': 'mock'
+            }
+          }
+        }
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia', 'erc20.json'),
+      JSON.stringify({
+        tokens: [
+          {
+            chainId: 300,
+            address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            symbol: 'USDT',
+            decimals: 6
+          }
+        ]
+      }),
+      'utf8'
+    );
+
+    process.env.ZK_AGENT_WORKSPACE_ROOT = workspaceRoot;
+    process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT = tokenDirectoryRoot;
+
+    const context = createAgentToolContext({
+      provider: {
+        async call(input) {
+          const rawBalance =
+            input.to.toLowerCase() === '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ? 1230000n : 0n;
+          return {
+            ...input,
+            chainId: 300,
+            result: `0x${rawBalance.toString(16).padStart(64, '0')}`
+          };
+        }
+      } as never,
+      loadProjectConfig: async () => sampleProjectConfig(),
+      loadWallet: async (walletName) => (walletName === 'main' ? sampleWallet : null),
+      saveWallet: async () => {},
+      loadWalletRequest: async () => null,
+      saveWalletRequest: async () => {},
+      deleteWalletRequest: async () => false,
+      publishWalletRequestToRelay: async () => {
+        throw new Error('not used');
+      },
+      fetchRelayApproval: async () => {
+        throw new Error('not used');
+      },
+      loadWorkflowCheckpoint: async () => null,
+      saveWorkflowCheckpoint: async () => {},
+      listWorkflowCheckpointIds: async () => [],
+      deleteWorkflowCheckpoint: async () => false
+    });
+
+    const result = await runStandardAgentTool(context, 'listTokensTool', {
+      walletName: 'main',
+      owned: true
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal((result.data as { walletName: string }).walletName, 'main');
+      assert.equal((result.data as { ownedOnly: boolean }).ownedOnly, true);
+      assert.equal((result.data as { entryCount: number }).entryCount, 1);
+      assert.equal((result.data as { probeFailureCount: number }).probeFailureCount, 0);
+      assert.deepEqual(
+        (
+          result.data as {
+            entries: Array<{ symbol: string; source: string; balance: string; rawBalance: string }>;
+          }
+        ).entries,
+        [
+          {
+            chainId: 300,
+            chainKey: 'zksync-sepolia',
+            symbol: 'USDC',
+            address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            decimals: 6,
+            sourcePath: path.join(
+              workspaceRoot,
+              'packages',
+              'paymaster-test-assets',
+              'deployments',
+              'local-usdc.json'
+            ),
+            source: 'local-deployments',
+            balance: '1.23',
+            rawBalance: '1230000'
+          }
+        ]
+      );
+    }
+  } finally {
+    if (previousWorkspaceRoot === undefined) {
+      delete process.env.ZK_AGENT_WORKSPACE_ROOT;
+    } else {
+      process.env.ZK_AGENT_WORKSPACE_ROOT = previousWorkspaceRoot;
+    }
+    if (previousTokenDirectoryRoot === undefined) {
+      delete process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
+    } else {
+      process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT = previousTokenDirectoryRoot;
+    }
+    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
+  }
+});
+
 test('standard tool registry lists stable tool names and descriptions', async () => {
   const provider = createProviderStub();
   const context = createAgentToolContext({
@@ -1515,6 +1933,8 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'getBalancesTool',
     'getDefaultsTool',
     'getFundingInfoTool',
+    'listTokensTool',
+    'resolveTokenTool',
     'workflowFundTool',
     'callContractTool',
     'swapPreviewTool',
@@ -1533,7 +1953,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 50);
+  assert.equal(listed.length, 52);
   assert.equal(listed[0]?.name, 'topLevelNextTool');
   assert.equal(listed[0]?.group, 'entrypoint');
   assert.equal(listed[1]?.name, 'workflowAutoTool');
@@ -1552,6 +1972,12 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   const listedCreateWallet = listed.find((entry) => entry.name === 'createWalletTool');
   assert.equal(listedCreateWallet?.group, 'wallet');
   assert.match(listedCreateWallet?.description || '', /Create a zkSync smart-account session request/);
+  const listedListTokens = listed.find((entry) => entry.name === 'listTokensTool');
+  assert.equal(listedListTokens?.group, 'read');
+  assert.match(listedListTokens?.cliCommand || '', /zk-agent tokens/);
+  const listedResolveToken = listed.find((entry) => entry.name === 'resolveTokenTool');
+  assert.equal(listedResolveToken?.group, 'read');
+  assert.match(listedResolveToken?.cliCommand || '', /zk-agent resolve-token/);
 });
 
 test('runStandardAgentTool dispatches by name and normalizes unknown tool errors', async () => {
@@ -1621,6 +2047,14 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       /--protocol syncswap-classic/
     );
     assert.equal((workflow.data as { plan: { status: string } }).plan.status, 'blocked');
+    assert.equal(
+      (workflow.data as { recommendedCommands: { discoverTokens?: string } }).recommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
+    );
+    assert.equal(
+      (workflow.data as { recommendedCommands: { inspectToken?: string } }).recommendedCommands.inspectToken,
+      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+    );
   }
 
   const runnableContext = createAgentToolContext({
@@ -1668,6 +2102,10 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (workflowRun.data as { result: { goal: { mode: string } } }).result.goal.mode,
       'preview'
     );
+    assert.equal(
+      (workflowRun.data as { recommendedCommands: { nextAction?: string } }).recommendedCommands.nextAction,
+      'zk-agent workflow send-native --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
+    );
   }
 
   const workflowSendNative = await runStandardAgentTool(
@@ -1712,15 +2150,26 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (workflowSwap.data as { result: { goal: { protocol: string } } }).result.goal.protocol,
       'uniswap-v3-exact-input-single'
     );
+    assert.equal(
+      (workflowSwap.data as { recommendedCommands: { discoverOwnedTokens?: string } }).recommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
+    );
+    assert.equal(
+      (workflowSwap.data as { recommendedCommands: { discoverTokens?: string } }).recommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
+    );
   }
 
   const workflowStatus = await runStandardAgentTool(context, 'workflowStatusTool', {
     walletName: 'main',
-    intent: 'send-native',
+    intent: 'send-token',
     goal: {
-      intent: 'send-native',
+      intent: 'send-token',
       to: '0x3333333333333333333333333333333333333333',
-      amount: '0.1'
+      amount: '1',
+      tokenAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+      decimals: 18,
+      symbol: 'ZKAT'
     }
   });
   assert.equal(workflowStatus.ok, true);
@@ -1733,15 +2182,26 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (workflowStatus.data as { result: { blockingActionIds: string[] } }).result.blockingActionIds[0],
       'reapprove'
     );
+    assert.equal(
+      (workflowStatus.data as { recommendedCommands: { discoverOwnedTokens?: string } }).recommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
+    );
+    assert.equal(
+      (workflowStatus.data as { recommendedCommands: { discoverTokens?: string } }).recommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
+    );
   }
 
   const workflowNext = await runStandardAgentTool(context, 'workflowNextTool', {
     walletName: 'main',
-    intent: 'send-native',
+    intent: 'send-token',
     goal: {
-      intent: 'send-native',
+      intent: 'send-token',
       to: '0x3333333333333333333333333333333333333333',
-      amount: '0.1'
+      amount: '1',
+      tokenAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+      decimals: 18,
+      symbol: 'ZKAT'
     }
   });
   assert.equal(workflowNext.ok, true);
@@ -1753,6 +2213,14 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     assert.equal(
       (workflowNext.data as { summary: { nextCommand?: string } }).summary.nextCommand,
       'zk-agent wallet reapprove --name main --await-local'
+    );
+    assert.equal(
+      (workflowNext.data as { recommendedCommands: { discoverOwnedTokens?: string } }).recommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
+    );
+    assert.equal(
+      (workflowNext.data as { recommendedCommands: { discoverTokens?: string } }).recommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
     );
   }
 
@@ -1989,6 +2457,14 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (workflowOrchestratorStart.data as { action: string }).action,
       'ready'
     );
+    assert.equal(
+      (
+        workflowOrchestratorStart.data as {
+          workflowRecommendedCommands: { walletStatus?: string };
+        }
+      ).workflowRecommendedCommands.walletStatus,
+      'zk-agent wallet status --name main'
+    );
   }
 
   const workflowOrchestratorResume = await runStandardAgentTool(
@@ -2016,6 +2492,52 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
         }
       ).checkpoint.lastRun.stage,
       'goal-executed'
+    );
+  }
+
+  const tokenizedWorkflowOrchestrator = await runStandardAgentTool(
+    workflowRunnableContext,
+    'workflowOrchestratorTool',
+    {
+      walletName: 'main',
+      requestId: 'wf-tool-orch-token-001',
+      intent: 'send-token',
+      goal: {
+        intent: 'send-token',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '1',
+        tokenAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+        decimals: 18,
+        symbol: 'ZKAT'
+      },
+      createCheckpoint: true
+    }
+  );
+  assert.equal(tokenizedWorkflowOrchestrator.ok, true);
+  if (tokenizedWorkflowOrchestrator.ok) {
+    assert.equal(
+      (
+        tokenizedWorkflowOrchestrator.data as {
+          workflowRecommendedCommands: { discoverOwnedTokens?: string };
+        }
+      ).workflowRecommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
+    );
+    assert.equal(
+      (
+        tokenizedWorkflowOrchestrator.data as {
+          workflowRecommendedCommands: { discoverTokens?: string };
+        }
+      ).workflowRecommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
+    );
+    assert.equal(
+      (
+        tokenizedWorkflowOrchestrator.data as {
+          workflowRecommendedCommands: { inspectToken?: string };
+        }
+      ).workflowRecommendedCommands.inspectToken,
+      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
     );
   }
 
@@ -2124,11 +2646,33 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (
         defaults.data as {
           localTokenRegistry: Array<{ chainKey: string; symbol: string }>;
+          tokenRegistrySources: Array<{ id: string; enabled: boolean }>;
+          tokenDirectoryChains: Array<{ chainId: number }>;
         }
       ).localTokenRegistry.some(
         (entry) => entry.chainKey === 'zksync-sepolia' && entry.symbol === 'ZKAT'
       ),
       true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          localTokenRegistry: Array<{ chainKey: string; symbol: string }>;
+          tokenRegistrySources: Array<{ id: string; enabled: boolean }>;
+          tokenDirectoryChains: Array<{ chainId: number }>;
+        }
+      ).tokenRegistrySources.some((entry) => entry.id === 'local-deployments' && entry.enabled),
+      true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          localTokenRegistry: Array<{ chainKey: string; symbol: string }>;
+          tokenRegistrySources: Array<{ id: string; enabled: boolean }>;
+          tokenDirectoryChains: Array<{ chainId: number }>;
+        }
+      ).tokenDirectoryChains.length,
+      0
     );
   }
 
@@ -2412,6 +2956,10 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     approve: `zk-agent wallet request approve --request-id ${requestCreated.data.walletApproval?.requestId} --payload @approved-session.json`
   });
   assert.equal(
+    requestCreated.data.workflowRecommendedCommands.nextAction,
+    `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`
+  );
+  assert.equal(
     requestCreated.data.checkpoint?.lastRecommendedCommand,
     requestCreated.data.recommendedCommand
   );
@@ -2451,6 +2999,10 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     relayStatus: `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`,
     relayApprove: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445 --code <code> --wait`
   });
+  assert.equal(
+    relayRequestCreated.data.workflowRecommendedCommands.nextAction,
+    `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`
+  );
 
   requests.clear();
 

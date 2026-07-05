@@ -632,7 +632,7 @@ export async function executeFundCommand(
 
   const walletName = options.wallet;
   const wallet = await requireFundCommandWallet(walletName, deps);
-  const token = resolveOptionalTokenInput({
+  const token = await resolveOptionalTokenInput({
     tokenAddress: options.token,
     symbol: options.symbol,
     decimals: options.decimals,
@@ -759,9 +759,9 @@ export function createFundCommand(deps?: Partial<FundCommandDeps>): Command {
     .option('--amount <value>', 'Optional amount to embed into the suggested funding commands')
     .option(
       '--token <address>',
-      'Optional token address to embed into the suggested funding commands. Also optional when --symbol resolves from local deployment records'
+      'Optional token address to embed into the suggested funding commands. Also optional when --symbol resolves from the configured token registry'
     )
-    .option('--symbol <symbol>', 'Optional token symbol label or local lookup key for the funding commands')
+    .option('--symbol <symbol>', 'Optional token symbol label or token-registry lookup key for the funding commands')
     .option('--to <address>', 'Optional recipient override for executed funding actions')
     .option('--bridge-address <address>', 'Optional bridge override for executed funding actions')
     .option('--via <mode>', 'Execution mode override: deposit or bridge')
@@ -769,7 +769,7 @@ export function createFundCommand(deps?: Partial<FundCommandDeps>): Command {
     .option('--broadcast', 'When used with --execute, broadcast the funding transaction', false)
     .option(
       '--decimals <value>',
-      'Optional token decimals. When omitted, local deployment metadata is used if available.'
+      'Optional token decimals. When omitted, the configured token registry is used if available.'
     )
     .action(async (options: FundCommandOptions) => {
       await executeFundCommand(options, resolvedDeps);
@@ -825,15 +825,15 @@ export function createSendTokenCommand(): Command {
     .requiredOption('--amount <value>', 'Amount in human-readable token units')
     .option(
       '--token <address>',
-      'ERC-20 token contract address. Optional when --symbol resolves from local deployment records'
+      'ERC-20 token contract address. Optional when --symbol resolves from the configured token registry'
     )
     .option(
       '--symbol <symbol>',
-      'Token symbol for display. Also used for local deployment lookup when --token is omitted'
+      'Token symbol for display. Also used for token-registry lookup when --token is omitted'
     )
     .option(
       '--decimals <value>',
-      'Token decimals. Optional when the token exists in local deployment records'
+      'Token decimals. Optional when the token exists in the configured token registry'
     )
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--broadcast', 'Broadcast the transaction instead of returning a preview', false)
@@ -851,7 +851,7 @@ export function createSendTokenCommand(): Command {
         paymasterToken?: string;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const token = resolveRequiredTokenInput({
+        const token = await resolveRequiredTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
           decimals: options.decimals,
@@ -990,12 +990,12 @@ export function createWithdrawCommand(): Command {
     .option('--to <address>', 'L1 recipient address. Defaults to owner address when available')
     .option(
       '--token <address>',
-      'L2 token contract address. Omit for the native token path or when --symbol resolves from local deployment records'
+      'L2 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry'
     )
-    .option('--symbol <symbol>', 'Optional token symbol for display or local lookup key')
+    .option('--symbol <symbol>', 'Optional token symbol for display or token-registry lookup key')
     .option(
       '--decimals <value>',
-      'Token decimals. Optional when the token exists in local deployment records'
+      'Token decimals. Optional when the token exists in the configured token registry'
     )
     .option('--bridge-address <address>', 'Explicit bridge contract override')
     .option('--wallet <name>', 'Wallet name', 'main')
@@ -1012,7 +1012,7 @@ export function createWithdrawCommand(): Command {
         broadcast?: boolean;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const token = resolveOptionalTokenInput({
+        const token = await resolveOptionalTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
           decimals: options.decimals,
@@ -1056,12 +1056,12 @@ export function createDepositCommand(): Command {
     .option('--to <address>', 'L2 recipient address. Defaults to the wallet execution address')
     .option(
       '--token <address>',
-      'L1 token contract address. Omit for the native token path or when --symbol resolves from local deployment records'
+      'L1 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry'
     )
-    .option('--symbol <symbol>', 'Optional token symbol for display or local lookup key')
+    .option('--symbol <symbol>', 'Optional token symbol for display or token-registry lookup key')
     .option(
       '--decimals <value>',
-      'Token decimals. Optional when the token exists in local deployment records'
+      'Token decimals. Optional when the token exists in the configured token registry'
     )
     .option('--bridge-address <address>', 'Explicit bridge contract override')
     .option('--wallet <name>', 'Wallet name', 'main')
@@ -1078,7 +1078,7 @@ export function createDepositCommand(): Command {
         broadcast?: boolean;
       }) => {
         const wallet = await requireWallet(options.wallet);
-        const token = resolveOptionalTokenInput({
+        const token = await resolveOptionalTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
           decimals: options.decimals,
@@ -1130,25 +1130,25 @@ export function createSwapCommand(): Command {
     )
     .option(
       '--token-in <address>',
-      'Input ERC-20 token contract address. Optional when --token-in-symbol resolves from local deployment records'
+      'Input ERC-20 token contract address. Optional when --token-in-symbol resolves from the configured token registry'
     )
     .option(
       '--token-out <address>',
-      'Output ERC-20 token contract address. Optional when --token-out-symbol resolves from local deployment records'
+      'Output ERC-20 token contract address. Optional when --token-out-symbol resolves from the configured token registry'
     )
     .requiredOption('--amount-in <value>', 'Input amount in human-readable token units')
     .requiredOption('--amount-out-min <value>', 'Minimum output amount in human-readable token units')
     .option(
       '--token-in-decimals <value>',
-      'Input token decimals. Optional when the token exists in local deployment records'
+      'Input token decimals. Optional when the token exists in the configured token registry'
     )
     .option(
       '--token-out-decimals <value>',
-      'Output token decimals. Optional when the token exists in local deployment records'
+      'Output token decimals. Optional when the token exists in the configured token registry'
     )
     .option('--fee-tier <value>', 'Uniswap V3 pool fee tier')
-    .option('--token-in-symbol <symbol>', 'Input token symbol label or local lookup key')
-    .option('--token-out-symbol <symbol>', 'Output token symbol label or local lookup key')
+    .option('--token-in-symbol <symbol>', 'Input token symbol label or token-registry lookup key')
+    .option('--token-out-symbol <symbol>', 'Output token symbol label or token-registry lookup key')
     .option('--recipient <address>', 'Recipient override. Defaults to the wallet execution address')
     .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
     .option('--auto-approve', 'If allowance is insufficient, send an approval transaction before the swap', false)
@@ -1186,7 +1186,7 @@ export function createSwapCommand(): Command {
           factory: options.factory,
           feeTier: options.feeTier
         });
-        const tokenIn = resolveRequiredTokenInput({
+        const tokenIn = await resolveRequiredTokenInput({
           tokenAddress: options.tokenIn,
           symbol: options.tokenInSymbol,
           decimals: options.tokenInDecimals,
@@ -1195,7 +1195,7 @@ export function createSwapCommand(): Command {
           symbolOptionLabel: '--token-in-symbol',
           decimalsOptionLabel: '--token-in-decimals'
         });
-        const tokenOut = resolveRequiredTokenInput({
+        const tokenOut = await resolveRequiredTokenInput({
           tokenAddress: options.tokenOut,
           symbol: options.tokenOutSymbol,
           decimals: options.tokenOutDecimals,
@@ -1258,12 +1258,12 @@ export function createBridgeCommand(): Command {
     .option('--to <address>', 'Recipient override')
     .option(
       '--token <address>',
-      'L1 token address for deposits or L2 token address for withdraws. Optional when --symbol resolves from local deployment records'
+      'L1 token address for deposits or L2 token address for withdraws. Optional when --symbol resolves from the configured token registry'
     )
-    .option('--symbol <symbol>', 'Optional token symbol label or local lookup key')
+    .option('--symbol <symbol>', 'Optional token symbol label or token-registry lookup key')
     .option(
       '--decimals <value>',
-      'Token decimals. Optional when the token exists in local deployment records'
+      'Token decimals. Optional when the token exists in the configured token registry'
     )
     .option('--bridge-address <address>', 'Explicit bridge contract override')
     .option('--wallet <name>', 'Wallet name', 'main')
@@ -1293,7 +1293,7 @@ export function createBridgeCommand(): Command {
             }`
           );
         }
-        const token = resolveOptionalTokenInput({
+        const token = await resolveOptionalTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
           decimals: options.decimals,

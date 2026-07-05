@@ -89,6 +89,10 @@ defaults when you need the machine-readable baseline:
 pnpm zk-agent defaults
 ```
 
+```bash
+pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC
+```
+
 Shortest next-step summary across setup, wallet readiness, and stored workflow checkpoints:
 
 ```bash
@@ -191,9 +195,12 @@ pnpm zk-agent workflow next --request-id <id>
 ```
 
 `workflow auto`, `workflow start`, `workflow status`, `workflow next`,
-`workflow resume`, `workflow run`, and the intent shortcut commands now also return explicit
-`recommendedCommands` in JSON mode, so agent-driven callers can keep moving
-without rebuilding the next CLI step themselves.
+`workflow resume`, `workflow run`, the intent shortcut commands, and
+`zk-agent next --request-id <id>` now also return explicit
+`recommendedCommands` in JSON mode. Tokenized workflow outputs additionally
+surface `discoverOwnedTokens`, `discoverTokens`, and `inspectToken`, so
+agent-driven callers can keep moving without rebuilding token-registry recovery
+paths themselves.
 
 Resume when ready:
 
@@ -223,6 +230,27 @@ For local test assets already recorded under
 `send-token`, `swap`, `bridge`, `deposit`, `withdraw`, and the matching
 workflow intents can resolve token address/decimals from the stored symbol on
 the active chain.
+
+If `ZK_AGENT_TOKEN_DIRECTORY_ROOT` is set to a local token-directory checkout
+or export with `index/index.json`, the same tokenized commands also fall back
+to that directory after local deployment metadata.
+
+To generate a local export directly from this repo's tracked deployment records,
+run `pnpm --filter @zk-agent/paymaster-test-assets export:token-directory` and
+point `ZK_AGENT_TOKEN_DIRECTORY_ROOT` at
+`packages/paymaster-test-assets/token-directory`.
+
+Inspect discoverable tokens before running a tokenized command:
+
+```bash
+pnpm zk-agent tokens --chain zksync-sepolia
+pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC
+pnpm zk-agent tokens --wallet main --owned
+pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC
+```
+
+`pnpm zk-agent defaults` now also shows that source order and token-directory
+chain coverage explicitly.
 
 For `workflow plan`, the CLI now also fills the tracked default swap or bridge
 route when the current registry/default set makes that path unambiguous.
@@ -297,6 +325,13 @@ pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]
 pnpm smoke:paymaster-success -- --wallet <name>
 pnpm validate:phase3
 ```
+
+Those smoke JSON responses now preserve structured workflow follow-ups:
+
+- `smoke:operator-path` includes `summary.topLevelRecommendedCommands` and
+  `summary.workflowRecommendedCommands`
+- `smoke:product-path` includes per-step `summary.followups`
+- `smoke:paymaster-success` includes `result.recommendedCommands`
 
 ## Known constraints
 

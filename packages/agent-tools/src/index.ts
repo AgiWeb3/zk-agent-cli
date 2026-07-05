@@ -19,6 +19,8 @@ export * from './deposit-status-tool.js';
 export * from './get-balances-tool.js';
 export * from './get-defaults-tool.js';
 export * from './get-funding-info-tool.js';
+export * from './list-tokens-tool.js';
+export * from './resolve-token-tool.js';
 export * from './workflow-fund-tool.js';
 export * from './call-contract-tool.js';
 export * from './send-native-tool.js';

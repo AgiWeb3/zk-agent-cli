@@ -10,6 +10,7 @@ import {
 } from '@zk-agent/agent-core';
 
 import { createAgentTool, requireWalletRecord, requireWorkflowCheckpointRecord } from './tool-helpers.js';
+import { buildWorkflowRuntimeToolRecommendedCommands } from './workflow-followups.js';
 import { buildWorkflowNextSummary, type WorkflowNextSummary } from './workflow-next-tool.js';
 import type { AgentToolContext } from './types.js';
 
@@ -71,6 +72,8 @@ export interface TopLevelNextToolOutputWorkflow {
     delete: string;
     walletStatus: string;
     nextAction?: string;
+    discoverTokens?: string;
+    inspectToken?: string;
   };
 }
 
@@ -106,30 +109,6 @@ function buildWalletStatusCommand(walletName: string): string {
 
 function buildWorkflowAutoCommand(walletName: string): string {
   return `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] --create-checkpoint --execute-when-ready`;
-}
-
-function buildWorkflowListCommand(): string {
-  return 'zk-agent workflow list';
-}
-
-function buildWorkflowShowCommand(requestId: string): string {
-  return `zk-agent workflow show --request-id ${requestId}`;
-}
-
-function buildWorkflowStatusCommand(requestId: string): string {
-  return `zk-agent workflow status --request-id ${requestId}`;
-}
-
-function buildWorkflowNextCommand(requestId: string): string {
-  return `zk-agent workflow next --request-id ${requestId}`;
-}
-
-function buildWorkflowResumeCommand(requestId: string): string {
-  return `zk-agent workflow resume --request-id ${requestId}`;
-}
-
-function buildWorkflowDeleteCommand(requestId: string): string {
-  return `zk-agent workflow delete --request-id ${requestId}`;
 }
 
 export function createTopLevelNextTool(context: AgentToolContext) {
@@ -172,16 +151,13 @@ export function createTopLevelNextTool(context: AgentToolContext) {
           checkpoint: updatedCheckpoint,
           result,
           summary: buildWorkflowNextSummary(result),
-          recommendedCommands: {
-            list: buildWorkflowListCommand(),
-            show: buildWorkflowShowCommand(requestId),
-            status: buildWorkflowStatusCommand(requestId),
-            next: buildWorkflowNextCommand(requestId),
-            resume: buildWorkflowResumeCommand(requestId),
-            delete: buildWorkflowDeleteCommand(requestId),
-            walletStatus: buildWalletStatusCommand(wallet.walletName),
-            ...(nextCommand ? { nextAction: nextCommand } : {})
-          }
+          recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+            requestId,
+            walletName: wallet.walletName,
+            nextAction: nextCommand,
+            chain: result.plan.chain,
+            intent: result.intent
+          }) as TopLevelNextToolOutputWorkflow['recommendedCommands']
         };
       }
 

@@ -10,7 +10,7 @@ export interface LocalTokenMetadata {
   sourcePath: string;
 }
 
-function defaultDeploymentsDir(): string {
+export function resolveLocalTokenDeploymentsDir(): string {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     process.env.ZK_AGENT_WORKSPACE_ROOT?.trim(),
@@ -91,7 +91,7 @@ export function listLocalTokenMetadata(
     network?: string;
   }
 ): LocalTokenMetadata[] {
-  const deploymentsDir = options?.deploymentsDir || defaultDeploymentsDir();
+  const deploymentsDir = options?.deploymentsDir || resolveLocalTokenDeploymentsDir();
   const normalizedNetwork = options?.network?.trim();
   const entries = readDeploymentMetadata(deploymentsDir);
 

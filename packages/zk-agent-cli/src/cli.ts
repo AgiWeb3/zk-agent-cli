@@ -20,6 +20,8 @@ import {
 import { createInitCommand } from './commands/setup.js';
 import { createNextCommand } from './commands/next.js';
 import { createDefaultsCommand } from './commands/defaults.js';
+import { createResolveTokenCommand } from './commands/resolve-token.js';
+import { createTokensCommand } from './commands/tokens.js';
 import { createRelayCommand } from './commands/relay.js';
 import { createWalletCommand } from './commands/wallet.js';
 import { createWorkflowCommand } from './commands/workflow.js';
@@ -58,6 +60,8 @@ function createProgram(): Command {
   program.addCommand(createInitCommand());
   program.addCommand(createNextCommand());
   program.addCommand(createDefaultsCommand());
+  program.addCommand(createTokensCommand());
+  program.addCommand(createResolveTokenCommand());
   program.addCommand(createRelayCommand());
   program.addCommand(createWalletCommand());
   program.addCommand(createWorkflowCommand());

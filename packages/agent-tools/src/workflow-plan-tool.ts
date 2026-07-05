@@ -8,6 +8,10 @@ import {
 } from '@zk-agent/agent-core';
 
 import { createAgentTool, withWalletRecord } from './tool-helpers.js';
+import {
+  buildWorkflowPlanToolRecommendedCommands,
+  type WorkflowToolRecommendedCommands
+} from './workflow-followups.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 
 export interface WorkflowPlanToolInput extends WalletNameInput {
@@ -19,6 +23,7 @@ export interface WorkflowPlanToolInput extends WalletNameInput {
 export interface WorkflowPlanToolOutput {
   inspection: WalletInspectionResult;
   plan: WorkflowPlan;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export function createWorkflowPlanTool(context: AgentToolContext) {
@@ -44,18 +49,21 @@ export function createWorkflowPlanTool(context: AgentToolContext) {
               })
             : undefined;
 
+        const plan = buildWorkflowPlan({
+          wallet,
+          inspection,
+          intent: input.intent,
+          nativeBalance: nativeBalance?.balance,
+          nativeSymbol: nativeBalance?.symbol,
+          funding,
+          protocol: input.protocol,
+          toChain: input.toChain
+        });
+
         return {
           inspection,
-          plan: buildWorkflowPlan({
-            wallet,
-            inspection,
-            intent: input.intent,
-            nativeBalance: nativeBalance?.balance,
-            nativeSymbol: nativeBalance?.symbol,
-            funding,
-            protocol: input.protocol,
-            toChain: input.toChain
-          })
+          plan,
+          recommendedCommands: buildWorkflowPlanToolRecommendedCommands(plan)
         };
       })
   });

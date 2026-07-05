@@ -15,6 +15,10 @@ import {
   requireWorkflowCheckpointRecord,
   withWalletRecord
 } from './tool-helpers.js';
+import {
+  buildWorkflowRuntimeToolRecommendedCommands,
+  type WorkflowToolRecommendedCommands
+} from './workflow-followups.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 import { syncStoredWalletRecord } from './wallet-lifecycle-tools.js';
 
@@ -28,6 +32,7 @@ export interface WorkflowRunToolInput extends WalletNameInput {
 
 export interface WorkflowRunToolOutput {
   result: WorkflowRunResult;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export interface WorkflowRunByCheckpointToolInput {
@@ -38,6 +43,7 @@ export interface WorkflowRunByCheckpointToolOutput {
   requestId: string;
   checkpoint: WorkflowCheckpointRecord;
   result: WorkflowRunResult;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export async function executeWorkflowRun(
@@ -55,8 +61,7 @@ export async function executeWorkflowRun(
       );
     }
 
-    return {
-      result: await runWorkflow(
+    const result = await runWorkflow(
         {
           wallet,
           intent: currentInput.intent,
@@ -77,7 +82,16 @@ export async function executeWorkflowRun(
             };
           }
         }
-      )
+      );
+
+    return {
+      result,
+      recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+        walletName: wallet.walletName,
+        nextAction: result.nextCommand,
+        chain: result.plan.chain,
+        intent: result.intent
+      })
     };
   });
 }
@@ -139,7 +153,14 @@ export function createWorkflowRunByCheckpointTool(context: AgentToolContext) {
       return {
         requestId: input.requestId,
         checkpoint: updatedCheckpoint,
-        result
+        result,
+        recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+          requestId: input.requestId,
+          walletName: wallet.walletName,
+          nextAction: result.nextCommand,
+          chain: result.plan.chain,
+          intent: result.intent
+        })
       };
     }
   });

@@ -184,12 +184,19 @@ async function main(): Promise<void> {
     summary: {
       topLevelScope: topLevelNext.data.scope,
       topLevelNextCommand: topLevelNext.data.nextCommand,
+      topLevelRecommendedCommands: topLevelNext.data.recommendedCommands,
       walletNextCommand:
         walletNext.ok ? walletNext.data.summary.recommendedCommand : undefined,
       workflowAction: workflowAuto.ok ? workflowAuto.data.action : undefined,
       workflowStage,
       workflowNextCommand: workflowAuto.ok
         ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
+        : undefined,
+      walletApprovalRecommendedCommands: workflowAuto.ok
+        ? workflowAuto.data.recommendedCommands
+        : undefined,
+      workflowRecommendedCommands: workflowAuto.ok
+        ? workflowAuto.data.workflowRecommendedCommands
         : undefined
     }
   });

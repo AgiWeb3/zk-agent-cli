@@ -9,6 +9,7 @@ import {
   createWorkflowCheckpointRecord,
   deleteWalletRequest,
   deleteWorkflowCheckpoint,
+  isAgentError,
   loadWalletRequest,
   listWorkflowCheckpointIds,
   listWalletRequestIds,
@@ -41,7 +42,7 @@ import {
   type WorkflowStatusResult,
   type WorkflowSwapProtocol
 } from '../lib/workflow.js';
-import { printResult } from '../lib/io.js';
+import { formatErrorPayload, printResult } from '../lib/io.js';
 import {
   resolveOptionalTokenInput,
   resolveRequiredTokenInput,
@@ -394,11 +395,11 @@ async function loadWorkflowPlanState(
   };
 }
 
-function resolveWorkflowGoalInput(
+async function resolveWorkflowGoalInput(
   intent: WorkflowIntent,
   options: WorkflowCommandOptions,
   wallet: Pick<WalletSessionRecord, 'chain'>
-): WorkflowGoalInput {
+): Promise<WorkflowGoalInput> {
   switch (intent) {
     case 'send-native':
       if (!options.to) throw new Error('--to is required for --intent send-native');
@@ -412,7 +413,7 @@ function resolveWorkflowGoalInput(
     case 'send-token': {
       if (!options.to) throw new Error('--to is required for --intent send-token');
       if (!options.amount) throw new Error('--amount is required for --intent send-token');
-      const token = resolveRequiredTokenInput({
+      const token = await resolveRequiredTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
         decimals: options.decimals,
@@ -451,7 +452,7 @@ function resolveWorkflowGoalInput(
         factory: options.factory,
         feeTier: options.feeTier
       });
-      const tokenIn = resolveRequiredTokenInput({
+      const tokenIn = await resolveRequiredTokenInput({
         tokenAddress: options.tokenIn,
         symbol: options.tokenInSymbol,
         decimals: options.tokenInDecimals,
@@ -460,7 +461,7 @@ function resolveWorkflowGoalInput(
         symbolOptionLabel: '--token-in-symbol',
         decimalsOptionLabel: '--token-in-decimals'
       });
-      const tokenOut = resolveRequiredTokenInput({
+      const tokenOut = await resolveRequiredTokenInput({
         tokenAddress: options.tokenOut,
         symbol: options.tokenOutSymbol,
         decimals: options.tokenOutDecimals,
@@ -504,7 +505,7 @@ function resolveWorkflowGoalInput(
           }`
         );
       }
-      const token = resolveOptionalTokenInput({
+      const token = await resolveOptionalTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
         decimals: options.decimals,
@@ -527,7 +528,7 @@ function resolveWorkflowGoalInput(
     }
     case 'deposit': {
       if (!options.amount) throw new Error('--amount is required for --intent deposit');
-      const token = resolveOptionalTokenInput({
+      const token = await resolveOptionalTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
         decimals: options.decimals,
@@ -548,7 +549,7 @@ function resolveWorkflowGoalInput(
     }
     case 'withdraw': {
       if (!options.amount) throw new Error('--amount is required for --intent withdraw');
-      const token = resolveOptionalTokenInput({
+      const token = await resolveOptionalTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
         decimals: options.decimals,
@@ -590,13 +591,13 @@ function resolveWorkflowFundingStatusCheck(
   };
 }
 
-function resolveWorkflowFundInput(
+async function resolveWorkflowFundInput(
   options: WorkflowFundOptionSource,
   chain?: string
-): WorkflowRunFundInput | undefined {
+): Promise<WorkflowRunFundInput | undefined> {
   if (!options.fundAmount) return undefined;
 
-  const token = resolveOptionalTokenInput({
+  const token = await resolveOptionalTokenInput({
     tokenAddress: options.fundToken,
     symbol: options.fundSymbol,
     decimals: options.fundDecimals,
@@ -692,8 +693,8 @@ async function resolveWorkflowExecutionContext(
   return {
     wallet,
     intent,
-    goal: resolveWorkflowGoalInput(intent, options, wallet),
-    fund: resolveWorkflowFundInput(options, wallet.chain),
+    goal: await resolveWorkflowGoalInput(intent, options, wallet),
+    fund: await resolveWorkflowFundInput(options, wallet.chain),
     fundingCheck: resolveWorkflowFundingStatusCheck(options),
     broadcast: Boolean(options.broadcast),
     autoSync: Boolean(options.autoSync)
@@ -729,8 +730,8 @@ async function resolveWorkflowAutoExecutionContext(
     requestId: options.createCheckpoint ? await reserveWorkflowRequestId(requestedId) : undefined,
     wallet,
     intent,
-    goal: resolveWorkflowGoalInput(intent, options, wallet),
-    fund: resolveWorkflowFundInput(options, wallet.chain),
+    goal: await resolveWorkflowGoalInput(intent, options, wallet),
+    fund: await resolveWorkflowFundInput(options, wallet.chain),
     fundingCheck: resolveWorkflowFundingStatusCheck(options),
     broadcast: Boolean(options.broadcast),
     autoSync: Boolean(options.autoSync)
@@ -978,7 +979,9 @@ function printWorkflowRunCommandResult(
     const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
       requestId: execution.requestId,
       walletName: execution.result.walletName,
-      nextAction: execution.result.nextCommand
+      nextAction: execution.result.nextCommand,
+      chain: execution.result.plan.chain,
+      intent: execution.result.intent
     });
 
     printResult(
@@ -1001,7 +1004,9 @@ function printWorkflowRunCommandResult(
   const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
     requestId: execution.requestId,
     walletName: execution.status.walletName,
-    nextAction: execution.status.recommendedCommand
+    nextAction: execution.status.recommendedCommand,
+    chain: execution.status.plan.chain,
+    intent: execution.status.intent
   });
 
   printResult(
@@ -1239,7 +1244,9 @@ function printWorkflowAutoCommandResult(
   const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
     requestId: execution.requestId,
     walletName: execution.status.walletName,
-    nextAction
+    nextAction,
+    chain: execution.status.plan.chain,
+    intent: execution.status.intent
   });
   const summaryLines: Array<[string, string]> = [
     ['source', execution.source],
@@ -1307,6 +1314,8 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
   requestId?: string;
   walletName?: string;
   nextAction?: string;
+  chain?: string;
+  intent?: WorkflowIntent;
 }): {
   list: string;
   show?: string;
@@ -1316,6 +1325,9 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
   delete?: string;
   walletStatus?: string;
   nextAction?: string;
+  discoverOwnedTokens?: string;
+  discoverTokens?: string;
+  inspectToken?: string;
 } {
   return {
     list: buildWorkflowListRecommendedCommand(),
@@ -1337,7 +1349,135 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
       ? {
           nextAction: input.nextAction
         }
+      : {}),
+    ...(input.chain && input.intent && workflowIntentSupportsTokenDiscovery(input.intent)
+      ? {
+          ...(input.walletName
+            ? {
+                discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`
+              }
+            : {}),
+          discoverTokens: `zk-agent tokens --chain ${input.chain}`,
+          inspectToken: `zk-agent resolve-token --chain ${input.chain} --symbol <symbol>`
+        }
       : {})
+  };
+}
+
+function workflowIntentSupportsTokenDiscovery(intent: WorkflowIntent): boolean {
+  return (
+    intent === 'send-token' ||
+    intent === 'swap' ||
+    intent === 'bridge' ||
+    intent === 'deposit' ||
+    intent === 'withdraw'
+  );
+}
+
+function buildWorkflowPlanRecommendedCommands(plan: {
+  chain: string;
+  intent: WorkflowIntent;
+  recommendedCommand: string;
+  goalCommand: string;
+}): {
+  next: string;
+  goal: string;
+  workflowHelp: string;
+  discoverTokens?: string;
+  inspectToken?: string;
+} {
+  return {
+    next: plan.recommendedCommand,
+    goal: plan.goalCommand,
+    workflowHelp: 'zk-agent workflow --help',
+    ...(workflowIntentSupportsTokenDiscovery(plan.intent)
+      ? {
+          discoverTokens: `zk-agent tokens --chain ${plan.chain}`,
+          inspectToken: `zk-agent resolve-token --chain ${plan.chain} --symbol <symbol>`
+        }
+      : {})
+  };
+}
+
+function isWorkflowTokenInputError(error: unknown): error is AgentError {
+  return (
+    isAgentError(error) &&
+    (error.code.startsWith('TOKEN_RESOLUTION_') || error.code.startsWith('TOKEN_DECIMALS_'))
+  );
+}
+
+function buildWorkflowTokenErrorRecommendedCommands(error: AgentError): {
+  discoverTokens?: string;
+  inspectToken?: string;
+  workflowHelp: string;
+} {
+  const chain = typeof error.details?.chain === 'string' ? error.details.chain : undefined;
+  const symbol = typeof error.details?.symbol === 'string' ? error.details.symbol : undefined;
+  const tokenAddress =
+    typeof error.details?.tokenAddress === 'string' ? error.details.tokenAddress : undefined;
+
+  const discoverParts = ['zk-agent', 'tokens'];
+  if (chain) discoverParts.push('--chain', chain);
+  if (symbol) discoverParts.push('--symbol', symbol);
+
+  const inspectParts = ['zk-agent', 'resolve-token'];
+  if (chain) {
+    inspectParts.push('--chain', chain);
+  }
+  if (tokenAddress) {
+    inspectParts.push('--address', tokenAddress);
+  } else if (symbol) {
+    inspectParts.push('--symbol', symbol);
+  }
+
+  return {
+    discoverTokens: chain || symbol ? discoverParts.join(' ') : undefined,
+    inspectToken:
+      chain && (tokenAddress || symbol)
+        ? inspectParts.join(' ')
+        : undefined,
+    workflowHelp: 'zk-agent workflow --help'
+  };
+}
+
+function printWorkflowTokenInputError(
+  error: AgentError
+): void {
+  const recommendedCommands = buildWorkflowTokenErrorRecommendedCommands(error);
+  const lines: Array<[string, string]> = [['error', error.message], ['code', error.code]];
+
+  if (typeof error.details?.suggestedAction === 'string' && error.details.suggestedAction.length > 0) {
+    lines.push(['suggested action', error.details.suggestedAction]);
+  }
+  if (recommendedCommands.discoverTokens) {
+    lines.push(['discover tokens', recommendedCommands.discoverTokens]);
+  }
+  if (recommendedCommands.inspectToken) {
+    lines.push(['inspect token', recommendedCommands.inspectToken]);
+  }
+  lines.push(['workflow help', recommendedCommands.workflowHelp]);
+
+  printResult(lines, {
+    ...formatErrorPayload(error),
+    recommendedCommands
+  });
+  process.exitCode = 1;
+}
+
+function withWorkflowInputErrorHandling<TOptions>(
+  action: (options: TOptions) => Promise<void>
+): (options: TOptions) => Promise<void> {
+  return async (options: TOptions) => {
+    try {
+      await action(options);
+    } catch (error) {
+      if (isWorkflowTokenInputError(error)) {
+        printWorkflowTokenInputError(error);
+        return;
+      }
+
+      throw error;
+    }
   };
 }
 
@@ -1378,9 +1518,9 @@ function addWorkflowGoalOptions(
       .option('--fund-to <address>', 'Optional funding recipient override')
       .option(
         '--fund-token <address>',
-        'Optional funding token address. Also optional when --fund-symbol resolves from local deployment records'
+        'Optional funding token address. Also optional when --fund-symbol resolves from the configured token registry'
       )
-      .option('--fund-symbol <symbol>', 'Optional funding token symbol or local lookup key')
+      .option('--fund-symbol <symbol>', 'Optional funding token symbol or token-registry lookup key')
       .option('--fund-decimals <value>', 'Optional funding token decimals')
       .option('--fund-bridge-address <address>', 'Optional funding bridge override');
   }
@@ -1415,10 +1555,10 @@ function addWorkflowGoalOptions(
     .option('--amount <value>', 'Amount for send-native, send-token, bridge, deposit, or withdraw')
     .option(
       '--token <address>',
-      'Token address for send-token, bridge, deposit, or withdraw. Optional when the relevant symbol resolves from local deployment records'
+      'Token address for send-token, bridge, deposit, or withdraw. Optional when the relevant symbol resolves from the configured token registry'
     )
-    .option('--symbol <symbol>', 'Optional token symbol. Also used for local lookup when tokenized intents omit --token')
-    .option('--decimals <value>', 'Optional token decimals when not found in local deployment metadata')
+    .option('--symbol <symbol>', 'Optional token symbol. Also used for token-registry lookup when tokenized intents omit --token')
+    .option('--decimals <value>', 'Optional token decimals when not found in the configured token registry')
     .option('--data <hex>', 'Hex call data for call-write')
     .option('--value <wei>', 'Optional call value for call-write')
     .option(
@@ -1435,19 +1575,19 @@ function addWorkflowGoalOptions(
     )
     .option(
       '--token-in <address>',
-      'Swap input token address. Optional when --token-in-symbol resolves from local deployment records'
+      'Swap input token address. Optional when --token-in-symbol resolves from the configured token registry'
     )
     .option(
       '--token-out <address>',
-      'Swap output token address. Optional when --token-out-symbol resolves from local deployment records'
+      'Swap output token address. Optional when --token-out-symbol resolves from the configured token registry'
     )
     .option('--amount-in <value>', 'Swap input amount')
     .option('--amount-out-min <value>', 'Swap minimum output amount')
     .option('--token-in-decimals <value>', 'Swap input token decimals')
     .option('--token-out-decimals <value>', 'Swap output token decimals')
     .option('--fee-tier <value>', 'Uniswap V3 fee tier')
-    .option('--token-in-symbol <symbol>', 'Swap input token symbol or local lookup key')
-    .option('--token-out-symbol <symbol>', 'Swap output token symbol or local lookup key')
+    .option('--token-in-symbol <symbol>', 'Swap input token symbol or token-registry lookup key')
+    .option('--token-out-symbol <symbol>', 'Swap output token symbol or token-registry lookup key')
     .option('--recipient <address>', 'Swap recipient override')
     .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
     .option('--auto-approve', 'Allow swap to send an approval transaction before the swap if needed', false)
@@ -1467,7 +1607,7 @@ async function executeWorkflowStartCommand(
   const { provider, defiProvider } = deps;
   const intent = resolveWorkflowIntentOption(options);
   const wallet = await requireWalletRecord(options.wallet);
-  const goal = resolveWorkflowGoalInput(intent, options, wallet);
+  const goal = await resolveWorkflowGoalInput(intent, options, wallet);
   const fundingCheck = resolveWorkflowFundingStatusCheck(options);
   const requestId = await reserveWorkflowRequestId(options.requestId);
   const status = await inspectWorkflowStatus(
@@ -1488,7 +1628,7 @@ async function executeWorkflowStartCommand(
     walletName: wallet.walletName,
     intent,
     goal,
-    fund: resolveWorkflowFundInput(options, wallet.chain),
+    fund: await resolveWorkflowFundInput(options, wallet.chain),
     fundingCheck,
     broadcast: Boolean(options.broadcast),
     autoSync: Boolean(options.autoSync),
@@ -1519,7 +1659,7 @@ async function executeWorkflowUpdateCommand(options: WorkflowUpdateOptions) {
   const nextFundingCheck = resolveWorkflowFundingStatusCheck(options);
   const hasFundOverride = hasWorkflowFundOverride(options);
   const wallet = hasFundOverride ? await requireWalletRecord(checkpoint.walletName) : undefined;
-  const nextFund = hasFundOverride ? resolveWorkflowFundInput(options, wallet?.chain) : undefined;
+  const nextFund = hasFundOverride ? await resolveWorkflowFundInput(options, wallet?.chain) : undefined;
 
   if (options.clearFundingCheck && nextFundingCheck) {
     throw new Error('--clear-funding-check cannot be combined with --funding-kind/--funding-tx-hash');
@@ -1825,11 +1965,13 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           resolveWorkflowPaymasterInput(options),
           resolvedDeps
         );
+        const recommendedCommands = buildWorkflowPlanRecommendedCommands(plan);
 
         printResult(workflowPlanLines(plan), {
           ok: true,
           inspection,
-          plan
+          plan,
+          recommendedCommands
         });
       }
     );
@@ -1964,7 +2106,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeExecutionFlags: true,
     includeFundingDispatch: true,
     includeFundingStatus: true
-  }).action(async (options: WorkflowCommandOptions) => {
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const started = await executeWorkflowStartCommand(options, resolvedDeps);
     const recommendedCommands = buildWorkflowCheckpointRecommendedCommands(started.checkpoint);
 
@@ -1978,7 +2120,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         recommendedCommands
       }
     );
-  });
+  }));
 
   const auto = workflow
     .command('auto')
@@ -1997,10 +2139,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeFundingDispatch: true,
     includeFundingStatus: true,
     includeLocalApproval: true
-  }).action(async (options: WorkflowCommandOptions) => {
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const execution = await executeWorkflowAutoCommand(options, resolvedDeps);
     printWorkflowAutoCommandResult(execution);
-  });
+  }));
 
   const run = workflow
     .command('run')
@@ -2016,10 +2158,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeExecutionFlags: true,
     includeFundingDispatch: true,
     includeLocalApproval: true
-  }).action(async (options: WorkflowCommandOptions) => {
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const execution = await executeWorkflowRunCommand(options, resolvedDeps);
     printWorkflowRunCommandResult(execution);
-  });
+  }));
 
   const status = workflow
     .command('status')
@@ -2034,12 +2176,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
   addWorkflowGoalOptions(status, {
     includeFundingStatus: true,
     includeLocalApproval: true
-  }).action(async (options: WorkflowCommandOptions) => {
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
     const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
       requestId: inspection.requestId,
       walletName: inspection.result.walletName,
-      nextAction: inspection.result.recommendedCommand
+      nextAction: inspection.result.recommendedCommand,
+      chain: inspection.result.plan.chain,
+      intent: inspection.result.intent
     });
 
     printResult(
@@ -2057,7 +2201,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         recommendedCommands
       }
     );
-  });
+  }));
 
   const next = workflow
     .command('next')
@@ -2072,13 +2216,15 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
   addWorkflowGoalOptions(next, {
     includeFundingStatus: true,
     includeLocalApproval: true
-  }).action(async (options: WorkflowCommandOptions) => {
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
     const nextCommand = resolveWorkflowNextCommand(inspection.result);
     const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
       requestId: inspection.requestId,
       walletName: inspection.result.walletName,
-      nextAction: nextCommand
+      nextAction: nextCommand,
+      chain: inspection.result.plan.chain,
+      intent: inspection.result.intent
     });
 
     printResult(
@@ -2111,7 +2257,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         recommendedCommands
       }
     );
-  });
+  }));
 
   const resume = workflow
     .command('resume')
@@ -2127,13 +2273,15 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeExecutionFlags: true,
     includeFundingStatus: true,
     includeLocalApproval: true
-  }).action(async (options: WorkflowCommandOptions) => {
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const inspection = await executeWorkflowStatusCommand(options, resolvedDeps);
     if (inspection.walletApproval?.stage === 'request-created') {
       const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
         requestId: inspection.requestId,
         walletName: inspection.result.walletName,
-        nextAction: inspection.result.recommendedCommand
+        nextAction: inspection.result.recommendedCommand,
+        chain: inspection.result.plan.chain,
+        intent: inspection.result.intent
       });
 
       printResult(
@@ -2168,7 +2316,9 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
         requestId: execution.requestId,
         walletName: execution.status.walletName,
-        nextAction: execution.status.recommendedCommand
+        nextAction: execution.status.recommendedCommand,
+        chain: execution.status.plan.chain,
+        intent: execution.status.intent
       });
 
       printResult(
@@ -2192,7 +2342,9 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
       requestId: execution.requestId,
       walletName: execution.result.walletName,
-      nextAction: execution.result.nextCommand
+      nextAction: execution.result.nextCommand,
+      chain: execution.result.plan.chain,
+      intent: execution.result.intent
     });
 
     printResult(
@@ -2210,7 +2362,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         recommendedCommands
       }
     );
-  });
+  }));
 
   for (const intent of WORKFLOW_INTENT_SUBCOMMANDS) {
     const command = workflow
@@ -2222,7 +2374,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       includeExecutionFlags: true,
       includeFundingDispatch: true,
       includeLocalApproval: true
-    }).action(async (options: WorkflowCommandOptions) => {
+    }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
       const execution = await executeWorkflowRunCommand(
         {
           ...options,
@@ -2232,7 +2384,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       );
 
       printWorkflowRunCommandResult(execution);
-    });
+    }));
   }
 
   workflow.addCommand(

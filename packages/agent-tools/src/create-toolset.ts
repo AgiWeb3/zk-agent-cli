@@ -21,6 +21,8 @@ import { createDepositStatusTool } from './deposit-status-tool.js';
 import { createGetBalancesTool } from './get-balances-tool.js';
 import { createGetDefaultsTool } from './get-defaults-tool.js';
 import { createGetFundingInfoTool } from './get-funding-info-tool.js';
+import { createListTokensTool } from './list-tokens-tool.js';
+import { createResolveTokenTool } from './resolve-token-tool.js';
 import { createTopLevelNextTool } from './top-level-next-tool.js';
 import { createWorkflowFundTool } from './workflow-fund-tool.js';
 import {
@@ -153,6 +155,8 @@ export function createStandardAgentTools(context: AgentToolContext) {
     getBalancesTool: createGetBalancesTool(context),
     getDefaultsTool: createGetDefaultsTool(context),
     getFundingInfoTool: createGetFundingInfoTool(context),
+    listTokensTool: createListTokensTool(context),
+    resolveTokenTool: createResolveTokenTool(context),
     workflowFundTool: createWorkflowFundTool(context),
     callContractTool: createCallContractTool(context),
     swapPreviewTool: createSwapPreviewTool(context),
@@ -211,6 +215,8 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'getBalancesTool',
     'getDefaultsTool',
     'getFundingInfoTool',
+    'listTokensTool',
+    'resolveTokenTool',
     'workflowFundTool',
     'callContractTool',
     'swapPreviewTool',

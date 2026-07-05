@@ -40,6 +40,7 @@
 pnpm --filter @zk-agent/paymaster-test-assets compile
 pnpm --filter @zk-agent/paymaster-test-assets deploy
 
+pnpm --filter @zk-agent/paymaster-test-assets export:token-directory
 pnpm --filter @zk-agent/paymaster-test-assets compile:eravm
 pnpm --filter @zk-agent/paymaster-test-assets deploy:token:eravm
 pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
@@ -62,6 +63,40 @@ pnpm --filter @zk-agent/paymaster-test-assets deploy:pool:syncswap-classic
   `packages/paymaster-test-assets/deployments/zksync-sepolia.paymaster.latest.json`
 - SyncSwap classic pool/liquidity record:
   `packages/paymaster-test-assets/deployments/zksync-sepolia.syncswap-classic.latest.json`
+- local token-directory export:
+  `packages/paymaster-test-assets/token-directory`
+
+## 导出本地 token-directory
+
+如果你希望 `zk-agent-cli` 在本地优先读 deployment 记录之外，再补一层
+symbol -> token address 的目录索引，可以直接把当前 deployment 记录导出成
+token-directory 结构：
+
+```bash
+pnpm --filter @zk-agent/paymaster-test-assets export:token-directory
+```
+
+默认输出到：
+
+- `packages/paymaster-test-assets/token-directory`
+
+也支持覆盖输入和输出目录：
+
+```bash
+node ./packages/paymaster-test-assets/scripts/export-token-directory.mjs \
+  --deployments-dir ./packages/paymaster-test-assets/deployments \
+  --out-dir ./packages/paymaster-test-assets/token-directory
+```
+
+导出完成后，可以在根目录 `.env` 里设置：
+
+```bash
+ZK_AGENT_TOKEN_DIRECTORY_ROOT=packages/paymaster-test-assets/token-directory
+```
+
+这样 `fund`、`send-token`、`swap`、`workflow ...` 以及
+`zk-agent tokens` / `zk-agent resolve-token` 就都能复用同一份本地
+token-directory。
 
 ## `.env` 字段
 

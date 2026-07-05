@@ -135,6 +135,28 @@ function sampleCheckpoint() {
   };
 }
 
+function sampleTokenCheckpoint() {
+  return {
+    format: 'zk-agent-workflow-checkpoint',
+    version: 1,
+    requestId: 'wf-next-token-001',
+    walletName: 'main',
+    intent: 'send-token',
+    goal: {
+      intent: 'send-token',
+      to: '0x3333333333333333333333333333333333333333',
+      amount: '1',
+      tokenAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+      decimals: 18,
+      symbol: 'ZKAT'
+    },
+    broadcast: true,
+    autoSync: false,
+    createdAt: '2026-07-02T00:00:00.000Z',
+    updatedAt: '2026-07-02T00:00:00.000Z'
+  };
+}
+
 async function runNextCli(args, env) {
   const child = spawn(process.execPath, ['--import', 'tsx', fixtureEntry, ...args], {
     cwd: packageRoot,
@@ -254,6 +276,40 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
       delete: 'zk-agent workflow delete --request-id wf-next-001',
       walletStatus: 'zk-agent wallet status --name main',
       nextAction: 'zk-agent wallet reapprove --name main --await-local'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('top-level next adds token discovery commands for tokenized workflow checkpoints', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-workflow-token-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveWalletSession(sampleWallet({ writable: true }));
+    await storage.saveWorkflowCheckpoint(sampleTokenCheckpoint());
+
+    const result = await runNextCli(['--request-id', 'wf-next-token-001'], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'workflow');
+    assert.equal(result.workflowRequestId, 'wf-next-token-001');
+    assert.equal(result.result.intent, 'send-token');
+    assert.equal(result.result.status, 'ready');
+    assert.deepEqual(result.recommendedCommands, {
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-next-token-001',
+      status: 'zk-agent workflow status --request-id wf-next-token-001',
+      next: 'zk-agent workflow next --request-id wf-next-token-001',
+      resume: 'zk-agent workflow resume --request-id wf-next-token-001',
+      delete: 'zk-agent workflow delete --request-id wf-next-token-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction: result.nextCommand,
+      discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+      inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });

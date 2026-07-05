@@ -304,6 +304,7 @@ async function main(): Promise<void> {
       txHash,
       paymaster: resolvedPaymaster,
       nextCommand: execution.nextCommand,
+      recommendedCommands: result.data.workflowRecommendedCommands,
       notes: execution.notes
     }
   });

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "compile": "pnpm run build && node dist/compile.js",
     "deploy": "pnpm run build && node dist/deploy.js",
+    "export:token-directory": "node ./scripts/export-token-directory.mjs",
     "compile:eravm": "hardhat compile --config ./hardhat.config.cjs && node ./scripts/export-eravm-artifacts.mjs",
     "deploy:token:eravm": "pnpm run build && node dist/deployEraVmToken.js",
     "clean:eravm": "hardhat clean --config ./hardhat.config.cjs",

@@ -175,6 +175,12 @@ pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --
 Use `workflow run` only when you explicitly want the lower-level one-shot
 execution surface without the guided checkpoint-oriented wrapper.
 
+In JSON mode, the workflow surfaces and `zk-agent next --request-id <id>` now
+return structured `recommendedCommands`. For tokenized intents, those follow-up
+commands also include `discoverOwnedTokens`, `discoverTokens`, and
+`inspectToken` so a caller can stay on the local-first registry path without
+scraping human notes.
+
 For the common direct execution path, the CLI also exposes intent-specific
 shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,
 `workflow deposit`, and `workflow withdraw`. These are thin wrappers around
@@ -200,6 +206,7 @@ pnpm zk-agent wallet reapprove [--name <name>] [--await-local] [--relay-url <url
 pnpm zk-agent wallet status [--name <name>]
 pnpm zk-agent wallet next [--name <name>]
 pnpm zk-agent defaults
+pnpm zk-agent resolve-token [--wallet <name>|--chain <chain>] [--symbol <symbol>|--address <address>]
 pnpm zk-agent wallet sync [--name <name>] [--profile <id>]
 pnpm zk-agent wallet export [--name <name>] [--include-sensitive-data]
 pnpm zk-agent wallet restore --payload <json|@file> [--name <name>] [--profile <id>] [--sync]
@@ -290,6 +297,30 @@ For locally deployed test assets recorded under
 `send-token`, `swap`, `bridge`, `deposit`, `withdraw`, and the matching
 workflow intents can also resolve token address/decimals from the stored
 symbol on the active chain.
+
+If `ZK_AGENT_TOKEN_DIRECTORY_ROOT` points at a local token-directory checkout
+or export with `index/index.json`, the same commands can also fall back to that
+directory after checking local deployment metadata first.
+
+To generate that local export from this repo's own deployment records, run
+`pnpm --filter @zk-agent/paymaster-test-assets export:token-directory` and set
+`ZK_AGENT_TOKEN_DIRECTORY_ROOT=packages/paymaster-test-assets/token-directory`.
+
+Use `pnpm zk-agent defaults` when you need the current token-registry source
+order and token-directory chain coverage in machine-readable form.
+
+Use `pnpm zk-agent tokens --chain zksync-sepolia` to inspect the current
+discoverable token set for one chain.
+
+Use `pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC` when you want
+to inspect all discoverable entries for one symbol before choosing an explicit
+token address.
+
+Use `pnpm zk-agent tokens --wallet main --owned` when you want the stored
+wallet's currently held registry-backed ERC-20 assets on its active chain.
+
+Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
+need a direct token-resolution check before running a tokenized command.
 
 ### Built-in smart-account profiles
 

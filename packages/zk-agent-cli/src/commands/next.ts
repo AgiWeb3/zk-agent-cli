@@ -44,6 +44,42 @@ interface NextCommandOptions {
   requestId?: string;
 }
 
+function workflowIntentSupportsTokenDiscovery(intent: string): boolean {
+  return (
+    intent === 'send-token' ||
+    intent === 'swap' ||
+    intent === 'bridge' ||
+    intent === 'deposit' ||
+    intent === 'withdraw'
+  );
+}
+
+function buildTopLevelWorkflowRecommendedCommands(input: {
+  requestId: string;
+  walletName: string;
+  nextAction?: string;
+  chain: string;
+  intent: string;
+}) {
+  return {
+    list: buildWorkflowListRecommendedCommand(),
+    show: buildWorkflowShowRecommendedCommand(input.requestId),
+    status: buildWorkflowStatusRecommendedCommand(input.requestId),
+    next: buildWorkflowNextRecommendedCommand(input.requestId),
+    resume: buildWorkflowResumeRecommendedCommand(input.requestId),
+    delete: buildWorkflowDeleteRecommendedCommand(input.requestId),
+    walletStatus: buildWalletStatusRecommendedCommand(input.walletName),
+    ...(input.nextAction ? { nextAction: input.nextAction } : {}),
+    ...(workflowIntentSupportsTokenDiscovery(input.intent)
+      ? {
+          discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`,
+          discoverTokens: `zk-agent tokens --chain ${input.chain}`,
+          inspectToken: `zk-agent resolve-token --chain ${input.chain} --symbol <symbol>`
+        }
+      : {})
+  };
+}
+
 function resolveNextCommandDeps(
   deps: Partial<NextCommandDeps> | undefined
 ): NextCommandDeps {
@@ -108,16 +144,13 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         await saveWorkflowCheckpoint(updatedCheckpoint);
 
         const nextCommand = result.fundingProgress?.nextCommand || result.recommendedCommand;
-        const recommendedCommands = {
-          list: buildWorkflowListRecommendedCommand(),
-          show: buildWorkflowShowRecommendedCommand(requestId),
-          status: buildWorkflowStatusRecommendedCommand(requestId),
-          next: buildWorkflowNextRecommendedCommand(requestId),
-          resume: buildWorkflowResumeRecommendedCommand(requestId),
-          delete: buildWorkflowDeleteRecommendedCommand(requestId),
-          walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
-          ...(nextCommand ? { nextAction: nextCommand } : {})
-        };
+        const recommendedCommands = buildTopLevelWorkflowRecommendedCommands({
+          requestId,
+          walletName: wallet.walletName,
+          nextAction: nextCommand,
+          chain: result.plan.chain,
+          intent: result.intent
+        });
 
         printResult(
           topLevelNextLines('workflow', [

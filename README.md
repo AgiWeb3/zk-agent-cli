@@ -48,7 +48,8 @@ What is already in place:
 - `defaults` for a machine-readable registry view of the built-in chains plus the supported, validated, experimental, and manually configured zkSync Sepolia defaults
   including a top-level `surfaceMatrix` that summarizes the current validated
   default swap, bridge, and paymaster paths, plus a local token registry view
-  derived from `packages/paymaster-test-assets/deployments`
+  derived from `packages/paymaster-test-assets/deployments`, and token-registry
+  source metadata that shows the active local-first resolution order
 - `zksync-ethers` read path for balances and contract calls
 - `balances` now supports:
   - stored-wallet default chain reads
@@ -69,12 +70,14 @@ What is already in place:
   - the shortest remediation path for local execution
 - `next` as the top-level operator entrypoint, so one command can route the user to `setup`, wallet bootstrap/recovery, or the next workflow checkpoint action
 - `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
-- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`, and now fills the current registry-backed default swap/bridge path when the tracked route is unambiguous
+- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`, now fills the current registry-backed default swap/bridge path when the tracked route is unambiguous, and returns JSON `recommendedCommands` for the immediate operator follow-up
 - `workflow fund` as a workflow-first alias for the default funding step, so the canonical operator path no longer has to jump back out to the top-level `fund` command family
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
 - `workflow auto` for guided orchestration from either fresh goal input or a stored checkpoint, so one command can inspect readiness, optionally persist a checkpoint, resolve wallet-session blockers, and execute immediately when the workflow is ready
 - `workflow next` for the shortest next-step CLI guidance at the workflow layer, from either fresh goal input or a stored checkpoint
+- tokenized `workflow status|next|auto|resume|run` JSON outputs now also surface `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` follow-ups alongside the concrete next action, so operator tooling does not need to infer local token-registry recovery paths from free-form notes
+- `zk-agent next --request-id <id>` now mirrors that tokenized workflow follow-up shape for stored checkpoints, including `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` when the checkpoint intent depends on token resolution
 - intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
 - `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and one-step relay publish plus relay status/approve guidance
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
@@ -105,6 +108,8 @@ What is already in place:
   - bounded workflow execution for concrete write intents
   - workflow status inspection for resume-safe orchestration
   - workflow next-step guidance from fresh goal input or a stored checkpoint
+  - structured workflow follow-up commands aligned with the CLI, including token-registry recovery fields such as `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` for tokenized intents
+  - `workflowAutoTool` / `workflowOrchestratorTool` now expose workflow follow-up commands separately from wallet-approval follow-up commands, so callers do not have to infer whether `recommendedCommands` refers to wallet session recovery or workflow continuation
   - create wallet request
   - create stored wallet approval request
   - approve stored wallet request, including relay-backed encrypted approval fetch / wait
@@ -381,6 +386,46 @@ the corresponding `workflow` intents can now resolve token address/decimals
 from the stored symbol on the active chain instead of requiring a raw address
 every time.
 
+`workflow plan` now also emits symbol-first token skeletons for `send-token`
+and `swap`, and points operators to `tokens` / `resolve-token` when they need
+to inspect the current local-first registry before execution.
+
+If you want broader symbol coverage without hardcoding addresses into commands,
+set `ZK_AGENT_TOKEN_DIRECTORY_ROOT` to a local token-directory checkout or
+export that contains `index/index.json` and chain-scoped `erc20.json` files.
+Resolution stays local-first:
+
+1. local deployment metadata in `packages/paymaster-test-assets/deployments`
+2. optional token directory under `ZK_AGENT_TOKEN_DIRECTORY_ROOT`
+
+`pnpm zk-agent defaults` now shows both the source order and the token-directory
+chain coverage that the current local index exposes.
+
+Use `pnpm zk-agent tokens --chain zksync-sepolia` when you need to inspect the
+currently discoverable local-first token set for one chain.
+
+Use `pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC` when you want
+to inspect all discoverable entries for one symbol before deciding which token
+address to pass explicitly.
+
+Use `pnpm zk-agent tokens --wallet main --owned` when you want the current
+stored wallet's registry-backed ERC-20 holdings on its active chain, instead
+of the full discoverable registry universe.
+
+Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
+need to confirm how the current local-first registry resolves one exact token
+query before trying `fund`, `send-token`, or `swap`.
+
+If you want a local token-directory generated from this repo's own deployment
+records, run:
+
+```bash
+pnpm --filter @zk-agent/paymaster-test-assets export:token-directory
+```
+
+Then point `ZK_AGENT_TOKEN_DIRECTORY_ROOT` at
+`packages/paymaster-test-assets/token-directory`.
+
 ## Agent Skills
 
 The repo now includes an agent-facing skills surface:
@@ -478,13 +523,17 @@ Recommended root wrappers for the current stable product surface:
   stage order from individual tool rows
 - `pnpm smoke:operator-path -- --wallet <name>` validates the canonical
   `next -> wallet -> workflow auto -> funding fallback or goal preview` path
+  and now returns structured follow-up fields in `summary`, including
+  `topLevelRecommendedCommands` and `workflowRecommendedCommands`
 - `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]`
   aggregates the current product-level live validation sequence:
   canonical operator path, validated paymaster-backed workflow-auto path, and
-  optional withdraw follow-up when a previous withdraw tx hash is supplied
+  optional withdraw follow-up when a previous withdraw tx hash is supplied,
+  with per-step `followups` alongside the legacy flat `nextCommands` summary
 - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` validates the
   tracked approval-based Sepolia paymaster path, including the mode-only
-  fallback to the tracked validated paymaster address and EraVM fee token
+  fallback to the tracked validated paymaster address and EraVM fee token,
+  and now exposes the workflow-layer `recommendedCommands` used by that path
 - `pnpm validate:phase3` runs the current Phase 3 regression set across
   `agent-core`, `agent-tools`, and `zk-agent-cli`
 

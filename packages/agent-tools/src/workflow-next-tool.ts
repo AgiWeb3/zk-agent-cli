@@ -14,6 +14,10 @@ import {
   requireWorkflowCheckpointRecord,
   withWalletRecord
 } from './tool-helpers.js';
+import {
+  buildWorkflowRuntimeToolRecommendedCommands,
+  type WorkflowToolRecommendedCommands
+} from './workflow-followups.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 
 export interface WorkflowNextToolInput extends WalletNameInput {
@@ -39,6 +43,7 @@ export interface WorkflowNextSummary {
 export interface WorkflowNextToolOutput {
   result: WorkflowStatusResult;
   summary: WorkflowNextSummary;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export interface WorkflowNextByCheckpointToolInput {
@@ -50,6 +55,7 @@ export interface WorkflowNextByCheckpointToolOutput {
   checkpoint: WorkflowCheckpointRecord;
   result: WorkflowStatusResult;
   summary: WorkflowNextSummary;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export function buildWorkflowNextSummary(result: WorkflowStatusResult): WorkflowNextSummary {
@@ -90,9 +96,17 @@ export function createWorkflowNextTool(context: AgentToolContext) {
           }
         );
 
+        const summary = buildWorkflowNextSummary(result);
+
         return {
           result,
-          summary: buildWorkflowNextSummary(result)
+          summary,
+          recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+            walletName: wallet.walletName,
+            nextAction: summary.nextCommand,
+            chain: result.plan.chain,
+            intent: result.intent
+          })
         };
       })
   });
@@ -127,11 +141,20 @@ export function createWorkflowNextByCheckpointTool(context: AgentToolContext) {
       });
       await context.saveWorkflowCheckpoint(updatedCheckpoint);
 
+      const summary = buildWorkflowNextSummary(result);
+
       return {
         requestId: input.requestId,
         checkpoint: updatedCheckpoint,
         result,
-        summary: buildWorkflowNextSummary(result)
+        summary,
+        recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+          requestId: input.requestId,
+          walletName: wallet.walletName,
+          nextAction: summary.nextCommand,
+          chain: result.plan.chain,
+          intent: result.intent
+        })
       };
     }
   });

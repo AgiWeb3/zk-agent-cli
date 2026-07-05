@@ -9,6 +9,7 @@ packages/paymaster-test-assets/artifacts-zk
 packages/paymaster-test-assets/bin
 packages/paymaster-test-assets/cache-zk
 packages/paymaster-test-assets/deployments
+packages/paymaster-test-assets/token-directory
 packages/account-profiles/artifacts
 packages/account-profiles/artifacts-zk
 packages/account-profiles/cache-zk

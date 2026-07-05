@@ -20,6 +20,10 @@ import {
 } from '@zk-agent/agent-core';
 
 import { createAgentTool, requireWalletRecord } from './tool-helpers.js';
+import {
+  buildWorkflowRuntimeToolRecommendedCommands,
+  type WorkflowToolRecommendedCommands
+} from './workflow-followups.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 import {
   runWalletApprovalOrchestration,
@@ -64,6 +68,7 @@ export interface WorkflowOrchestratorToolOutput {
   walletApproval?: WalletApprovalOrchestratorToolOutput;
   recommendedCommand?: string;
   recommendedCommands?: WalletApprovalRecommendedCommands;
+  workflowRecommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 interface ResolvedWorkflowOrchestratorInput {
@@ -450,6 +455,14 @@ function createWorkflowOrchestratorToolWithName(
         }
       }
 
+      const workflowRecommendedCommands = buildWorkflowRuntimeToolRecommendedCommands({
+        requestId: checkpoint?.requestId || resolved.requestId,
+        walletName: resolved.walletName,
+        nextAction: run ? run.nextCommand : recommendedCommand,
+        chain: run?.plan.chain || status.plan.chain,
+        intent: status.intent
+      });
+
       return {
         source: resolved.source,
         action: run ? run.stage : (walletApproval?.stage ?? status.status),
@@ -460,7 +473,8 @@ function createWorkflowOrchestratorToolWithName(
         run,
         walletApproval,
         recommendedCommand: run ? run.nextCommand : recommendedCommand,
-        recommendedCommands: walletApprovalRecommendedCommands(walletApproval)
+        recommendedCommands: walletApprovalRecommendedCommands(walletApproval),
+        workflowRecommendedCommands
       };
     }
   });

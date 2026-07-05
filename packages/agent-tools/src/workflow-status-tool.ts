@@ -14,6 +14,10 @@ import {
   requireWorkflowCheckpointRecord,
   withWalletRecord
 } from './tool-helpers.js';
+import {
+  buildWorkflowRuntimeToolRecommendedCommands,
+  type WorkflowToolRecommendedCommands
+} from './workflow-followups.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 
 export interface WorkflowStatusToolInput extends WalletNameInput {
@@ -24,6 +28,7 @@ export interface WorkflowStatusToolInput extends WalletNameInput {
 
 export interface WorkflowStatusToolOutput {
   result: WorkflowStatusResult;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export interface WorkflowStatusByCheckpointToolInput {
@@ -34,6 +39,7 @@ export interface WorkflowStatusByCheckpointToolOutput {
   requestId: string;
   checkpoint: WorkflowCheckpointRecord;
   result: WorkflowStatusResult;
+  recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
 export function createWorkflowStatusTool(context: AgentToolContext) {
@@ -42,8 +48,8 @@ export function createWorkflowStatusTool(context: AgentToolContext) {
     description:
       'Inspect whether a concrete workflow is blocked, still waiting on funding, or ready to resume.',
     execute: async (input) =>
-      withWalletRecord(context, input, async (wallet, currentInput) => ({
-        result: await inspectWorkflowStatus(
+      withWalletRecord(context, input, async (wallet, currentInput) => {
+        const result = await inspectWorkflowStatus(
           {
             wallet,
             intent: currentInput.intent,
@@ -54,8 +60,18 @@ export function createWorkflowStatusTool(context: AgentToolContext) {
             provider: context.provider,
             defiProvider: context.defiProvider
           }
-        )
-      }))
+        );
+
+        return {
+          result,
+          recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+            walletName: wallet.walletName,
+            nextAction: result.recommendedCommand,
+            chain: result.plan.chain,
+            intent: result.intent
+          })
+        };
+      })
   });
 }
 
@@ -91,7 +107,14 @@ export function createWorkflowStatusByCheckpointTool(context: AgentToolContext) 
       return {
         requestId: input.requestId,
         checkpoint: updatedCheckpoint,
-        result
+        result,
+        recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
+          requestId: input.requestId,
+          walletName: wallet.walletName,
+          nextAction: result.recommendedCommand,
+          chain: result.plan.chain,
+          intent: result.intent
+        })
       };
     }
   });

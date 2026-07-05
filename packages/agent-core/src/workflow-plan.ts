@@ -66,6 +66,13 @@ interface GoalStepResult {
   notes: string[];
 }
 
+function buildTokenDiscoveryNotes(chain: string): string[] {
+  return [
+    `Discover token symbols on ${chain} with zk-agent tokens --chain ${chain}.`,
+    `Inspect one symbol with zk-agent resolve-token --chain ${chain} --symbol <symbol>.`
+  ];
+}
+
 export function workflowIntentSupportsPaymaster(intent: WorkflowIntent): boolean {
   return (
     intent === 'send-native' ||
@@ -124,16 +131,17 @@ function buildSwapGoalStep(input: {
       command: appendWalletPaymasterCommandArgs(
         input.wallet,
         `zk-agent workflow swap --wallet ${input.wallet.walletName} --protocol syncswap-classic ` +
-          `--router ${routerAddress} --factory ${factoryAddress} --token-in <address> --token-out <address> ` +
+          `--router ${routerAddress} --factory ${factoryAddress} --token-in-symbol <symbol> --token-out-symbol <symbol> ` +
           '--amount-in <amount> --amount-out-min <amount> --broadcast',
         input.paymaster
       ),
       notes:
         input.protocol === undefined
           ? [
-              'Command skeleton uses the current registry-backed default swap path. Override --protocol if you need another route.'
+              'Command skeleton uses the current registry-backed default swap path. Override --protocol if you need another route.',
+              ...buildTokenDiscoveryNotes(input.wallet.chain)
             ]
-          : []
+          : buildTokenDiscoveryNotes(input.wallet.chain)
     };
   }
 
@@ -151,16 +159,17 @@ function buildSwapGoalStep(input: {
       command: appendWalletPaymasterCommandArgs(
         input.wallet,
         `zk-agent workflow swap --wallet ${input.wallet.walletName} --protocol uniswap-v3-exact-input-single ` +
-          `--router ${routerAddress} --fee-tier ${feeTier} --token-in <address> --token-out <address> ` +
+          `--router ${routerAddress} --fee-tier ${feeTier} --token-in-symbol <symbol> --token-out-symbol <symbol> ` +
           '--amount-in <amount> --amount-out-min <amount> --broadcast',
         input.paymaster
       ),
       notes:
         input.protocol === undefined
           ? [
-              'Command skeleton uses the current registry-backed default swap path. Override --protocol if you need another route.'
+              'Command skeleton uses the current registry-backed default swap path. Override --protocol if you need another route.',
+              ...buildTokenDiscoveryNotes(input.wallet.chain)
             ]
-          : []
+          : buildTokenDiscoveryNotes(input.wallet.chain)
     };
   }
 
@@ -169,13 +178,14 @@ function buildSwapGoalStep(input: {
     command: appendWalletPaymasterCommandArgs(
       input.wallet,
       `zk-agent workflow swap --wallet ${input.wallet.walletName} --protocol <protocol> ` +
-        '--router <address> --token-in <address> --token-out <address> ' +
+        '--router <address> --token-in-symbol <symbol> --token-out-symbol <symbol> ' +
         '--amount-in <amount> --amount-out-min <amount> --broadcast',
       input.paymaster
     ),
     notes: [
       'When protocol is syncswap-classic, also supply --factory <address>.',
-      'When protocol is uniswap-v3-exact-input-single, also supply --fee-tier <fee>.'
+      'When protocol is uniswap-v3-exact-input-single, also supply --fee-tier <fee>.',
+      ...buildTokenDiscoveryNotes(input.wallet.chain)
     ]
   };
 }
@@ -238,11 +248,11 @@ function buildGoalStep(input: {
         goal: 'Broadcast an ERC-20 transfer',
         command: appendWalletPaymasterCommandArgs(
           wallet,
-          `zk-agent workflow send-token --wallet ${wallet.walletName} --token <address> ` +
+          `zk-agent workflow send-token --wallet ${wallet.walletName} --symbol <symbol> ` +
             '--amount <amount> --to <address> --broadcast',
           input.paymaster
         ),
-        notes: []
+        notes: buildTokenDiscoveryNotes(wallet.chain)
       };
     case 'call-write':
       return {

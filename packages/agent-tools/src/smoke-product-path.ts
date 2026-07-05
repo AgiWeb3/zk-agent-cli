@@ -29,6 +29,11 @@ interface ExecutedStepResult {
   stderr?: string;
 }
 
+interface StepFollowupSummary {
+  nextCommand?: string;
+  recommendedCommands?: unknown;
+}
+
 function printUsage(): void {
   process.stdout.write(
     [
@@ -210,22 +215,64 @@ function buildPlanSummary(options: SmokeProductPathOptions, steps: SmokeStep[]) 
 }
 
 function extractStepNextCommand(step: ExecutedStepResult): string | undefined {
+  return extractStepFollowupSummary(step)?.nextCommand;
+}
+
+function extractStepFollowupSummary(step: ExecutedStepResult): StepFollowupSummary | undefined {
   const result = step.result;
   if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
 
   if (step.id === 'operator-path') {
-    const summary = (result as { summary?: { workflowNextCommand?: string } }).summary;
-    return summary?.workflowNextCommand;
+    const summary = (
+      result as {
+        summary?: {
+          topLevelNextCommand?: string;
+          topLevelRecommendedCommands?: unknown;
+          walletNextCommand?: string;
+          workflowNextCommand?: string;
+          walletApprovalRecommendedCommands?: unknown;
+          workflowRecommendedCommands?: unknown;
+        };
+      }
+    ).summary;
+
+    if (!summary) return undefined;
+
+    return {
+      nextCommand: summary.workflowNextCommand || summary.walletNextCommand || summary.topLevelNextCommand,
+      recommendedCommands: {
+        topLevel: summary.topLevelRecommendedCommands,
+        walletApproval: summary.walletApprovalRecommendedCommands,
+        workflow: summary.workflowRecommendedCommands
+      }
+    };
   }
 
   if (step.id === 'paymaster-success') {
-    const payload = (result as { result?: { nextCommand?: string } }).result;
-    return payload?.nextCommand;
+    const payload = (
+      result as {
+        result?: {
+          nextCommand?: string;
+          recommendedCommands?: unknown;
+        };
+      }
+    ).result;
+
+    if (!payload) return undefined;
+
+    return {
+      nextCommand: payload.nextCommand,
+      recommendedCommands: payload.recommendedCommands
+    };
   }
 
   if (step.id === 'withdraw-followup') {
     const status = (result as { status?: { nextCommand?: string } }).status;
-    return status?.nextCommand;
+    if (!status) return undefined;
+
+    return {
+      nextCommand: status.nextCommand
+    };
   }
 
   return undefined;
@@ -246,6 +293,13 @@ function buildExecutionSummary(
       const nextCommand = extractStepNextCommand(step);
       if (nextCommand) {
         acc[step.id] = nextCommand;
+      }
+      return acc;
+    }, {}),
+    followups: steps.reduce<Record<string, StepFollowupSummary>>((acc, step) => {
+      const followup = extractStepFollowupSummary(step);
+      if (followup) {
+        acc[step.id] = followup;
       }
       return acc;
     }, {})

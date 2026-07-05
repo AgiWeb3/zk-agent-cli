@@ -99,6 +99,22 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     'zk-agent workflow bridge --wallet <name> --amount <amount> [--to-chain <chain>] ...'
   );
 
+  const workflowSendTokenTool = result.tools.find(
+    (entry: { name: string }) => entry.name === 'workflowSendTokenTool'
+  );
+  assert.equal(
+    workflowSendTokenTool?.cliCommand,
+    'zk-agent workflow send-token --wallet <name> --symbol <symbol> --to <address> --amount <amount> ...'
+  );
+
+  const workflowSwapTool = result.tools.find(
+    (entry: { name: string }) => entry.name === 'workflowSwapTool'
+  );
+  assert.equal(
+    workflowSwapTool?.cliCommand,
+    'zk-agent workflow swap --wallet <name> --token-in-symbol <symbol> --token-out-symbol <symbol> ...'
+  );
+
   const bridgePreviewTool = result.tools.find(
     (entry: { name: string }) => entry.name === 'bridgePreviewTool'
   );

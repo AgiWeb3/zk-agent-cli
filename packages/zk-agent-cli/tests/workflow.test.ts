@@ -141,11 +141,21 @@ test('workflow plan emits a protocol-specific swap goal command when requested',
   assert.match(plan.goalCommand, /--protocol syncswap-classic/);
   assert.match(plan.goalCommand, /--router 0x3f39129e54d2331926c1E4bf034e111cf471AA97/);
   assert.match(plan.goalCommand, /--factory 0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09/);
+  assert.match(plan.goalCommand, /--token-in-symbol <symbol>/);
+  assert.match(plan.goalCommand, /--token-out-symbol <symbol>/);
+  assert.doesNotMatch(plan.goalCommand, /--token-in <address>/);
+  assert.doesNotMatch(plan.goalCommand, /--token-out <address>/);
   assert.match(plan.goalCommand, /--paymaster-mode approval-based/);
   assert.match(plan.goalCommand, /--paymaster-address 0x4444444444444444444444444444444444444444/);
   assert.match(plan.goalCommand, /--paymaster-token 0x5555555555555555555555555555555555555555/);
   assert.ok(plan.notes.some((note) => /Registry: syncswap-classic on zksync-sepolia is a validated/.test(note)));
   assert.ok(plan.notes.some((note) => /Registry default: this is the current validated default swap path\./.test(note)));
+  assert.ok(
+    plan.notes.some((note) => /Discover token symbols on zksync-sepolia with zk-agent tokens --chain zksync-sepolia\./.test(note))
+  );
+  assert.ok(
+    plan.notes.some((note) => /Inspect one symbol with zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>\./.test(note))
+  );
 });
 
 test('workflow plan defaults generic swap skeleton to the current validated swap path', () => {
@@ -165,6 +175,8 @@ test('workflow plan defaults generic swap skeleton to the current validated swap
   assert.match(plan.goalCommand, /--protocol syncswap-classic/);
   assert.match(plan.goalCommand, /--router 0x3f39129e54d2331926c1E4bf034e111cf471AA97/);
   assert.match(plan.goalCommand, /--factory 0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09/);
+  assert.match(plan.goalCommand, /--token-in-symbol <symbol>/);
+  assert.match(plan.goalCommand, /--token-out-symbol <symbol>/);
   assert.ok(
     plan.notes.some((note) =>
       /Command skeleton uses the current registry-backed default swap path\./.test(note)
@@ -229,6 +241,30 @@ test('workflow plan respects an explicit paymaster none override', () => {
   assert.doesNotMatch(plan.goalCommand, /--paymaster-mode approval-based/);
   assert.doesNotMatch(plan.goalCommand, /--paymaster-address/);
   assert.doesNotMatch(plan.goalCommand, /--paymaster-token/);
+});
+
+test('workflow plan uses a symbol-first send-token skeleton with token discovery guidance', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'send-token',
+    nativeBalance: '1.5',
+    nativeSymbol: 'ETH'
+  });
+
+  assert.equal(plan.status, 'planned');
+  assert.equal(plan.readyForGoal, true);
+  assert.match(plan.goalCommand, /zk-agent workflow send-token --wallet main --symbol <symbol>/);
+  assert.doesNotMatch(plan.goalCommand, /--token <address>/);
+  assert.ok(
+    plan.notes.some((note) => /Discover token symbols on zksync-sepolia with zk-agent tokens --chain zksync-sepolia\./.test(note))
+  );
+  assert.ok(
+    plan.notes.some((note) => /Inspect one symbol with zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>\./.test(note))
+  );
 });
 
 test('workflow plan defaults bridge skeleton to the current validated route', () => {

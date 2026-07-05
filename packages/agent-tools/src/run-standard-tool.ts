@@ -170,7 +170,7 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
   },
   workflowSendTokenTool: {
     group: 'workflow',
-    cliCommand: 'zk-agent workflow send-token --wallet <name> --token <address> --to <address> --amount <amount> ...'
+    cliCommand: 'zk-agent workflow send-token --wallet <name> --symbol <symbol> --to <address> --amount <amount> ...'
   },
   workflowCallWriteTool: {
     group: 'workflow',
@@ -178,7 +178,8 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
   },
   workflowSwapTool: {
     group: 'workflow',
-    cliCommand: 'zk-agent workflow swap --wallet <name> --token-in <address> --token-out <address> ...'
+    cliCommand:
+      'zk-agent workflow swap --wallet <name> --token-in-symbol <symbol> --token-out-symbol <symbol> ...'
   },
   workflowBridgeTool: {
     group: 'workflow',
@@ -236,6 +237,14 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
   getBalancesTool: { group: 'read', cliCommand: 'zk-agent balances --wallet <name>' },
   getDefaultsTool: { group: 'read', cliCommand: 'zk-agent defaults' },
   getFundingInfoTool: { group: 'read', cliCommand: 'zk-agent fund --wallet <name>' },
+  listTokensTool: {
+    group: 'read',
+    cliCommand: 'zk-agent tokens [--chain <chain>|--wallet <name>] [--symbol <symbol>] [--owned]'
+  },
+  resolveTokenTool: {
+    group: 'read',
+    cliCommand: 'zk-agent resolve-token --chain <chain> --symbol <symbol>'
+  },
   workflowFundTool: {
     group: 'workflow',
     cliCommand: 'zk-agent workflow fund --wallet <name> [--amount <amount>] [--execute]',

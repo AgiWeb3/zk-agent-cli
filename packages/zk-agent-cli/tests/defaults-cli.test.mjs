@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,8 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(Array.isArray(result.defaults.registry.paymasterPaths), true);
     assert.equal(typeof result.defaults.surfaceMatrix, 'object');
     assert.equal(Array.isArray(result.localTokenRegistry), true);
+    assert.equal(Array.isArray(result.tokenRegistrySources), true);
+    assert.equal(Array.isArray(result.tokenDirectoryChains), true);
 
     const uniswap = result.defaults.registry.swapProtocols.find(
       (entry) => entry.id === 'uniswap-v3-exact-input-single'
@@ -158,7 +160,64 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
         entry.address === '0xa0e40024ac1ec50416ab539ab533ce582080b885'
     );
     assert.equal(localEraVmToken.decimals, 18);
+
+    const localSource = result.tokenRegistrySources.find((entry) => entry.id === 'local-deployments');
+    assert.equal(localSource.enabled, true);
+    assert.equal(typeof localSource.path, 'string');
+
+    const tokenDirectorySource = result.tokenRegistrySources.find(
+      (entry) => entry.id === 'token-directory'
+    );
+    assert.equal(tokenDirectorySource.enabled, false);
+    assert.deepEqual(result.tokenDirectoryChains, []);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('defaults command exposes token-directory chain coverage when a local directory is configured', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-defaults-cli-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-defaults-token-dir-'));
+
+  try {
+    await mkdir(path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia'), { recursive: true });
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'index.json'),
+      JSON.stringify({
+        index: {
+          'zksync-sepolia': {
+            chainId: 300,
+            tokenLists: {
+              'erc20.json': 'mock'
+            }
+          }
+        }
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia', 'erc20.json'),
+      JSON.stringify({ tokens: [] }),
+      'utf8'
+    );
+
+    const env = {
+      ...createCliEnv(homeDir),
+      ZK_AGENT_TOKEN_DIRECTORY_ROOT: tokenDirectoryRoot
+    };
+    const result = await runCliJson(['defaults'], env);
+
+    const tokenDirectorySource = result.tokenRegistrySources.find(
+      (entry) => entry.id === 'token-directory'
+    );
+    const zksyncSepoliaChain = result.tokenDirectoryChains.find((entry) => entry.chainId === 300);
+
+    assert.equal(tokenDirectorySource.enabled, true);
+    assert.equal(tokenDirectorySource.exists, true);
+    assert.equal(zksyncSepoliaChain.chainKey, 'zksync-sepolia');
+    assert.equal(zksyncSepoliaChain.hasErc20List, true);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
   }
 });

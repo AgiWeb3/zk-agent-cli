@@ -1,5 +1,9 @@
 import { Command } from 'commander';
-import { listLocalTokenRegistryEntries } from '@zk-agent/agent-core';
+import {
+  describeDefaultTokenRegistrySources,
+  listLocalTokenRegistryEntries,
+  listTokenDirectoryIndexedChains
+} from '@zk-agent/agent-core';
 
 import { printResult } from '../lib/io.js';
 import { loadValidatedDefaults } from '../lib/validated-defaults.js';
@@ -10,6 +14,8 @@ export function createDefaultsCommand(): Command {
     .action(async () => {
       const defaults = loadValidatedDefaults();
       const localTokenRegistry = listLocalTokenRegistryEntries();
+      const tokenRegistrySources = describeDefaultTokenRegistrySources();
+      const tokenDirectoryChains = await listTokenDirectoryIndexedChains();
 
       const lines: Array<[string, string]> = [
         [
@@ -115,6 +121,22 @@ export function createDefaultsCommand(): Command {
         defaults.surfaceMatrix.paymaster.validatedDefaultEntryId || 'none'
       ]);
 
+      for (const source of tokenRegistrySources) {
+        lines.push([
+          'token registry',
+          `${source.priority}. ${source.id} ${source.enabled ? 'enabled' : 'disabled'} ${source.exists ? 'present' : 'missing'}${
+            source.path ? ` ${source.path}` : ''
+          }`
+        ]);
+      }
+
+      for (const chain of tokenDirectoryChains) {
+        lines.push([
+          'token directory chain',
+          `${chain.chainKey || chain.chainName} (${chain.chainId})${chain.hasErc20List ? '' : ' no erc20 list'}`
+        ]);
+      }
+
       for (const token of localTokenRegistry) {
         lines.push([
           'local token',
@@ -129,7 +151,9 @@ export function createDefaultsCommand(): Command {
       printResult(lines, {
         ok: true,
         defaults,
-        localTokenRegistry
+        localTokenRegistry,
+        tokenRegistrySources,
+        tokenDirectoryChains
       });
     });
 }
