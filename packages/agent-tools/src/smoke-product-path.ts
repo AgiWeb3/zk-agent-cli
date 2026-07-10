@@ -32,6 +32,7 @@ interface ExecutedStepResult {
 interface StepFollowupSummary {
   nextCommand?: string;
   recommendedCommands?: unknown;
+  registry?: unknown;
 }
 
 function printUsage(): void {
@@ -244,7 +245,14 @@ function extractStepFollowupSummary(step: ExecutedStepResult): StepFollowupSumma
         topLevel: summary.topLevelRecommendedCommands,
         walletApproval: summary.walletApprovalRecommendedCommands,
         workflow: summary.workflowRecommendedCommands
-      }
+      },
+      registry: (
+        result as {
+          summary?: {
+            workflowRegistry?: unknown;
+          };
+        }
+      ).summary?.workflowRegistry
     };
   }
 
@@ -262,7 +270,8 @@ function extractStepFollowupSummary(step: ExecutedStepResult): StepFollowupSumma
 
     return {
       nextCommand: payload.nextCommand,
-      recommendedCommands: payload.recommendedCommands
+      recommendedCommands: payload.recommendedCommands,
+      registry: (payload as { registry?: unknown }).registry
     };
   }
 

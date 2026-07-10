@@ -1,6 +1,7 @@
 import type { WorkflowIntent, WorkflowPlan } from '@zk-agent/agent-core';
 
 export interface WorkflowToolRecommendedCommands {
+  inspectDefaults?: string;
   next?: string;
   goal?: string;
   list?: string;
@@ -31,6 +32,7 @@ export function buildWorkflowPlanToolRecommendedCommands(
   plan: Pick<WorkflowPlan, 'chain' | 'intent' | 'recommendedCommand' | 'goalCommand'>
 ): WorkflowToolRecommendedCommands {
   return {
+    inspectDefaults: 'zk-agent defaults',
     next: plan.recommendedCommand,
     goal: plan.goalCommand,
     workflowHelp: 'zk-agent workflow --help',
@@ -51,6 +53,7 @@ export function buildWorkflowRuntimeToolRecommendedCommands(input: {
   intent: WorkflowIntent;
 }): WorkflowToolRecommendedCommands {
   return {
+    inspectDefaults: 'zk-agent defaults',
     ...(input.requestId
       ? {
           list: 'zk-agent workflow list',

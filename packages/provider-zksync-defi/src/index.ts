@@ -1,8 +1,10 @@
 import {
   AgentError,
   buildBridgeRegistryNotes,
+  resolveBridgeRegistryResolution,
   resolveLocalTokenMetadata,
   buildSwapRegistryNotes,
+  resolveSwapRegistryResolution,
   type WalletProvider,
   type BridgeStatusInput,
   type BridgeStatusResult,
@@ -696,6 +698,14 @@ function buildSwapNotes(options: {
   }
 
   return notes;
+}
+
+function buildSwapRegistry(input: {
+  chain: string;
+  protocol: SwapExecutionResult['protocol'];
+}): SwapExecutionResult['registry'] | undefined {
+  const swap = resolveSwapRegistryResolution(input);
+  return swap ? { swap } : undefined;
 }
 
 interface ResolvedSwapContext {
@@ -1873,6 +1883,13 @@ function buildBridgeResult(
       txHash: depositResult.txHash,
       explorerUrl: depositResult.explorerUrl,
       statusCommand: bridgeMeta.statusCommand,
+      registry: (() => {
+        const bridge = resolveBridgeRegistryResolution({
+          fromChain: route.source.key,
+          toChain: route.destination.key
+        });
+        return bridge ? { bridge } : undefined;
+      })(),
       notes: bridgeMeta.notes
     };
   }
@@ -1898,6 +1915,13 @@ function buildBridgeResult(
     txHash: withdrawResult.txHash,
     explorerUrl: withdrawResult.explorerUrl,
     statusCommand: bridgeMeta.statusCommand,
+    registry: (() => {
+      const bridge = resolveBridgeRegistryResolution({
+        fromChain: route.source.key,
+        toChain: route.destination.key
+      });
+      return bridge ? { bridge } : undefined;
+    })(),
     notes: bridgeMeta.notes
   };
 }
@@ -2390,6 +2414,10 @@ export class ZkSyncDefiProvider implements DefiProvider {
             preview: approvalPreview?.preview
           },
           paymaster: swapResult.paymaster,
+          registry: buildSwapRegistry({
+            chain: resolved.chain.key,
+            protocol: 'syncswap-classic'
+          }),
           preview: swapResult.preview,
           notes: [
             ...(resolved.recipientNote ? [resolved.recipientNote] : []),
@@ -2468,6 +2496,10 @@ export class ZkSyncDefiProvider implements DefiProvider {
           preview: approvalPreview?.preview
         },
         paymaster: swapBroadcast.paymaster,
+        registry: buildSwapRegistry({
+          chain: resolved.chain.key,
+          protocol: 'syncswap-classic'
+        }),
         preview: swapBroadcast.preview,
         txHash: swapBroadcast.txHash,
         explorerUrl: swapBroadcast.explorerUrl,
@@ -2562,6 +2594,10 @@ export class ZkSyncDefiProvider implements DefiProvider {
           preview: approvalPreview?.preview
         },
         paymaster: swapResult.paymaster,
+        registry: buildSwapRegistry({
+          chain: resolved.chain.key,
+          protocol: 'uniswap-v3-exact-input-single'
+        }),
         preview: swapResult.preview,
         notes: buildSwapNotes({
           chain: resolved.chain.key,
@@ -2636,6 +2672,10 @@ export class ZkSyncDefiProvider implements DefiProvider {
         preview: approvalPreview?.preview
       },
       paymaster: swapBroadcast.paymaster,
+      registry: buildSwapRegistry({
+        chain: resolved.chain.key,
+        protocol: 'uniswap-v3-exact-input-single'
+      }),
       preview: swapBroadcast.preview,
       txHash: swapBroadcast.txHash,
       explorerUrl: swapBroadcast.explorerUrl,

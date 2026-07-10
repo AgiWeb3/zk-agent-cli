@@ -51,6 +51,7 @@ export interface TopLevelNextToolOutputWallet {
     walletStatus: string;
     workflowAuto: string;
     nextAction: string;
+    inspectDefaults?: string;
   };
 }
 
@@ -64,6 +65,7 @@ export interface TopLevelNextToolOutputWorkflow {
   result: WorkflowStatusResult;
   summary: WorkflowNextSummary;
   recommendedCommands: {
+    inspectDefaults?: string;
     list: string;
     show: string;
     status: string;
@@ -72,6 +74,8 @@ export interface TopLevelNextToolOutputWorkflow {
     delete: string;
     walletStatus: string;
     nextAction?: string;
+    discoverAssets?: string;
+    discoverOwnedTokens?: string;
     discoverTokens?: string;
     inspectToken?: string;
   };
@@ -223,7 +227,8 @@ export function createTopLevelNextTool(context: AgentToolContext) {
           walletNext: buildWalletNextCommand(wallet.walletName),
           walletStatus: buildWalletStatusCommand(wallet.walletName),
           workflowAuto,
-          nextAction: nextCommand
+          nextAction: nextCommand,
+          inspectDefaults: buildDefaultsCommand()
         }
       };
     }

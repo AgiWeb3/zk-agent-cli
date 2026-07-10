@@ -50,6 +50,9 @@ What is already in place:
   default swap, bridge, and paymaster paths, plus a local token registry view
   derived from `packages/paymaster-test-assets/deployments`, and token-registry
   source metadata that shows the active local-first resolution order
+- swap / bridge / paymaster execution results now also expose structured
+  `registry` resolution metadata, so callers can distinguish validated defaults,
+  tracked routes, and manual fallbacks without scraping `notes`
 - `zksync-ethers` read path for balances and contract calls
 - `balances` now supports:
   - stored-wallet default chain reads
@@ -74,6 +77,7 @@ What is already in place:
 - `next` as the top-level operator entrypoint, so one command can route the user to `setup`, wallet bootstrap/recovery, or the next workflow checkpoint action
 - `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
 - `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`, now fills the current registry-backed default swap/bridge path when the tracked route is unambiguous, and returns JSON `recommendedCommands` for the immediate operator follow-up
+- workflow `plan` / `status` / `next` / `run` outputs now surface structured registry summaries in the TTY layer as well, and their `recommendedCommands` consistently include `zk-agent defaults` as the machine-readable registry escape hatch
 - `workflow fund` as a workflow-first alias for the default funding step, so the canonical operator path no longer has to jump back out to the top-level `fund` command family
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
@@ -147,7 +151,7 @@ What is already in place:
   - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowAutoTool` as the recommended guided workflow entry, and keeps `workflowOrchestratorTool` as its compatibility alias
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
   - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke, now returning both the preferred single-chain `assets` view and the raw `balances` view
-  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet
+  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing the resolved workflow registry/default-path summary in its JSON `summary`
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly

@@ -7,6 +7,11 @@ import type {
   SessionPayload,
   SessionPolicies
 } from '@zk-agent/agent-session-protocol';
+import type {
+  BridgeRegistryResolution,
+  PaymasterRegistryResolution,
+  SwapRegistryResolution
+} from './validated-defaults.js';
 
 export interface WalletBalance {
   type: 'native' | 'erc20';
@@ -59,6 +64,7 @@ export interface ResolvedPaymasterPolicy {
   source: 'session' | 'command' | 'none';
   supported: boolean;
   note?: string;
+  registry?: PaymasterRegistryResolution;
 }
 
 export interface WalletRequestRecord extends SessionApprovalRequest {
@@ -255,6 +261,9 @@ export interface SwapExecutionResult {
     preview?: TransactionPreview;
   };
   paymaster: ResolvedPaymasterPolicy;
+  registry?: {
+    swap?: SwapRegistryResolution;
+  };
   preview: TransactionPreview;
   txHash?: string;
   explorerUrl?: string;
@@ -312,6 +321,9 @@ export interface BridgeExecutionResult {
   txHash?: string;
   explorerUrl?: string;
   statusCommand?: string;
+  registry?: {
+    bridge?: BridgeRegistryResolution;
+  };
   notes: string[];
 }
 

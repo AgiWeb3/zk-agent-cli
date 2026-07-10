@@ -148,6 +148,8 @@ test('workflow plan emits a protocol-specific swap goal command when requested',
   assert.match(plan.goalCommand, /--paymaster-mode approval-based/);
   assert.match(plan.goalCommand, /--paymaster-address 0x4444444444444444444444444444444444444444/);
   assert.match(plan.goalCommand, /--paymaster-token 0x5555555555555555555555555555555555555555/);
+  assert.equal(plan.registry?.swap?.entryId, 'syncswap-classic');
+  assert.equal(plan.registry?.swap?.isValidatedDefault, true);
   assert.ok(plan.notes.some((note) => /Registry: syncswap-classic on zksync-sepolia is a validated/.test(note)));
   assert.ok(plan.notes.some((note) => /Registry default: this is the current validated default swap path\./.test(note)));
   assert.ok(
@@ -177,6 +179,8 @@ test('workflow plan defaults generic swap skeleton to the current validated swap
   assert.match(plan.goalCommand, /--factory 0x5FeE4bbc7000b57CE246fd5d8E392099F65f5e09/);
   assert.match(plan.goalCommand, /--token-in-symbol <symbol>/);
   assert.match(plan.goalCommand, /--token-out-symbol <symbol>/);
+  assert.equal(plan.registry?.swap?.entryId, 'syncswap-classic');
+  assert.equal(plan.registry?.swap?.isValidatedDefault, true);
   assert.ok(
     plan.notes.some((note) =>
       /Command skeleton uses the current registry-backed default swap path\./.test(note)
@@ -214,15 +218,12 @@ test('workflow plan respects an explicit paymaster none override', () => {
         },
         sessionExpiresAt: '2026-06-24T01:00:00.000Z',
         paymaster: {
-          mode: 'approval-based',
-          address: '0x4444444444444444444444444444444444444444',
-          token: '0x5555555555555555555555555555555555555555'
+          mode: 'approval-based'
         },
         sessionPublicKey: '0x' + '11'.repeat(32),
         permissions: {
           expiresAt: '2026-06-24T01:00:00.000Z'
-        },
-        paymasterAddress: '0x4444444444444444444444444444444444444444'
+        }
       },
       syncedAt: '2026-06-23T01:00:00.000Z'
     },
@@ -241,6 +242,7 @@ test('workflow plan respects an explicit paymaster none override', () => {
   assert.doesNotMatch(plan.goalCommand, /--paymaster-mode approval-based/);
   assert.doesNotMatch(plan.goalCommand, /--paymaster-address/);
   assert.doesNotMatch(plan.goalCommand, /--paymaster-token/);
+  assert.equal(plan.registry?.paymaster, undefined);
 });
 
 test('workflow plan uses a symbol-first send-token skeleton with token discovery guidance', () => {
@@ -281,6 +283,8 @@ test('workflow plan defaults bridge skeleton to the current validated route', ()
 
   assert.equal(plan.status, 'planned');
   assert.match(plan.goalCommand, /--to-chain ethereum-sepolia/);
+  assert.equal(plan.registry?.bridge?.entryId, 'zksync-sepolia-to-ethereum-sepolia');
+  assert.equal(plan.registry?.bridge?.isValidatedWithdrawRoute, true);
   assert.ok(
     plan.notes.some((note) =>
       /Command skeleton uses the current registry-backed default bridge route\./.test(note)
@@ -401,5 +405,6 @@ test('workflow plan skips fund when paymaster-backed swap can cover gas', () => 
 
   assert.equal(plan.status, 'planned');
   assert.deepEqual(plan.steps.map((step) => step.id), ['swap']);
+  assert.equal(plan.registry?.swap?.entryId, 'syncswap-classic');
   assert.match(plan.notes[0] || '', /paymaster mode approval-based is configured/);
 });

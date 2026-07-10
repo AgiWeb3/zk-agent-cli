@@ -133,7 +133,7 @@ async function requireFundCommandWallet(
   return wallet;
 }
 
-function linesForWriteResult(
+export function linesForWriteResult(
   result: Awaited<ReturnType<ZkSyncWalletProvider['sendNative']>>,
   nextCommand?: string
 ): Array<[string, string]> {
@@ -154,6 +154,16 @@ function linesForWriteResult(
     lines.push(['paymaster allowance', result.paymaster.minimalAllowance]);
   }
   if (result.paymaster.note) lines.push(['paymaster note', result.paymaster.note]);
+  if (result.paymaster.registry) {
+    lines.push([
+      'registry paymaster',
+      `${result.paymaster.registry.entryId} (${result.paymaster.registry.status}, ${result.paymaster.registry.configuration})`
+    ]);
+    lines.push([
+      'registry paymaster default',
+      result.paymaster.registry.isValidatedDefault ? 'yes' : 'no'
+    ]);
+  }
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
   if (result.mode === 'preview' && nextCommand) {
@@ -256,7 +266,7 @@ function linesForDepositResult(
   return lines;
 }
 
-function linesForBridgeResult(
+export function linesForBridgeResult(
   result: Awaited<ReturnType<ZkSyncDefiProvider['bridge']>>,
   nextCommand?: string
 ): Array<[string, string]> {
@@ -276,6 +286,20 @@ function linesForBridgeResult(
   ];
 
   if (result.bridgeAddress) lines.push(['bridge override', result.bridgeAddress]);
+  if (result.registry?.bridge) {
+    lines.push([
+      'registry bridge',
+      `${result.registry.bridge.entryId} (${result.registry.bridge.status}, ${result.registry.bridge.configuration})`
+    ]);
+    lines.push([
+      'registry deposit default',
+      result.registry.bridge.isValidatedDepositRoute ? 'yes' : 'no'
+    ]);
+    lines.push([
+      'registry withdraw default',
+      result.registry.bridge.isValidatedWithdrawRoute ? 'yes' : 'no'
+    ]);
+  }
   if (result.preview.to) lines.push(['tx target', result.preview.to]);
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
@@ -288,7 +312,7 @@ function linesForBridgeResult(
   return lines;
 }
 
-function linesForSwapResult(
+export function linesForSwapResult(
   result: Awaited<ReturnType<ZkSyncDefiProvider['swap']>>,
   nextCommand?: string
 ): Array<[string, string]> {
@@ -317,6 +341,20 @@ function linesForSwapResult(
     lines.push(['fee tier', String(result.feeTier)]);
     lines.push(['sqrt price limit x96', result.sqrtPriceLimitX96]);
   }
+  if (result.registry?.swap) {
+    lines.push([
+      'registry swap',
+      `${result.registry.swap.entryId} (${result.registry.swap.status}, ${result.registry.swap.configuration})`
+    ]);
+    lines.push([
+      'registry swap default',
+      result.registry.swap.isValidatedDefault ? 'yes' : 'no'
+    ]);
+    lines.push([
+      'registry swap fallback',
+      result.registry.swap.isManualFallback ? 'yes' : 'no'
+    ]);
+  }
   if (result.quotedAmountOut) lines.push(['quoted amount out', result.quotedAmountOut]);
   lines.push(['paymaster', result.paymaster.mode]);
   if (result.paymaster.address) lines.push(['paymaster address', result.paymaster.address]);
@@ -325,6 +363,16 @@ function linesForSwapResult(
     lines.push(['paymaster allowance', result.paymaster.minimalAllowance]);
   }
   if (result.paymaster.note) lines.push(['paymaster note', result.paymaster.note]);
+  if (result.paymaster.registry) {
+    lines.push([
+      'registry paymaster',
+      `${result.paymaster.registry.entryId} (${result.paymaster.registry.status}, ${result.paymaster.registry.configuration})`
+    ]);
+    lines.push([
+      'registry paymaster default',
+      result.paymaster.registry.isValidatedDefault ? 'yes' : 'no'
+    ]);
+  }
   if (result.approval.txHash) lines.push(['approval txHash', result.approval.txHash]);
   if (result.approval.explorerUrl) lines.push(['approval explorer', result.approval.explorerUrl]);
   if (result.txHash) lines.push(['txHash', result.txHash]);

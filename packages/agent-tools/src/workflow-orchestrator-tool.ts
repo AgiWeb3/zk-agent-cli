@@ -65,6 +65,7 @@ export interface WorkflowOrchestratorToolOutput {
   checkpoint?: WorkflowCheckpointRecord;
   status: WorkflowStatusResult;
   run?: WorkflowRunResult;
+  registry?: WorkflowStatusResult['plan']['registry'];
   walletApproval?: WalletApprovalOrchestratorToolOutput;
   recommendedCommand?: string;
   recommendedCommands?: WalletApprovalRecommendedCommands;
@@ -471,6 +472,7 @@ function createWorkflowOrchestratorToolWithName(
         checkpoint,
         status,
         run,
+        registry: run?.plan.registry || status.plan.registry,
         walletApproval,
         recommendedCommand: run ? run.nextCommand : recommendedCommand,
         recommendedCommands: walletApprovalRecommendedCommands(walletApproval),

@@ -31,6 +31,7 @@ export interface WorkflowNextSummary {
   readyForGoal: boolean;
   nextCommand?: string;
   blockingActionIds: string[];
+  registry?: WorkflowStatusResult['plan']['registry'];
   fundingProgress?: {
     kind: NonNullable<WorkflowStatusResult['fundingProgress']>['kind'];
     txHash: string;
@@ -64,6 +65,7 @@ export function buildWorkflowNextSummary(result: WorkflowStatusResult): Workflow
     readyForGoal: result.readyForGoal,
     nextCommand: result.fundingProgress?.nextCommand || result.recommendedCommand,
     blockingActionIds: result.blockingActionIds,
+    registry: result.plan.registry,
     fundingProgress: result.fundingProgress
       ? {
           kind: result.fundingProgress.kind,

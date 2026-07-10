@@ -302,6 +302,7 @@ async function main(): Promise<void> {
       stage: execution.stage,
       goalMode: 'mode' in execution.goal ? execution.goal.mode : undefined,
       txHash,
+      registry: result.data.registry,
       paymaster: resolvedPaymaster,
       nextCommand: execution.nextCommand,
       recommendedCommands: result.data.workflowRecommendedCommands,

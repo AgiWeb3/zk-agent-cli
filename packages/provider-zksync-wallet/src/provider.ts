@@ -17,6 +17,7 @@ import {
   type PaymasterSelectionInput,
   type ResolvedPaymasterPolicy,
   resolveEffectivePaymasterSelection,
+  resolvePaymasterRegistryResolution,
   resolveChain,
   type CreateSessionRequestInput,
   type CreateSessionRequestResult,
@@ -469,12 +470,20 @@ function resolvePaymasterSelection(
     );
   }
 
+  const registry = resolvePaymasterRegistryResolution({
+    chain: wallet.chain,
+    mode,
+    paymasterAddress: address || null,
+    tokenAddress: token || null
+  });
+
   return {
     mode,
     address: address || null,
     token,
     source,
-    supported: true
+    supported: true,
+    registry
   };
 }
 

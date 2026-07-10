@@ -381,6 +381,7 @@ test('workflow auto can create a checkpoint from fresh goal input through comman
     assert.equal(result.status.status, 'blocked');
     assert.equal(result.checkpoint.requestId, 'wf-auto-001');
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-auto-001',
       status: 'zk-agent workflow status --request-id wf-auto-001',
@@ -445,6 +446,7 @@ test('workflow status can await local approval through commander with injected p
     assert.equal(result.checkpoint.walletRequestId, undefined);
     assert.match(result.result.recommendedCommand, /zk-agent workflow send-native --wallet main/);
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-await-001',
       status: 'zk-agent workflow status --request-id wf-await-001',
@@ -510,6 +512,7 @@ test('workflow send-native shortcut executes the same path as workflow run with 
     assert.equal(result.result.goal.to, '0x3333333333333333333333333333333333333333');
     assert.equal(result.walletApproval, undefined);
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       walletStatus: 'zk-agent wallet status --name main'
     });
@@ -581,6 +584,7 @@ test('workflow status can emit relay follow-up commands through commander when r
         'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code> --wait'
     });
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-await-001',
       status: 'zk-agent workflow status --request-id wf-await-001',
@@ -644,6 +648,7 @@ test('workflow next can emit relay follow-up commands through commander when rel
       'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
     );
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-await-001',
       status: 'zk-agent workflow status --request-id wf-await-001',
@@ -700,6 +705,7 @@ test('workflow resume can await local approval and continue to goal execution th
     assert.equal(result.walletApproval.stage, 'approved');
     assert.equal(result.walletApproval.walletRequestId, 'wr-reuse-001');
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-await-001',
       status: 'zk-agent workflow status --request-id wf-await-001',
@@ -762,6 +768,7 @@ test('workflow auto can await local approval and execute immediately when ready 
     assert.equal(result.walletApproval.stage, 'approved');
     assert.equal(result.walletApproval.walletRequestId, 'wr-reuse-001');
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-await-001',
       status: 'zk-agent workflow status --request-id wf-await-001',
@@ -816,6 +823,7 @@ test('workflow next can await local approval through commander and return the go
     assert.equal(result.summary.readyForGoal, true);
     assert.match(result.summary.nextCommand, /zk-agent workflow send-native --wallet main/);
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-await-001',
       status: 'zk-agent workflow status --request-id wf-await-001',

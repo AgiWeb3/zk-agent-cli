@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { WalletSessionRecord } from '@zk-agent/agent-core';
+import { loadValidatedDefaults, type WalletSessionRecord } from '@zk-agent/agent-core';
 import { ethers } from 'ethers';
 
 import { ZkSyncDefiProvider } from '../src/index.js';
@@ -205,6 +205,7 @@ function createProviderWithAllowance(options: {
 }
 
 test('swap preview reports allowance gap and includes approval preview when auto-approve is enabled', async () => {
+  const defaults = loadValidatedDefaults();
   const writes: Array<{ to: string; data: string; broadcast: boolean }> = [];
   const provider = createProviderWithAllowance({
     allowance: 0n,
@@ -236,6 +237,17 @@ test('swap preview reports allowance gap and includes approval preview when auto
   assert.equal(result.approval.currentAllowance, '0');
   assert.equal(result.approval.preview?.to, '0x7000000000000000000000000000000000000007');
   assert.equal(result.preview.to, '0x9000000000000000000000000000000000000009');
+  assert.equal(result.registry?.swap?.entryId, 'uniswap-v3-exact-input-single');
+  assert.equal(result.registry?.swap?.status, 'supported');
+  assert.equal(result.registry?.swap?.configuration, 'manual');
+  assert.equal(
+    result.registry?.swap?.isManualFallback,
+    defaults.surfaceMatrix.swap.manualFallbackEntryId === 'uniswap-v3-exact-input-single'
+  );
+  assert.equal(
+    result.registry?.swap?.isValidatedDefault,
+    defaults.surfaceMatrix.swap.validatedDefaultEntryId === 'uniswap-v3-exact-input-single'
+  );
   assert.equal(writes.length, 2);
   assert.equal(writes[0]?.broadcast, false);
   assert.equal(writes[1]?.broadcast, false);
@@ -354,6 +366,7 @@ test('swap fails before allowance or approval writes when no pool exists for the
 });
 
 test('syncswap classic preview quotes the pool and returns router preview data', async () => {
+  const defaults = loadValidatedDefaults();
   const writes: Array<{ to: string; data: string; broadcast: boolean }> = [];
   const provider = createProviderWithAllowance({
     allowance: 0n,
@@ -387,6 +400,16 @@ test('syncswap classic preview quotes the pool and returns router preview data',
   assert.equal(result.quotedAmountOut, '1600');
   assert.equal(result.approval.mode, 'exact');
   assert.equal(result.preview.to, '0x9000000000000000000000000000000000000009');
+  assert.equal(result.registry?.swap?.entryId, 'syncswap-classic');
+  assert.equal(result.registry?.swap?.configuration, 'tracked-default');
+  assert.equal(
+    result.registry?.swap?.isValidatedDefault,
+    defaults.surfaceMatrix.swap.validatedDefaultEntryId === 'syncswap-classic'
+  );
+  assert.equal(
+    result.registry?.swap?.isManualFallback,
+    defaults.surfaceMatrix.swap.manualFallbackEntryId === 'syncswap-classic'
+  );
   assert.equal(writes.length, 2);
 });
 

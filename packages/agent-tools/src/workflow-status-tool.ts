@@ -28,6 +28,7 @@ export interface WorkflowStatusToolInput extends WalletNameInput {
 
 export interface WorkflowStatusToolOutput {
   result: WorkflowStatusResult;
+  registry?: WorkflowStatusResult['plan']['registry'];
   recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
@@ -39,6 +40,7 @@ export interface WorkflowStatusByCheckpointToolOutput {
   requestId: string;
   checkpoint: WorkflowCheckpointRecord;
   result: WorkflowStatusResult;
+  registry?: WorkflowStatusResult['plan']['registry'];
   recommendedCommands: WorkflowToolRecommendedCommands;
 }
 
@@ -64,6 +66,7 @@ export function createWorkflowStatusTool(context: AgentToolContext) {
 
         return {
           result,
+          registry: result.plan.registry,
           recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
             walletName: wallet.walletName,
             nextAction: result.recommendedCommand,
@@ -108,6 +111,7 @@ export function createWorkflowStatusByCheckpointTool(context: AgentToolContext) 
         requestId: input.requestId,
         checkpoint: updatedCheckpoint,
         result,
+        registry: result.plan.registry,
         recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
           requestId: input.requestId,
           walletName: wallet.walletName,

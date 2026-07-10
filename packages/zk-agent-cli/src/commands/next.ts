@@ -62,6 +62,7 @@ function buildTopLevelWorkflowRecommendedCommands(input: {
   intent: string;
 }) {
   return {
+    inspectDefaults: buildDefaultsRecommendedCommand(),
     list: buildWorkflowListRecommendedCommand(),
     show: buildWorkflowShowRecommendedCommand(input.requestId),
     status: buildWorkflowStatusRecommendedCommand(input.requestId),
@@ -161,6 +162,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['status', result.status],
             ['ready', result.readyForGoal ? 'yes' : 'no'],
             ...(nextCommand ? [['next', nextCommand] as [string, string]] : []),
+            ['inspect defaults', recommendedCommands.inspectDefaults],
             ...result.blockingActionIds.map((actionId) => ['blocking action', actionId] as [string, string]),
             ...(result.fundingProgress
               ? [
@@ -267,13 +269,15 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
         walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
         workflowAuto,
-        nextAction: nextCommand
+        nextAction: nextCommand,
+        inspectDefaults: buildDefaultsRecommendedCommand()
       };
 
       printResult(
         topLevelNextLines('wallet', [
           ...walletNextLines(summary),
-          ...(summary.recommendedCommand ? [] : [['next', workflowAuto] as [string, string]])
+          ...(summary.recommendedCommand ? [] : [['next', workflowAuto] as [string, string]]),
+          ['inspect defaults', recommendedCommands.inspectDefaults]
         ]),
         {
           ok: true,

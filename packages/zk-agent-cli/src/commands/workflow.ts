@@ -1059,6 +1059,47 @@ function workflowNextLines(
     lines.push(['funding status', result.fundingProgress.status]);
   }
 
+  if (result.plan.registry?.swap) {
+    lines.push([
+      'registry swap',
+      `${result.plan.registry.swap.entryId} (${result.plan.registry.swap.status}, ${result.plan.registry.swap.configuration})`
+    ]);
+    lines.push([
+      'registry swap default',
+      result.plan.registry.swap.isValidatedDefault ? 'yes' : 'no'
+    ]);
+    lines.push([
+      'registry swap fallback',
+      result.plan.registry.swap.isManualFallback ? 'yes' : 'no'
+    ]);
+  }
+
+  if (result.plan.registry?.bridge) {
+    lines.push([
+      'registry bridge',
+      `${result.plan.registry.bridge.entryId} (${result.plan.registry.bridge.status}, ${result.plan.registry.bridge.configuration})`
+    ]);
+    lines.push([
+      'registry deposit default',
+      result.plan.registry.bridge.isValidatedDepositRoute ? 'yes' : 'no'
+    ]);
+    lines.push([
+      'registry withdraw default',
+      result.plan.registry.bridge.isValidatedWithdrawRoute ? 'yes' : 'no'
+    ]);
+  }
+
+  if (result.plan.registry?.paymaster) {
+    lines.push([
+      'registry paymaster',
+      `${result.plan.registry.paymaster.entryId} (${result.plan.registry.paymaster.status}, ${result.plan.registry.paymaster.configuration})`
+    ]);
+    lines.push([
+      'registry paymaster default',
+      result.plan.registry.paymaster.isValidatedDefault ? 'yes' : 'no'
+    ]);
+  }
+
   return lines;
 }
 
@@ -1317,6 +1358,7 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
   chain?: string;
   intent?: WorkflowIntent;
 }): {
+  inspectDefaults: string;
   list: string;
   show?: string;
   status?: string;
@@ -1331,6 +1373,7 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
   inspectToken?: string;
 } {
   return {
+    inspectDefaults: 'zk-agent defaults',
     list: buildWorkflowListRecommendedCommand(),
     ...(input.requestId
       ? {
@@ -1382,6 +1425,7 @@ function buildWorkflowPlanRecommendedCommands(plan: {
   recommendedCommand: string;
   goalCommand: string;
 }): {
+  inspectDefaults: string;
   next: string;
   goal: string;
   workflowHelp: string;
@@ -1389,6 +1433,7 @@ function buildWorkflowPlanRecommendedCommands(plan: {
   inspectToken?: string;
 } {
   return {
+    inspectDefaults: 'zk-agent defaults',
     next: plan.recommendedCommand,
     goal: plan.goalCommand,
     workflowHelp: 'zk-agent workflow --help',

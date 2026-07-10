@@ -54,6 +54,7 @@ test('workflow next returns token discovery commands for tokenized ready checkpo
     assert.equal(result.summary.status, 'ready');
     assert.equal(result.result.intent, 'send-token');
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-token-runtime-001',
       status: 'zk-agent workflow status --request-id wf-token-runtime-001',

@@ -244,7 +244,8 @@ test('top-level next recommends starting a workflow when the wallet is already r
       workflowAuto:
         'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
       nextAction:
-        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
+        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+      inspectDefaults: 'zk-agent defaults'
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -268,6 +269,7 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
     assert.equal(result.nextCommand, 'zk-agent wallet reapprove --name main --await-local');
     assert.equal(result.result.status, 'blocked');
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-next-001',
       status: 'zk-agent workflow status --request-id wf-next-001',
@@ -299,6 +301,7 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
     assert.equal(result.result.intent, 'send-token');
     assert.equal(result.result.status, 'ready');
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
       show: 'zk-agent workflow show --request-id wf-next-token-001',
       status: 'zk-agent workflow status --request-id wf-next-token-001',

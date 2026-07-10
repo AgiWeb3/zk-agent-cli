@@ -617,6 +617,8 @@ test('workflow run emits a concrete swap retry command after preview', async () 
   assert.match(result.nextCommand || '', /--auto-approve/);
   assert.match(result.nextCommand || '', /--approve-max/);
   assert.match(result.nextCommand || '', /--paymaster-mode approval-based/);
+  assert.equal(result.plan.registry?.swap?.entryId, 'syncswap-classic');
+  assert.equal(result.plan.registry?.swap?.isValidatedDefault, true);
   assert.ok(
     result.notes.some((note) =>
       /Registry: syncswap-classic on zksync-sepolia is a validated tracked-default swap path\./.test(
@@ -720,6 +722,8 @@ test('workflow run can execute bridge with the tracked default route when toChai
   assert.equal(receivedToChain, 'ethereum-sepolia');
   assert.equal(result.stage, 'goal-executed');
   assert.equal(result.nextCommand, 'zk-agent workflow bridge --wallet main --to-chain ethereum-sepolia --amount 0.1 --broadcast');
+  assert.equal(result.plan.registry?.bridge?.entryId, 'zksync-sepolia-to-ethereum-sepolia');
+  assert.equal(result.plan.registry?.bridge?.isValidatedWithdrawRoute, true);
   assert.ok(
     result.notes.some((note) =>
       /Registry default: this is the current validated withdraw route\./.test(note)
@@ -814,6 +818,8 @@ test('workflow run does not require separate funding when paymaster-backed send-
 
   assert.equal(sendNativeCalls, 1);
   assert.equal(result.stage, 'goal-executed');
+  assert.equal(result.plan.registry?.paymaster?.entryId, 'zksync-sepolia-approval-based-eravm');
+  assert.equal(result.plan.registry?.paymaster?.isValidatedDefault, true);
   assert.ok(result.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
   assert.ok(result.notes.some((note) => /is validated\./.test(note)));
   assert.ok(

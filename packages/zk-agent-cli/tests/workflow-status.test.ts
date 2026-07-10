@@ -264,6 +264,8 @@ test('workflow status stays ready when paymaster-backed send-native can cover ze
   assert.equal(result.readyForGoal, true);
   assert.equal(result.fundingNeeded, false);
   assert.equal(result.funding, undefined);
+  assert.equal(result.plan.registry?.paymaster?.entryId, 'zksync-sepolia-approval-based-eravm');
+  assert.equal(result.plan.registry?.paymaster?.isValidatedDefault, true);
   assert.ok(result.notes.some((note) => /Registry: approval-based paymaster/.test(note)));
   assert.ok(result.notes.some((note) => /is validated\./.test(note)));
   assert.ok(

@@ -184,6 +184,43 @@ type SwapProtocolRegistryEntry = ValidatedDefaultsPayload['registry']['swapProto
 type BridgeRouteRegistryEntry = ValidatedDefaultsPayload['registry']['bridgeRoutes'][number];
 type PaymasterPathRegistryEntry = ValidatedDefaultsPayload['registry']['paymasterPaths'][number];
 
+export interface SwapRegistryResolution {
+  kind: 'swap';
+  entryId: string;
+  chain: string;
+  protocol: SwapProtocolRegistryEntry['id'];
+  status: RegistryEntryStatus;
+  configuration: RegistryEntryConfiguration;
+  isValidatedDefault: boolean;
+  isManualFallback: boolean;
+}
+
+export interface BridgeRegistryResolution {
+  kind: 'bridge';
+  entryId: string;
+  fromChain: string;
+  toChain: string;
+  direction: BridgeRouteRegistryEntry['direction'];
+  status: RegistryEntryStatus;
+  configuration: BridgeRouteRegistryEntry['configuration'];
+  isValidatedDepositRoute: boolean;
+  isValidatedWithdrawRoute: boolean;
+}
+
+export interface PaymasterRegistryResolution {
+  kind: 'paymaster';
+  entryId: string;
+  chain: string;
+  mode: PaymasterPathRegistryEntry['mode'];
+  status: PaymasterPathRegistryEntry['status'];
+  configuration: PaymasterPathRegistryEntry['configuration'];
+  isValidatedDefault: boolean;
+  paymasterAddress: string | null;
+  feeTokenAddress: string | null;
+  feeTokenSymbol: string | null;
+  feeTokenDeploymentMode: string | null;
+}
+
 function normalizeOptionalString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -698,6 +735,84 @@ export function resolveTrackedPaymasterSelection(input: {
     address: entry.paymasterAddress || undefined,
     token: entry.feeTokenAddress || undefined,
     entry
+  };
+}
+
+export function resolveSwapRegistryResolution(input: {
+  chain: string;
+  protocol: 'uniswap-v3-exact-input-single' | 'syncswap-classic';
+  defaults?: ValidatedDefaultsPayload;
+}): SwapRegistryResolution | undefined {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findSwapProtocolRegistryEntry({
+    ...input,
+    defaults
+  });
+  if (!entry) return undefined;
+
+  return {
+    kind: 'swap',
+    entryId: entry.id,
+    chain: entry.chain,
+    protocol: entry.id,
+    status: entry.status,
+    configuration: entry.configuration,
+    isValidatedDefault: entry.id === defaults.surfaceMatrix.swap.validatedDefaultEntryId,
+    isManualFallback: entry.id === defaults.surfaceMatrix.swap.manualFallbackEntryId
+  };
+}
+
+export function resolveBridgeRegistryResolution(input: {
+  fromChain: string;
+  toChain: string;
+  defaults?: ValidatedDefaultsPayload;
+}): BridgeRegistryResolution | undefined {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findBridgeRouteRegistryEntry({
+    ...input,
+    defaults
+  });
+  if (!entry) return undefined;
+
+  return {
+    kind: 'bridge',
+    entryId: entry.id,
+    fromChain: entry.fromChain,
+    toChain: entry.toChain,
+    direction: entry.direction,
+    status: entry.status,
+    configuration: entry.configuration,
+    isValidatedDepositRoute: entry.id === defaults.surfaceMatrix.bridge.validatedDepositEntryId,
+    isValidatedWithdrawRoute: entry.id === defaults.surfaceMatrix.bridge.validatedWithdrawEntryId
+  };
+}
+
+export function resolvePaymasterRegistryResolution(input: {
+  chain: string;
+  mode?: string | null;
+  paymasterAddress?: string | null;
+  tokenAddress?: string | null;
+  defaults?: ValidatedDefaultsPayload;
+}): PaymasterRegistryResolution | undefined {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findPaymasterPathRegistryEntry({
+    ...input,
+    defaults
+  });
+  if (!entry) return undefined;
+
+  return {
+    kind: 'paymaster',
+    entryId: entry.id,
+    chain: entry.chain,
+    mode: entry.mode,
+    status: entry.status,
+    configuration: entry.configuration,
+    isValidatedDefault: entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryId,
+    paymasterAddress: entry.paymasterAddress,
+    feeTokenAddress: entry.feeTokenAddress,
+    feeTokenSymbol: entry.feeTokenSymbol,
+    feeTokenDeploymentMode: entry.feeTokenDeploymentMode
   };
 }
 

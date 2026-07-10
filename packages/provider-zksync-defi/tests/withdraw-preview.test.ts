@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { WalletSessionRecord } from '@zk-agent/agent-core';
+import { loadValidatedDefaults, type WalletSessionRecord } from '@zk-agent/agent-core';
 import { ethers } from 'ethers';
 import { Wallet, utils as zksyncUtils } from 'zksync-ethers';
 
@@ -657,6 +657,7 @@ test('depositStatus reports pending when the L1 transaction has no receipt yet',
 });
 
 test('bridge routes ethereum-sepolia to zksync-sepolia through deposit', async () => {
+  const defaults = loadValidatedDefaults();
   const provider = new ZkSyncDefiProvider({
     providerFactory: () => ({
       async getCode() {
@@ -743,6 +744,14 @@ test('bridge routes ethereum-sepolia to zksync-sepolia through deposit', async (
     assert.equal(result.route, 'l1-to-l2');
     assert.equal(result.fromChain, 'ethereum-sepolia');
     assert.equal(result.toChain, 'zksync-sepolia');
+    assert.equal(result.registry?.bridge?.entryId, 'ethereum-sepolia-to-zksync-sepolia');
+    assert.equal(result.registry?.bridge?.status, 'validated');
+    assert.equal(result.registry?.bridge?.isValidatedDepositRoute, true);
+    assert.equal(result.registry?.bridge?.isValidatedWithdrawRoute, false);
+    assert.equal(
+      result.registry?.bridge?.entryId,
+      defaults.surfaceMatrix.bridge.validatedDepositEntryId
+    );
     assert.equal(calledDeposit, true);
     assert.equal(calledWithdraw, false);
   } finally {
@@ -752,6 +761,7 @@ test('bridge routes ethereum-sepolia to zksync-sepolia through deposit', async (
 });
 
 test('bridge routes zksync-sepolia to ethereum-sepolia through withdraw', async () => {
+  const defaults = loadValidatedDefaults();
   const provider = new ZkSyncDefiProvider({
     providerFactory: () => ({
       async getCode() {
@@ -839,6 +849,14 @@ test('bridge routes zksync-sepolia to ethereum-sepolia through withdraw', async 
     assert.equal(result.route, 'l2-to-l1');
     assert.equal(result.fromChain, 'zksync-sepolia');
     assert.equal(result.toChain, 'ethereum-sepolia');
+    assert.equal(result.registry?.bridge?.entryId, 'zksync-sepolia-to-ethereum-sepolia');
+    assert.equal(result.registry?.bridge?.status, 'validated');
+    assert.equal(result.registry?.bridge?.isValidatedDepositRoute, false);
+    assert.equal(result.registry?.bridge?.isValidatedWithdrawRoute, true);
+    assert.equal(
+      result.registry?.bridge?.entryId,
+      defaults.surfaceMatrix.bridge.validatedWithdrawEntryId
+    );
     assert.match(result.statusCommand || '', /bridge-status/);
     assert.equal(calledDeposit, false);
     assert.equal(calledWithdraw, true);

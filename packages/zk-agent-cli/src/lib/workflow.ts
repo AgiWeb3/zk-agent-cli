@@ -17,6 +17,48 @@ import type {
 } from '@zk-agent/agent-core';
 import type { WorkflowRunResult } from './workflow-run.js';
 
+function pushWorkflowRegistryLines(
+  lines: Array<[string, string]>,
+  registry: WorkflowPlan['registry']
+): void {
+  if (!registry) return;
+
+  if (registry.swap) {
+    lines.push([
+      'registry swap',
+      `${registry.swap.entryId} (${registry.swap.status}, ${registry.swap.configuration})`
+    ]);
+    lines.push(['registry swap default', registry.swap.isValidatedDefault ? 'yes' : 'no']);
+    lines.push(['registry swap fallback', registry.swap.isManualFallback ? 'yes' : 'no']);
+  }
+
+  if (registry.bridge) {
+    lines.push([
+      'registry bridge',
+      `${registry.bridge.entryId} (${registry.bridge.status}, ${registry.bridge.configuration})`
+    ]);
+    lines.push([
+      'registry deposit default',
+      registry.bridge.isValidatedDepositRoute ? 'yes' : 'no'
+    ]);
+    lines.push([
+      'registry withdraw default',
+      registry.bridge.isValidatedWithdrawRoute ? 'yes' : 'no'
+    ]);
+  }
+
+  if (registry.paymaster) {
+    lines.push([
+      'registry paymaster',
+      `${registry.paymaster.entryId} (${registry.paymaster.status}, ${registry.paymaster.configuration})`
+    ]);
+    lines.push([
+      'registry paymaster default',
+      registry.paymaster.isValidatedDefault ? 'yes' : 'no'
+    ]);
+  }
+}
+
 export function workflowPlanLines(plan: WorkflowPlan): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['wallet', plan.walletName],
@@ -38,6 +80,8 @@ export function workflowPlanLines(plan: WorkflowPlan): Array<[string, string]> {
   if (plan.funding?.route) {
     lines.push(['funding route', plan.funding.route]);
   }
+
+  pushWorkflowRegistryLines(lines, plan.registry);
 
   for (const step of plan.steps) {
     lines.push(['step', `${step.kind} / ${step.priority}: ${step.title}`]);
@@ -95,6 +139,8 @@ export function workflowRunLines(result: WorkflowRunResult): Array<[string, stri
     }
   }
 
+  pushWorkflowRegistryLines(lines, result.plan.registry);
+
   for (const note of result.notes) {
     lines.push(['note', note]);
   }
@@ -129,6 +175,8 @@ export function workflowStatusLines(result: WorkflowStatusResult): Array<[string
     lines.push(['funding txHash', result.fundingProgress.txHash]);
     lines.push(['funding status', result.fundingProgress.status]);
   }
+
+  pushWorkflowRegistryLines(lines, result.plan.registry);
 
   for (const note of result.notes) {
     lines.push(['note', note]);

@@ -250,7 +250,42 @@ function createProviderStub() {
         paymaster: {
           mode: input.paymaster?.mode || 'none',
           source: 'none',
-          supported: true
+          supported: true,
+          registry:
+            input.paymaster?.mode === 'approval-based'
+              ? {
+                  kind: 'paymaster' as const,
+                  entryId: 'zksync-sepolia-approval-based-eravm',
+                  chain: 'zksync-sepolia',
+                  mode: 'approval-based' as const,
+                  status: 'validated' as const,
+                  configuration: 'tracked-default' as const,
+                  isValidatedDefault: true,
+                  paymasterAddress: '0x4444444444444444444444444444444444444444',
+                  feeTokenAddress: '0x5555555555555555555555555555555555555555',
+                  feeTokenSymbol: 'TST',
+                  feeTokenDeploymentMode: 'eravm'
+                }
+              : undefined
+        },
+        registry: {
+          swap: {
+            kind: 'swap' as const,
+            entryId:
+              input.protocol === 'syncswap-classic'
+                ? 'syncswap-classic'
+                : 'uniswap-v3-exact-input-single',
+            chain: input.wallet.chain,
+            protocol:
+              input.protocol === 'syncswap-classic'
+                ? 'syncswap-classic'
+                : 'uniswap-v3-exact-input-single',
+            status: input.protocol === 'syncswap-classic' ? 'validated' : 'supported',
+            configuration:
+              input.protocol === 'syncswap-classic' ? 'tracked-default' : 'manual',
+            isValidatedDefault: input.protocol === 'syncswap-classic',
+            isManualFallback: input.protocol !== 'syncswap-classic'
+          }
         },
         preview: {
           to: input.routerAddress,
@@ -299,6 +334,21 @@ function createProviderStub() {
             ? '0x5000000000000000000000000000000000000005'
             : '0x6000000000000000000000000000000000000006',
           type: isDeposit ? '2' : '113'
+        },
+        registry: {
+          bridge: {
+            kind: 'bridge' as const,
+            entryId: isDeposit
+              ? 'ethereum-sepolia-to-zksync-sepolia'
+              : 'zksync-sepolia-to-ethereum-sepolia',
+            fromChain: isDeposit ? 'ethereum-sepolia' : input.wallet.chain,
+            toChain: isDeposit ? input.toChain : 'ethereum-sepolia',
+            direction: isDeposit ? 'l1-to-l2' as const : 'l2-to-l1' as const,
+            status: 'validated' as const,
+            configuration: 'tracked-default' as const,
+            isValidatedDepositRoute: isDeposit,
+            isValidatedWithdrawRoute: !isDeposit
+          }
         },
         txHash: input.broadcast ? '0x' + '98'.repeat(32) : undefined,
         explorerUrl: input.broadcast
@@ -504,7 +554,23 @@ function createProviderStub() {
         paymaster: {
           mode: input.paymaster?.mode || 'none',
           source: 'none',
-          supported: true
+          supported: true,
+          registry:
+            input.paymaster?.mode === 'approval-based'
+              ? {
+                  kind: 'paymaster' as const,
+                  entryId: 'zksync-sepolia-approval-based-eravm',
+                  chain: 'zksync-sepolia',
+                  mode: 'approval-based' as const,
+                  status: 'validated' as const,
+                  configuration: 'tracked-default' as const,
+                  isValidatedDefault: true,
+                  paymasterAddress: '0x4444444444444444444444444444444444444444',
+                  feeTokenAddress: '0x5555555555555555555555555555555555555555',
+                  feeTokenSymbol: 'TST',
+                  feeTokenDeploymentMode: 'eravm'
+                }
+              : undefined
         },
         preview: {}
       };
@@ -523,7 +589,23 @@ function createProviderStub() {
         paymaster: {
           mode: input.paymaster?.mode || 'none',
           source: 'none',
-          supported: true
+          supported: true,
+          registry:
+            input.paymaster?.mode === 'approval-based'
+              ? {
+                  kind: 'paymaster' as const,
+                  entryId: 'zksync-sepolia-approval-based-eravm',
+                  chain: 'zksync-sepolia',
+                  mode: 'approval-based' as const,
+                  status: 'validated' as const,
+                  configuration: 'tracked-default' as const,
+                  isValidatedDefault: true,
+                  paymasterAddress: '0x4444444444444444444444444444444444444444',
+                  feeTokenAddress: '0x5555555555555555555555555555555555555555',
+                  feeTokenSymbol: 'TST',
+                  feeTokenDeploymentMode: 'eravm'
+                }
+              : undefined
         },
         preview: {}
       };
@@ -542,7 +624,23 @@ function createProviderStub() {
         paymaster: {
           mode: input.paymaster?.mode || 'none',
           source: 'none',
-          supported: true
+          supported: true,
+          registry:
+            input.paymaster?.mode === 'approval-based'
+              ? {
+                  kind: 'paymaster' as const,
+                  entryId: 'zksync-sepolia-approval-based-eravm',
+                  chain: 'zksync-sepolia',
+                  mode: 'approval-based' as const,
+                  status: 'validated' as const,
+                  configuration: 'tracked-default' as const,
+                  isValidatedDefault: true,
+                  paymasterAddress: '0x4444444444444444444444444444444444444444',
+                  feeTokenAddress: '0x5555555555555555555555555555555555555555',
+                  feeTokenSymbol: 'TST',
+                  feeTokenDeploymentMode: 'eravm'
+                }
+              : undefined
         },
         preview: {}
       };
@@ -728,11 +826,21 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
     walletName: 'main',
     to: '0x3333333333333333333333333333333333333333',
     amount: '1000000000000000',
-    broadcast: false
+    broadcast: false,
+    paymaster: {
+      mode: 'approval-based',
+      address: '0x4444444444444444444444444444444444444444',
+      token: '0x5555555555555555555555555555555555555555'
+    }
   });
   assert.equal(sendNative.ok, true);
   if (sendNative.ok) {
     assert.equal(sendNative.data.mode, 'preview');
+    assert.equal(
+      sendNative.data.paymaster.registry?.entryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(sendNative.data.paymaster.registry?.isValidatedDefault, true);
   }
 
   const deposit = await tools.depositPreviewTool.execute({
@@ -763,6 +871,8 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
   if (swap.ok) {
     assert.equal(swap.data.protocol, 'uniswap-v3-exact-input-single');
     assert.equal(swap.data.preview.to, '0x9000000000000000000000000000000000000009');
+    assert.equal(swap.data.registry?.swap?.entryId, 'uniswap-v3-exact-input-single');
+    assert.equal(swap.data.registry?.swap?.isManualFallback, true);
   }
 
   const bridge = await tools.bridgePreviewTool.execute({
@@ -776,6 +886,8 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
   if (bridge.ok) {
     assert.equal(bridge.data.operation, 'deposit');
     assert.equal(bridge.data.route, 'l1-to-l2');
+    assert.equal(bridge.data.registry?.bridge?.entryId, 'ethereum-sepolia-to-zksync-sepolia');
+    assert.equal(bridge.data.registry?.bridge?.isValidatedDepositRoute, true);
   }
 
   const bridgeStatus = await tools.bridgeStatusTool.execute({
@@ -998,6 +1110,7 @@ test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow bra
   if (tokenWorkflow.ok) {
     assert.equal(tokenWorkflow.data.scope, 'workflow');
     assert.equal(tokenWorkflow.data.result.intent, 'send-token');
+    assert.equal(tokenWorkflow.data.recommendedCommands.inspectDefaults, 'zk-agent defaults');
     assert.equal(
       tokenWorkflow.data.recommendedCommands.discoverAssets,
       'zk-agent assets --wallet main'
@@ -2262,6 +2375,15 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     );
     assert.equal((workflow.data as { plan: { status: string } }).plan.status, 'blocked');
     assert.equal(
+      (workflow.data as { plan: { registry?: { swap?: { entryId?: string } } } }).plan.registry
+        ?.swap?.entryId,
+      'syncswap-classic'
+    );
+    assert.equal(
+      (workflow.data as { recommendedCommands: { inspectDefaults?: string } }).recommendedCommands.inspectDefaults,
+      'zk-agent defaults'
+    );
+    assert.equal(
       (workflow.data as { recommendedCommands: { discoverTokens?: string } }).recommendedCommands.discoverTokens,
       'zk-agent tokens --chain zksync-sepolia'
     );
@@ -2313,8 +2435,20 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       'goal-executed'
     );
     assert.equal(
+      (
+        workflowRun.data as {
+          registry?: { paymaster?: { entryId?: string } };
+        }
+      ).registry,
+      undefined
+    );
+    assert.equal(
       (workflowRun.data as { result: { goal: { mode: string } } }).result.goal.mode,
       'preview'
+    );
+    assert.equal(
+      (workflowRun.data as { recommendedCommands: { inspectDefaults?: string } }).recommendedCommands.inspectDefaults,
+      'zk-agent defaults'
     );
     assert.equal(
       (workflowRun.data as { recommendedCommands: { nextAction?: string } }).recommendedCommands.nextAction,
@@ -2365,6 +2499,10 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       'uniswap-v3-exact-input-single'
     );
     assert.equal(
+      (workflowSwap.data as { recommendedCommands: { inspectDefaults?: string } }).recommendedCommands.inspectDefaults,
+      'zk-agent defaults'
+    );
+    assert.equal(
       (workflowSwap.data as { recommendedCommands: { discoverAssets?: string } }).recommendedCommands.discoverAssets,
       'zk-agent assets --wallet main'
     );
@@ -2399,6 +2537,18 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     assert.equal(
       (workflowStatus.data as { result: { blockingActionIds: string[] } }).result.blockingActionIds[0],
       'reapprove'
+    );
+    assert.equal(
+      (
+        workflowStatus.data as {
+          registry?: { swap?: unknown; bridge?: unknown; paymaster?: unknown };
+        }
+      ).registry,
+      undefined
+    );
+    assert.equal(
+      (workflowStatus.data as { recommendedCommands: { inspectDefaults?: string } }).recommendedCommands.inspectDefaults,
+      'zk-agent defaults'
     );
     assert.equal(
       (workflowStatus.data as { recommendedCommands: { discoverAssets?: string } }).recommendedCommands.discoverAssets,
@@ -2437,8 +2587,20 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       'zk-agent wallet reapprove --name main --await-local'
     );
     assert.equal(
+      (workflowNext.data as { recommendedCommands: { inspectDefaults?: string } }).recommendedCommands.inspectDefaults,
+      'zk-agent defaults'
+    );
+    assert.equal(
       (workflowNext.data as { recommendedCommands: { discoverAssets?: string } }).recommendedCommands.discoverAssets,
       'zk-agent assets --wallet main'
+    );
+    assert.equal(
+      (
+        workflowNext.data as {
+          summary: { registry?: { swap?: unknown; bridge?: unknown; paymaster?: unknown } };
+        }
+      ).summary.registry,
+      undefined
     );
     assert.equal(
       (workflowNext.data as { recommendedCommands: { discoverOwnedTokens?: string } }).recommendedCommands.discoverOwnedTokens,
@@ -2691,6 +2853,22 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       ).workflowRecommendedCommands.walletStatus,
       'zk-agent wallet status --name main'
     );
+    assert.equal(
+      (
+        workflowOrchestratorStart.data as {
+          workflowRecommendedCommands: { inspectDefaults?: string };
+        }
+      ).workflowRecommendedCommands.inspectDefaults,
+      'zk-agent defaults'
+    );
+    assert.equal(
+      (
+        workflowOrchestratorStart.data as {
+          registry?: { paymaster?: unknown; swap?: unknown; bridge?: unknown };
+        }
+      ).registry,
+      undefined
+    );
   }
 
   const workflowOrchestratorResume = await runStandardAgentTool(
@@ -2721,6 +2899,52 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     );
   }
 
+  const paymasterWorkflowOrchestrator = await runStandardAgentTool(
+    workflowRunnableContext,
+    'workflowOrchestratorTool',
+    {
+      walletName: 'main',
+      requestId: 'wf-tool-orch-paymaster-001',
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1',
+        paymaster: {
+          mode: 'approval-based'
+        }
+      },
+      createCheckpoint: true
+    }
+  );
+  assert.equal(paymasterWorkflowOrchestrator.ok, true);
+  if (paymasterWorkflowOrchestrator.ok) {
+    assert.equal(
+      (
+        paymasterWorkflowOrchestrator.data as {
+          registry?: { paymaster?: { entryId?: string; isValidatedDefault?: boolean } };
+        }
+      ).registry?.paymaster?.entryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(
+      (
+        paymasterWorkflowOrchestrator.data as {
+          registry?: { paymaster?: { entryId?: string; isValidatedDefault?: boolean } };
+        }
+      ).registry?.paymaster?.isValidatedDefault,
+      true
+    );
+    assert.equal(
+      (
+        paymasterWorkflowOrchestrator.data as {
+          workflowRecommendedCommands: { inspectDefaults?: string };
+        }
+      ).workflowRecommendedCommands.inspectDefaults,
+      'zk-agent defaults'
+    );
+  }
+
   const tokenizedWorkflowOrchestrator = await runStandardAgentTool(
     workflowRunnableContext,
     'workflowOrchestratorTool',
@@ -2741,6 +2965,14 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
   );
   assert.equal(tokenizedWorkflowOrchestrator.ok, true);
   if (tokenizedWorkflowOrchestrator.ok) {
+    assert.equal(
+      (
+        tokenizedWorkflowOrchestrator.data as {
+          workflowRecommendedCommands: { inspectDefaults?: string };
+        }
+      ).workflowRecommendedCommands.inspectDefaults,
+      'zk-agent defaults'
+    );
     assert.equal(
       (
         tokenizedWorkflowOrchestrator.data as {
@@ -2772,6 +3004,14 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
         }
       ).workflowRecommendedCommands.inspectToken,
       'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+    );
+    assert.equal(
+      (
+        tokenizedWorkflowOrchestrator.data as {
+          registry?: { swap?: unknown; bridge?: unknown; paymaster?: unknown };
+        }
+      ).registry,
+      undefined
     );
   }
 

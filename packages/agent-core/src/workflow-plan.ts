@@ -10,6 +10,12 @@ import {
   buildSwapRegistryNotes,
   findSwapProtocolRegistryEntry,
   loadValidatedDefaults,
+  resolveBridgeRegistryResolution,
+  resolvePaymasterRegistryResolution,
+  resolveSwapRegistryResolution,
+  type BridgeRegistryResolution,
+  type PaymasterRegistryResolution,
+  type SwapRegistryResolution,
   resolveTrackedBridgeRoute
 } from './validated-defaults.js';
 import {
@@ -37,6 +43,12 @@ export interface WorkflowPlanStep extends WalletNextAction {
   kind: 'prerequisite' | 'goal';
 }
 
+export interface WorkflowPlanRegistry {
+  swap?: SwapRegistryResolution;
+  bridge?: BridgeRegistryResolution;
+  paymaster?: PaymasterRegistryResolution;
+}
+
 export interface WorkflowPlan {
   walletName: string;
   chain: string;
@@ -54,6 +66,7 @@ export interface WorkflowPlan {
     FundingInfo,
     'route' | 'sourceChain' | 'sourceChainId' | 'recommendedAction' | 'fundingUrl'
   >;
+  registry?: WorkflowPlanRegistry;
   recommendedCommand: string;
   goalCommand: string;
   steps: WorkflowPlanStep[];
@@ -64,6 +77,18 @@ interface GoalStepResult {
   goal: string;
   command: string;
   notes: string[];
+}
+
+function resolvePreferredWorkflowSwapProtocol(
+  protocol: WorkflowSwapProtocol | undefined,
+  defaults = loadValidatedDefaults()
+): WorkflowSwapProtocol | undefined {
+  return (
+    protocol ||
+    (defaults.surfaceMatrix.swap.validatedDefaultEntryId as WorkflowSwapProtocol | null) ||
+    (defaults.surfaceMatrix.swap.manualFallbackEntryId as WorkflowSwapProtocol | null) ||
+    undefined
+  );
 }
 
 function buildTokenDiscoveryNotes(chain: string): string[] {
@@ -111,11 +136,7 @@ function buildSwapGoalStep(input: {
   paymaster?: PaymasterSelectionInput;
 }): GoalStepResult {
   const defaults = loadValidatedDefaults();
-  const preferredProtocol =
-    input.protocol ||
-    (defaults.surfaceMatrix.swap.validatedDefaultEntryId as WorkflowSwapProtocol | null) ||
-    (defaults.surfaceMatrix.swap.manualFallbackEntryId as WorkflowSwapProtocol | null) ||
-    undefined;
+  const preferredProtocol = resolvePreferredWorkflowSwapProtocol(input.protocol, defaults);
 
   if (preferredProtocol === 'syncswap-classic') {
     const entry = findSwapProtocolRegistryEntry({
@@ -329,6 +350,13 @@ export function buildWorkflowPlan(input: {
     toChain: input.toChain,
     paymaster: input.paymaster
   });
+  const resolvedPaymaster = workflowIntentSupportsPaymaster(input.intent)
+    ? resolveEffectivePaymasterSelection(input.wallet, input.paymaster)
+    : undefined;
+  const preferredSwapProtocol =
+    input.intent === 'swap'
+      ? resolvePreferredWorkflowSwapProtocol(input.protocol)
+      : undefined;
   const resolvedBridgeTarget =
     input.intent === 'bridge'
       ? resolveTrackedBridgeRoute({
@@ -345,6 +373,90 @@ export function buildWorkflowPlan(input: {
       'Run this command after the prerequisite steps are satisfied to execute the requested workflow.',
     command: goal.command
   };
+  const registry: WorkflowPlanRegistry | undefined =
+    resolvedPaymaster?.mode && resolvedPaymaster.mode !== 'none'
+      ? {
+          ...(preferredSwapProtocol
+            ? {
+                swap: resolveSwapRegistryResolution({
+                  chain: input.wallet.chain,
+                  protocol: preferredSwapProtocol
+                })
+              }
+            : {}),
+          ...(() => {
+            if (input.intent === 'bridge' && resolvedBridgeTarget) {
+              return {
+                bridge: resolveBridgeRegistryResolution({
+                  fromChain: input.wallet.chain,
+                  toChain: resolvedBridgeTarget
+                })
+              };
+            }
+            if (input.intent === 'deposit') {
+              return {
+                bridge: resolveBridgeRegistryResolution({
+                  fromChain: 'ethereum-sepolia',
+                  toChain: input.wallet.chain
+                })
+              };
+            }
+            if (input.intent === 'withdraw') {
+              return {
+                bridge: resolveBridgeRegistryResolution({
+                  fromChain: input.wallet.chain,
+                  toChain: 'ethereum-sepolia'
+                })
+              };
+            }
+            return {};
+          })(),
+          paymaster: resolvePaymasterRegistryResolution({
+            chain: input.inspection.chain,
+            mode: resolvedPaymaster.mode,
+            paymasterAddress: resolvedPaymaster.address,
+            tokenAddress: resolvedPaymaster.token
+          })
+        }
+      : {
+          ...(preferredSwapProtocol
+            ? {
+                swap: resolveSwapRegistryResolution({
+                  chain: input.wallet.chain,
+                  protocol: preferredSwapProtocol
+                })
+              }
+            : {}),
+          ...(() => {
+            if (input.intent === 'bridge' && resolvedBridgeTarget) {
+              return {
+                bridge: resolveBridgeRegistryResolution({
+                  fromChain: input.wallet.chain,
+                  toChain: resolvedBridgeTarget
+                })
+              };
+            }
+            if (input.intent === 'deposit') {
+              return {
+                bridge: resolveBridgeRegistryResolution({
+                  fromChain: 'ethereum-sepolia',
+                  toChain: input.wallet.chain
+                })
+              };
+            }
+            if (input.intent === 'withdraw') {
+              return {
+                bridge: resolveBridgeRegistryResolution({
+                  fromChain: input.wallet.chain,
+                  toChain: 'ethereum-sepolia'
+                })
+              };
+            }
+            return {};
+          })()
+        };
+  const normalizedRegistry =
+    registry && Object.values(registry).some((entry) => entry !== undefined) ? registry : undefined;
 
   const steps = [...preparationSteps, goalStep];
   const readyForGoal = !preparationSteps.some((step) => step.priority === 'required');
@@ -419,6 +531,7 @@ export function buildWorkflowPlan(input: {
           fundingUrl: input.funding.fundingUrl
         }
       : undefined,
+    registry: normalizedRegistry,
     recommendedCommand: steps[0].command,
     goalCommand: goal.command,
     steps,

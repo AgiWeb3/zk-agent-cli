@@ -52,6 +52,7 @@ test('workflow plan returns explicit token discovery commands for tokenized inte
 
     assert.equal(result.ok, true);
     assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
       next: result.plan.recommendedCommand,
       goal: result.plan.goalCommand,
       workflowHelp: 'zk-agent workflow --help',

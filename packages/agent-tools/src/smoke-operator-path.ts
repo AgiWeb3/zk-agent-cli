@@ -189,6 +189,7 @@ async function main(): Promise<void> {
         walletNext.ok ? walletNext.data.summary.recommendedCommand : undefined,
       workflowAction: workflowAuto.ok ? workflowAuto.data.action : undefined,
       workflowStage,
+      workflowRegistry: workflowAuto.ok ? workflowAuto.data.registry : undefined,
       workflowNextCommand: workflowAuto.ok
         ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
         : undefined,
