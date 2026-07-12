@@ -7,6 +7,35 @@ export {
 
 import type { WalletNextSummary } from '@zk-agent/agent-core';
 
+import {
+  buildAssetsRecommendedCommand,
+  buildOwnedTokensRecommendedCommand,
+  buildResolveTokenRecommendedCommand,
+  buildTokensRecommendedCommand,
+  buildWalletStatusRecommendedCommand
+} from './recommended-commands.js';
+
+export function buildWalletNextRecommendedCommands(
+  walletName: string,
+  summary: WalletNextSummary
+): {
+  discoverAssets: string;
+  discoverOwnedTokens: string;
+  discoverTokens: string;
+  inspectToken: string;
+  walletStatus: string;
+  nextAction?: string;
+} {
+  return {
+    discoverAssets: buildAssetsRecommendedCommand(walletName),
+    discoverOwnedTokens: buildOwnedTokensRecommendedCommand(walletName),
+    discoverTokens: buildTokensRecommendedCommand(summary.chain),
+    inspectToken: buildResolveTokenRecommendedCommand(summary.chain),
+    walletStatus: buildWalletStatusRecommendedCommand(walletName),
+    ...(summary.recommendedCommand ? { nextAction: summary.recommendedCommand } : {})
+  };
+}
+
 export function walletNextLines(summary: WalletNextSummary): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['wallet', summary.walletName],

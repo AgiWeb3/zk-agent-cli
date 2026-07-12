@@ -51,6 +51,7 @@ Important local files/directories:
 
 ```text
 ~/.zk-agent/config.json
+~/.zk-agent/agent/profile.json
 ~/.zk-agent/wallets/
 ~/.zk-agent/requests/
 ~/.zk-agent/workflows/
@@ -74,6 +75,13 @@ This creates local config and records the default chain and connector URL.
 pnpm zk-agent next
 ```
 
+If you want the local operator identity to be explicit and portable instead of
+anonymous local state, save it once:
+
+```bash
+pnpm zk-agent agent set --name "<operator-name>" --wallet main
+```
+
 This is the default decision point across setup, wallet bootstrap/recovery, and
 stored workflow continuation.
 
@@ -86,6 +94,21 @@ pnpm zk-agent wallet create --await-local
 This is the preferred path in the current phase because the CLI waits for the
 local connector callback and can immediately persist the approved session.
 
+When the operator wants a tighter writable session, request the guardrails at
+creation time instead of approving an unrestricted session first:
+
+```bash
+pnpm zk-agent wallet create --await-local --session-preset transfer-only
+pnpm zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
+pnpm zk-agent wallet reapprove --name main --session-preset full-access
+pnpm zk-agent wallet reapprove --name main --disallow-contract-calls
+```
+
+`wallet reapprove` preserves the current stored session permissions by default.
+Only pass the session-policy flags when the goal is to replace those defaults.
+Use `--session-preset` for the common shapes first, then add address allowlists
+only when the workflow needs them.
+
 If the wallet already exists but no longer has a writable local session:
 
 ```bash
@@ -96,6 +119,20 @@ If the connector cannot return directly to the waiting CLI process, create the
 request with `--relay-url <url>`, start the relay prototype, approve in the
 connector, and then either save the generated payload or save the encrypted
 relay package plus its code.
+
+For the shortest relay-backed path in one terminal process:
+
+```bash
+pnpm zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
+pnpm zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
+```
+
+The same path also works non-interactively when a wrapper already has the
+approval code:
+
+```bash
+pnpm zk-agent wallet create --relay-url <url> --wait-relay --code <6-digit-code>
+```
 
 Start the relay:
 
@@ -171,6 +208,7 @@ pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --
 - auto-sync metadata when requested
 - persist a checkpoint when requested
 - create or reuse a session approval request when `--ensure-wallet-session` is supplied, with `await-local`, manual `wallet request approve`, or auto-publish to relay plus relay-driven follow-up when `--relay-url <url>` is supplied
+- pass `--session-preset`, `--session-hours`, `--allow-transfer-to`, `--allow-contract`, `--disallow-transfers`, or `--disallow-contract-calls` together with `--ensure-wallet-session` when the workflow recovery path should reopen a constrained session instead of the default broad write session; `--session-preset intent` derives the narrowest default from the goal
 
 Use `workflow run` only when you explicitly want the lower-level one-shot
 execution surface without the guided checkpoint-oriented wrapper.
@@ -180,6 +218,10 @@ return structured `recommendedCommands`. For tokenized intents, those follow-up
 commands also include `discoverAssets`, `discoverOwnedTokens`,
 `discoverTokens`, and `inspectToken` so a caller can stay on the local-first
 registry path without scraping human notes.
+
+The same JSON outputs also include `agentProfile` and `agentFollowup`, so an
+agent harness can tell whether it should run `zk-agent agent set`,
+`zk-agent agent show`, or relink the saved profile to the active wallet.
 
 For the common direct execution path, the CLI also exposes intent-specific
 shortcuts such as `workflow send-native`, `workflow swap`, `workflow bridge`,

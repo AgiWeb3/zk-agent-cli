@@ -8,6 +8,8 @@ import {
   type WorkflowStatusResult
 } from '@zk-agent/agent-core';
 
+import { loadToolAgentProfileSummary } from './agent-profile-summary.js';
+import { buildAgentProfileFollowup, type AgentProfileFollowup } from './agent-profile-followup.js';
 import {
   createAgentTool,
   requireWalletRecord,
@@ -42,6 +44,8 @@ export interface WorkflowNextSummary {
 }
 
 export interface WorkflowNextToolOutput {
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
   result: WorkflowStatusResult;
   summary: WorkflowNextSummary;
   recommendedCommands: WorkflowToolRecommendedCommands;
@@ -54,6 +58,8 @@ export interface WorkflowNextByCheckpointToolInput {
 export interface WorkflowNextByCheckpointToolOutput {
   requestId: string;
   checkpoint: WorkflowCheckpointRecord;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
   result: WorkflowStatusResult;
   summary: WorkflowNextSummary;
   recommendedCommands: WorkflowToolRecommendedCommands;
@@ -100,7 +106,13 @@ export function createWorkflowNextTool(context: AgentToolContext) {
 
         const summary = buildWorkflowNextSummary(result);
 
+        const agentProfile = await loadToolAgentProfileSummary(wallet.walletName);
         return {
+          agentProfile,
+          agentFollowup: buildAgentProfileFollowup(agentProfile, {
+            walletName: wallet.walletName,
+            walletExists: true
+          }),
           result,
           summary,
           recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
@@ -145,9 +157,15 @@ export function createWorkflowNextByCheckpointTool(context: AgentToolContext) {
 
       const summary = buildWorkflowNextSummary(result);
 
+      const agentProfile = await loadToolAgentProfileSummary(wallet.walletName);
       return {
         requestId: input.requestId,
         checkpoint: updatedCheckpoint,
+        agentProfile,
+        agentFollowup: buildAgentProfileFollowup(agentProfile, {
+          walletName: wallet.walletName,
+          walletExists: true
+        }),
         result,
         summary,
         recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({

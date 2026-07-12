@@ -1,14 +1,25 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { createZkSyncAgentToolContext, createZkSyncAgentTools } from './create-zksync-toolset.js';
+import type { StandardAgentTools } from './create-toolset.js';
+import type { AgentToolContext } from './types.js';
 
-interface SmokePaymasterSuccessOptions {
+export interface SmokePaymasterSuccessOptions {
   walletName: string;
   execute: boolean;
   to?: string;
   amount: string;
   paymasterAddress?: string;
   paymasterToken?: string;
+}
+
+interface SmokePaymasterSuccessRuntime {
+  context: Pick<AgentToolContext, 'loadWallet'>;
+  tools: Pick<StandardAgentTools, 'workflowAutoTool'>;
+  resolveDefaultPaymasterAddress?: () => Promise<string | undefined>;
+  resolveDefaultPaymasterToken?: () => Promise<string | undefined>;
 }
 
 interface DeploymentRecord {
@@ -163,10 +174,16 @@ async function resolveDefaultPaymasterToken(): Promise<string | undefined> {
     : undefined;
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
-  const context = createZkSyncAgentToolContext();
-  const tools = createZkSyncAgentTools();
+export async function runSmokePaymasterSuccess(
+  options: SmokePaymasterSuccessOptions,
+  runtime: SmokePaymasterSuccessRuntime
+) {
+  const {
+    context,
+    tools,
+    resolveDefaultPaymasterAddress: resolvePaymasterAddress = resolveDefaultPaymasterAddress,
+    resolveDefaultPaymasterToken: resolvePaymasterToken = resolveDefaultPaymasterToken
+  } = runtime;
   const wallet = await context.loadWallet(options.walletName);
 
   if (!wallet) {
@@ -181,7 +198,7 @@ async function main(): Promise<void> {
   }
 
   const expectedDefaultPaymasterAddress =
-    wallet.sessionPayload?.paymaster?.address || (await resolveDefaultPaymasterAddress());
+    wallet.sessionPayload?.paymaster?.address || (await resolvePaymasterAddress());
   if (!options.paymasterAddress && !expectedDefaultPaymasterAddress) {
     throw new Error(
       'Unable to resolve the tracked validated paymaster address. Pass --paymaster-address explicitly or deploy the EraVM paymaster assets first.'
@@ -189,7 +206,7 @@ async function main(): Promise<void> {
   }
 
   const expectedDefaultPaymasterToken =
-    wallet.sessionPayload?.paymaster?.token || (await resolveDefaultPaymasterToken());
+    wallet.sessionPayload?.paymaster?.token || (await resolvePaymasterToken());
   if (!options.paymasterToken && !expectedDefaultPaymasterToken) {
     throw new Error(
       'Unable to resolve the tracked validated EraVM fee token. Pass --paymaster-token explicitly or deploy the EraVM token assets first.'
@@ -217,7 +234,7 @@ async function main(): Promise<void> {
   });
 
   if (!result.ok) {
-    writeJson({
+    return {
       ok: false,
       walletName: options.walletName,
       phase: options.execute ? 'broadcast' : 'preview',
@@ -229,14 +246,12 @@ async function main(): Promise<void> {
         expectedDefaultPaymasterToken
       },
       error: result.error
-    });
-    process.exitCode = 1;
-    return;
+    };
   }
 
   const execution = result.data.run;
   if (result.data.action !== 'goal-executed' || execution?.stage !== 'goal-executed') {
-    writeJson({
+    return {
       ok: false,
       walletName: options.walletName,
       phase: options.execute ? 'broadcast' : 'preview',
@@ -250,9 +265,7 @@ async function main(): Promise<void> {
       message:
         'Expected the paymaster-backed workflow auto path to execute the goal action directly, but it remained blocked or dispatched a separate funding step instead.',
       result: result.data
-    });
-    process.exitCode = 1;
-    return;
+    };
   }
 
   const txHash =
@@ -287,7 +300,7 @@ async function main(): Promise<void> {
     );
   }
 
-  writeJson({
+  return {
     ok: true,
     walletName: options.walletName,
     phase: options.execute ? 'broadcast' : 'preview',
@@ -302,13 +315,33 @@ async function main(): Promise<void> {
       stage: execution.stage,
       goalMode: 'mode' in execution.goal ? execution.goal.mode : undefined,
       txHash,
+      agentProfile: result.data.agentProfile,
+      agentFollowup: result.data.agentFollowup,
       registry: result.data.registry,
       paymaster: resolvedPaymaster,
       nextCommand: execution.nextCommand,
       recommendedCommands: result.data.workflowRecommendedCommands,
       notes: execution.notes
     }
-  });
+  };
 }
 
-await main();
+function isDirectExecution(metaUrl: string): boolean {
+  const entryPath = process.argv[1];
+  if (!entryPath) return false;
+  return path.resolve(fileURLToPath(metaUrl)) === path.resolve(entryPath);
+}
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const payload = await runSmokePaymasterSuccess(options, {
+    context: createZkSyncAgentToolContext(),
+    tools: createZkSyncAgentTools()
+  });
+
+  writeJson(payload);
+}
+
+if (isDirectExecution(import.meta.url)) {
+  await main();
+}

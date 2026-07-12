@@ -19,6 +19,8 @@ import {
   type WorkflowSwapProtocol
 } from '@zk-agent/agent-core';
 
+import { loadToolAgentProfileSummary } from './agent-profile-summary.js';
+import { buildAgentProfileFollowup, type AgentProfileFollowup } from './agent-profile-followup.js';
 import { createAgentTool, requireWalletRecord } from './tool-helpers.js';
 import {
   buildWorkflowRuntimeToolRecommendedCommands,
@@ -46,6 +48,7 @@ export interface WorkflowOrchestratorToolInput extends Partial<WalletNameInput> 
   ensureWalletSession?: boolean;
   approvalConnectorUrl?: string;
   approvalRelayUrl?: string;
+  approvalPolicies?: WalletApprovalOrchestratorToolInput['policies'];
   approvalPayload?: WalletApprovalOrchestratorToolInput['payload'];
   approvalEncryptedPayload?: WalletApprovalOrchestratorToolInput['encryptedPayload'];
   approvalCode?: WalletApprovalOrchestratorToolInput['code'];
@@ -62,6 +65,8 @@ export interface WorkflowOrchestratorToolOutput {
     | WalletApprovalOrchestratorToolOutput['stage'];
   requestId?: string;
   checkpointPersisted: boolean;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
   checkpoint?: WorkflowCheckpointRecord;
   status: WorkflowStatusResult;
   run?: WorkflowRunResult;
@@ -376,6 +381,7 @@ function createWorkflowOrchestratorToolWithName(
           walletName: resolved.walletName,
           connectorUrl: input.approvalConnectorUrl,
           relayUrl: input.approvalRelayUrl,
+          policies: input.approvalPolicies,
           payload: input.approvalPayload,
           encryptedPayload: input.approvalEncryptedPayload,
           code: input.approvalCode,
@@ -463,12 +469,19 @@ function createWorkflowOrchestratorToolWithName(
         chain: run?.plan.chain || status.plan.chain,
         intent: status.intent
       });
+      const agentProfile = await loadToolAgentProfileSummary(resolved.walletName);
+      const agentFollowup = buildAgentProfileFollowup(agentProfile, {
+        walletName: resolved.walletName,
+        walletExists: true
+      });
 
       return {
         source: resolved.source,
         action: run ? run.stage : (walletApproval?.stage ?? status.status),
         requestId: checkpoint?.requestId || resolved.requestId,
         checkpointPersisted: Boolean(checkpoint),
+        agentProfile,
+        agentFollowup,
         checkpoint,
         status,
         run,

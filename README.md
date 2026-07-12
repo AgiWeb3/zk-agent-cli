@@ -75,18 +75,21 @@ What is already in place:
   - local write readiness blockers
   - the shortest remediation path for local execution
 - `next` as the top-level operator entrypoint, so one command can route the user to `setup`, wallet bootstrap/recovery, or the next workflow checkpoint action
-- `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, and funding detection into one operator-facing summary
-- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`, now fills the current registry-backed default swap/bridge path when the tracked route is unambiguous, and returns JSON `recommendedCommands` for the immediate operator follow-up
+- `agent status|show|set|export|import|clear` for local-first agent identity metadata, so operator tooling can persist and move one stable profile without pretending a zkSync-native onchain reputation standard already exists
+- `next`, `workflow`, and the matching agent-tools workflow/top-level outputs now also surface `agentProfile` plus machine-readable `agentFollowup`, so callers can tell whether the local operator identity is missing, only needs inspection, or should be relinked to the active wallet, while wallet-ready top-level routing now also points at local asset and token discovery instead of assuming the operator already knows which token surface to inspect
+- `wallet next` for the shortest next-step CLI guidance, combining status, sync/deploy/reapprove hints, funding detection, and direct `assets` / `tokens --owned` / `tokens --chain` / `resolve-token` follow-ups into one operator-facing summary
+- `workflow plan` for higher-level action sequencing, so one command can spell out the prerequisite and execution steps for `send`, `swap`, `bridge`, `deposit`, and `withdraw`, now fills the current registry-backed default swap/bridge path when the tracked route is unambiguous, returns JSON `recommendedCommands` for the immediate operator follow-up, and prints the same asset/token discovery follow-ups in TTY mode when token resolution matters
 - workflow `plan` / `status` / `next` / `run` outputs now surface structured registry summaries in the TTY layer as well, and their `recommendedCommands` consistently include `zk-agent defaults` as the machine-readable registry escape hatch
 - `workflow fund` as a workflow-first alias for the default funding step, so the canonical operator path no longer has to jump back out to the top-level `fund` command family
 - `workflow start` for persisting a local workflow checkpoint keyed by `requestId`, so longer-running flows can resume without re-entering the full goal payload
 - `workflow run` for bounded orchestration: it can auto-sync local metadata, dispatch a separate funding step when gas is missing, and only executes the goal action once the wallet is actually ready
 - `workflow auto` for guided orchestration from either fresh goal input or a stored checkpoint, so one command can inspect readiness, optionally persist a checkpoint, resolve wallet-session blockers, and execute immediately when the workflow is ready
 - `workflow next` for the shortest next-step CLI guidance at the workflow layer, from either fresh goal input or a stored checkpoint
-- tokenized `workflow status|next|auto|resume|run` JSON outputs now also surface `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` follow-ups alongside the concrete next action, so operator tooling does not need to infer local token-registry recovery paths from free-form notes
+- tokenized `workflow status|next|auto|resume|run` JSON outputs now also surface `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` follow-ups alongside the concrete next action, and the same workflow commands now print those follow-ups directly in TTY mode, so operator tooling does not need to infer local token-registry recovery paths from free-form notes
 - `zk-agent next --request-id <id>` now mirrors that tokenized workflow follow-up shape for stored checkpoints, including `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` when the checkpoint intent depends on token resolution
 - intent-specific workflow shortcuts such as `workflow send-native`, `workflow swap`, and `workflow bridge`, so the common execution path no longer has to repeat `run --intent ...`
 - `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and one-step relay publish plus relay status/approve guidance
+- the same workflow ensure-wallet-session path now also accepts `--session-preset`, `--session-hours`, `--allow-transfer-to`, `--allow-contract`, `--disallow-transfers`, and `--disallow-contract-calls`, so guided workflow recovery can request a constrained session instead of always reopening a broad default session; `--session-preset intent` can derive the narrowest default from the workflow goal
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
 - `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
 - `workflow` and `wallet next` now treat supported paymaster-backed smart-account writes as gas-satisfied even when the stored native balance is zero, so `send` / `send-token` / `call` / `swap` do not get blocked behind an unnecessary fund step before paymaster validation is attempted
@@ -99,7 +102,10 @@ What is already in place:
 - `wallet reapprove --await-local` for reacquiring a writable local session after restore without dropping recovered smart-account metadata
 - local connector approval loop support via:
   - `wallet create --await-local`
+  - `wallet create|reapprove --session-preset <preset> --session-hours <hours> --allow-transfer-to <address> --allow-contract <address> --disallow-transfers --disallow-contract-calls` for explicit session guardrails at request time, with `reapprove` preserving the current stored permissions by default when no override flags are supplied
   - `wallet create --relay-url <url>` / `wallet reapprove --relay-url <url>` for one-step remote approval publishing
+  - `wallet create --relay-url <url> --wait-relay --prompt-code` / `wallet reapprove --relay-url <url> --wait-relay --prompt-code` for a single CLI invocation that waits for relay readiness and then finishes after one approval-code entry
+  - `wallet create|reapprove --relay-url <url> --wait-relay --code <code>` for the same relay-completion path in non-interactive automation
   - auto-consume of approved local requests
   - `wallet request await-local`
   - `wallet request approve --payload ...` for non-colocated/manual connector return
@@ -108,6 +114,7 @@ What is already in place:
   - `wallet request list` with expired-request pruning
   - connector callback handoff back into the waiting CLI process
 - first agent-facing tool surface in `packages/agent-tools` for:
+  - local agent profile read/write/export/import through `getAgentProfileTool`, `setAgentProfileTool`, `exportAgentProfileTool`, and `importAgentProfileTool`
   - funding guidance, including route-aware suggested commands
   - top-level next-step guidance across setup, wallet readiness, and stored workflow checkpoints
   - workflow-first funding execution that reuses the validated deposit / bridge path when execution is requested
@@ -304,6 +311,10 @@ For connector relay fallback, encrypted approval payloads, checkpoint lifecycle,
 and the full verified command sequence, use
 [skills/QUICKSTART.md](./skills/QUICKSTART.md).
 
+For the current machine-readable operator contract across `next`, `workflow`,
+and the smoke/product validation layer, use
+[docs/10-operator-json-contract.md](./docs/10-operator-json-contract.md).
+
 ## User-Facing Command Model
 
 From an operator point of view, the CLI now has one consistent shape:
@@ -312,8 +323,8 @@ From an operator point of view, the CLI now has one consistent shape:
 pnpm zk-agent <top-level-command> [subcommand] [flags]
 ```
 
-The command surface is intentionally organized around three help entrypoints
-plus one lower-level escape hatch.
+The command surface is intentionally organized around three help entrypoints,
+one local identity surface, plus one lower-level escape hatch.
 
 ### 1. Product entrypoint
 
@@ -341,15 +352,25 @@ wallet-layer view:
 
 ```bash
 pnpm zk-agent wallet create --await-local
+pnpm zk-agent wallet create --await-local --session-preset transfer-only
+pnpm zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
 pnpm zk-agent next
 pnpm zk-agent wallet reapprove --name main --await-local
+pnpm zk-agent wallet reapprove --name main --session-preset full-access
+pnpm zk-agent wallet reapprove --name main --disallow-contract-calls
 pnpm zk-agent next
 pnpm zk-agent wallet status --name main
 pnpm zk-agent wallet next --name main
 ```
 
 `wallet next` is the narrowed wallet-only view when you already know the issue
-is inside one stored wallet record.
+is inside one stored wallet record. When you need a tighter session, put the
+guardrails directly on `wallet create|reapprove`: use `--session-preset` for
+the common shapes (`full-access`, `transfer-only`, `contract-only`, `readonly`),
+use `--session-hours` to time-box the approval, `--allow-transfer-to` and
+`--allow-contract` to turn the session into an address allowlist, or
+`--disallow-transfers` / `--disallow-contract-calls` to remove those
+capabilities entirely.
 
 ### 3. Workflow entrypoint
 
@@ -358,6 +379,8 @@ you want the execution path. This is the action-layer view:
 
 ```bash
 pnpm zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
+pnpm zk-agent workflow auto --wallet main --intent <intent> --ensure-wallet-session --session-hours 12 --allow-contract <contract-address>
 pnpm zk-agent workflow start --wallet main --intent <intent> [goal flags]
 pnpm zk-agent workflow status --request-id <id>
 pnpm zk-agent workflow next --request-id <id>
@@ -370,8 +393,28 @@ Use `workflow auto` for the guided default path. Use
 `workflow start/status/next/resume` for explicit checkpointed execution,
 `workflow fund` when you only want to dispatch the gas-funding step, and
 `workflow run` only when you explicitly want the lower-level one-shot path.
+When `--ensure-wallet-session` is enabled, the same session guardrail flags from
+`wallet create|reapprove` can be passed here as well, including
+`--session-preset intent` when the goal should auto-derive the narrowest
+default session.
 
 ### 4. Direct commands
+
+The local identity/profile surface is separate from wallet/session state:
+
+```bash
+pnpm zk-agent agent status
+pnpm zk-agent agent set --name "SED Operator" --wallet main
+pnpm zk-agent agent show
+pnpm zk-agent agent export
+pnpm zk-agent agent import --payload @agent-profile.json --overwrite
+```
+
+Use `agent` when you need stable local operator metadata for harnesses, logs, or
+profile export, but do not want to imply that the project already ships a
+canonical zkSync reputation protocol.
+
+### 5. Direct commands
 
 The top-level action commands still exist, but they are the lower-level path:
 
@@ -395,8 +438,9 @@ from the stored symbol on the active chain instead of requiring a raw address
 every time.
 
 `workflow plan` now also emits symbol-first token skeletons for `send-token`
-and `swap`, and points operators to `tokens` / `resolve-token` when they need
-to inspect the current local-first registry before execution.
+and `swap`, and points operators to `assets`, `tokens --owned`, `tokens`, and
+`resolve-token` when they need to inspect the current local-first registry
+before execution.
 
 If you want broader symbol coverage without hardcoding addresses into commands,
 set `ZK_AGENT_TOKEN_DIRECTORY_ROOT` to a local token-directory checkout or
@@ -543,7 +587,8 @@ Recommended root wrappers for the current stable product surface:
 - `pnpm smoke:operator-path -- --wallet <name>` validates the canonical
   `next -> wallet -> workflow auto -> funding fallback or goal preview` path
   and now returns structured follow-up fields in `summary`, including
-  `topLevelRecommendedCommands` and `workflowRecommendedCommands`
+  `topLevelRecommendedCommands`, `workflowRecommendedCommands`,
+  `topLevelAgentFollowup`, and `workflowAgentFollowup`
 - `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]`
   aggregates the current product-level live validation sequence:
   canonical operator path, validated paymaster-backed workflow-auto path, and
@@ -552,7 +597,8 @@ Recommended root wrappers for the current stable product surface:
 - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` validates the
   tracked approval-based Sepolia paymaster path, including the mode-only
   fallback to the tracked validated paymaster address and EraVM fee token,
-  and now exposes the workflow-layer `recommendedCommands` used by that path
+  and now exposes the workflow-layer `recommendedCommands` plus
+  `agentFollowup` used by that path
 - `pnpm validate:phase3` runs the current Phase 3 regression set across
   `agent-core`, `agent-tools`, and `zk-agent-cli`
 

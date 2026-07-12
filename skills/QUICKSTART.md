@@ -34,10 +34,31 @@ pnpm zk-agent wallet create --await-local
 This is the preferred path because the CLI waits for the local connector
 callback and stores the approved session immediately.
 
+When the session should be tighter than the default unrestricted write path,
+add request-time guardrails directly here:
+
+```bash
+pnpm zk-agent wallet create --await-local --session-preset transfer-only
+pnpm zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
+pnpm zk-agent wallet reapprove --name main --session-preset full-access
+pnpm zk-agent wallet reapprove --name main --disallow-contract-calls
+```
+
+`wallet reapprove` keeps the current stored session permissions by default. Only
+pass `--session-preset`, `--session-hours`, `--allow-transfer-to`,
+`--allow-contract`, `--disallow-transfers`, or `--disallow-contract-calls`
+when you want to replace those defaults.
+
 The command output also includes the post-approval follow-ups:
 
 - `zk-agent next`
 - `zk-agent wallet status --name <wallet>`
+
+If you want the local operator identity bound to this wallet, save it once:
+
+```bash
+pnpm zk-agent agent set --name "<operator-name>" --wallet main
+```
 
 The surrounding wallet-management commands follow the same pattern:
 `wallet list`, `wallet request list`, `wallet export`, `wallet rename`,
@@ -53,6 +74,13 @@ If a wallet already exists but the writable local session is missing or stale:
 
 ```bash
 pnpm zk-agent wallet reapprove --name main --await-local
+```
+
+Shortest relay-backed completion path in one terminal process:
+
+```bash
+pnpm zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
+pnpm zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 ```
 
 Manual fallback when the connector cannot call back into the waiting CLI:
@@ -168,6 +196,14 @@ If `workflow auto|run|status|resume` is blocked on a missing writable session, a
 command to auto-publish the approval request to the relay and emit relay
 status/approve follow-up commands instead of only local callback guidance.
 
+That same recovery path also accepts the wallet-session guardrail flags, so the
+workflow can reopen a constrained session instead of a broad default one:
+
+```bash
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-hours 12 --allow-transfer-to <recipient-address>
+pnpm zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
+```
+
 ## 7. Resume blocked or long-running flows
 
 List stored checkpoints:
@@ -201,6 +237,10 @@ pnpm zk-agent workflow next --request-id <id>
 surface `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and
 `inspectToken`, so agent-driven callers can keep moving without rebuilding
 token-registry recovery paths themselves.
+
+The same JSON outputs also include `agentProfile` and `agentFollowup`, so a
+caller can see whether the local operator identity is missing, only needs
+inspection, or should be relinked to the active wallet.
 
 Resume when ready:
 
@@ -336,9 +376,11 @@ pnpm validate:phase3
 Those smoke JSON responses now preserve structured workflow follow-ups:
 
 - `smoke:operator-path` includes `summary.topLevelRecommendedCommands` and
-  `summary.workflowRecommendedCommands`
+  `summary.workflowRecommendedCommands`, plus
+  `summary.topLevelAgentFollowup` and `summary.workflowAgentFollowup`
 - `smoke:product-path` includes per-step `summary.followups`
-- `smoke:paymaster-success` includes `result.recommendedCommands`
+- `smoke:paymaster-success` includes `result.recommendedCommands` plus
+  `result.agentFollowup`
 
 ## Known constraints
 

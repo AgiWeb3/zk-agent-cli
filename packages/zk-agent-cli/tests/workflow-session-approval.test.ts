@@ -146,6 +146,18 @@ function sampleRelay(requestId = 'req12345') {
 
 test('ensureWorkflowWalletSession creates a local wallet request and overrides the recommended command', async () => {
   let created = 0;
+  let capturedOptions:
+    | {
+        walletRecord: WalletSessionRecord;
+        connectorUrl?: string;
+        sessionPreset?: string;
+        sessionHours?: string;
+        allowTransferTo?: string[];
+        allowContract?: string[];
+        disallowTransfers?: boolean;
+        disallowContractCalls?: boolean;
+      }
+    | undefined;
 
   const result = await ensureWorkflowWalletSession(
     {
@@ -158,13 +170,20 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
       },
       status: sampleStatus(),
       options: {
-        ensureWalletSession: true
+        ensureWalletSession: true,
+        connectorUrl: 'http://localhost:4444',
+        sessionHours: '12',
+        allowTransferTo: ['0x3333333333333333333333333333333333333333'],
+        allowContract: ['0x4444444444444444444444444444444444444444'],
+        disallowTransfers: false,
+        disallowContractCalls: true
       }
     },
     {
       findReusableWalletRequest: async () => undefined,
-      createWalletReapprovalRequest: async () => {
+      createWalletReapprovalRequest: async (options) => {
         created += 1;
+        capturedOptions = options;
         return sampleRequest();
       },
       publishWalletRequestToRelay: async () => {
@@ -180,6 +199,16 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
   );
 
   assert.equal(created, 1);
+  assert.deepEqual(capturedOptions, {
+    walletRecord: sampleWallet,
+    connectorUrl: 'http://localhost:4444',
+    sessionPreset: undefined,
+    sessionHours: '12',
+    allowTransferTo: ['0x3333333333333333333333333333333333333333'],
+    allowContract: ['0x4444444444444444444444444444444444444444'],
+    disallowTransfers: false,
+    disallowContractCalls: true
+  });
   assert.equal(result.walletApproval?.stage, 'request-created');
   assert.equal(result.walletApproval?.reusedRequest, false);
   assert.equal(
@@ -193,6 +222,69 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
   assert.deepEqual(result.walletApproval?.recommendedCommands, {
     awaitLocal: 'zk-agent wallet request await-local --request-id req12345',
     approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json'
+  });
+});
+
+test('ensureWorkflowWalletSession resolves the intent session preset into a concrete reapproval request', async () => {
+  let capturedOptions:
+    | {
+        walletRecord: WalletSessionRecord;
+        connectorUrl?: string;
+        sessionPreset?: string;
+        sessionHours?: string;
+        allowTransferTo?: string[];
+        allowContract?: string[];
+        disallowTransfers?: boolean;
+        disallowContractCalls?: boolean;
+      }
+    | undefined;
+
+  await ensureWorkflowWalletSession(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      status: sampleStatus(),
+      options: {
+        ensureWalletSession: true,
+        sessionPreset: 'intent',
+        allowTransferTo: ['0x4444444444444444444444444444444444444444']
+      }
+    },
+    {
+      findReusableWalletRequest: async () => undefined,
+      createWalletReapprovalRequest: async (options) => {
+        capturedOptions = options;
+        return sampleRequest();
+      },
+      publishWalletRequestToRelay: async () => {
+        throw new Error('publishWalletRequestToRelay should not run without --relay-url');
+      },
+      awaitLocalWalletApproval: async () => {
+        throw new Error('awaitLocalWalletApproval should not run without --await-local');
+      },
+      inspectWorkflowStatus: async () => {
+        throw new Error('inspectWorkflowStatus should not rerun without --await-local');
+      }
+    }
+  );
+
+  assert.deepEqual(capturedOptions, {
+    walletRecord: sampleWallet,
+    connectorUrl: undefined,
+    sessionPreset: 'transfer-only',
+    sessionHours: undefined,
+    allowTransferTo: [
+      '0x3333333333333333333333333333333333333333',
+      '0x4444444444444444444444444444444444444444'
+    ],
+    allowContract: undefined,
+    disallowTransfers: undefined,
+    disallowContractCalls: undefined
   });
 });
 

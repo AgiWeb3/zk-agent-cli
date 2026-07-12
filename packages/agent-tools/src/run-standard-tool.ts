@@ -16,10 +16,10 @@ export interface StandardAgentToolListEntry {
     | 'wallet'
     | 'workflow'
     | 'checkpoint'
-    | 'read'
-    | 'preview'
-    | 'write'
-    | 'account';
+  | 'read'
+  | 'preview'
+  | 'write'
+  | 'account';
   cliCommand?: string;
   operatorPathStage?:
     | 'decide-next'
@@ -234,7 +234,16 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
     group: 'wallet',
     cliCommand: 'zk-agent wallet restore --payload <json|@file> [--name <name>]'
   },
+  exportAgentProfileTool: {
+    group: 'account',
+    cliCommand: 'zk-agent agent export'
+  },
   getAssetsTool: { group: 'read', cliCommand: 'zk-agent assets --wallet <name>' },
+  getAgentProfileTool: { group: 'account', cliCommand: 'zk-agent agent show' },
+  importAgentProfileTool: {
+    group: 'account',
+    cliCommand: 'zk-agent agent import --payload <json|@file> [--overwrite]'
+  },
   getBalancesTool: { group: 'read', cliCommand: 'zk-agent balances --wallet <name> [--owned-tokens]' },
   getDefaultsTool: { group: 'read', cliCommand: 'zk-agent defaults' },
   getFundingInfoTool: { group: 'read', cliCommand: 'zk-agent fund --wallet <name>' },
@@ -267,6 +276,10 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
   sendTokenTool: {
     group: 'write',
     cliCommand: 'zk-agent send-token --wallet <name> --token <address> --to <address> --amount <amount>'
+  },
+  setAgentProfileTool: {
+    group: 'account',
+    cliCommand: 'zk-agent agent set --name <name> [--wallet <name>]'
   },
   withdrawPreviewTool: {
     group: 'preview',

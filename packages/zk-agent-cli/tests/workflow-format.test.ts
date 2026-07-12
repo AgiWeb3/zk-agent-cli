@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  workflowFollowupLines,
   workflowPlanLines,
   workflowRunLines,
   workflowStatusLines
@@ -175,4 +176,24 @@ test('workflowRunLines includes structured paymaster registry summary', () => {
     'zksync-sepolia-approval-based-eravm (validated, tracked-default)'
   );
   assert.equal(lineValue(lines, 'registry paymaster default'), 'yes');
+});
+
+test('workflowFollowupLines includes token discovery follow-ups in operator order', () => {
+  const lines = workflowFollowupLines({
+    walletStatus: 'zk-agent wallet status --name main',
+    inspectDefaults: 'zk-agent defaults',
+    discoverAssets: 'zk-agent assets --wallet main',
+    discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+    discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+    inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+  });
+
+  assert.deepEqual(lines, [
+    ['wallet status', 'zk-agent wallet status --name main'],
+    ['inspect defaults', 'zk-agent defaults'],
+    ['discover assets', 'zk-agent assets --wallet main'],
+    ['discover owned tokens', 'zk-agent tokens --wallet main --owned'],
+    ['discover tokens', 'zk-agent tokens --chain zksync-sepolia'],
+    ['inspect token', 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>']
+  ]);
 });

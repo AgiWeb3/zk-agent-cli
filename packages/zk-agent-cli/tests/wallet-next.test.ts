@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { FundingInfo, WalletInspectionResult, WalletSessionRecord } from '@zk-agent/agent-core';
 
 import {
+  buildWalletNextRecommendedCommands,
   buildWalletNextSummary,
   resolveEffectivePaymasterSelection
 } from '../src/lib/wallet-next.ts';
@@ -110,6 +111,26 @@ test('wallet next reports ready when no immediate remediation is needed', () => 
   assert.equal(summary.status, 'ready');
   assert.equal(summary.actions.length, 0);
   assert.match(summary.notes[0] || '', /No immediate remediation step is required/);
+});
+
+test('wallet next recommended commands include assets discovery even when no remediation is needed', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '1.25',
+    nativeSymbol: 'ETH'
+  });
+
+  assert.deepEqual(buildWalletNextRecommendedCommands('main', summary), {
+    discoverAssets: 'zk-agent assets --wallet main',
+    discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+    discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+    inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+    walletStatus: 'zk-agent wallet status --name main'
+  });
 });
 
 test('wallet next suppresses fund guidance when a saved paymaster can cover supported writes', () => {

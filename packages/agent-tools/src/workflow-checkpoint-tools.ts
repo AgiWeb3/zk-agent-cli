@@ -18,6 +18,8 @@ import {
   requireWorkflowCheckpointRecord,
   withWalletRecord
 } from './tool-helpers.js';
+import { loadToolAgentProfileSummary } from './agent-profile-summary.js';
+import { buildAgentProfileFollowup, type AgentProfileFollowup } from './agent-profile-followup.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
 
 export interface StartWorkflowCheckpointToolInput extends WalletNameInput {
@@ -33,6 +35,8 @@ export interface StartWorkflowCheckpointToolInput extends WalletNameInput {
 export interface StartWorkflowCheckpointToolOutput {
   requestId: string;
   checkpoint: WorkflowCheckpointRecord;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
 }
 
 export interface ListWorkflowCheckpointsToolInput {
@@ -42,6 +46,8 @@ export interface ListWorkflowCheckpointsToolInput {
 
 export interface ListWorkflowCheckpointsToolOutput {
   checkpoints: WorkflowCheckpointRecord[];
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
 }
 
 export interface WorkflowCheckpointRequestInput {
@@ -50,6 +56,8 @@ export interface WorkflowCheckpointRequestInput {
 
 export interface GetWorkflowCheckpointToolOutput {
   checkpoint: WorkflowCheckpointRecord;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
 }
 
 export interface UpdateWorkflowCheckpointToolInput extends WorkflowCheckpointRequestInput {
@@ -61,10 +69,14 @@ export interface UpdateWorkflowCheckpointToolInput extends WorkflowCheckpointReq
 
 export interface UpdateWorkflowCheckpointToolOutput {
   checkpoint: WorkflowCheckpointRecord;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
 }
 
 export interface DeleteWorkflowCheckpointToolOutput {
   checkpoint: WorkflowCheckpointRecord;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
 }
 
 async function reserveWorkflowCheckpointId(
@@ -135,9 +147,15 @@ export function createStartWorkflowCheckpointTool(context: AgentToolContext) {
 
         await context.saveWorkflowCheckpoint(checkpoint);
 
+        const agentProfile = await loadToolAgentProfileSummary(wallet.walletName);
         return {
           requestId,
-          checkpoint
+          checkpoint,
+          agentProfile,
+          agentFollowup: buildAgentProfileFollowup(agentProfile, {
+            walletName: wallet.walletName,
+            walletExists: true
+          })
         };
       })
   });
@@ -160,7 +178,15 @@ export function createListWorkflowCheckpointsTool(context: AgentToolContext) {
       }
 
       checkpoints.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-      return { checkpoints };
+      const agentProfile = await loadToolAgentProfileSummary(input.walletName);
+      return {
+        checkpoints,
+        agentProfile,
+        agentFollowup: buildAgentProfileFollowup(agentProfile, {
+          walletName: input.walletName,
+          walletExists: false
+        })
+      };
     }
   });
 }
@@ -169,9 +195,18 @@ export function createGetWorkflowCheckpointTool(context: AgentToolContext) {
   return createAgentTool<WorkflowCheckpointRequestInput, GetWorkflowCheckpointToolOutput>({
     name: 'getWorkflowCheckpointTool',
     description: 'Load one stored workflow checkpoint by request id.',
-    execute: async (input) => ({
-      checkpoint: await requireWorkflowCheckpointRecord(context, input.requestId)
-    })
+    execute: async (input) => {
+      const checkpoint = await requireWorkflowCheckpointRecord(context, input.requestId);
+      const agentProfile = await loadToolAgentProfileSummary(checkpoint.walletName);
+      return {
+        checkpoint,
+        agentProfile,
+        agentFollowup: buildAgentProfileFollowup(agentProfile, {
+          walletName: checkpoint.walletName,
+          walletExists: false
+        })
+      };
+    }
   });
 }
 
@@ -210,8 +245,14 @@ export function createUpdateWorkflowCheckpointTool(context: AgentToolContext) {
       const updated = applyWorkflowCheckpointUpdate(checkpoint, overrides);
       await context.saveWorkflowCheckpoint(updated);
 
+      const agentProfile = await loadToolAgentProfileSummary(updated.walletName);
       return {
-        checkpoint: updated
+        checkpoint: updated,
+        agentProfile,
+        agentFollowup: buildAgentProfileFollowup(agentProfile, {
+          walletName: updated.walletName,
+          walletExists: false
+        })
       };
     }
   });
@@ -224,8 +265,14 @@ export function createDeleteWorkflowCheckpointTool(context: AgentToolContext) {
     execute: async (input) => {
       const checkpoint = await requireWorkflowCheckpointRecord(context, input.requestId);
       await context.deleteWorkflowCheckpoint(input.requestId);
+      const agentProfile = await loadToolAgentProfileSummary(checkpoint.walletName);
       return {
-        checkpoint
+        checkpoint,
+        agentProfile,
+        agentFollowup: buildAgentProfileFollowup(agentProfile, {
+          walletName: checkpoint.walletName,
+          walletExists: false
+        })
       };
     }
   });

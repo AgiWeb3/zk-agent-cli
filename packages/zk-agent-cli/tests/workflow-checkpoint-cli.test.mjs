@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -94,12 +94,42 @@ function sampleCheckpoint(overrides = {}) {
   };
 }
 
+async function saveAgentProfile(homeDir) {
+  const agentDir = path.join(homeDir, '.zk-agent', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(
+    path.join(agentDir, 'profile.json'),
+    JSON.stringify(
+      {
+        format: 'zk-agent-agent-profile',
+        version: 1,
+        agentId: 'sed-checkpoint',
+        name: 'SED Checkpoint Operator',
+        tags: ['checkpoint'],
+        capabilities: ['resume'],
+        metadata: {
+          role: 'operator'
+        },
+        linkedWallet: {
+          walletName: 'main'
+        },
+        createdAt: '2026-07-10T00:00:00.000Z',
+        updatedAt: '2026-07-10T00:00:00.000Z'
+      },
+      null,
+      2
+    ),
+    'utf8'
+  );
+}
+
 test('workflow list/show/delete manage stored checkpoints through the CLI', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-cli-'));
 
   try {
     const env = createCliEnv(homeDir);
     const storage = await loadAgentCoreStorage(homeDir);
+    await saveAgentProfile(homeDir);
     await storage.saveWorkflowCheckpoint(sampleCheckpoint());
     await storage.saveWorkflowCheckpoint(
       sampleCheckpoint({
@@ -123,6 +153,11 @@ test('workflow list/show/delete manage stored checkpoints through the CLI', asyn
 
     const listed = await runCliJson(['workflow', 'list'], env);
     assert.equal(listed.ok, true);
+    assert.equal(listed.agentProfile.profileExists, true);
+    assert.equal(listed.agentProfile.agentId, 'sed-checkpoint');
+    assert.equal(listed.agentProfile.walletRelation, 'linked-other-wallet');
+    assert.equal(listed.agentFollowup.show, 'zk-agent agent show');
+    assert.equal(listed.agentFollowup.nextAction, 'zk-agent agent show');
     assert.equal(listed.count, 2);
     assert.equal(listed.checkpoints[0].requestId, 'wf-test-002');
     assert.equal(listed.checkpoints[1].requestId, 'wf-test-001');
@@ -152,9 +187,14 @@ test('workflow list/show/delete manage stored checkpoints through the CLI', asyn
     const filtered = await runCliJson(['workflow', 'list', '--wallet', 'main'], env);
     assert.equal(filtered.count, 1);
     assert.equal(filtered.checkpoints[0].requestId, 'wf-test-001');
+    assert.equal(filtered.agentProfile.walletRelation, 'linked-active-wallet');
+    assert.equal(filtered.agentFollowup.nextAction, 'zk-agent agent show');
 
     const shown = await runCliJson(['workflow', 'show', '--request-id', 'wf-test-001'], env);
     assert.equal(shown.ok, true);
+    assert.equal(shown.agentProfile.agentId, 'sed-checkpoint');
+    assert.equal(shown.agentProfile.walletRelation, 'linked-active-wallet');
+    assert.equal(shown.agentFollowup.show, 'zk-agent agent show');
     assert.equal(shown.workflowRequestId, 'wf-test-001');
     assert.equal(shown.walletRequestId, 'wr-test-001');
     assert.equal(shown.checkpoint.requestId, 'wf-test-001');
@@ -172,6 +212,9 @@ test('workflow list/show/delete manage stored checkpoints through the CLI', asyn
 
     const deleted = await runCliJson(['workflow', 'delete', '--request-id', 'wf-test-001'], env);
     assert.equal(deleted.ok, true);
+    assert.equal(deleted.agentProfile.agentId, 'sed-checkpoint');
+    assert.equal(deleted.agentProfile.walletRelation, 'linked-active-wallet');
+    assert.equal(deleted.agentFollowup.show, 'zk-agent agent show');
     assert.equal(deleted.workflowRequestId, 'wf-test-001');
     assert.equal(deleted.requestId, 'wf-test-001');
     assert.equal(deleted.walletRequestId, 'wr-test-001');
@@ -195,6 +238,7 @@ test('workflow update changes stored checkpoint runtime settings without replaci
   try {
     const env = createCliEnv(homeDir);
     const storage = await loadAgentCoreStorage(homeDir);
+    await saveAgentProfile(homeDir);
     await storage.saveWorkflowCheckpoint(
       sampleCheckpoint({
         requestId: 'wf-update-001',
@@ -225,6 +269,9 @@ test('workflow update changes stored checkpoint runtime settings without replaci
       env
     );
     assert.equal(updated.ok, true);
+    assert.equal(updated.agentProfile.agentId, 'sed-checkpoint');
+    assert.equal(updated.agentProfile.walletRelation, 'linked-active-wallet');
+    assert.equal(updated.agentFollowup.show, 'zk-agent agent show');
     assert.equal(updated.workflowRequestId, 'wf-update-001');
     assert.equal(updated.checkpoint.broadcast, true);
     assert.equal(updated.checkpoint.autoSync, true);
@@ -245,6 +292,9 @@ test('workflow update changes stored checkpoint runtime settings without replaci
       env
     );
     assert.equal(cleared.ok, true);
+    assert.equal(cleared.agentProfile.agentId, 'sed-checkpoint');
+    assert.equal(cleared.agentProfile.walletRelation, 'linked-active-wallet');
+    assert.equal(cleared.agentFollowup.show, 'zk-agent agent show');
     assert.equal(cleared.workflowRequestId, 'wf-update-001');
     assert.equal(cleared.checkpoint.fundingCheck, undefined);
     assert.equal(cleared.checkpoint.fund, undefined);

@@ -1,9 +1,27 @@
-import { createZkSyncAgentToolContext, createZkSyncAgentTools } from './create-zksync-toolset.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-interface SmokeOperatorPathOptions {
+import { createZkSyncAgentToolContext, createZkSyncAgentTools } from './create-zksync-toolset.js';
+import { buildOperatorPathSummary } from './smoke-summary.js';
+import type { StandardAgentTools } from './create-toolset.js';
+import type { AgentToolContext } from './types.js';
+
+export interface SmokeOperatorPathOptions {
   walletName: string;
   to?: string;
   amount: string;
+}
+
+interface SmokeOperatorPathRuntime {
+  context: Pick<AgentToolContext, 'loadWallet'>;
+  tools: Pick<
+    StandardAgentTools,
+    | 'topLevelNextTool'
+    | 'walletStatusTool'
+    | 'walletNextTool'
+    | 'workflowAutoTool'
+    | 'workflowFundTool'
+  >;
 }
 
 function printUsage(): void {
@@ -93,27 +111,25 @@ function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
-  const context = createZkSyncAgentToolContext();
-  const tools = createZkSyncAgentTools();
-
+export async function runSmokeOperatorPath(
+  options: SmokeOperatorPathOptions,
+  runtime: SmokeOperatorPathRuntime
+) {
+  const { context, tools } = runtime;
   const topLevelNext = await tools.topLevelNextTool.execute({
     walletName: options.walletName
   });
 
   if (!topLevelNext.ok) {
-    writeJson({
+    return {
       ok: false,
       walletName: options.walletName,
       topLevelNext
-    });
-    process.exitCode = 1;
-    return;
+    };
   }
 
   if (topLevelNext.data.scope !== 'wallet') {
-    writeJson({
+    return {
       ok: false,
       walletName: options.walletName,
       phase: topLevelNext.data.scope,
@@ -122,9 +138,7 @@ async function main(): Promise<void> {
           ? 'Local project setup is missing. Run zk-agent setup first.'
           : 'The requested wallet is not available yet. Create or approve the wallet session first.',
       topLevelNext
-    });
-    process.exitCode = 1;
-    return;
+    };
   }
 
   const wallet = await context.loadWallet(options.walletName);
@@ -171,7 +185,7 @@ async function main(): Promise<void> {
     workflowAuto.ok &&
     (workflowStage === 'goal-executed' || Boolean(workflowNeedsFunding && workflowFund?.ok));
 
-  writeJson({
+  return {
     ok,
     walletName: options.walletName,
     targetAddress,
@@ -181,9 +195,11 @@ async function main(): Promise<void> {
     walletNext,
     workflowAuto,
     workflowFund,
-    summary: {
+    summary: buildOperatorPathSummary({
       topLevelScope: topLevelNext.data.scope,
       topLevelNextCommand: topLevelNext.data.nextCommand,
+      topLevelAgentProfile: topLevelNext.data.agentProfile,
+      topLevelAgentFollowup: topLevelNext.data.agentFollowup,
       topLevelRecommendedCommands: topLevelNext.data.recommendedCommands,
       walletNextCommand:
         walletNext.ok ? walletNext.data.summary.recommendedCommand : undefined,
@@ -193,18 +209,38 @@ async function main(): Promise<void> {
       workflowNextCommand: workflowAuto.ok
         ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
         : undefined,
+      workflowAgentProfile: workflowAuto.ok ? workflowAuto.data.agentProfile : undefined,
+      workflowAgentFollowup: workflowAuto.ok ? workflowAuto.data.agentFollowup : undefined,
       walletApprovalRecommendedCommands: workflowAuto.ok
         ? workflowAuto.data.recommendedCommands
         : undefined,
       workflowRecommendedCommands: workflowAuto.ok
         ? workflowAuto.data.workflowRecommendedCommands
         : undefined
-    }
+    })
+  };
+}
+
+function isDirectExecution(metaUrl: string): boolean {
+  const entryPath = process.argv[1];
+  if (!entryPath) return false;
+  return path.resolve(fileURLToPath(metaUrl)) === path.resolve(entryPath);
+}
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const payload = await runSmokeOperatorPath(options, {
+    context: createZkSyncAgentToolContext(),
+    tools: createZkSyncAgentTools()
   });
 
-  if (!ok) {
+  writeJson(payload);
+
+  if (!payload.ok) {
     process.exitCode = 1;
   }
 }
 
-await main();
+if (isDirectExecution(import.meta.url)) {
+  await main();
+}

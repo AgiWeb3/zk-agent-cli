@@ -82,6 +82,9 @@ importers:
       '@zk-agent/agent-session-protocol':
         specifier: workspace:*
         version: link:../agent-session-protocol
+      '@zk-agent/plugin-identity':
+        specifier: workspace:*
+        version: link:../plugin-identity
       '@zk-agent/provider-zksync-defi':
         specifier: workspace:*
         version: link:../provider-zksync-defi
@@ -130,7 +133,11 @@ importers:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@22.19.21)(typescript@5.9.3)
 
-  packages/plugin-identity: {}
+  packages/plugin-identity:
+    dependencies:
+      '@zk-agent/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
 
   packages/provider-zksync-defi:
     dependencies:
@@ -179,6 +186,9 @@ importers:
       '@zk-agent/agent-session-protocol':
         specifier: workspace:*
         version: link:../agent-session-protocol
+      '@zk-agent/plugin-identity':
+        specifier: workspace:*
+        version: link:../plugin-identity
       '@zk-agent/provider-zksync-defi':
         specifier: workspace:*
         version: link:../provider-zksync-defi

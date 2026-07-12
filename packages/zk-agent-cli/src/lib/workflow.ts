@@ -17,6 +17,16 @@ import type {
 } from '@zk-agent/agent-core';
 import type { WorkflowRunResult } from './workflow-run.js';
 
+export interface WorkflowFollowupLinesInput {
+  walletStatus?: string;
+  inspectDefaults?: string;
+  discoverAssets?: string;
+  discoverOwnedTokens?: string;
+  discoverTokens?: string;
+  inspectToken?: string;
+  workflowHelp?: string;
+}
+
 function pushWorkflowRegistryLines(
   lines: Array<[string, string]>,
   registry: WorkflowPlan['registry']
@@ -244,6 +254,36 @@ export function workflowCheckpointLines(
     if (checkpoint.lastRun.fundingTxHash) {
       lines.push(['last funding txHash', checkpoint.lastRun.fundingTxHash]);
     }
+  }
+
+  return lines;
+}
+
+export function workflowFollowupLines(
+  recommendedCommands: WorkflowFollowupLinesInput
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [];
+
+  if (recommendedCommands.walletStatus) {
+    lines.push(['wallet status', recommendedCommands.walletStatus]);
+  }
+  if (recommendedCommands.inspectDefaults) {
+    lines.push(['inspect defaults', recommendedCommands.inspectDefaults]);
+  }
+  if (recommendedCommands.discoverAssets) {
+    lines.push(['discover assets', recommendedCommands.discoverAssets]);
+  }
+  if (recommendedCommands.discoverOwnedTokens) {
+    lines.push(['discover owned tokens', recommendedCommands.discoverOwnedTokens]);
+  }
+  if (recommendedCommands.discoverTokens) {
+    lines.push(['discover tokens', recommendedCommands.discoverTokens]);
+  }
+  if (recommendedCommands.inspectToken) {
+    lines.push(['inspect token', recommendedCommands.inspectToken]);
+  }
+  if (recommendedCommands.workflowHelp) {
+    lines.push(['workflow help', recommendedCommands.workflowHelp]);
   }
 
   return lines;

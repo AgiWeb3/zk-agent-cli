@@ -61,6 +61,7 @@ export interface WalletRestoreToolInput {
 
 export interface WalletReapproveToolInput extends WalletNameInput {
   connectorUrl?: string;
+  policies?: SessionPolicies;
 }
 
 export interface WalletApprovalOrchestratorToolInput {
@@ -222,10 +223,65 @@ function sanitizeSessionPayload(payload: SessionPayload): SanitizedSessionPayloa
   return rest;
 }
 
-function defaultApprovalPolicies(policies?: SessionPolicies): SessionPolicies {
-  return policies || {
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+function cloneSessionPolicies(policies?: SessionPolicies): SessionPolicies | undefined {
+  if (!policies) return undefined;
+
+  return {
+    ...(policies.expiresAt ? { expiresAt: policies.expiresAt } : {}),
+    ...(policies.feeLimit ? { feeLimit: { ...policies.feeLimit } } : {}),
+    transfers: policies.transfers
+      ? policies.transfers.map((policy) => ({
+        ...policy,
+          ...(policy.valueLimit ? { valueLimit: { ...policy.valueLimit } } : {})
+        }))
+      : policies.transfers,
+    contractCalls: policies.contractCalls
+      ? policies.contractCalls.map((policy) => ({
+        ...policy,
+          ...(policy.valueLimit ? { valueLimit: { ...policy.valueLimit } } : {}),
+          ...(policy.constraints
+            ? {
+                constraints: policy.constraints.map((constraint) => ({
+                  ...constraint,
+                  ...(constraint.limit ? { limit: { ...constraint.limit } } : {})
+                }))
+              }
+            : {})
+        }))
+      : policies.contractCalls
   };
+}
+
+function resolveReusableApprovalExpiry(existingExpiresAt?: string): string | undefined {
+  if (!existingExpiresAt) return undefined;
+  const parsed = Date.parse(existingExpiresAt);
+  if (!Number.isFinite(parsed) || parsed <= Date.now()) {
+    return undefined;
+  }
+  return existingExpiresAt;
+}
+
+function defaultApprovalPolicies(policies?: SessionPolicies): SessionPolicies {
+  const cloned = cloneSessionPolicies(policies);
+  if (!cloned) {
+    return {
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+  }
+
+  return {
+    ...cloned,
+    expiresAt:
+      resolveReusableApprovalExpiry(cloned.expiresAt) ||
+      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  };
+}
+
+function resolveReapprovalPolicies(
+  requestedPolicies?: SessionPolicies,
+  existingPolicies?: SessionPolicies
+): SessionPolicies {
+  return defaultApprovalPolicies(requestedPolicies || existingPolicies);
 }
 
 function sanitizeWalletRequestRecord(request: WalletRequestRecord): SanitizedWalletRequestRecord {
@@ -951,9 +1007,10 @@ export function createWalletReapproveTool(context: AgentToolContext) {
           connectorUrl: currentInput.connectorUrl || wallet.sessionPayload?.connectorUrl || 'http://localhost:4444',
           accountKind: displayAccountKind(wallet),
           paymasterMode: displayPaymasterMode(wallet),
-          policies: {
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          }
+          policies: resolveReapprovalPolicies(
+            currentInput.policies,
+            wallet.sessionPayload?.permissions
+          )
         });
 
         return {
@@ -1071,7 +1128,7 @@ export async function runWalletApprovalOrchestration(
       connectorUrl: input.connectorUrl || wallet.sessionPayload?.connectorUrl || 'http://localhost:4444',
       accountKind: displayAccountKind(wallet),
       paymasterMode: displayPaymasterMode(wallet),
-      policies: defaultApprovalPolicies(input.policies)
+      policies: resolveReapprovalPolicies(input.policies, wallet.sessionPayload?.permissions)
     };
   }
 

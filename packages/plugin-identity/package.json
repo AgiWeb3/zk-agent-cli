@@ -10,5 +10,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zk-agent/agent-core": "workspace:*"
   }
 }

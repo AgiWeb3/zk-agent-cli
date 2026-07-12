@@ -7,6 +7,8 @@ import {
   type WorkflowSwapProtocol
 } from '@zk-agent/agent-core';
 
+import { loadToolAgentProfileSummary } from './agent-profile-summary.js';
+import { buildAgentProfileFollowup, type AgentProfileFollowup } from './agent-profile-followup.js';
 import { createAgentTool, withWalletRecord } from './tool-helpers.js';
 import {
   buildWorkflowPlanToolRecommendedCommands,
@@ -21,6 +23,8 @@ export interface WorkflowPlanToolInput extends WalletNameInput {
 }
 
 export interface WorkflowPlanToolOutput {
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
   inspection: WalletInspectionResult;
   plan: WorkflowPlan;
   recommendedCommands: WorkflowToolRecommendedCommands;
@@ -60,7 +64,13 @@ export function createWorkflowPlanTool(context: AgentToolContext) {
           toChain: input.toChain
         });
 
+        const agentProfile = await loadToolAgentProfileSummary(wallet.walletName);
         return {
+          agentProfile,
+          agentFollowup: buildAgentProfileFollowup(agentProfile, {
+            walletName: wallet.walletName,
+            walletExists: true
+          }),
           inspection,
           plan,
           recommendedCommands: buildWorkflowPlanToolRecommendedCommands(plan)

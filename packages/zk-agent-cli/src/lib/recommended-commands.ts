@@ -20,6 +20,22 @@ export function buildWalletStatusRecommendedCommand(walletName: string): string 
   return `zk-agent wallet status --name ${walletName}`;
 }
 
+export function buildAssetsRecommendedCommand(walletName: string): string {
+  return `zk-agent assets --wallet ${walletName}`;
+}
+
+export function buildOwnedTokensRecommendedCommand(walletName: string): string {
+  return `zk-agent tokens --wallet ${walletName} --owned`;
+}
+
+export function buildTokensRecommendedCommand(chain: string): string {
+  return `zk-agent tokens --chain ${chain}`;
+}
+
+export function buildResolveTokenRecommendedCommand(chain: string): string {
+  return `zk-agent resolve-token --chain ${chain} --symbol <symbol>`;
+}
+
 export function buildWalletReapproveRecommendedCommand(walletName: string): string {
   return `zk-agent wallet reapprove --name ${walletName} --await-local`;
 }

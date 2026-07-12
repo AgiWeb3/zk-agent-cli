@@ -20,6 +20,7 @@ import {
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
 import { createNextCommand } from './commands/next.js';
+import { createAgentCommand } from './commands/agent.js';
 import { createDefaultsCommand } from './commands/defaults.js';
 import { createResolveTokenCommand } from './commands/resolve-token.js';
 import { createTokensCommand } from './commands/tokens.js';
@@ -60,6 +61,7 @@ function createProgram(): Command {
 
   program.addCommand(createInitCommand());
   program.addCommand(createNextCommand());
+  program.addCommand(createAgentCommand());
   program.addCommand(createDefaultsCommand());
   program.addCommand(createTokensCommand());
   program.addCommand(createResolveTokenCommand());

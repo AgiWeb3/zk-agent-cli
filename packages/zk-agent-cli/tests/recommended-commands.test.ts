@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildAssetsRecommendedCommand,
   buildDefaultsRecommendedCommand,
+  buildOwnedTokensRecommendedCommand,
+  buildResolveTokenRecommendedCommand,
+  buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletListRecommendedCommand,
   buildWalletNextRecommendedCommand,
@@ -46,6 +50,28 @@ test('recommended wallet status command includes wallet name', () => {
   assert.equal(
     buildWalletStatusRecommendedCommand('main'),
     'zk-agent wallet status --name main'
+  );
+});
+
+test('recommended assets command includes wallet name', () => {
+  assert.equal(
+    buildAssetsRecommendedCommand('main'),
+    'zk-agent assets --wallet main'
+  );
+});
+
+test('recommended token discovery commands include wallet or chain context', () => {
+  assert.equal(
+    buildOwnedTokensRecommendedCommand('main'),
+    'zk-agent tokens --wallet main --owned'
+  );
+  assert.equal(
+    buildTokensRecommendedCommand('zksync-sepolia'),
+    'zk-agent tokens --chain zksync-sepolia'
+  );
+  assert.equal(
+    buildResolveTokenRecommendedCommand('zksync-sepolia'),
+    'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
   );
 });
 

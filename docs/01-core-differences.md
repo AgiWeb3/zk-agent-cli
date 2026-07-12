@@ -83,4 +83,4 @@
 2. `provider-zksync-wallet` 负责 AA 交易拼装、签名、paymaster 注入、bridge address 发现。
 3. `agent-session-protocol` 继续做通用会话层，但 session payload 需要能承载 zkSync account / policy 信息。
 4. `provider-zksync-defi` 只做 swap / bridge / deposit / withdraw 等垂直动作，不要反向定义核心交易结构。
-5. `plugin-identity` 目前不能编造“zkSync 官方 reputation 标准”；如果没有直接标准，就标注为替代实现或后补。
+5. `plugin-identity` 仍然不能编造“zkSync 官方 reputation 标准”；现阶段只做本地 agent profile / wallet linkage，如果没有直接标准，就明确标注为替代实现或后补。

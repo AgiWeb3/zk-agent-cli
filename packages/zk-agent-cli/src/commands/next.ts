@@ -10,13 +10,20 @@ import {
   type DefiProvider,
   type WalletProvider
 } from '@zk-agent/agent-core';
+import { loadAgentIdentitySummary } from '@zk-agent/plugin-identity';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
+import { agentFollowupLines, buildAgentFollowup } from '../lib/agent-followup.js';
+import { agentProfileLines } from '../lib/agent-profile.js';
 import { printResult } from '../lib/io.js';
 import { walletNextLines } from '../lib/wallet-next.js';
 import {
+  buildAssetsRecommendedCommand,
   buildDefaultsRecommendedCommand,
+  buildOwnedTokensRecommendedCommand,
+  buildResolveTokenRecommendedCommand,
+  buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletNextRecommendedCommand,
   buildWalletStatusRecommendedCommand,
@@ -73,10 +80,10 @@ function buildTopLevelWorkflowRecommendedCommands(input: {
     ...(input.nextAction ? { nextAction: input.nextAction } : {}),
     ...(workflowIntentSupportsTokenDiscovery(input.intent)
       ? {
-          discoverAssets: `zk-agent assets --wallet ${input.walletName}`,
-          discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`,
-          discoverTokens: `zk-agent tokens --chain ${input.chain}`,
-          inspectToken: `zk-agent resolve-token --chain ${input.chain} --symbol <symbol>`
+          discoverAssets: buildAssetsRecommendedCommand(input.walletName),
+          discoverOwnedTokens: buildOwnedTokensRecommendedCommand(input.walletName),
+          discoverTokens: buildTokensRecommendedCommand(input.chain),
+          inspectToken: buildResolveTokenRecommendedCommand(input.chain)
         }
       : {})
   };
@@ -115,6 +122,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
     .option('--request-id <id>', 'Stored workflow checkpoint id')
     .action(async (options: NextCommandOptions) => {
       const walletName = options.wallet?.trim() || 'main';
+      const agentProfile = await loadAgentIdentitySummary(walletName);
+      const defaultAgentFollowup = buildAgentFollowup(agentProfile, {
+        walletName,
+        walletExists: false
+      });
 
       if (options.requestId?.trim()) {
         const requestId = options.requestId.trim();
@@ -153,6 +165,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           chain: result.plan.chain,
           intent: result.intent
         });
+        const workflowAgentProfile = await loadAgentIdentitySummary(wallet.walletName);
+        const agentFollowup = buildAgentFollowup(workflowAgentProfile, {
+          walletName: wallet.walletName,
+          walletExists: true
+        });
 
         printResult(
           topLevelNextLines('workflow', [
@@ -161,6 +178,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['intent', result.intent],
             ['status', result.status],
             ['ready', result.readyForGoal ? 'yes' : 'no'],
+            ...agentProfileLines(workflowAgentProfile),
+            ...agentFollowupLines(agentFollowup),
             ...(nextCommand ? [['next', nextCommand] as [string, string]] : []),
             ['inspect defaults', recommendedCommands.inspectDefaults],
             ...result.blockingActionIds.map((actionId) => ['blocking action', actionId] as [string, string]),
@@ -179,6 +198,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             workflowRequestId: requestId,
             walletName: wallet.walletName,
             nextCommand,
+            agentProfile: workflowAgentProfile,
+            agentFollowup,
             result,
             checkpoint: updatedCheckpoint,
             recommendedCommands
@@ -197,6 +218,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         printResult(
           topLevelNextLines('setup', [
             ['status', 'No local config found'],
+            ...agentProfileLines(agentProfile),
+            ...agentFollowupLines(defaultAgentFollowup),
             ['next', recommendedCommands.setup],
             ['inspect defaults', recommendedCommands.inspectDefaults]
           ]),
@@ -205,6 +228,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             scope: 'setup',
             status: 'action-required',
             nextCommand: recommendedCommands.setup,
+            agentProfile,
+            agentFollowup: defaultAgentFollowup,
             recommendedCommands
           }
         );
@@ -224,6 +249,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['status', `Wallet not found: ${walletName}`],
             ['default chain', config.defaultChain],
             ['connector', config.connectorUrl],
+            ...agentProfileLines(agentProfile),
+            ...agentFollowupLines(defaultAgentFollowup),
             ['next', recommendedCommands.createWallet],
             ['after approval', recommendedCommands.afterApproval],
             ['inspect defaults', recommendedCommands.inspectDefaults]
@@ -234,6 +261,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             walletName,
             config,
             nextCommand: recommendedCommands.createWallet,
+            agentProfile,
+            agentFollowup: defaultAgentFollowup,
             recommendedCommands
           }
         );
@@ -265,9 +294,17 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
 
       const workflowAuto = buildWorkflowAutoRecommendedCommand(wallet.walletName);
       const nextCommand = summary.recommendedCommand || workflowAuto;
+      const agentFollowup = buildAgentFollowup(agentProfile, {
+        walletName: wallet.walletName,
+        walletExists: true
+      });
       const recommendedCommands = {
         walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
         walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
+        discoverAssets: buildAssetsRecommendedCommand(wallet.walletName),
+        discoverOwnedTokens: buildOwnedTokensRecommendedCommand(wallet.walletName),
+        discoverTokens: buildTokensRecommendedCommand(wallet.chain),
+        inspectToken: buildResolveTokenRecommendedCommand(wallet.chain),
         workflowAuto,
         nextAction: nextCommand,
         inspectDefaults: buildDefaultsRecommendedCommand()
@@ -276,13 +313,21 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
       printResult(
         topLevelNextLines('wallet', [
           ...walletNextLines(summary),
+          ...agentProfileLines(agentProfile),
+          ...agentFollowupLines(agentFollowup),
           ...(summary.recommendedCommand ? [] : [['next', workflowAuto] as [string, string]]),
+          ['discover assets', recommendedCommands.discoverAssets],
+          ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
+          ['discover tokens', recommendedCommands.discoverTokens],
+          ['inspect token', recommendedCommands.inspectToken],
           ['inspect defaults', recommendedCommands.inspectDefaults]
         ]),
         {
           ok: true,
           scope: 'wallet',
           walletName: wallet.walletName,
+          agentProfile,
+          agentFollowup,
           inspection,
           summary,
           nextCommand,

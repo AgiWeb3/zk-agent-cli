@@ -71,4 +71,4 @@
 
 1. `agent-session-protocol` 继续保持链无关。
 2. `provider-zksync-wallet` 负责把 zkSync 账户能力投影到 session payload。
-3. `plugin-identity` 暂时只做能力占位和接口，不把假设性的声誉模型写死。
+3. `plugin-identity` 现在先落地为本地 profile / capability / wallet linkage，不把假设性的声誉模型写死。

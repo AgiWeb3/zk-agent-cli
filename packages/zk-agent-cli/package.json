@@ -22,6 +22,7 @@
     "@zk-agent/account-profiles": "workspace:*",
     "@zk-agent/agent-core": "workspace:*",
     "@zk-agent/agent-session-protocol": "workspace:*",
+    "@zk-agent/plugin-identity": "workspace:*",
     "@zk-agent/provider-zksync-defi": "workspace:*",
     "@zk-agent/provider-zksync-wallet": "workspace:*",
     "commander": "^15.0.0",

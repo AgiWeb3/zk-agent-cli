@@ -22,5 +22,8 @@
 5. [05-bridging-and-network-model.md](./05-bridging-and-network-model.md)
 6. [06-sdk-and-tooling.md](./06-sdk-and-tooling.md)
 7. [07-source-map.md](./07-source-map.md)
+8. [08-daily-spend-limit-profile.md](./08-daily-spend-limit-profile.md)
+9. [09-sed-lite-profile.md](./09-sed-lite-profile.md)
+10. [10-operator-json-contract.md](./10-operator-json-contract.md)
 
 这些文档默认基于本地 `../zksync-docs` 目录中的资料整理，方便我们离线推进实现。

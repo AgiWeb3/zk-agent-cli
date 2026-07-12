@@ -29,7 +29,7 @@ export function workflowIntentSupportsTokenDiscovery(intent: WorkflowIntent): bo
 }
 
 export function buildWorkflowPlanToolRecommendedCommands(
-  plan: Pick<WorkflowPlan, 'chain' | 'intent' | 'recommendedCommand' | 'goalCommand'>
+  plan: Pick<WorkflowPlan, 'walletName' | 'chain' | 'intent' | 'recommendedCommand' | 'goalCommand'>
 ): WorkflowToolRecommendedCommands {
   return {
     inspectDefaults: 'zk-agent defaults',
@@ -38,6 +38,8 @@ export function buildWorkflowPlanToolRecommendedCommands(
     workflowHelp: 'zk-agent workflow --help',
     ...(workflowIntentSupportsTokenDiscovery(plan.intent)
       ? {
+          discoverAssets: `zk-agent assets --wallet ${plan.walletName}`,
+          discoverOwnedTokens: `zk-agent tokens --wallet ${plan.walletName} --owned`,
           discoverTokens: `zk-agent tokens --chain ${plan.chain}`,
           inspectToken: `zk-agent resolve-token --chain ${plan.chain} --symbol <symbol>`
         }

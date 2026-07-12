@@ -2,7 +2,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-interface SmokeProductPathOptions {
+import {
+  buildSmokeProductExecutionSummary,
+  type SmokeExecutionStepResult
+} from './smoke-summary.js';
+
+export interface SmokeProductPathOptions {
   walletName: string;
   txHash?: string;
   chain?: string;
@@ -12,27 +17,15 @@ interface SmokeProductPathOptions {
   plan: boolean;
 }
 
-interface SmokeStep {
+export interface SmokeStep {
   id: 'operator-path' | 'paymaster-success' | 'withdraw-followup';
   title: string;
   command: string;
   args: string[];
 }
 
-interface ExecutedStepResult {
-  id: SmokeStep['id'];
-  title: string;
-  ok: boolean;
-  exitCode: number;
-  result?: unknown;
-  stdout?: string;
-  stderr?: string;
-}
-
-interface StepFollowupSummary {
-  nextCommand?: string;
-  recommendedCommands?: unknown;
-  registry?: unknown;
+interface SmokeProductPathRuntime {
+  runStep?: (step: SmokeStep) => Promise<SmokeExecutionStepResult>;
 }
 
 function printUsage(): void {
@@ -156,7 +149,7 @@ function scriptInvocation(scriptName: string, stepArgs: string[]): { command: st
       };
 }
 
-function buildSteps(options: SmokeProductPathOptions): SmokeStep[] {
+export function buildSmokeProductPathSteps(options: SmokeProductPathOptions): SmokeStep[] {
   const operator = scriptInvocation('smoke-operator-path', ['--wallet', options.walletName]);
   const paymaster = scriptInvocation('smoke-paymaster-success', [
     '--wallet',
@@ -215,107 +208,15 @@ function buildPlanSummary(options: SmokeProductPathOptions, steps: SmokeStep[]) 
   };
 }
 
-function extractStepNextCommand(step: ExecutedStepResult): string | undefined {
-  return extractStepFollowupSummary(step)?.nextCommand;
-}
-
-function extractStepFollowupSummary(step: ExecutedStepResult): StepFollowupSummary | undefined {
-  const result = step.result;
-  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
-
-  if (step.id === 'operator-path') {
-    const summary = (
-      result as {
-        summary?: {
-          topLevelNextCommand?: string;
-          topLevelRecommendedCommands?: unknown;
-          walletNextCommand?: string;
-          workflowNextCommand?: string;
-          walletApprovalRecommendedCommands?: unknown;
-          workflowRecommendedCommands?: unknown;
-        };
-      }
-    ).summary;
-
-    if (!summary) return undefined;
-
-    return {
-      nextCommand: summary.workflowNextCommand || summary.walletNextCommand || summary.topLevelNextCommand,
-      recommendedCommands: {
-        topLevel: summary.topLevelRecommendedCommands,
-        walletApproval: summary.walletApprovalRecommendedCommands,
-        workflow: summary.workflowRecommendedCommands
-      },
-      registry: (
-        result as {
-          summary?: {
-            workflowRegistry?: unknown;
-          };
-        }
-      ).summary?.workflowRegistry
-    };
-  }
-
-  if (step.id === 'paymaster-success') {
-    const payload = (
-      result as {
-        result?: {
-          nextCommand?: string;
-          recommendedCommands?: unknown;
-        };
-      }
-    ).result;
-
-    if (!payload) return undefined;
-
-    return {
-      nextCommand: payload.nextCommand,
-      recommendedCommands: payload.recommendedCommands,
-      registry: (payload as { registry?: unknown }).registry
-    };
-  }
-
-  if (step.id === 'withdraw-followup') {
-    const status = (result as { status?: { nextCommand?: string } }).status;
-    if (!status) return undefined;
-
-    return {
-      nextCommand: status.nextCommand
-    };
-  }
-
-  return undefined;
-}
-
 function buildExecutionSummary(
   options: SmokeProductPathOptions,
-  steps: ExecutedStepResult[],
+  steps: SmokeExecutionStepResult[],
   failedStep?: SmokeStep['id']
 ) {
-  return {
-    walletName: options.walletName,
-    totalSteps: steps.length,
-    successfulSteps: steps.filter((step) => step.ok).length,
-    failedStep,
-    executedStepIds: steps.map((step) => step.id),
-    nextCommands: steps.reduce<Record<string, string>>((acc, step) => {
-      const nextCommand = extractStepNextCommand(step);
-      if (nextCommand) {
-        acc[step.id] = nextCommand;
-      }
-      return acc;
-    }, {}),
-    followups: steps.reduce<Record<string, StepFollowupSummary>>((acc, step) => {
-      const followup = extractStepFollowupSummary(step);
-      if (followup) {
-        acc[step.id] = followup;
-      }
-      return acc;
-    }, {})
-  };
+  return buildSmokeProductExecutionSummary(options.walletName, steps, failedStep);
 }
 
-async function runStep(step: SmokeStep): Promise<ExecutedStepResult> {
+async function runStep(step: SmokeStep): Promise<SmokeExecutionStepResult> {
   return await new Promise((resolve, reject) => {
     const child = spawn(step.command, step.args, {
       cwd: process.cwd(),
@@ -357,12 +258,15 @@ async function runStep(step: SmokeStep): Promise<ExecutedStepResult> {
   });
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
-  const steps = buildSteps(options);
+export async function runSmokeProductPath(
+  options: SmokeProductPathOptions,
+  runtime: SmokeProductPathRuntime = {}
+) {
+  const steps = buildSmokeProductPathSteps(options);
+  const executeStep = runtime.runStep || runStep;
 
   if (options.plan) {
-    writeJson({
+    return {
       ok: true,
       planned: true,
       walletName: options.walletName,
@@ -370,35 +274,51 @@ async function main(): Promise<void> {
       steps: steps.map((step) => ({
         id: step.id,
         title: step.title,
-        command: [step.command, ...step.args].join(' ')
-      }))
-    });
-    return;
+          command: [step.command, ...step.args].join(' ')
+        }))
+    };
   }
 
-  const results = [];
+  const results: SmokeExecutionStepResult[] = [];
   for (const step of steps) {
-    const result = await runStep(step);
+    const result = await executeStep(step);
     results.push(result);
     if (!result.ok) {
-      writeJson({
+      return {
         ok: false,
         walletName: options.walletName,
         summary: buildExecutionSummary(options, results, step.id),
         failedStep: step.id,
         steps: results
-      });
-      process.exitCode = 1;
-      return;
+      };
     }
   }
 
-  writeJson({
+  return {
     ok: true,
     walletName: options.walletName,
     summary: buildExecutionSummary(options, results),
     steps: results
-  });
+  };
 }
 
-await main();
+function isDirectExecution(metaUrl: string): boolean {
+  const entryPath = process.argv[1];
+  if (!entryPath) return false;
+  return path.resolve(fileURLToPath(metaUrl)) === path.resolve(entryPath);
+}
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const payload = await runSmokeProductPath(options);
+
+  writeJson(payload);
+
+  if (!payload.ok) {
+    process.exitCode = 1;
+  }
+}
+
+if (isDirectExecution(import.meta.url)) {
+  await main();
+}

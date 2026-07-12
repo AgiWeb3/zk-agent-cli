@@ -1028,6 +1028,22 @@ test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow bra
       ready.data.recommendedCommands.workflowAuto,
       'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
     );
+    assert.equal(
+      ready.data.recommendedCommands.discoverAssets,
+      'zk-agent assets --wallet main'
+    );
+    assert.equal(
+      ready.data.recommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
+    );
+    assert.equal(
+      ready.data.recommendedCommands.discoverTokens,
+      'zk-agent tokens --chain zksync-sepolia'
+    );
+    assert.equal(
+      ready.data.recommendedCommands.inspectToken,
+      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+    );
   }
 
   const checkpoints = new Map<string, any>();
@@ -2253,6 +2269,9 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',
+    'exportAgentProfileTool',
+    'getAgentProfileTool',
+    'importAgentProfileTool',
     'getAssetsTool',
     'getBalancesTool',
     'getDefaultsTool',
@@ -2268,6 +2287,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'depositStatusTool',
     'sendNativeTool',
     'sendTokenTool',
+    'setAgentProfileTool',
     'withdrawPreviewTool',
     'withdrawFinalizePreviewTool',
     'withdrawStatusTool',
@@ -2277,7 +2297,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 53);
+  assert.equal(listed.length, 57);
   assert.equal(listed[0]?.name, 'topLevelNextTool');
   assert.equal(listed[0]?.group, 'entrypoint');
   assert.equal(listed[1]?.name, 'workflowAutoTool');
@@ -2302,9 +2322,27 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   const listedAssets = listed.find((entry) => entry.name === 'getAssetsTool');
   assert.equal(listedAssets?.group, 'read');
   assert.equal(listedAssets?.cliCommand, 'zk-agent assets --wallet <name>');
+  const listedGetAgentProfile = listed.find((entry) => entry.name === 'getAgentProfileTool');
+  assert.equal(listedGetAgentProfile?.group, 'account');
+  assert.equal(listedGetAgentProfile?.cliCommand, 'zk-agent agent show');
+  const listedExportAgentProfile = listed.find((entry) => entry.name === 'exportAgentProfileTool');
+  assert.equal(listedExportAgentProfile?.group, 'account');
+  assert.equal(listedExportAgentProfile?.cliCommand, 'zk-agent agent export');
+  const listedImportAgentProfile = listed.find((entry) => entry.name === 'importAgentProfileTool');
+  assert.equal(listedImportAgentProfile?.group, 'account');
+  assert.equal(
+    listedImportAgentProfile?.cliCommand,
+    'zk-agent agent import --payload <json|@file> [--overwrite]'
+  );
   const listedResolveToken = listed.find((entry) => entry.name === 'resolveTokenTool');
   assert.equal(listedResolveToken?.group, 'read');
   assert.match(listedResolveToken?.cliCommand || '', /zk-agent resolve-token/);
+  const listedSetAgentProfile = listed.find((entry) => entry.name === 'setAgentProfileTool');
+  assert.equal(listedSetAgentProfile?.group, 'account');
+  assert.equal(
+    listedSetAgentProfile?.cliCommand,
+    'zk-agent agent set --name <name> [--wallet <name>]'
+  );
 });
 
 test('runStandardAgentTool dispatches by name and normalizes unknown tool errors', async () => {
@@ -2382,6 +2420,14 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     assert.equal(
       (workflow.data as { recommendedCommands: { inspectDefaults?: string } }).recommendedCommands.inspectDefaults,
       'zk-agent defaults'
+    );
+    assert.equal(
+      (workflow.data as { recommendedCommands: { discoverAssets?: string } }).recommendedCommands.discoverAssets,
+      'zk-agent assets --wallet main'
+    );
+    assert.equal(
+      (workflow.data as { recommendedCommands: { discoverOwnedTokens?: string } }).recommendedCommands.discoverOwnedTokens,
+      'zk-agent tokens --wallet main --owned'
     );
     assert.equal(
       (workflow.data as { recommendedCommands: { discoverTokens?: string } }).recommendedCommands.discoverTokens,
@@ -3414,7 +3460,12 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     },
     createCheckpoint: true,
     ensureWalletSession: true,
-    approvalConnectorUrl: 'http://localhost:4444'
+    approvalConnectorUrl: 'http://localhost:4444',
+    approvalPolicies: {
+      expiresAt: '2099-06-21T00:00:00.000Z',
+      transfers: [{ to: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }],
+      contractCalls: [{ address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }]
+    }
   });
   assert.equal(requestCreated.ok, true);
   if (!requestCreated.ok) return;
@@ -3439,6 +3490,11 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
   );
   assert.equal(Boolean(requestCreated.data.walletApproval?.requestId), true);
   assert.equal(requests.size, 1);
+  assert.deepEqual(requests.get(requestCreated.data.walletApproval?.requestId)?.policies, {
+    expiresAt: '2099-06-21T00:00:00.000Z',
+    transfers: [{ to: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }],
+    contractCalls: [{ address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }]
+  });
 
   const relayRequestCreated = await tools.workflowOrchestratorTool.execute({
     walletName: 'workflow-needs-approval',
@@ -3505,7 +3561,7 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     }),
     executeWhenReady: true
   });
-  assert.equal(autoApproved.ok, true);
+  assert.equal(autoApproved.ok, true, JSON.stringify(autoApproved, null, 2));
   if (!autoApproved.ok) return;
   assert.equal(autoApproved.data.walletApproval?.stage, 'approved');
   assert.equal(autoApproved.data.status.status, 'ready');
@@ -3597,6 +3653,11 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
       '0x4444444444444444444444444444444444444444'
     ],
     sessionPayload: sampleSessionPayload({
+      permissions: {
+        expiresAt: '2099-06-19T12:00:00.000Z',
+        transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
+        contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
+      },
       sessionPrivateKey: undefined
     })
   });
@@ -3763,6 +3824,11 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
   if (!requestResult.ok) return;
   assert.equal(requestResult.data.wallet.smartAccountProfileId, 'sed-lite');
   assert.ok(requests.has(requestResult.data.request.requestId));
+  assert.deepEqual(requestResult.data.request.policies, {
+    expiresAt: '2099-06-19T12:00:00.000Z',
+    transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
+    contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
+  });
 
   const approveResult = await tools.approveWalletRequestTool.execute({
     requestId: requestResult.data.request.requestId,
@@ -3771,7 +3837,7 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
       sessionPrivateKey: '0x' + '99'.repeat(32)
     })
   });
-  assert.equal(approveResult.ok, true);
+  assert.equal(approveResult.ok, true, JSON.stringify(approveResult, null, 2));
   if (!approveResult.ok) return;
   assert.equal(approveResult.data.wallet.smartAccountProfileId, 'sed-lite');
   assert.deepEqual(approveResult.data.wallet.validationHookAddresses, [

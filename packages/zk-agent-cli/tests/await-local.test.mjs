@@ -464,6 +464,85 @@ test('wallet create --await-local completes the local approval round-trip in one
   }
 });
 
+test('wallet create stores requested session policy flags on the pending request', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-create-policies-'));
+  const env = createCliEnv(homeDir);
+
+  try {
+    const created = await runCliJson(
+      [
+        'wallet',
+        'create',
+        '--name',
+        'policy-wallet',
+        '--chain',
+        'zksync-sepolia',
+        '--session-hours',
+        '12',
+        '--allow-transfer-to',
+        '0x1111111111111111111111111111111111111111',
+        '--allow-contract',
+        '0x2222222222222222222222222222222222222222'
+      ],
+      env
+    );
+
+    const shown = await runCliJson(
+      ['wallet', 'request', 'show', '--request-id', created.requestId],
+      env
+    );
+    const sessionExpiresAt = Date.parse(shown.request.policies.expiresAt);
+
+    assert.equal(shown.request.walletName, 'policy-wallet');
+    assert.deepEqual(shown.request.policies.transfers, [
+      { to: '0x1111111111111111111111111111111111111111' }
+    ]);
+    assert.deepEqual(shown.request.policies.contractCalls, [
+      { address: '0x2222222222222222222222222222222222222222' }
+    ]);
+    assert.equal(shown.request.requestedCapabilities.transfer, true);
+    assert.equal(shown.request.requestedCapabilities.contractCall, true);
+    assert.ok(sessionExpiresAt > Date.now() + 11.5 * 60 * 60 * 1000);
+    assert.ok(sessionExpiresAt < Date.now() + 12.5 * 60 * 60 * 1000);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet create applies a session preset to the pending request', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-create-preset-'));
+  const env = createCliEnv(homeDir);
+
+  try {
+    const created = await runCliJson(
+      [
+        'wallet',
+        'create',
+        '--name',
+        'preset-wallet',
+        '--chain',
+        'zksync-sepolia',
+        '--session-preset',
+        'transfer-only'
+      ],
+      env
+    );
+
+    const shown = await runCliJson(
+      ['wallet', 'request', 'show', '--request-id', created.requestId],
+      env
+    );
+
+    assert.equal(shown.request.walletName, 'preset-wallet');
+    assert.equal(shown.request.policies.transfers, undefined);
+    assert.deepEqual(shown.request.policies.contractCalls, []);
+    assert.equal(shown.request.requestedCapabilities.transfer, true);
+    assert.equal(shown.request.requestedCapabilities.contractCall, false);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('wallet request list prunes expired local requests', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-expired-request-'));
   const env = createCliEnv(homeDir);
@@ -1237,6 +1316,127 @@ test('wallet create --relay-url publishes the request immediately for remote app
   }
 });
 
+test('wallet create --relay-url --wait-relay --prompt-code can complete the remote approval round-trip', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-create-relay-wait-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const child = spawn(
+      process.execPath,
+      [
+        distEntry,
+        '--json',
+        'wallet',
+        'create',
+        '--name',
+        'relay-create-wait',
+        '--chain',
+        'zksync-sepolia',
+        '--relay-url',
+        relayBaseUrl,
+        '--wait-relay',
+        '--prompt-code',
+        '--timeout-seconds',
+        '5',
+        '--interval-ms',
+        '50'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['pipe', 'pipe', 'pipe']
+      }
+    );
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+
+    const requestId = await waitForStoredRequestId(homeDir);
+    const { loadWalletRequest } = await loadAgentCoreStorage(homeDir);
+    const request = await loadWalletRequest(requestId);
+    assert.ok(request, 'stored relay-create request should exist');
+
+    const payload = {
+      version: 1,
+      provider: request.provider,
+      chain: request.chain,
+      chainId: request.chainId,
+      walletAddress: '0xdddddddddddddddddddddddddddddddddddddddd',
+      account: {
+        kind: request.requestedAccountKind,
+        address: '0xdddddddddddddddddddddddddddddddddddddddd',
+        ownerAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        signerType: 'connector'
+      },
+      sessionScope: request.requestedSessionScope,
+      capabilities: request.requestedCapabilities,
+      sessionExpiresAt: request.expiresAt,
+      paymaster: {
+        mode: request.requestedPaymasterMode,
+        address: null
+      },
+      sessionPublicKey: request.sessionPublicKey,
+      permissions: request.policies,
+      connectorUrl: request.connectorUrl,
+      connectorOrigin: relayBaseUrl,
+      paymasterAddress: null
+    };
+    const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);
+
+    setTimeout(() => {
+      void fetch(`${relayBaseUrl}/api/requests/${request.requestId}/approval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          encrypted_payload: encrypted
+        })
+      });
+    }, 150);
+    setTimeout(() => {
+      child.stdin.write(`${code}\n`);
+      child.stdin.end();
+    }, 300);
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'wallet create --wait-relay JSON output was empty');
+
+    const approved = JSON.parse(stdout);
+    assert.equal(approved.ok, true);
+    assert.equal(approved.approvalSource, 'relay-url');
+    assert.equal(approved.request.requestId, request.requestId);
+    assert.equal(approved.wallet.walletName, 'relay-create-wait');
+    assert.equal(approved.wallet.walletAddress, '0xdddddddddddddddddddddddddddddddddddddddd');
+    assert.deepEqual(approved.recommendedCommands, {
+      next: 'zk-agent wallet next --name relay-create-wait',
+      status: 'zk-agent wallet status --name relay-create-wait',
+      reapprove: 'zk-agent wallet reapprove --name relay-create-wait --await-local'
+    });
+    assert.deepEqual(await listStoredRequestIds(homeDir), []);
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('wallet reapprove --relay-url publishes the request immediately for remote approval', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-reapprove-relay-'));
   const env = createCliEnv(homeDir);
@@ -1304,6 +1504,144 @@ test('wallet reapprove --relay-url publishes the request immediately for remote 
     assert.equal(relayStatus.ok, true);
     assert.equal(relayStatus.relay.status, 'pending');
     assert.equal(relayStatus.relay.request.requestId, created.request.requestId);
+  } finally {
+    process.env.HOME = previousHome;
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet reapprove --relay-url --wait-relay --prompt-code can complete the remote approval round-trip', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-reapprove-relay-wait-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession, loadWalletSession, loadWalletRequest } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(
+      sampleWalletRecord({
+        walletName: 'relay-reapprove-wait',
+        sessionPayload: {
+          ...sampleWalletRecord().sessionPayload,
+          sessionPrivateKey: undefined
+        }
+      })
+    );
+
+    await waitForRelayHealth(relayPort);
+
+    const child = spawn(
+      process.execPath,
+      [
+        distEntry,
+        '--json',
+        'wallet',
+        'reapprove',
+        '--name',
+        'relay-reapprove-wait',
+        '--relay-url',
+        relayBaseUrl,
+        '--wait-relay',
+        '--prompt-code',
+        '--timeout-seconds',
+        '5',
+        '--interval-ms',
+        '50'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['pipe', 'pipe', 'pipe']
+      }
+    );
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+
+    const requestId = await waitForStoredRequestId(homeDir);
+    const request = await loadWalletRequest(requestId);
+    assert.ok(request, 'stored relay-reapprove request should exist');
+
+    const payload = {
+      version: 1,
+      provider: request.provider,
+      chain: request.chain,
+      chainId: request.chainId,
+      walletAddress: '0x1111111111111111111111111111111111111111',
+      account: {
+        kind: request.requestedAccountKind,
+        address: '0x1111111111111111111111111111111111111111',
+        ownerAddress: '0x2222222222222222222222222222222222222222',
+        validatorAddress: '0x3333333333333333333333333333333333333333',
+        signerType: 'connector'
+      },
+      sessionScope: request.requestedSessionScope,
+      capabilities: request.requestedCapabilities,
+      sessionExpiresAt: request.expiresAt,
+      paymaster: {
+        mode: request.requestedPaymasterMode,
+        address: '0x6666666666666666666666666666666666666666',
+        token: '0x7777777777777777777777777777777777777777'
+      },
+      sessionPublicKey: request.sessionPublicKey,
+      permissions: request.policies,
+      connectorUrl: request.connectorUrl,
+      connectorOrigin: relayBaseUrl,
+      paymasterAddress: '0x6666666666666666666666666666666666666666'
+    };
+    const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);
+
+    setTimeout(() => {
+      void fetch(`${relayBaseUrl}/api/requests/${request.requestId}/approval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          encrypted_payload: encrypted
+        })
+      });
+    }, 150);
+    setTimeout(() => {
+      child.stdin.write(`${code}\n`);
+      child.stdin.end();
+    }, 300);
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'wallet reapprove --wait-relay JSON output was empty');
+
+    const approved = JSON.parse(stdout);
+    assert.equal(approved.ok, true);
+    assert.equal(approved.approvalSource, 'relay-url');
+    assert.equal(approved.request.requestId, request.requestId);
+    assert.equal(approved.wallet.walletName, 'relay-reapprove-wait');
+    assert.equal(approved.wallet.sessionPayload.sessionPrivateKey, undefined);
+    assert.deepEqual(approved.recommendedCommands, {
+      next: 'zk-agent wallet next --name relay-reapprove-wait',
+      status: 'zk-agent wallet status --name relay-reapprove-wait',
+      reapprove: 'zk-agent wallet reapprove --name relay-reapprove-wait --await-local'
+    });
+
+    const reapprovedWallet = await loadWalletSession('relay-reapprove-wait');
+    assert.equal(reapprovedWallet?.walletAddress, '0x1111111111111111111111111111111111111111');
+    assert.equal(reapprovedWallet?.sessionPayload?.sessionPrivateKey, undefined);
+    assert.deepEqual(await listStoredRequestIds(homeDir), []);
   } finally {
     process.env.HOME = previousHome;
     relayChild.kill('SIGTERM');
@@ -1602,6 +1940,92 @@ test('wallet reapprove --await-local restores a writable session without droppin
       '0x5555555555555555555555555555555555555555'
     ]);
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
+  } finally {
+    process.env.HOME = previousHome;
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet reapprove preserves stored session permissions when no new policy flags are supplied', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-reapprove-policies-'));
+  const env = createCliEnv(homeDir);
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(
+      sampleWalletRecord({
+        walletName: 'reapprove-policy-wallet',
+        sessionPayload: {
+          ...sampleWalletRecord().sessionPayload,
+          sessionPrivateKey: undefined,
+          permissions: {
+            expiresAt: '2099-06-19T12:00:00.000Z',
+            transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
+            contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
+          }
+        }
+      })
+    );
+
+    const created = await runCliJson(
+      ['wallet', 'reapprove', '--name', 'reapprove-policy-wallet'],
+      env
+    );
+
+    assert.deepEqual(created.request.policies, {
+      expiresAt: '2099-06-19T12:00:00.000Z',
+      transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
+      contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
+    });
+    assert.equal(created.request.requestedCapabilities.transfer, true);
+    assert.equal(created.request.requestedCapabilities.contractCall, true);
+  } finally {
+    process.env.HOME = previousHome;
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet reapprove session preset can clear stored restrictions back to full access', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-reapprove-full-access-'));
+  const env = createCliEnv(homeDir);
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(
+      sampleWalletRecord({
+        walletName: 'reapprove-full-access-wallet',
+        sessionPayload: {
+          ...sampleWalletRecord().sessionPayload,
+          sessionPrivateKey: undefined,
+          permissions: {
+            expiresAt: '2099-06-19T12:00:00.000Z',
+            transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
+            contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
+          }
+        }
+      })
+    );
+
+    const created = await runCliJson(
+      [
+        'wallet',
+        'reapprove',
+        '--name',
+        'reapprove-full-access-wallet',
+        '--session-preset',
+        'full-access'
+      ],
+      env
+    );
+
+    assert.equal(created.request.policies.transfers, undefined);
+    assert.equal(created.request.policies.contractCalls, undefined);
+    assert.equal(created.request.requestedCapabilities.transfer, true);
+    assert.equal(created.request.requestedCapabilities.contractCall, true);
   } finally {
     process.env.HOME = previousHome;
     await rm(homeDir, { recursive: true, force: true });

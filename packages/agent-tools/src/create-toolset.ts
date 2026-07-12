@@ -18,11 +18,14 @@ import { createBridgeStatusTool } from './bridge-status-tool.js';
 import { createWalletTool } from './create-wallet-tool.js';
 import { createDepositPreviewTool } from './deposit-preview-tool.js';
 import { createDepositStatusTool } from './deposit-status-tool.js';
+import { createExportAgentProfileTool } from './export-agent-profile-tool.js';
+import { createGetAgentProfileTool } from './get-agent-profile-tool.js';
 import { createGetAssetsTool } from './get-assets-tool.js';
 import { createGetBalancesTool } from './get-balances-tool.js';
 import { createGetDefaultsTool } from './get-defaults-tool.js';
 import { createGetFundingInfoTool } from './get-funding-info-tool.js';
 import { createListTokensTool } from './list-tokens-tool.js';
+import { createImportAgentProfileTool } from './import-agent-profile-tool.js';
 import { createResolveTokenTool } from './resolve-token-tool.js';
 import { createTopLevelNextTool } from './top-level-next-tool.js';
 import { createWorkflowFundTool } from './workflow-fund-tool.js';
@@ -50,6 +53,7 @@ import { createPlanSmartAccountDeploymentTool, createDeploySmartAccountTool } fr
 import { createSwapPreviewTool } from './swap-preview-tool.js';
 import { createSendNativeTool } from './send-native-tool.js';
 import { createSendTokenTool } from './send-token-tool.js';
+import { createSetAgentProfileTool } from './set-agent-profile-tool.js';
 import { createWithdrawFinalizePreviewTool } from './withdraw-finalize-preview-tool.js';
 import { createWithdrawPreviewTool } from './withdraw-preview-tool.js';
 import { createWithdrawStatusTool } from './withdraw-status-tool.js';
@@ -153,6 +157,9 @@ export function createStandardAgentTools(context: AgentToolContext) {
     walletSyncTool: createWalletSyncTool(context),
     walletExportTool: createWalletExportTool(context),
     walletRestoreTool: createWalletRestoreTool(context),
+    exportAgentProfileTool: createExportAgentProfileTool(context),
+    getAgentProfileTool: createGetAgentProfileTool(context),
+    importAgentProfileTool: createImportAgentProfileTool(context),
     getAssetsTool: createGetAssetsTool(context),
     getBalancesTool: createGetBalancesTool(context),
     getDefaultsTool: createGetDefaultsTool(context),
@@ -168,6 +175,7 @@ export function createStandardAgentTools(context: AgentToolContext) {
     depositStatusTool: createDepositStatusTool(context),
     sendNativeTool: createSendNativeTool(context),
     sendTokenTool: createSendTokenTool(context),
+    setAgentProfileTool: createSetAgentProfileTool(context),
     withdrawPreviewTool: createWithdrawPreviewTool(context),
     withdrawFinalizePreviewTool: createWithdrawFinalizePreviewTool(context),
     withdrawStatusTool: createWithdrawStatusTool(context),
@@ -214,6 +222,9 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'walletSyncTool',
     'walletExportTool',
     'walletRestoreTool',
+    'exportAgentProfileTool',
+    'getAgentProfileTool',
+    'importAgentProfileTool',
     'getAssetsTool',
     'getBalancesTool',
     'getDefaultsTool',
@@ -229,6 +240,7 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'depositStatusTool',
     'sendNativeTool',
     'sendTokenTool',
+    'setAgentProfileTool',
     'withdrawPreviewTool',
     'withdrawFinalizePreviewTool',
     'withdrawStatusTool',

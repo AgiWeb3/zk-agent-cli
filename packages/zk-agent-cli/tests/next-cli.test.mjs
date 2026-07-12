@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -157,6 +157,41 @@ function sampleTokenCheckpoint() {
   };
 }
 
+async function saveAgentProfile(homeDir, {
+  agentId = 'sed-operator',
+  name = 'SED Operator',
+  linkedWalletName = 'main'
+} = {}) {
+  const agentDir = path.join(homeDir, '.zk-agent', 'agent');
+  await mkdir(agentDir, { recursive: true });
+  await writeFile(
+    path.join(agentDir, 'profile.json'),
+    JSON.stringify(
+      {
+        format: 'zk-agent-agent-profile',
+        version: 1,
+        agentId,
+        name,
+        tags: ['defi'],
+        capabilities: ['swap'],
+        metadata: {
+          role: 'operator'
+        },
+        linkedWallet: linkedWalletName
+          ? {
+              walletName: linkedWalletName
+            }
+          : undefined,
+        createdAt: '2026-07-10T00:00:00.000Z',
+        updatedAt: '2026-07-10T00:00:00.000Z'
+      },
+      null,
+      2
+    ),
+    'utf8'
+  );
+}
+
 async function runNextCli(args, env) {
   const child = spawn(process.execPath, ['--import', 'tsx', fixtureEntry, ...args], {
     cwd: packageRoot,
@@ -186,6 +221,9 @@ test('top-level next recommends setup when local config is missing', async () =>
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'setup');
     assert.equal(result.nextCommand, 'zk-agent setup');
+    assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
+    assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name>');
+    assert.equal(result.agentFollowup.nextAction, 'zk-agent agent set --name <name>');
     assert.deepEqual(result.recommendedCommands, {
       setup: 'zk-agent setup',
       inspectDefaults: 'zk-agent defaults'
@@ -209,6 +247,8 @@ test('top-level next recommends wallet creation when config exists but the walle
     assert.equal(result.scope, 'wallet-bootstrap');
     assert.equal(result.walletName, 'main');
     assert.equal(result.nextCommand, 'zk-agent wallet create --await-local');
+    assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
+    assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name>');
     assert.deepEqual(result.recommendedCommands, {
       createWallet: 'zk-agent wallet create --await-local',
       afterApproval: 'zk-agent next',
@@ -227,6 +267,7 @@ test('top-level next recommends starting a workflow when the wallet is already r
     const storage = await loadAgentCoreStorage(homeDir);
     await storage.saveProjectConfig(sampleConfig());
     await storage.saveWalletSession(sampleWallet({ writable: true }));
+    await saveAgentProfile(homeDir);
 
     const result = await runNextCli([], env);
 
@@ -241,12 +282,23 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
       walletStatus: 'zk-agent wallet status --name main',
+      discoverAssets: 'zk-agent assets --wallet main',
+      discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+      inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
       workflowAuto:
         'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
       nextAction:
         'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
       inspectDefaults: 'zk-agent defaults'
     });
+    assert.equal(result.agentProfile.profileExists, true);
+    assert.equal(result.agentProfile.agentId, 'sed-operator');
+    assert.equal(result.agentProfile.walletRelation, 'linked-active-wallet');
+    assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
+    assert.equal(result.agentFollowup.show, 'zk-agent agent show');
+    assert.equal(result.agentFollowup.linkWallet, undefined);
+    assert.equal(result.agentFollowup.nextAction, 'zk-agent agent show');
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -268,6 +320,8 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
     assert.equal(result.workflowRequestId, 'wf-next-001');
     assert.equal(result.nextCommand, 'zk-agent wallet reapprove --name main --await-local');
     assert.equal(result.result.status, 'blocked');
+    assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
+    assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name> --wallet main');
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
@@ -300,6 +354,8 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
     assert.equal(result.workflowRequestId, 'wf-next-token-001');
     assert.equal(result.result.intent, 'send-token');
     assert.equal(result.result.status, 'ready');
+    assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
+    assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name> --wallet main');
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',

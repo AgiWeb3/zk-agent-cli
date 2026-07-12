@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { createInterface } from 'node:readline/promises';
 
 import { Command } from 'commander';
 import {
@@ -58,6 +59,8 @@ import {
 } from '@zk-agent/account-profiles';
 
 import {
+  parseSessionPolicyPreset,
+  resolveSessionPolicyPresetOptions,
   type PaymasterSelectionInput,
   deleteWalletRequest,
   deleteWalletSession,
@@ -82,10 +85,14 @@ import {
   buildApprovedSessionPayload,
   decryptSession,
   type AccountKind,
+  type CallPolicy,
   type EncryptedPayload,
+  type Limit,
   type RelayCreateRequest,
   type RelayStatusResponse,
   type SessionPayload,
+  type SessionPolicies,
+  type TransferPolicy,
   type PaymasterMode,
   hexToBytes
 } from '@zk-agent/agent-session-protocol';
@@ -124,11 +131,19 @@ import {
   relayStatusUrl,
   waitForRelayApprovalReady
 } from '../lib/relay.js';
-import { buildWalletNextSummary, walletNextLines } from '../lib/wallet-next.js';
+import {
+  buildWalletNextRecommendedCommands,
+  buildWalletNextSummary,
+  walletNextLines
+} from '../lib/wallet-next.js';
 
 const provider = new ZkSyncWalletProvider();
 const NATIVE_TOKEN_DECIMALS = 18;
 const LOCAL_APPROVAL_BODY_LIMIT_BYTES = 512 * 1024;
+
+interface WalletCommandDeps {
+  provider: Pick<ZkSyncWalletProvider, 'inspectWallet' | 'getBalances' | 'getFundingInfo'>;
+}
 
 export function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
   if (!payload) return undefined;
@@ -460,9 +475,207 @@ function parseNativeAmount(value: string): bigint {
   return ethers.parseUnits(trimmed, NATIVE_TOKEN_DECIMALS);
 }
 
-function collectOptionValue(value: string, previous: string[] = []): string[] {
+export function collectOptionValue(value: string, previous: string[] = []): string[] {
   previous.push(value);
   return previous;
+}
+
+interface SessionPolicyOptionSource {
+  sessionPreset?: string;
+  sessionHours?: string;
+  allowTransferTo?: string[];
+  allowContract?: string[];
+  disallowTransfers?: boolean;
+  disallowContractCalls?: boolean;
+}
+
+function cloneLimit(limit?: Limit): Limit | undefined {
+  return limit ? { ...limit } : undefined;
+}
+
+function cloneTransferPolicy(policy: TransferPolicy): TransferPolicy {
+  return {
+    ...policy,
+    valueLimit: cloneLimit(policy.valueLimit)
+  };
+}
+
+function cloneCallPolicy(policy: CallPolicy): CallPolicy {
+  return {
+    ...policy,
+    valueLimit: cloneLimit(policy.valueLimit),
+    constraints: policy.constraints
+      ? policy.constraints.map((constraint) => ({
+          ...constraint,
+          limit: cloneLimit(constraint.limit)
+        }))
+      : policy.constraints
+  };
+}
+
+function cloneSessionPolicies(policies?: SessionPolicies): SessionPolicies | undefined {
+  if (!policies) return undefined;
+
+  return {
+    ...policies,
+    feeLimit: cloneLimit(policies.feeLimit),
+    transfers: policies.transfers?.map((policy) => cloneTransferPolicy(policy)),
+    contractCalls: policies.contractCalls?.map((policy) => cloneCallPolicy(policy))
+  };
+}
+
+function parsePositiveNumberOption(value: string | undefined, flag: string): number {
+  const parsed = Number.parseFloat(String(value ?? '').trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${flag} must be a positive number`);
+  }
+
+  return parsed;
+}
+
+function normalizeRequestedAddressList(values: string[] | undefined, flag: string): string[] {
+  if (!values || values.length === 0) return [];
+
+  return uniqueAddressList(
+    values.map((value) => {
+      const trimmed = value.trim();
+      if (!isAddress(trimmed)) {
+        throw new Error(`${flag} must contain valid 20-byte hex addresses`);
+      }
+      return ethers.getAddress(trimmed);
+    })
+  );
+}
+
+function mergeRequestedAddressLists(left: string[] | undefined, right: string[] | undefined): string[] {
+  return [...(left || []), ...(right || [])];
+}
+
+function resolveReusableSessionExpiry(existingExpiresAt?: string): string | undefined {
+  if (!existingExpiresAt) return undefined;
+  const parsed = Date.parse(existingExpiresAt);
+  if (!Number.isFinite(parsed) || parsed <= Date.now()) {
+    return undefined;
+  }
+  return existingExpiresAt;
+}
+
+function resolveSessionPolicyExpiresAt(
+  sessionHours?: string,
+  existingExpiresAt?: string
+): string {
+  if (sessionHours) {
+    const hours = parsePositiveNumberOption(sessionHours, '--session-hours');
+    return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+  }
+
+  return (
+    resolveReusableSessionExpiry(existingExpiresAt) ||
+    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  );
+}
+
+function buildRequestedSessionPolicies(
+  options: SessionPolicyOptionSource,
+  fallbackPolicies?: SessionPolicies
+): SessionPolicies {
+  if (options.disallowTransfers && options.allowTransferTo && options.allowTransferTo.length > 0) {
+    throw new Error('Choose either --disallow-transfers or --allow-transfer-to, not both.');
+  }
+  if (
+    options.disallowContractCalls &&
+    options.allowContract &&
+    options.allowContract.length > 0
+  ) {
+    throw new Error('Choose either --disallow-contract-calls or --allow-contract, not both.');
+  }
+
+  const base = cloneSessionPolicies(fallbackPolicies) || {};
+  const sessionPreset = parseSessionPolicyPreset(options.sessionPreset, {
+    flag: '--session-preset'
+  });
+  const presetOptions = resolveSessionPolicyPresetOptions(sessionPreset);
+  const allowedTransfers = normalizeRequestedAddressList(
+    mergeRequestedAddressLists(undefined, options.allowTransferTo),
+    '--allow-transfer-to'
+  );
+  const allowedContracts = normalizeRequestedAddressList(
+    mergeRequestedAddressLists(undefined, options.allowContract),
+    '--allow-contract'
+  );
+
+  return {
+    ...base,
+    expiresAt: resolveSessionPolicyExpiresAt(options.sessionHours, base.expiresAt),
+    transfers: options.disallowTransfers
+      ? []
+      : allowedTransfers.length > 0
+        ? allowedTransfers.map((to) => ({ to }))
+        : presetOptions.disallowTransfers
+          ? []
+          : presetOptions.unrestrictedTransfers
+            ? undefined
+            : base.transfers,
+    contractCalls: options.disallowContractCalls
+      ? []
+      : allowedContracts.length > 0
+        ? allowedContracts.map((address) => ({ address }))
+        : presetOptions.disallowContractCalls
+          ? []
+          : presetOptions.unrestrictedContractCalls
+            ? undefined
+            : base.contractCalls
+  };
+}
+
+function formatSessionLimit(limit: Limit): string {
+  if (limit.limitType === 'unlimited') return 'unlimited';
+  if (limit.limitType === 'lifetime') return `lifetime:${limit.limit}`;
+  return `allowance:${limit.limit}/${limit.periodSeconds}s`;
+}
+
+function formatTransferPolicy(policy: TransferPolicy): string {
+  const parts = [policy.to];
+  if (policy.token) parts.push(`token=${policy.token}`);
+  if (policy.maxValuePerUse) parts.push(`max/use=${policy.maxValuePerUse}`);
+  if (policy.valueLimit) parts.push(`limit=${formatSessionLimit(policy.valueLimit)}`);
+  return parts.join(' ');
+}
+
+function formatCallPolicy(policy: CallPolicy): string {
+  const parts = [policy.address];
+  if (policy.functionName) parts.push(`fn=${policy.functionName}`);
+  if (policy.maxValuePerUse) parts.push(`max/use=${policy.maxValuePerUse}`);
+  if (policy.valueLimit) parts.push(`limit=${formatSessionLimit(policy.valueLimit)}`);
+  return parts.join(' ');
+}
+
+function sessionPolicyLines(policies?: SessionPolicies): Array<[string, string]> {
+  if (!policies) return [];
+
+  const lines: Array<[string, string]> = [['session expires', policies.expiresAt || 'none']];
+  if (policies.feeLimit) {
+    lines.push(['fee limit', formatSessionLimit(policies.feeLimit)]);
+  }
+
+  lines.push([
+    'transfers',
+    policies.transfers === undefined
+      ? 'unrestricted'
+      : policies.transfers.length === 0
+        ? 'disabled'
+        : policies.transfers.map((policy) => formatTransferPolicy(policy)).join('; ')
+  ]);
+  lines.push([
+    'contract calls',
+    policies.contractCalls === undefined
+      ? 'unrestricted'
+      : policies.contractCalls.length === 0
+        ? 'disabled'
+        : policies.contractCalls.map((policy) => formatCallPolicy(policy)).join('; ')
+  ]);
+
+  return lines;
 }
 
 function normalizeFunctionSelector(value: string): string {
@@ -1254,19 +1467,29 @@ function inspectionLines(inspection: WalletInspectionResult): Array<[string, str
   return lines;
 }
 
-async function loadWalletStatusSummary(walletRecord: WalletSessionRecord): Promise<{
+function resolveWalletCommandDeps(deps?: Partial<WalletCommandDeps>): WalletCommandDeps {
+  return {
+    provider: deps?.provider ?? provider
+  };
+}
+
+async function loadWalletStatusSummary(
+  walletRecord: WalletSessionRecord,
+  deps?: Partial<WalletCommandDeps>
+): Promise<{
   inspection: WalletInspectionResult;
   summary: ReturnType<typeof buildWalletNextSummary>;
 }> {
-  const inspection = await provider.inspectWallet(walletRecord);
-  const balances = await provider.getBalances({
+  const resolvedDeps = resolveWalletCommandDeps(deps);
+  const inspection = await resolvedDeps.provider.inspectWallet(walletRecord);
+  const balances = await resolvedDeps.provider.getBalances({
     walletName: walletRecord.walletName,
     walletAddress: walletRecord.walletAddress,
     chain: walletRecord.chain
   });
   const nativeBalance = balances.balances.find((entry) => entry.type === 'native');
   const funding = nativeBalance && /^0*(\.0*)?$/.test(nativeBalance.balance.trim())
-    ? await provider.getFundingInfo({
+    ? await resolvedDeps.provider.getFundingInfo({
         walletName: walletRecord.walletName,
         walletAddress: walletRecord.walletAddress,
         chain: walletRecord.chain
@@ -1593,6 +1816,7 @@ export function buildWalletApprovalLines(
     ['account', displayAccountKind(walletRecord)],
     ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
     ['paymaster', displayPaymasterMode(walletRecord)],
+    ...sessionPolicyLines(walletRecord.sessionPayload?.permissions),
     ['next', buildWalletNextRecommendedCommand(walletRecord.walletName)],
     ['status command', buildWalletStatusRecommendedCommand(walletRecord.walletName)]
   ];
@@ -1710,6 +1934,12 @@ async function importApprovedWalletSession(
 export async function createWalletReapprovalRequest(options: {
   walletRecord: WalletSessionRecord;
   connectorUrl?: string;
+  sessionPreset?: string;
+  sessionHours?: string;
+  allowTransferTo?: string[];
+  allowContract?: string[];
+  disallowTransfers?: boolean;
+  disallowContractCalls?: boolean;
 }): Promise<WalletRequestRecord> {
   const config = await loadProjectConfig();
   const connectorUrl =
@@ -1717,6 +1947,17 @@ export async function createWalletReapprovalRequest(options: {
     options.walletRecord.sessionPayload?.connectorUrl ||
     config?.connectorUrl ||
     'http://localhost:4444';
+  const policies = buildRequestedSessionPolicies(
+    {
+      sessionPreset: options.sessionPreset,
+      sessionHours: options.sessionHours,
+      allowTransferTo: options.allowTransferTo,
+      allowContract: options.allowContract,
+      disallowTransfers: options.disallowTransfers,
+      disallowContractCalls: options.disallowContractCalls
+    },
+    options.walletRecord.sessionPayload?.permissions
+  );
 
   await loadPendingWalletRequests();
 
@@ -1726,9 +1967,7 @@ export async function createWalletReapprovalRequest(options: {
     connectorUrl,
     accountKind: displayAccountKind(options.walletRecord) as AccountKind,
     paymasterMode: displayPaymasterMode(options.walletRecord) as PaymasterMode,
-    policies: {
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    }
+    policies
   });
 
   await saveWalletRequest(request);
@@ -1858,6 +2097,45 @@ async function fetchEncryptedRelayApprovalPayload(
   return approval.encrypted_payload;
 }
 
+async function finalizePublishedRelayWalletRequest(options: {
+  walletRequest: WalletRequestRecord;
+  relayUrl: string;
+  code?: string;
+  promptCode: boolean;
+  timeoutMs: number;
+  intervalMs: number;
+}): Promise<{
+  payload: SessionPayload;
+  walletRecord: WalletSessionRecord;
+}> {
+  const encryptedPayload = await fetchEncryptedRelayApprovalPayload(
+    options.relayUrl,
+    options.walletRequest.requestId,
+    {
+      wait: true,
+      timeoutMs: options.timeoutMs,
+      intervalMs: options.intervalMs
+    }
+  );
+  const code = options.code || (options.promptCode ? await readApprovalCodeFromStdin() : undefined);
+  if (!code) {
+    throw new Error('Missing relay approval code.');
+  }
+  const payload = decryptApprovedPayloadForWalletRequest(
+    options.walletRequest,
+    encryptedPayload,
+    code
+  );
+  assertApprovedPayloadMatchesRequest(payload, options.walletRequest);
+  const walletRecord = await importApprovedWalletSession(options.walletRequest.walletName, payload);
+  await deleteWalletRequest(options.walletRequest.requestId);
+
+  return {
+    payload,
+    walletRecord
+  };
+}
+
 function writeLocalApprovalJson(
   response: ServerResponse,
   statusCode: number,
@@ -1937,6 +2215,86 @@ function parsePositiveIntegerOption(
   }
 
   return parsed;
+}
+
+interface RelayWaitOptions {
+  relayUrl: string;
+  code?: string;
+  promptCode: boolean;
+  timeoutMs: number;
+  intervalMs: number;
+}
+
+function normalizeApprovalCode(code: string, flag = '--code'): string {
+  const trimmed = code.trim();
+  if (!/^\d{6}$/.test(trimmed)) {
+    throw new Error(`${flag} must be a 6-digit approval code.`);
+  }
+
+  return trimmed;
+}
+
+function resolveRelayWaitOptions(options: {
+  relayUrl?: string;
+  waitRelay?: boolean;
+  code?: string;
+  promptCode?: boolean;
+  awaitLocal?: boolean;
+  timeoutSeconds?: string;
+  intervalMs?: string;
+}): RelayWaitOptions | undefined {
+  if (!options.waitRelay) {
+    if (options.code?.trim()) {
+      throw new Error('--code is only supported together with --wait-relay.');
+    }
+    if (options.promptCode) {
+      throw new Error('--prompt-code is only supported together with --wait-relay.');
+    }
+    return undefined;
+  }
+
+  if (options.awaitLocal) {
+    throw new Error('--wait-relay cannot be combined with --await-local.');
+  }
+  if (!options.relayUrl?.trim()) {
+    throw new Error('--wait-relay requires --relay-url <url>.');
+  }
+  if (options.code?.trim() && options.promptCode) {
+    throw new Error('--code and --prompt-code cannot be used together.');
+  }
+  if (!options.code?.trim() && !options.promptCode) {
+    throw new Error('--wait-relay requires either --code <6-digit-code> or --prompt-code.');
+  }
+
+  return {
+    relayUrl: options.relayUrl.trim(),
+    code: options.code?.trim() ? normalizeApprovalCode(options.code) : undefined,
+    promptCode: Boolean(options.promptCode),
+    timeoutMs: parsePositiveIntegerOption(options.timeoutSeconds, '--timeout-seconds', 600) * 1000,
+    intervalMs: parsePositiveIntegerOption(options.intervalMs, '--interval-ms', 2000)
+  };
+}
+
+async function readApprovalCodeFromStdin(): Promise<string> {
+  const prompt =
+    process.stdin.isTTY && !shouldJsonOutput()
+      ? 'Enter the 6-digit relay approval code: '
+      : '';
+  const output =
+    process.stdin.isTTY && !shouldJsonOutput()
+      ? process.stderr
+      : undefined;
+  const rl = createInterface({
+    input: process.stdin,
+    output,
+    terminal: Boolean(process.stdin.isTTY && output?.isTTY)
+  });
+
+  try {
+    return normalizeApprovalCode(await rl.question(prompt));
+  } finally {
+    rl.close();
+  }
 }
 
 export function resolveLocalApprovalListenerOptions(options: {
@@ -2238,7 +2596,8 @@ async function printBuiltinSmartAccountProfiles(): Promise<void> {
   });
 }
 
-export function createWalletCommand(): Command {
+export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command {
+  const resolvedDeps = resolveWalletCommandDeps(deps);
   const wallet = new Command('wallet').description('Manage wallet sessions');
   const request = new Command('request').description('Inspect and finalize pending wallet requests');
   const smartAccount = new Command('smart-account').description(
@@ -2287,32 +2646,72 @@ export function createWalletCommand(): Command {
     .description('Create a zkSync wallet session request and connector approval URL')
     .option('--name <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Chain key or chain id')
+    .option(
+      '--session-preset <preset>',
+      'Session policy preset: full-access, transfer-only, contract-only, or readonly'
+    )
+    .option(
+      '--session-hours <hours>',
+      'Approved session lifetime in hours (default: 24)'
+    )
+    .option(
+      '--allow-transfer-to <address>',
+      'Allow session transfers only to this recipient address; repeatable',
+      collectOptionValue,
+      []
+    )
+    .option(
+      '--allow-contract <address>',
+      'Allow session contract calls only to this target address; repeatable',
+      collectOptionValue,
+      []
+    )
+    .option('--disallow-transfers', 'Disable transfer capability for the approved session')
+    .option(
+      '--disallow-contract-calls',
+      'Disable contract-call capability for the approved session'
+    )
     .option('--connector-url <url>', 'Connector UI base URL override')
     .option('--relay-url <url>', 'Relay server base URL for immediate remote approval publishing')
     .option('--account-kind <kind>', 'Requested account kind', 'smart-account')
     .option('--paymaster-mode <mode>', 'Requested paymaster mode', 'none')
     .option('--await-local', 'Immediately wait for a local connector approval callback')
+    .option('--wait-relay', 'Wait for relay approval readiness and finalize from the same command (requires --relay-url and either --code or --prompt-code)')
+    .option('--code <code>', '6-digit relay approval code used together with --wait-relay')
+    .option('--prompt-code', 'Read the 6-digit relay approval code from stdin after the relay approval is ready')
     .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
     .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
-    .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local', '600')
+    .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local or --wait-relay', '600')
+    .option('--interval-ms <milliseconds>', 'How often to poll relay status while using --wait-relay', '2000')
     .action(
       async (options: {
         name: string;
         chain?: string;
+        sessionPreset?: string;
+        sessionHours?: string;
+        allowTransferTo?: string[];
+        allowContract?: string[];
+        disallowTransfers?: boolean;
+        disallowContractCalls?: boolean;
         connectorUrl?: string;
         relayUrl?: string;
         accountKind?: 'eoa' | 'smart-account' | 'session-key';
         paymasterMode?: 'none' | 'sponsored' | 'approval-based';
         awaitLocal?: boolean;
+        waitRelay?: boolean;
+        code?: string;
+        promptCode?: boolean;
         host?: string;
         port?: string;
         timeoutSeconds?: string;
+        intervalMs?: string;
       }) => {
       const config = await loadProjectConfig();
       const chain = options.chain || config?.defaultChain || 'zksync-era';
       const connectorUrl = options.connectorUrl || config?.connectorUrl || 'http://localhost:4444';
 
       await loadPendingWalletRequests();
+      const policies = buildRequestedSessionPolicies(options);
 
       const request = await provider.createSessionRequest({
         walletName: options.name,
@@ -2320,12 +2719,11 @@ export function createWalletCommand(): Command {
         connectorUrl,
         accountKind: options.accountKind,
         paymasterMode: options.paymasterMode,
-        policies: {
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        }
+        policies
       });
 
       await saveWalletRequest(request);
+      const relayWaitOptions = resolveRelayWaitOptions(options);
 
       if (options.awaitLocal) {
         const listenerOptions = resolveLocalApprovalListenerOptions(options);
@@ -2358,6 +2756,32 @@ export function createWalletCommand(): Command {
       const relay = options.relayUrl
         ? await publishWalletRequestToRelay(request, options.relayUrl)
         : undefined;
+
+      if (relayWaitOptions) {
+        const { payload, walletRecord } = await finalizePublishedRelayWalletRequest({
+          walletRequest: request,
+          ...relayWaitOptions
+        });
+
+        printResult(
+          buildWalletApprovalLines(
+            'Wallet request created, relay approval received, and wallet imported',
+            request.requestId,
+            walletRecord
+          ),
+          {
+            ok: true,
+            approvalSource: 'relay-url',
+            request: sanitizeWalletRequestRecord(request),
+            payload: sanitizeSessionPayload(payload),
+            wallet: sanitizeWalletRecord(walletRecord),
+            relay,
+            recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
+          }
+        );
+        return;
+      }
+
       const recommendedCommands = buildPendingRequestRecommendedCommands(
         request.walletName,
         request.requestId,
@@ -2370,6 +2794,7 @@ export function createWalletCommand(): Command {
           ['chain', `${request.chain} (${request.chainId})`],
           ['account', request.requestedAccountKind],
           ['paymaster', request.requestedPaymasterMode],
+          ...sessionPolicyLines(request.policies),
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ...(relay
@@ -2424,27 +2849,73 @@ export function createWalletCommand(): Command {
     .command('reapprove')
     .description('Request a fresh connector approval for an existing wallet so it can regain or rotate its stored session')
     .option('--name <name>', 'Wallet name', 'main')
+    .option(
+      '--session-preset <preset>',
+      'Session policy preset: full-access, transfer-only, contract-only, or readonly'
+    )
+    .option(
+      '--session-hours <hours>',
+      'Approved session lifetime in hours (default: keep the current stored session value, or 24 when missing)'
+    )
+    .option(
+      '--allow-transfer-to <address>',
+      'Replace the stored transfer allowlist with this recipient address; repeatable',
+      collectOptionValue,
+      []
+    )
+    .option(
+      '--allow-contract <address>',
+      'Replace the stored contract-call allowlist with this target address; repeatable',
+      collectOptionValue,
+      []
+    )
+    .option('--disallow-transfers', 'Disable transfer capability for the approved session')
+    .option(
+      '--disallow-contract-calls',
+      'Disable contract-call capability for the approved session'
+    )
     .option('--connector-url <url>', 'Connector UI base URL override')
     .option('--relay-url <url>', 'Relay server base URL for immediate remote approval publishing')
     .option('--await-local', 'Immediately wait for a local connector approval callback')
+    .option('--wait-relay', 'Wait for relay approval readiness and finalize from the same command (requires --relay-url and either --code or --prompt-code)')
+    .option('--code <code>', '6-digit relay approval code used together with --wait-relay')
+    .option('--prompt-code', 'Read the 6-digit relay approval code from stdin after the relay approval is ready')
     .option('--host <host>', 'Loopback host to bind when using --await-local', '127.0.0.1')
     .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
-    .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local', '600')
+    .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local or --wait-relay', '600')
+    .option('--interval-ms <milliseconds>', 'How often to poll relay status while using --wait-relay', '2000')
     .action(
       async (options: {
         name: string;
+        sessionPreset?: string;
+        sessionHours?: string;
+        allowTransferTo?: string[];
+        allowContract?: string[];
+        disallowTransfers?: boolean;
+        disallowContractCalls?: boolean;
         connectorUrl?: string;
         relayUrl?: string;
         awaitLocal?: boolean;
+        waitRelay?: boolean;
+        code?: string;
+        promptCode?: boolean;
         host?: string;
         port?: string;
         timeoutSeconds?: string;
+        intervalMs?: string;
       }) => {
       const walletRecord = await requireWalletRecord(options.name);
       const request = await createWalletReapprovalRequest({
         walletRecord,
-        connectorUrl: options.connectorUrl
+        sessionPreset: options.sessionPreset,
+        connectorUrl: options.connectorUrl,
+        sessionHours: options.sessionHours,
+        allowTransferTo: options.allowTransferTo,
+        allowContract: options.allowContract,
+        disallowTransfers: options.disallowTransfers,
+        disallowContractCalls: options.disallowContractCalls
       });
+      const relayWaitOptions = resolveRelayWaitOptions(options);
 
       if (options.awaitLocal) {
         const listenerOptions = resolveLocalApprovalListenerOptions(options);
@@ -2477,6 +2948,32 @@ export function createWalletCommand(): Command {
       const relay = options.relayUrl
         ? await publishWalletRequestToRelay(request, options.relayUrl)
         : undefined;
+
+      if (relayWaitOptions) {
+        const { payload, walletRecord: approvedWallet } = await finalizePublishedRelayWalletRequest({
+          walletRequest: request,
+          ...relayWaitOptions
+        });
+
+        printResult(
+          buildWalletApprovalLines(
+            'Wallet reapproval completed from relay approval',
+            request.requestId,
+            approvedWallet
+          ),
+          {
+            ok: true,
+            approvalSource: 'relay-url',
+            request: sanitizeWalletRequestRecord(request),
+            payload: sanitizeSessionPayload(payload),
+            wallet: sanitizeWalletRecord(approvedWallet),
+            relay,
+            recommendedCommands: buildWalletFollowUpRecommendedCommands(approvedWallet)
+          }
+        );
+        return;
+      }
+
       const recommendedCommands = buildPendingRequestRecommendedCommands(
         request.walletName,
         request.requestId,
@@ -2492,6 +2989,7 @@ export function createWalletCommand(): Command {
             : []),
           ['account', displayAccountKind(walletRecord)],
           ['paymaster', displayPaymasterMode(walletRecord)],
+          ...sessionPolicyLines(request.policies),
           ['request', request.requestId],
           ['approval url', request.approvalUrl],
           ...(relay
@@ -2653,7 +3151,7 @@ export function createWalletCommand(): Command {
       const walletRecord = await loadWalletSession(options.name);
       if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
 
-      const { inspection, summary } = await loadWalletStatusSummary(walletRecord);
+      const { inspection, summary } = await loadWalletStatusSummary(walletRecord, resolvedDeps);
       printResult(walletStatusLines(inspection, summary), { ok: true, inspection, summary });
     });
 
@@ -2663,13 +3161,28 @@ export function createWalletCommand(): Command {
     .option('--name <name>', 'Wallet name', 'main')
     .action(async (options: { name: string }) => {
       const walletRecord = await requireWalletRecord(options.name);
-      const { inspection, summary } = await loadWalletStatusSummary(walletRecord);
-
-      printResult(walletNextLines(summary), {
-        ok: true,
-        inspection,
+      const { inspection, summary } = await loadWalletStatusSummary(walletRecord, resolvedDeps);
+      const recommendedCommands = buildWalletNextRecommendedCommands(
+        walletRecord.walletName,
         summary
-      });
+      );
+
+      printResult(
+        [
+          ...walletNextLines(summary),
+          ['discover assets', recommendedCommands.discoverAssets],
+          ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
+          ['discover tokens', recommendedCommands.discoverTokens],
+          ['inspect token', recommendedCommands.inspectToken],
+          ['status command', recommendedCommands.walletStatus]
+        ],
+        {
+          ok: true,
+          inspection,
+          summary,
+          recommendedCommands
+        }
+      );
     });
 
   wallet
@@ -2828,6 +3341,7 @@ export function createWalletCommand(): Command {
           ['chain', `${walletRequest.chain} (${walletRequest.chainId})`],
           ['account', walletRequest.requestedAccountKind],
           ['paymaster', walletRequest.requestedPaymasterMode],
+          ...sessionPolicyLines(walletRequest.policies),
           ['expires', walletRequest.expiresAt],
           ['approval url', walletRequest.approvalUrl],
           ...(status === 'pending'

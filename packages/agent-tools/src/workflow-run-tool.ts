@@ -9,6 +9,8 @@ import {
   type WorkflowRunResult
 } from '@zk-agent/agent-core';
 
+import { loadToolAgentProfileSummary } from './agent-profile-summary.js';
+import { buildAgentProfileFollowup, type AgentProfileFollowup } from './agent-profile-followup.js';
 import {
   createAgentTool,
   requireWalletRecord,
@@ -31,6 +33,8 @@ export interface WorkflowRunToolInput extends WalletNameInput {
 }
 
 export interface WorkflowRunToolOutput {
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
   result: WorkflowRunResult;
   registry?: WorkflowRunResult['plan']['registry'];
   recommendedCommands: WorkflowToolRecommendedCommands;
@@ -43,6 +47,8 @@ export interface WorkflowRunByCheckpointToolInput {
 export interface WorkflowRunByCheckpointToolOutput {
   requestId: string;
   checkpoint: WorkflowCheckpointRecord;
+  agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
+  agentFollowup: AgentProfileFollowup;
   result: WorkflowRunResult;
   registry?: WorkflowRunResult['plan']['registry'];
   recommendedCommands: WorkflowToolRecommendedCommands;
@@ -86,7 +92,13 @@ export async function executeWorkflowRun(
         }
       );
 
+    const agentProfile = await loadToolAgentProfileSummary(wallet.walletName);
     return {
+      agentProfile,
+      agentFollowup: buildAgentProfileFollowup(agentProfile, {
+        walletName: wallet.walletName,
+        walletExists: true
+      }),
       result,
       registry: result.plan.registry,
       recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
@@ -153,9 +165,15 @@ export function createWorkflowRunByCheckpointTool(context: AgentToolContext) {
       const updatedCheckpoint = applyWorkflowRunToCheckpoint(checkpoint, result);
       await context.saveWorkflowCheckpoint(updatedCheckpoint);
 
+      const agentProfile = await loadToolAgentProfileSummary(wallet.walletName);
       return {
         requestId: input.requestId,
         checkpoint: updatedCheckpoint,
+        agentProfile,
+        agentFollowup: buildAgentProfileFollowup(agentProfile, {
+          walletName: wallet.walletName,
+          walletExists: true
+        }),
         result,
         registry: result.plan.registry,
         recommendedCommands: buildWorkflowRuntimeToolRecommendedCommands({
