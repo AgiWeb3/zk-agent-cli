@@ -113,11 +113,30 @@ function topLevelNextLines(
   return [['scope', scope], ...lines];
 }
 
+function buildNextHelpText(): string {
+  return [
+    '',
+    'Use `next` as the product entrypoint:',
+    '  Fresh operator routing:',
+    '    zk-agent next',
+    '',
+    '  Continue a stored workflow checkpoint:',
+    '    zk-agent next --request-id <id>',
+    '',
+    '  Stay on the wallet layer only when you need wallet-specific remediation:',
+    '    zk-agent wallet next --name main',
+    '',
+    '  Stay on the workflow layer only when you already have an explicit workflow or checkpoint:',
+    '    zk-agent workflow next --request-id <id>'
+  ].join('\n');
+}
+
 export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
   const resolvedDeps = resolveNextCommandDeps(deps);
 
   return new Command('next')
     .description('Summarize the single shortest next CLI step across setup, wallet readiness, and stored workflows')
+    .addHelpText('after', buildNextHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--request-id <id>', 'Stored workflow checkpoint id')
     .action(async (options: NextCommandOptions) => {

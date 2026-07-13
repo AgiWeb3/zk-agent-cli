@@ -342,7 +342,9 @@ pnpm zk-agent workflow auto --wallet main --intent <intent> [goal flags] --creat
 `zk-agent next` is the default decision point. It chooses between setup,
 wallet bootstrap/recovery, and workflow continuation. `workflow auto` is the
 default guided action entry once the wallet is writable; if gas is still
-missing, it points to `workflow fund` as the next step.
+missing, it points to `workflow fund` as the next step. The root help output
+now also prioritizes `next`, `wallet`, and `workflow` before the lower-level
+command families, so the product path is visible before the raw primitives.
 
 ### 2. Wallet entrypoint
 
@@ -358,6 +360,7 @@ pnpm zk-agent next
 pnpm zk-agent wallet reapprove --name main --await-local
 pnpm zk-agent wallet reapprove --name main --session-preset full-access
 pnpm zk-agent wallet reapprove --name main --disallow-contract-calls
+pnpm zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait
 pnpm zk-agent next
 pnpm zk-agent wallet status --name main
 pnpm zk-agent wallet next --name main

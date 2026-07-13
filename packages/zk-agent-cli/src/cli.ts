@@ -45,8 +45,48 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zk-agent next',
     `  ${buildWorkflowAutoRecommendedCommand('main')}`,
     '',
-    'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.'
+    'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
+    'Use `zk-agent wallet --help` for bootstrap/reapproval details and `zk-agent workflow --help` once the intent is known.'
   ].join('\n');
+}
+
+const ROOT_HELP_COMMAND_ORDER = [
+  'next',
+  'init',
+  'wallet',
+  'workflow',
+  'assets',
+  'balances',
+  'fund',
+  'send',
+  'send-token',
+  'call',
+  'swap',
+  'bridge',
+  'bridge-status',
+  'deposit',
+  'deposit-status',
+  'withdraw',
+  'withdraw-status',
+  'withdraw-finalize',
+  'tokens',
+  'resolve-token',
+  'defaults',
+  'relay',
+  'agent'
+] as const;
+
+function applyRootHelpCommandOrder(program: Command): void {
+  const order = new Map(ROOT_HELP_COMMAND_ORDER.map((name, index) => [name, index]));
+  program.commands.sort((left, right) => {
+    const leftOrder = order.get(left.name()) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = order.get(right.name()) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.name().localeCompare(right.name());
+  });
 }
 
 function createProgram(): Command {
@@ -87,6 +127,7 @@ function createProgram(): Command {
     program.addCommand(command);
   }
 
+  applyRootHelpCommandOrder(program);
   program.addHelpText('after', buildDefaultOperatorPathHelpText());
 
   return program;

@@ -111,6 +111,27 @@ test('top-level help prints the default operator path around zk-agent next', asy
       /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/
     );
     assert.match(help, /zk-agent next --request-id <id>/);
+    assert.match(help, /zk-agent wallet --help/);
+    assert.match(help, /zk-agent workflow --help/);
+    assert.ok(help.indexOf('\n  next') < help.indexOf('\n  wallet'));
+    assert.ok(help.indexOf('\n  wallet') < help.indexOf('\n  workflow'));
+    assert.ok(help.indexOf('\n  workflow') < help.indexOf('\n  assets'));
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('next help explains when to stay on next, wallet next, or workflow next', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-help-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['next', '--help'], env);
+
+    assert.match(help, /Use `next` as the product entrypoint:/);
+    assert.match(help, /zk-agent next --request-id <id>/);
+    assert.match(help, /zk-agent wallet next --name main/);
+    assert.match(help, /zk-agent workflow next --request-id <id>/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -152,6 +173,38 @@ test('wallet help prints the default wallet path', async () => {
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent wallet next --name main/);
+    assert.match(help, /Remote approval path:/);
+    assert.match(help, /zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait/);
+    assert.ok(help.indexOf('create [options]') < help.indexOf('reapprove [options]'));
+    assert.ok(help.indexOf('reapprove [options]') < help.indexOf('status [options]'));
+    assert.ok(help.indexOf('status [options]') < help.indexOf('next [options]'));
+    assert.ok(help.indexOf('\n  request') < help.indexOf('\n  paymaster'));
+    assert.ok(help.indexOf('\n  paymaster') < help.indexOf('\n  smart-account'));
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet request and smart-account help surfaces are product-ordered', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-wallet-nested-help-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const requestHelp = await runCliText(['wallet', 'request', '--help'], env);
+    assert.match(requestHelp, /Wallet request path:/);
+    assert.match(requestHelp, /zk-agent wallet request await-local --request-id <id>/);
+    assert.match(requestHelp, /zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait/);
+    assert.ok(requestHelp.indexOf('\n  list') < requestHelp.indexOf('\n  show [options]'));
+    assert.ok(requestHelp.indexOf('\n  show [options]') < requestHelp.indexOf('\n  await-local [options]'));
+    assert.ok(requestHelp.indexOf('\n  await-local [options]') < requestHelp.indexOf('\n  approve [options]'));
+
+    const smartAccountHelp = await runCliText(['wallet', 'smart-account', '--help'], env);
+    assert.match(smartAccountHelp, /Smart-account path:/);
+    assert.match(smartAccountHelp, /zk-agent wallet smart-account predict --name main --profile sed-lite/);
+    assert.match(smartAccountHelp, /zk-agent wallet smart-account deploy --name main --profile sed-lite/);
+    assert.ok(smartAccountHelp.indexOf('\n  profiles') < smartAccountHelp.indexOf('\n  predict [options]'));
+    assert.ok(smartAccountHelp.indexOf('\n  predict [options]') < smartAccountHelp.indexOf('\n  deploy [options]'));
+    assert.ok(smartAccountHelp.indexOf('\n  deploy [options]') < smartAccountHelp.indexOf('\n  sed-lite'));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

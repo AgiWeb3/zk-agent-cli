@@ -145,6 +145,55 @@ interface WalletCommandDeps {
   provider: Pick<ZkSyncWalletProvider, 'inspectWallet' | 'getBalances' | 'getFundingInfo'>;
 }
 
+const WALLET_HELP_COMMAND_ORDER = [
+  'create',
+  'reapprove',
+  'status',
+  'next',
+  'sync',
+  'export',
+  'restore',
+  'import',
+  'list',
+  'address',
+  'rename',
+  'remove',
+  'request',
+  'paymaster',
+  'smart-account'
+] as const;
+
+const WALLET_REQUEST_HELP_COMMAND_ORDER = [
+  'list',
+  'show',
+  'await-local',
+  'approve',
+  'relay-publish',
+  'relay-status',
+  'approve-local'
+] as const;
+
+const WALLET_SMART_ACCOUNT_HELP_COMMAND_ORDER = [
+  'profiles',
+  'predict',
+  'deploy',
+  'sed-lite',
+  'daily-spend-limit'
+] as const;
+
+function applyCommandOrder(command: Command, orderedNames: readonly string[]): void {
+  const order = new Map(orderedNames.map((name, index) => [name, index]));
+  command.commands.sort((left, right) => {
+    const leftOrder = order.get(left.name()) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = order.get(right.name()) ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.name().localeCompare(right.name());
+  });
+}
+
 export function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
   if (!payload) return undefined;
   const { sessionPrivateKey: _sessionPrivateKey, ...rest } = payload;
@@ -2637,7 +2686,43 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '',
       '  Wallet-layer inspection:',
       '    zk-agent wallet status --name main',
-      '    zk-agent wallet next --name main'
+      '    zk-agent wallet next --name main',
+      '',
+      '  Remote approval path:',
+      '    zk-agent wallet create --relay-url <url>',
+      '    zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+    ].join('\n')
+  );
+
+  request.addHelpText(
+    'after',
+    [
+      '',
+      'Wallet request path:',
+      '  Colocated browser + terminal:',
+      '    zk-agent wallet request await-local --request-id <id>',
+      '',
+      '  Remote relay completion:',
+      '    zk-agent wallet request relay-publish --request-id <id> --relay-url <url>',
+      '    zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait',
+      '    zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+    ].join('\n')
+  );
+
+  smartAccount.addHelpText(
+    'after',
+    [
+      '',
+      'Smart-account path:',
+      '  Predict from a built-in profile:',
+      '    zk-agent wallet smart-account predict --name main --profile sed-lite',
+      '',
+      '  Deploy and persist the new execution address:',
+      '    zk-agent wallet smart-account deploy --name main --profile sed-lite',
+      '',
+      '  Inspect or update built-in SED behaviors after deployment:',
+      '    zk-agent wallet smart-account sed-lite hooks --name main',
+      '    zk-agent wallet smart-account daily-spend-limit show --name main'
     ].join('\n')
   );
 
@@ -5800,6 +5885,10 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
   wallet.addCommand(smartAccount);
   wallet.addCommand(paymaster);
   wallet.addCommand(request);
+
+  applyCommandOrder(request, WALLET_REQUEST_HELP_COMMAND_ORDER);
+  applyCommandOrder(smartAccount, WALLET_SMART_ACCOUNT_HELP_COMMAND_ORDER);
+  applyCommandOrder(wallet, WALLET_HELP_COMMAND_ORDER);
 
   return wallet;
 }
