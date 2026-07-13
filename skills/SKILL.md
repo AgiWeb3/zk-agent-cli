@@ -461,9 +461,10 @@ pnpm tool:list
 ```
 
 In that list, high-frequency entries are surfaced first and each item includes a
-`group` field plus the closest `cliCommand` equivalent. Prefer
-`workflowAutoTool` for guided workflow orchestration. `workflowOrchestratorTool`
-is kept as a compatibility alias for the same path.
+`group` field plus the closest `cliCommand` equivalent. Key operator-path tools
+also include `exampleInput`, including the session-policy preset fields used for
+guided reapproval. Prefer `workflowAutoTool` for guided workflow orchestration.
+`workflowOrchestratorTool` is kept as a compatibility alias for the same path.
 
 For the canonical operator path, key tools also expose `operatorPathStage`:
 
@@ -481,10 +482,20 @@ Run one tool:
 ```bash
 pnpm tool:run -- --tool <toolName> --input <json|@file>
 pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
+pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","policyPreset":"full-access"}'
+pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
 ```
 
 Use the tool surface when you need stable programmatic input/output rather than
 shell-oriented CLI behavior.
+
+For session recovery, keep the tool inputs aligned with the CLI:
+
+- `walletReapproveTool.policyPreset`
+  supports `full-access`, `transfer-only`, `contract-only`, `readonly`
+- `workflowOrchestratorTool.approvalPolicyPreset`
+  supports the same values plus `intent`, which derives the narrowest default
+  from the workflow goal
 
 ## Known environment constraint
 

@@ -23,10 +23,16 @@ import {
   AgentError,
   type CreateSessionRequestInput,
   type CreateSessionRequestResult,
+  parseSessionPolicyPreset,
+  resolveIntentSessionPolicyPreset,
+  resolveSessionPolicyPresetOptions,
+  type SessionPolicyPreset,
   type WalletExportRecord,
   type WalletInspectionResult,
   type WalletRequestRecord,
-  type WalletSessionRecord
+  type WalletSessionRecord,
+  type WorkflowGoalInput,
+  type WorkflowSessionPolicyPreset
 } from '@zk-agent/agent-core';
 
 import { createAgentTool, withWalletRecord } from './tool-helpers.js';
@@ -61,6 +67,7 @@ export interface WalletRestoreToolInput {
 
 export interface WalletReapproveToolInput extends WalletNameInput {
   connectorUrl?: string;
+  policyPreset?: SessionPolicyPreset;
   policies?: SessionPolicies;
 }
 
@@ -75,7 +82,9 @@ export interface WalletApprovalOrchestratorToolInput {
   relayWaitIntervalMs?: number;
   accountKind?: AccountKind;
   paymasterMode?: PaymasterMode;
+  policyPreset?: WorkflowSessionPolicyPreset;
   policies?: SessionPolicies;
+  goal?: WorkflowGoalInput;
   requestId?: string;
   payload?: SessionPayload;
   encryptedPayload?: EncryptedPayload;
@@ -277,11 +286,94 @@ function defaultApprovalPolicies(policies?: SessionPolicies): SessionPolicies {
   };
 }
 
-function resolveReapprovalPolicies(
+function resolvePresetPolicyLists(
+  preset: WorkflowSessionPolicyPreset | undefined,
+  goal?: WorkflowGoalInput
+): {
+  transfers?: SessionPolicies['transfers'];
+  contractCalls?: SessionPolicies['contractCalls'];
+} {
+  const parsedPreset = parseSessionPolicyPreset(preset, {
+    allowIntent: true,
+    flag: 'policyPreset'
+  });
+  if (!parsedPreset) return {};
+
+  if (parsedPreset === 'intent') {
+    if (!goal) {
+      throw new AgentError(
+        'WALLET_APPROVAL_GOAL_REQUIRED',
+        'policyPreset intent requires a workflow goal.',
+        {}
+      );
+    }
+
+    const resolved = resolveIntentSessionPolicyPreset(goal);
+    return resolved.preset === 'transfer-only'
+      ? {
+          transfers: resolved.allowTransferTo?.map((to) => ({ to })),
+          contractCalls: []
+        }
+      : {
+          transfers: [],
+          contractCalls: resolved.allowContract?.map((address) => ({ address }))
+        };
+  }
+
+  const presetOptions = resolveSessionPolicyPresetOptions(parsedPreset);
+  return {
+    transfers: presetOptions.disallowTransfers
+      ? []
+      : presetOptions.unrestrictedTransfers
+        ? undefined
+        : undefined,
+    contractCalls: presetOptions.disallowContractCalls
+      ? []
+      : presetOptions.unrestrictedContractCalls
+        ? undefined
+        : undefined
+  };
+}
+
+function resolveApprovalPolicies(
   requestedPolicies?: SessionPolicies,
-  existingPolicies?: SessionPolicies
+  existingPolicies?: SessionPolicies,
+  policyPreset?: WorkflowSessionPolicyPreset,
+  goal?: WorkflowGoalInput
 ): SessionPolicies {
-  return defaultApprovalPolicies(requestedPolicies || existingPolicies);
+  const base = cloneSessionPolicies(existingPolicies) || {};
+  const requested = cloneSessionPolicies(requestedPolicies);
+  const presetLists = resolvePresetPolicyLists(policyPreset, goal);
+  const requestedHasExpiresAt = Boolean(
+    requestedPolicies && Object.prototype.hasOwnProperty.call(requestedPolicies, 'expiresAt')
+  );
+  const requestedHasFeeLimit = Boolean(
+    requestedPolicies && Object.prototype.hasOwnProperty.call(requestedPolicies, 'feeLimit')
+  );
+  const requestedHasTransfers = Boolean(
+    requestedPolicies && Object.prototype.hasOwnProperty.call(requestedPolicies, 'transfers')
+  );
+  const requestedHasContractCalls = Boolean(
+    requestedPolicies && Object.prototype.hasOwnProperty.call(requestedPolicies, 'contractCalls')
+  );
+
+  return defaultApprovalPolicies({
+    ...base,
+    ...(requestedHasFeeLimit ? { feeLimit: requested?.feeLimit } : {}),
+    ...(requestedHasExpiresAt ? { expiresAt: requested?.expiresAt } : {}),
+    transfers:
+      requestedHasTransfers
+        ? requested?.transfers
+        : 'transfers' in presetLists
+          ? presetLists.transfers
+          : base.transfers,
+    contractCalls:
+      requestedHasContractCalls
+        ? requested?.contractCalls
+        : 'contractCalls' in presetLists
+          ? presetLists.contractCalls
+          : base.contractCalls
+  });
 }
 
 function sanitizeWalletRequestRecord(request: WalletRequestRecord): SanitizedWalletRequestRecord {
@@ -1007,9 +1099,10 @@ export function createWalletReapproveTool(context: AgentToolContext) {
           connectorUrl: currentInput.connectorUrl || wallet.sessionPayload?.connectorUrl || 'http://localhost:4444',
           accountKind: displayAccountKind(wallet),
           paymasterMode: displayPaymasterMode(wallet),
-          policies: resolveReapprovalPolicies(
+          policies: resolveApprovalPolicies(
             currentInput.policies,
-            wallet.sessionPayload?.permissions
+            wallet.sessionPayload?.permissions,
+            currentInput.policyPreset
           )
         });
 
@@ -1101,7 +1194,7 @@ export async function runWalletApprovalOrchestration(
       walletName: input.walletName.trim(),
       chain: input.chain.trim(),
       connectorUrl: input.connectorUrl?.trim() || 'http://localhost:4444',
-      policies: defaultApprovalPolicies(input.policies),
+      policies: resolveApprovalPolicies(input.policies, undefined, input.policyPreset, input.goal),
       accountKind: input.accountKind,
       paymasterMode: input.paymasterMode
     };
@@ -1128,7 +1221,12 @@ export async function runWalletApprovalOrchestration(
       connectorUrl: input.connectorUrl || wallet.sessionPayload?.connectorUrl || 'http://localhost:4444',
       accountKind: displayAccountKind(wallet),
       paymasterMode: displayPaymasterMode(wallet),
-      policies: resolveReapprovalPolicies(input.policies, wallet.sessionPayload?.permissions)
+      policies: resolveApprovalPolicies(
+        input.policies,
+        wallet.sessionPayload?.permissions,
+        input.policyPreset,
+        input.goal
+      )
     };
   }
 

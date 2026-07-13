@@ -3496,6 +3496,29 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     contractCalls: [{ address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }]
   });
 
+  const intentPresetRequest = await tools.workflowOrchestratorTool.execute({
+    walletName: 'workflow-needs-approval',
+    requestId: 'wf-auto-approval-intent-001',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x5555555555555555555555555555555555555555',
+      amount: '0.2'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalConnectorUrl: 'http://localhost:4444',
+    approvalPolicyPreset: 'intent'
+  });
+  assert.equal(intentPresetRequest.ok, true);
+  if (!intentPresetRequest.ok) return;
+  assert.equal(intentPresetRequest.data.action, 'request-created');
+  assert.deepEqual(requests.get(intentPresetRequest.data.walletApproval?.requestId)?.policies, {
+    expiresAt: requests.get(intentPresetRequest.data.walletApproval?.requestId)?.policies.expiresAt,
+    transfers: [{ to: '0x5555555555555555555555555555555555555555' }],
+    contractCalls: []
+  });
+
   const relayRequestCreated = await tools.workflowOrchestratorTool.execute({
     walletName: 'workflow-needs-approval',
     requestId: 'wf-auto-approval-relay-001',
@@ -3826,6 +3849,31 @@ test('wallet lifecycle tools persist requests, restore wallets, and preserve met
   assert.ok(requests.has(requestResult.data.request.requestId));
   assert.deepEqual(requestResult.data.request.policies, {
     expiresAt: '2099-06-19T12:00:00.000Z',
+    transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
+    contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
+  });
+
+  const fullAccessRequestResult = await tools.walletReapproveTool.execute({
+    walletName: 'restored',
+    connectorUrl: 'http://localhost:4444',
+    policyPreset: 'full-access'
+  });
+  assert.equal(fullAccessRequestResult.ok, true);
+  if (!fullAccessRequestResult.ok) return;
+  assert.equal(fullAccessRequestResult.data.request.policies.transfers, undefined);
+  assert.equal(fullAccessRequestResult.data.request.policies.contractCalls, undefined);
+
+  const refreshedExpiryRequestResult = await tools.walletReapproveTool.execute({
+    walletName: 'restored',
+    connectorUrl: 'http://localhost:4444',
+    policies: {
+      expiresAt: '2099-07-01T00:00:00.000Z'
+    }
+  });
+  assert.equal(refreshedExpiryRequestResult.ok, true);
+  if (!refreshedExpiryRequestResult.ok) return;
+  assert.deepEqual(refreshedExpiryRequestResult.data.request.policies, {
+    expiresAt: '2099-07-01T00:00:00.000Z',
     transfers: [{ to: '0x8888888888888888888888888888888888888888' }],
     contractCalls: [{ address: '0x9999999999999999999999999999999999999999' }]
   });

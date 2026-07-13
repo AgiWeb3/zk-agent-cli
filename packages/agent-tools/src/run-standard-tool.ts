@@ -21,6 +21,7 @@ export interface StandardAgentToolListEntry {
   | 'write'
   | 'account';
   cliCommand?: string;
+  exampleInput?: Record<string, unknown>;
   operatorPathStage?:
     | 'decide-next'
     | 'acquire-session'
@@ -99,6 +100,10 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
     group: 'wallet',
     priority: 4,
     cliCommand: 'zk-agent wallet create --await-local',
+    exampleInput: {
+      walletName: 'main',
+      chain: 'zksync-sepolia'
+    },
     operatorPathStage: 'acquire-session'
   },
   topLevelNextTool: {
@@ -118,12 +123,21 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
   walletApprovalOrchestratorTool: {
     group: 'wallet',
     cliCommand: 'zk-agent wallet create --await-local',
+    exampleInput: {
+      mode: 'reapprove',
+      walletName: 'main',
+      policyPreset: 'full-access'
+    },
     operatorPathStage: 'acquire-session'
   },
   walletReapproveTool: {
     group: 'wallet',
     priority: 5,
     cliCommand: 'zk-agent wallet reapprove --name <name> --await-local',
+    exampleInput: {
+      walletName: 'main',
+      policyPreset: 'full-access'
+    },
     operatorPathStage: 'acquire-session'
   },
   walletStatusTool: {
@@ -143,6 +157,18 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
     priority: 1,
     cliCommand:
       'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready',
+    exampleInput: {
+      walletName: 'main',
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x1111111111111111111111111111111111111111',
+        amount: '0.001'
+      },
+      createCheckpoint: true,
+      ensureWalletSession: true,
+      approvalPolicyPreset: 'intent'
+    },
     operatorPathStage: 'guided-execution'
   },
   workflowOrchestratorTool: {
@@ -150,6 +176,18 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
     aliasOf: 'workflowAutoTool',
     cliCommand:
       'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready',
+    exampleInput: {
+      walletName: 'main',
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x1111111111111111111111111111111111111111',
+        amount: '0.001'
+      },
+      createCheckpoint: true,
+      ensureWalletSession: true,
+      approvalPolicyPreset: 'intent'
+    },
     operatorPathStage: 'guided-execution'
   },
   workflowStatusTool: {

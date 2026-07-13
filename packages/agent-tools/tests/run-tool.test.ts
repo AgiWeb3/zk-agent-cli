@@ -69,6 +69,18 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     result.tools[1]?.cliCommand,
     'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready'
   );
+  assert.deepEqual(result.tools[1]?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalPolicyPreset: 'intent'
+  });
   assert.equal(result.tools[1]?.operatorPathStage, 'guided-execution');
   assert.equal(result.tools[1]?.recommended, true);
   assert.equal(result.tools[2]?.name, 'walletStatusTool');
@@ -84,7 +96,27 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     compatibilityAlias?.cliCommand,
     'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready'
   );
+  assert.deepEqual(compatibilityAlias?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalPolicyPreset: 'intent'
+  });
   assert.equal(compatibilityAlias?.operatorPathStage, 'guided-execution');
+
+  const walletReapproveTool = result.tools.find(
+    (entry: { name: string }) => entry.name === 'walletReapproveTool'
+  );
+  assert.deepEqual(walletReapproveTool?.exampleInput, {
+    walletName: 'main',
+    policyPreset: 'full-access'
+  });
 
   const workflowFundTool = result.tools.find(
     (entry: { name: string }) => entry.name === 'workflowFundTool'

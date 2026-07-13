@@ -345,13 +345,15 @@ Run a tool:
 ```bash
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
+pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","policyPreset":"full-access"}'
+pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
 ```
 
 When listing tools with `pnpm tool:run -- --list`, high-frequency entries now
 appear first and each item includes a `group` field plus the closest
-`cliCommand` equivalent. Treat `workflowAutoTool` as the default guided
-workflow entry. `workflowOrchestratorTool` remains available as a compatibility
-alias.
+`cliCommand` equivalent. Key operator-path tools also include `exampleInput`.
+Treat `workflowAutoTool` as the default guided workflow entry.
+`workflowOrchestratorTool` remains available as a compatibility alias.
 
 For the default product path, key tools also expose `operatorPathStage`:
 
@@ -360,6 +362,11 @@ For the default product path, key tools also expose `operatorPathStage`:
 - `guided-execution`: `workflowAutoTool`
 - `funding-fallback`: `workflowFundTool`
 - `checkpoint-follow-up`: `workflowStatusByCheckpointTool`, `workflowNextByCheckpointTool`, `workflowRunByCheckpointTool`
+
+Tool-side session guardrails match the CLI presets:
+
+- `walletReapproveTool.policyPreset`
+- `workflowOrchestratorTool.approvalPolicyPreset`
 
 The list response also includes a top-level `recommendedSequence`, which
 already orders those stages for the default product path.

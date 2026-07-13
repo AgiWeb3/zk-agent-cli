@@ -48,6 +48,7 @@ export interface WorkflowOrchestratorToolInput extends Partial<WalletNameInput> 
   ensureWalletSession?: boolean;
   approvalConnectorUrl?: string;
   approvalRelayUrl?: string;
+  approvalPolicyPreset?: WalletApprovalOrchestratorToolInput['policyPreset'];
   approvalPolicies?: WalletApprovalOrchestratorToolInput['policies'];
   approvalPayload?: WalletApprovalOrchestratorToolInput['payload'];
   approvalEncryptedPayload?: WalletApprovalOrchestratorToolInput['encryptedPayload'];
@@ -381,7 +382,9 @@ function createWorkflowOrchestratorToolWithName(
           walletName: resolved.walletName,
           connectorUrl: input.approvalConnectorUrl,
           relayUrl: input.approvalRelayUrl,
+          policyPreset: input.approvalPolicyPreset,
           policies: input.approvalPolicies,
+          goal: resolved.goal,
           payload: input.approvalPayload,
           encryptedPayload: input.approvalEncryptedPayload,
           code: input.approvalCode,

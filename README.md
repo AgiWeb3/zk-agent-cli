@@ -564,6 +564,8 @@ pnpm tool:list
 pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool workflowAutoTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"createCheckpoint":true}'
+pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","policyPreset":"full-access"}'
+pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
 pnpm smoke:operator-path -- --wallet <name>
 pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]
 pnpm smoke:paymaster-success -- --wallet <name>
@@ -577,7 +579,12 @@ Recommended root wrappers for the current stable product surface:
 
 - `pnpm tool:list` and `pnpm tool:run -- --tool <toolName> --input <json|@file>`
   expose the agent-tools registry without repeating package-filter boilerplate
-  and now return the closest `cliCommand` equivalent for each listed tool
+  and now return the closest `cliCommand` equivalent plus `exampleInput` for
+  the main operator-path tools
+- wallet/session recovery tools now accept the same preset-style guardrails as
+  the CLI:
+  `walletReapproveTool.policyPreset = full-access|transfer-only|contract-only|readonly`,
+  and `workflowOrchestratorTool.approvalPolicyPreset = ... | intent`
 - key tools on the default operator path also expose `operatorPathStage`, so an
   agent can distinguish routing, session acquisition, guided execution,
   funding fallback, and checkpoint follow-up without maintaining its own map
