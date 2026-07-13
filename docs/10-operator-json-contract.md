@@ -22,6 +22,7 @@ operator / agent harness 的机器可读输出。
 - `pnpm smoke:operator-path`
 - `pnpm smoke:product-path`
 - `pnpm smoke:paymaster-success`
+- `pnpm tool:run -- --list`
 
 ## 共享字段
 
@@ -263,6 +264,79 @@ operator / agent harness 的机器可读输出。
 - `agentFollowup`
   本地 agent identity follow-up
 
+## `pnpm tool:run -- --list`
+
+这是当前 agent-tools discoverability contract。
+
+### 顶层字段
+
+- `ok`
+- `tools`
+- `recommendedSequence`
+
+### `tools[]`
+
+当前稳定字段：
+
+- `name`
+- `description`
+- `group`
+- `cliCommand`
+- `exampleInput`
+- `operatorPathStage`
+- `recommended`
+- `aliasOf`
+
+其中：
+
+- `cliCommand`
+  给出最接近的 CLI 等价入口，用于把 tool surface 和人类命令面保持对齐。
+- `exampleInput`
+  当前覆盖默认 operator path 以及大部分常用的非零输入工具，避免
+  harness 猜参数形状；零输入或重序列化负载型工具可以不提供。
+- `operatorPathStage`
+  当前稳定值：
+  - `decide-next`
+  - `acquire-session`
+  - `guided-execution`
+  - `funding-fallback`
+  - `checkpoint-follow-up`
+- `recommended`
+  目前主要用于把 `workflowAutoTool` 标记成默认 guided workflow 入口。
+- `aliasOf`
+  当前用于显式表达 `workflowOrchestratorTool -> workflowAutoTool` 这类兼容别名关系。
+
+### `recommendedSequence`
+
+这是把默认 operator path 压缩成机器可读阶段序列的 contract。
+
+当前每个条目稳定字段：
+
+- `stage`
+- `summary`
+- `primaryToolName`
+- `toolNames`
+
+当前稳定阶段顺序：
+
+1. `decide-next`
+2. `acquire-session`
+3. `guided-execution`
+4. `funding-fallback`
+5. `checkpoint-follow-up`
+
+### 当前关于 session guardrail 的 discoverability 约定
+
+默认 operator path 上的 session-recovery tools 现在会通过 `exampleInput`
+显式暴露 preset 用法，而不是要求外部 harness 反推：
+
+- `walletReapproveTool.exampleInput.policyPreset`
+- `workflowAutoTool.exampleInput.approvalPolicyPreset`
+- `workflowOrchestratorTool.exampleInput.approvalPolicyPreset`
+
+其中 `approvalPolicyPreset = "intent"` 的语义当前也已经固定：
+从 workflow goal 推导最窄的默认 session。
+
 ## Smoke contract
 
 ### `smoke:operator-path`
@@ -331,6 +405,11 @@ operator / agent harness 的机器可读输出。
 - `agentProfile`
 - `agentFollowup`
 - `recommendedCommands`
+- `tools[].group`
+- `tools[].cliCommand`
+- `tools[].exampleInput`
+- `tools[].operatorPathStage`
+- `recommendedSequence`
 - smoke summary 里的 `topLevel*` / `workflow*` / `followups`
 
 当前不建议把下面这些 payload 当成“强 schema 永久稳定字段集”：

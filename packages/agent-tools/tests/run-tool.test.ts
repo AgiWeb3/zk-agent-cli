@@ -59,9 +59,15 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     toolNames: ['topLevelNextTool']
   });
   assert.equal(Array.isArray(result.tools), true);
+  const toolByName = (name: string) =>
+    result.tools.find((entry: { name: string }) => entry.name === name);
+
   assert.equal(result.tools[0]?.name, 'topLevelNextTool');
   assert.equal(result.tools[0]?.group, 'entrypoint');
   assert.equal(result.tools[0]?.cliCommand, 'zk-agent next');
+  assert.deepEqual(result.tools[0]?.exampleInput, {
+    walletName: 'main'
+  });
   assert.equal(result.tools[0]?.operatorPathStage, 'decide-next');
   assert.equal(result.tools[1]?.name, 'workflowAutoTool');
   assert.equal(result.tools[1]?.group, 'workflow');
@@ -86,10 +92,51 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
   assert.equal(result.tools[2]?.name, 'walletStatusTool');
   assert.equal(result.tools[2]?.group, 'wallet');
   assert.equal(result.tools[2]?.cliCommand, 'zk-agent wallet status --name <name>');
+  assert.deepEqual(result.tools[2]?.exampleInput, {
+    walletName: 'main'
+  });
 
-  const compatibilityAlias = result.tools.find(
-    (entry: { name: string }) => entry.name === 'workflowOrchestratorTool'
-  );
+  assert.deepEqual(toolByName('createWalletTool')?.exampleInput, {
+    walletName: 'main',
+    chain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    policies: {
+      expiresAt: '2026-07-14T00:00:00.000Z',
+      transfers: [
+        {
+          to: '0x1111111111111111111111111111111111111111'
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(toolByName('createWalletRequestTool')?.exampleInput, {
+    walletName: 'main',
+    chain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    policies: {
+      expiresAt: '2026-07-14T00:00:00.000Z',
+      transfers: [
+        {
+          to: '0x1111111111111111111111111111111111111111'
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(toolByName('approveWalletRequestTool')?.exampleInput, {
+    requestId: 'req123456',
+    relayUrl: 'http://127.0.0.1:8787',
+    waitForRelayApproval: true,
+    code: '123456'
+  });
+
+  const walletNextTool = toolByName('walletNextTool');
+  assert.deepEqual(walletNextTool?.exampleInput, {
+    walletName: 'main'
+  });
+
+  const compatibilityAlias = toolByName('workflowOrchestratorTool');
   assert.equal(compatibilityAlias?.group, 'workflow');
   assert.equal(compatibilityAlias?.aliasOf, 'workflowAutoTool');
   assert.equal(
@@ -110,61 +157,275 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
   });
   assert.equal(compatibilityAlias?.operatorPathStage, 'guided-execution');
 
-  const walletReapproveTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'walletReapproveTool'
-  );
+  const walletReapproveTool = toolByName('walletReapproveTool');
   assert.deepEqual(walletReapproveTool?.exampleInput, {
     walletName: 'main',
     policyPreset: 'full-access'
   });
 
-  const workflowFundTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'workflowFundTool'
-  );
+  const workflowFundTool = toolByName('workflowFundTool');
   assert.equal(workflowFundTool?.operatorPathStage, 'funding-fallback');
+  assert.deepEqual(workflowFundTool?.exampleInput, {
+    walletName: 'main',
+    amount: '0.02',
+    execute: true
+  });
 
-  const assetsTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'getAssetsTool'
-  );
+  const assetsTool = toolByName('getAssetsTool');
   assert.equal(assetsTool?.group, 'read');
   assert.equal(assetsTool?.cliCommand, 'zk-agent assets --wallet <name>');
+  assert.deepEqual(assetsTool?.exampleInput, {
+    walletName: 'main'
+  });
 
-  const workflowBridgeTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'workflowBridgeTool'
-  );
+  const workflowPlanTool = toolByName('workflowPlanTool');
+  assert.deepEqual(workflowPlanTool?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native'
+  });
+
+  const workflowStatusTool = toolByName('workflowStatusTool');
+  assert.deepEqual(workflowStatusTool?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    }
+  });
+
+  const workflowNextTool = toolByName('workflowNextTool');
+  assert.deepEqual(workflowNextTool?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    }
+  });
+
+  const workflowRunTool = toolByName('workflowRunTool');
+  assert.deepEqual(workflowRunTool?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    },
+    broadcast: true
+  });
+
+  assert.deepEqual(toolByName('workflowSendNativeTool')?.exampleInput, {
+    walletName: 'main',
+    to: '0x1111111111111111111111111111111111111111',
+    amount: '0.001'
+  });
+
+  const workflowBridgeTool = toolByName('workflowBridgeTool');
   assert.equal(
     workflowBridgeTool?.cliCommand,
     'zk-agent workflow bridge --wallet <name> --amount <amount> [--to-chain <chain>] ...'
   );
+  assert.deepEqual(workflowBridgeTool?.exampleInput, {
+    walletName: 'main',
+    amount: '0.01',
+    toChain: 'ethereum-sepolia'
+  });
 
-  const workflowSendTokenTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'workflowSendTokenTool'
-  );
+  const workflowSendTokenTool = toolByName('workflowSendTokenTool');
   assert.equal(
     workflowSendTokenTool?.cliCommand,
     'zk-agent workflow send-token --wallet <name> --symbol <symbol> --to <address> --amount <amount> ...'
   );
+  assert.deepEqual(workflowSendTokenTool?.exampleInput, {
+    walletName: 'main',
+    to: '0x1111111111111111111111111111111111111111',
+    amount: '1.5',
+    tokenAddress: '0x2222222222222222222222222222222222222222',
+    decimals: 18,
+    symbol: 'TEST'
+  });
 
-  const workflowSwapTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'workflowSwapTool'
-  );
+  const workflowSwapTool = toolByName('workflowSwapTool');
   assert.equal(
     workflowSwapTool?.cliCommand,
     'zk-agent workflow swap --wallet <name> --token-in-symbol <symbol> --token-out-symbol <symbol> ...'
   );
+  assert.deepEqual(workflowSwapTool?.exampleInput, {
+    walletName: 'main',
+    protocol: 'syncswap-classic',
+    routerAddress: '0x3333333333333333333333333333333333333333',
+    factoryAddress: '0x4444444444444444444444444444444444444444',
+    tokenInAddress: '0x2222222222222222222222222222222222222222',
+    tokenOutAddress: '0x5555555555555555555555555555555555555555',
+    amountIn: '1.0',
+    amountOutMin: '0',
+    tokenInDecimals: 18,
+    tokenOutDecimals: 6,
+    tokenInSymbol: 'TEST',
+    tokenOutSymbol: 'USDC',
+    feeTier: 0
+  });
 
-  const bridgePreviewTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'bridgePreviewTool'
-  );
+  const bridgePreviewTool = toolByName('bridgePreviewTool');
   assert.equal(
     bridgePreviewTool?.cliCommand,
     'zk-agent bridge --wallet <name> --amount <amount> [--to-chain <chain>] ...'
   );
+  assert.deepEqual(bridgePreviewTool?.exampleInput, {
+    walletName: 'main',
+    amount: '0.01',
+    toChain: 'ethereum-sepolia',
+    broadcast: false
+  });
 
-  const resumeByCheckpointTool = result.tools.find(
-    (entry: { name: string }) => entry.name === 'workflowRunByCheckpointTool'
-  );
+  assert.deepEqual(toolByName('walletSyncTool')?.exampleInput, {
+    walletName: 'main'
+  });
+  assert.deepEqual(toolByName('walletExportTool')?.exampleInput, {
+    walletName: 'main',
+    includeSensitiveData: false
+  });
+  assert.deepEqual(toolByName('getAgentProfileTool')?.exampleInput, {
+    walletName: 'main'
+  });
+  assert.deepEqual(toolByName('getBalancesTool')?.exampleInput, {
+    walletName: 'main',
+    ownedTokens: true
+  });
+  assert.deepEqual(toolByName('getFundingInfoTool')?.exampleInput, {
+    walletName: 'main',
+    amount: '0.02'
+  });
+  assert.deepEqual(toolByName('listTokensTool')?.exampleInput, {
+    chain: 'zksync-sepolia',
+    symbol: 'USDC'
+  });
+  assert.deepEqual(toolByName('resolveTokenTool')?.exampleInput, {
+    chain: 'zksync-sepolia',
+    symbol: 'USDC'
+  });
+  assert.deepEqual(toolByName('callContractTool')?.exampleInput, {
+    chain: 'zksync-sepolia',
+    to: '0x5555555555555555555555555555555555555555',
+    data: '0x70a082310000000000000000000000001111111111111111111111111111111111111111'
+  });
+  assert.deepEqual(toolByName('swapPreviewTool')?.exampleInput, {
+    walletName: 'main',
+    protocol: 'syncswap-classic',
+    routerAddress: '0x3333333333333333333333333333333333333333',
+    factoryAddress: '0x4444444444444444444444444444444444444444',
+    tokenInAddress: '0x2222222222222222222222222222222222222222',
+    tokenOutAddress: '0x5555555555555555555555555555555555555555',
+    amountIn: '1.0',
+    amountOutMin: '0',
+    tokenInDecimals: 18,
+    tokenOutDecimals: 6,
+    tokenInSymbol: 'TEST',
+    tokenOutSymbol: 'USDC',
+    feeTier: 0,
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('bridgeStatusTool')?.exampleInput, {
+    walletName: 'main',
+    txHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    toChain: 'ethereum-sepolia'
+  });
+  assert.deepEqual(toolByName('depositPreviewTool')?.exampleInput, {
+    walletName: 'main',
+    amount: '0.01',
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('depositStatusTool')?.exampleInput, {
+    walletName: 'main',
+    txHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    wait: false
+  });
+  assert.deepEqual(toolByName('sendNativeTool')?.exampleInput, {
+    walletName: 'main',
+    to: '0x1111111111111111111111111111111111111111',
+    amount: '0.001',
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('sendTokenTool')?.exampleInput, {
+    walletName: 'main',
+    to: '0x1111111111111111111111111111111111111111',
+    tokenAddress: '0x2222222222222222222222222222222222222222',
+    amount: '1.5',
+    decimals: 18,
+    symbol: 'TEST',
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('setAgentProfileTool')?.exampleInput, {
+    agentId: 'sed-operator',
+    name: 'SED Operator',
+    walletName: 'main',
+    tags: ['defi'],
+    capabilities: ['swap'],
+    metadata: {
+      role: 'operator'
+    }
+  });
+  assert.deepEqual(toolByName('withdrawPreviewTool')?.exampleInput, {
+    walletName: 'main',
+    amount: '0.01',
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('withdrawFinalizePreviewTool')?.exampleInput, {
+    walletName: 'main',
+    txHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('withdrawStatusTool')?.exampleInput, {
+    walletName: 'main',
+    txHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  });
+  assert.deepEqual(toolByName('writeContractTool')?.exampleInput, {
+    walletName: 'main',
+    to: '0x5555555555555555555555555555555555555555',
+    data: '0x12345678',
+    broadcast: false
+  });
+  assert.deepEqual(toolByName('planSmartAccountDeploymentTool')?.exampleInput, {
+    walletName: 'main',
+    deploymentType: 'createAccount',
+    artifact: {
+      contractName: 'Account',
+      abi: [],
+      bytecode: '0x6000'
+    }
+  });
+
+  const resumeByCheckpointTool = toolByName('workflowRunByCheckpointTool');
   assert.equal(resumeByCheckpointTool?.operatorPathStage, 'checkpoint-follow-up');
+  assert.deepEqual(resumeByCheckpointTool?.exampleInput, {
+    requestId: 'wf123456',
+    broadcast: true
+  });
+
+  const workflowStatusByCheckpointTool = toolByName('workflowStatusByCheckpointTool');
+  assert.deepEqual(workflowStatusByCheckpointTool?.exampleInput, {
+    requestId: 'wf123456'
+  });
+
+  const startWorkflowCheckpointTool = toolByName('startWorkflowCheckpointTool');
+  assert.deepEqual(startWorkflowCheckpointTool?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    }
+  });
+
+  const workflowNextByCheckpointTool = toolByName('workflowNextByCheckpointTool');
+  assert.deepEqual(workflowNextByCheckpointTool?.exampleInput, {
+    requestId: 'wf123456'
+  });
 
   const checkpointStage = result.recommendedSequence.find(
     (entry: { stage: string }) => entry.stage === 'checkpoint-follow-up'
