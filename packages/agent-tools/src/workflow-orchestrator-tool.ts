@@ -65,6 +65,7 @@ export interface WorkflowOrchestratorToolOutput {
     | WorkflowRunResult['stage']
     | WalletApprovalOrchestratorToolOutput['stage'];
   requestId?: string;
+  walletRequestId?: string;
   checkpointPersisted: boolean;
   agentProfile: Awaited<ReturnType<typeof loadToolAgentProfileSummary>>;
   agentFollowup: AgentProfileFollowup;
@@ -73,8 +74,10 @@ export interface WorkflowOrchestratorToolOutput {
   run?: WorkflowRunResult;
   registry?: WorkflowStatusResult['plan']['registry'];
   walletApproval?: WalletApprovalOrchestratorToolOutput;
+  walletApprovalRelay?: WalletApprovalOrchestratorToolOutput['relay'];
   recommendedCommand?: string;
   recommendedCommands?: WalletApprovalRecommendedCommands;
+  walletApprovalRecommendedCommands?: WalletApprovalRecommendedCommands;
   workflowRecommendedCommands: WorkflowToolRecommendedCommands;
 }
 
@@ -482,6 +485,7 @@ function createWorkflowOrchestratorToolWithName(
         source: resolved.source,
         action: run ? run.stage : (walletApproval?.stage ?? status.status),
         requestId: checkpoint?.requestId || resolved.requestId,
+        walletRequestId: walletApproval?.requestId,
         checkpointPersisted: Boolean(checkpoint),
         agentProfile,
         agentFollowup,
@@ -490,8 +494,10 @@ function createWorkflowOrchestratorToolWithName(
         run,
         registry: run?.plan.registry || status.plan.registry,
         walletApproval,
+        walletApprovalRelay: walletApproval?.relay,
         recommendedCommand: run ? run.nextCommand : recommendedCommand,
         recommendedCommands: walletApprovalRecommendedCommands(walletApproval),
+        walletApprovalRecommendedCommands: walletApprovalRecommendedCommands(walletApproval),
         workflowRecommendedCommands
       };
     }

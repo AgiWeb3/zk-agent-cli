@@ -340,6 +340,9 @@ prefer `assets`.
 Use `assets` when that richer single-chain view is the intent and you do not
 need multi-chain aggregation.
 
+When `--protocol` is omitted, direct `swap` follows the current
+registry-backed validated swap path.
+
 For `syncswap-classic`, the CLI can fill the tracked zkSync Sepolia router and
 factory defaults when those flags are omitted.
 

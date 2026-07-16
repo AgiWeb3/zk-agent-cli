@@ -42,10 +42,14 @@ function resolveRequiredString(value: string | undefined, label: string, envName
 export function resolveSwapCommandDefaults(
   input: ResolveSwapCommandDefaultsInput
 ): ResolvedSwapCommandDefaults {
-  const protocol = input.protocol ?? 'uniswap-v3-exact-input-single';
+  const defaults = loadValidatedDefaults();
+  const protocol =
+    input.protocol ??
+    defaults.defaultSelections.swap.validatedDefault?.protocol ??
+    defaults.defaultSelections.swap.manualFallback?.protocol ??
+    'uniswap-v3-exact-input-single';
 
   if (protocol === 'syncswap-classic') {
-    const defaults = loadValidatedDefaults();
     const routerAddress = resolveRequiredString(
       normalizeOptionalString(input.router) ||
         normalizeOptionalString(process.env.ZKSYNC_SYNCSWAP_ROUTER_ADDRESS) ||

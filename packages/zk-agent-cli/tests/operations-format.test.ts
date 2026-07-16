@@ -174,12 +174,22 @@ test('linesForBridgeResult includes structured bridge registry summary', () => {
         kind: 'bridge',
         entryId: 'ethereum-sepolia-to-zksync-sepolia',
         fromChain: 'ethereum-sepolia',
+        fromChainId: 11155111,
         toChain: 'zksync-sepolia',
+        toChainId: 300,
         direction: 'l1-to-l2',
         status: 'validated',
         configuration: 'tracked-default',
         isValidatedDepositRoute: true,
-        isValidatedWithdrawRoute: false
+        isValidatedWithdrawRoute: false,
+        supportedAssets: {
+          native: true,
+          erc20: true
+        },
+        assetConstraints: [
+          'erc20-requires-canonical-shared-bridge-mapping'
+        ],
+        requiresFinalize: false
       }
     },
     notes: []
@@ -191,4 +201,14 @@ test('linesForBridgeResult includes structured bridge registry summary', () => {
   );
   assert.equal(lineValue(lines, 'registry deposit default'), 'yes');
   assert.equal(lineValue(lines, 'registry withdraw default'), 'no');
+  assert.equal(
+    lineValue(lines, 'registry bridge chains'),
+    'ethereum-sepolia (11155111) -> zksync-sepolia (300)'
+  );
+  assert.equal(lineValue(lines, 'registry bridge assets'), 'native + erc20');
+  assert.equal(lineValue(lines, 'registry bridge finalize'), 'not required');
+  assert.equal(
+    lineValue(lines, 'registry bridge constraints'),
+    'erc20 requires canonical shared-bridge mapping'
+  );
 });

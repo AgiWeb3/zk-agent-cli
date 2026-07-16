@@ -69,6 +69,12 @@ test('swap command help marks token addresses as optional when symbols resolve l
     ),
     true
   );
+  assert.equal(
+    help.includes(
+      '--protocol <protocol> Optional swap protocol override: uniswap-v3-exact-input-single or syncswap-classic. Defaults to the current registry-backed validated swap path'
+    ),
+    true
+  );
 });
 
 test('fund, deposit, and withdraw help mark token addresses as optional when symbols resolve locally', () => {

@@ -291,6 +291,31 @@ test('wallet next adds a registry note for a tracked validated paymaster path', 
   );
 });
 
+test('wallet next adds a registry note for the tracked sponsored paymaster path', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'sponsored',
+      capabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: true
+      }
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    funding: sampleFunding()
+  });
+
+  assert.equal(summary.status, 'ready');
+  assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
+  assert.ok(summary.notes.some((note) => /paymaster mode sponsored is configured/.test(note)));
+  assert.ok(summary.notes.some((note) => /Registry: sponsored paymaster on zksync-sepolia is validated\./.test(note)));
+});
+
 test('explicit paymaster none overrides a saved paymaster selection', () => {
   const resolved = resolveEffectivePaymasterSelection(
     {

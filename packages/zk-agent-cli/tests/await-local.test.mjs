@@ -348,11 +348,13 @@ test('await-local saves the approved wallet and exits after callback', async () 
 
     const result = JSON.parse(stdout);
     assert.equal(result.ok, true);
+    assert.equal(result.walletRequestId, created.requestId);
     assert.equal(result.wallet.walletName, 'await-local-test');
     assert.equal(result.wallet.walletAddress, walletAddress);
     assert.equal(result.wallet.ownerAddress, ownerAddress);
     assert.equal(result.request.requestId, created.requestId);
     assert.equal(result.payload.account.ownerAddress, ownerAddress);
+    assert.equal(result.nextAction, 'zk-agent wallet reapprove --name await-local-test --await-local');
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
 
     const listed = await runCliJson(['wallet', 'request', 'list'], env);
@@ -387,6 +389,7 @@ test('wallet create --await-local completes the local approval round-trip in one
 
     const requestId = await waitForStoredRequestId(homeDir);
     const shown = await runCliJson(['wallet', 'request', 'show', '--request-id', requestId], env);
+    assert.equal(shown.nextAction, `zk-agent wallet request await-local --request-id ${requestId}`);
     assert.deepEqual(shown.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${requestId}`,
       approve: `zk-agent wallet request approve --request-id ${requestId} --payload @approved-session.json`,
@@ -445,11 +448,16 @@ test('wallet create --await-local completes the local approval round-trip in one
 
     const result = JSON.parse(stdout);
     assert.equal(result.ok, true);
+    assert.equal(result.walletRequestId, requestId);
     assert.equal(result.wallet.walletName, 'create-await-local-test');
     assert.equal(result.wallet.walletAddress, walletAddress);
     assert.equal(result.wallet.ownerAddress, ownerAddress);
     assert.equal(result.request.requestId, requestId);
     assert.equal(result.payload.account.ownerAddress, ownerAddress);
+    assert.equal(
+      result.nextAction,
+      'zk-agent wallet reapprove --name create-await-local-test --await-local'
+    );
     assert.deepEqual(result.recommendedCommands, {
       next: 'zk-agent wallet next --name create-await-local-test',
       status: 'zk-agent wallet status --name create-await-local-test',
@@ -614,6 +622,7 @@ test('wallet list returns per-wallet follow-up commands', async () => {
     assert.deepEqual(result.walletRecommendations, [
       {
         walletName: 'listed-wallet',
+        nextAction: 'zk-agent wallet next --name listed-wallet',
         recommendedCommands: {
           next: 'zk-agent wallet next --name listed-wallet',
           status: 'zk-agent wallet status --name listed-wallet'
@@ -681,6 +690,7 @@ test('wallet request approve imports an approved connector payload and removes t
       {
         requestId: created.requestId,
         walletName: 'remote-approve-test',
+        nextAction: `zk-agent wallet request show --request-id ${created.requestId}`,
         recommendedCommands: {
           show: `zk-agent wallet request show --request-id ${created.requestId}`,
           afterApproval: 'zk-agent next',
@@ -731,11 +741,16 @@ test('wallet request approve imports an approved connector payload and removes t
     );
 
     assert.equal(approved.ok, true);
+    assert.equal(approved.walletRequestId, created.requestId);
     assert.equal(approved.request.requestId, created.requestId);
     assert.equal(approved.wallet.walletName, 'remote-approve-test');
     assert.equal(approved.wallet.walletAddress, walletAddress);
     assert.equal(approved.wallet.ownerAddress, ownerAddress);
     assert.equal(approved.payload.account.ownerAddress, ownerAddress);
+    assert.equal(
+      approved.nextAction,
+      'zk-agent wallet reapprove --name remote-approve-test --await-local'
+    );
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name remote-approve-test',
       status: 'zk-agent wallet status --name remote-approve-test',
@@ -816,11 +831,16 @@ test('wallet request approve decrypts an encrypted relay payload and removes the
 
     assert.equal(approved.ok, true);
     assert.equal(approved.approvalSource, 'encrypted-payload');
+    assert.equal(approved.walletRequestId, created.requestId);
     assert.equal(approved.request.requestId, created.requestId);
     assert.equal(approved.wallet.walletName, 'encrypted-approve-test');
     assert.equal(approved.wallet.walletAddress, walletAddress);
     assert.equal(approved.wallet.ownerAddress, ownerAddress);
     assert.equal(approved.payload.account.ownerAddress, ownerAddress);
+    assert.equal(
+      approved.nextAction,
+      'zk-agent wallet reapprove --name encrypted-approve-test --await-local'
+    );
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -859,8 +879,17 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
       env
     );
     assert.equal(published.ok, true);
+    assert.equal(published.walletRequestId, created.requestId);
+    assert.equal(
+      published.nextAction,
+      `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`
+    );
     assert.equal(published.relay.request_id, created.requestId);
     assert.equal(published.relay.status, 'pending');
+    assert.equal(published.relayRequestId, published.relay.request_id);
+    assert.equal(published.relayShareUrl, published.relay.share_url);
+    assert.equal(published.relayStatusUrl, published.relay.status_url);
+    assert.equal(published.relayApprovalUrl, published.relay.approval_url);
     assert.deepEqual(published.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
@@ -879,8 +908,17 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
       env
     );
     assert.equal(relayStatusPending.ok, true);
+    assert.equal(relayStatusPending.walletRequestId, created.requestId);
+    assert.equal(
+      relayStatusPending.nextAction,
+      `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`
+    );
     assert.equal(relayStatusPending.relay.status, 'pending');
     assert.equal(relayStatusPending.relay.approval_ready, false);
+    assert.equal(relayStatusPending.relayRequestId, relayStatusPending.relay.request_id);
+    assert.equal(relayStatusPending.relayShareUrl, relayStatusPending.relay.share_url);
+    assert.equal(relayStatusPending.relayStatusUrl, relayStatusPending.relay.status_url);
+    assert.equal(relayStatusPending.relayApprovalUrl, relayStatusPending.relay.approval_url);
     assert.deepEqual(relayStatusPending.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`
     });
@@ -936,8 +974,17 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
       env
     );
     assert.equal(relayStatusReady.ok, true);
+    assert.equal(relayStatusReady.walletRequestId, created.requestId);
+    assert.equal(
+      relayStatusReady.nextAction,
+      `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
+    );
     assert.equal(relayStatusReady.relay.status, 'ready');
     assert.equal(relayStatusReady.relay.approval_ready, true);
+    assert.equal(relayStatusReady.relayRequestId, relayStatusReady.relay.request_id);
+    assert.equal(relayStatusReady.relayShareUrl, relayStatusReady.relay.share_url);
+    assert.equal(relayStatusReady.relayStatusUrl, relayStatusReady.relay.status_url);
+    assert.equal(relayStatusReady.relayApprovalUrl, relayStatusReady.relay.approval_url);
     assert.deepEqual(relayStatusReady.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
@@ -959,6 +1006,11 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     );
     assert.equal(approved.ok, true);
     assert.equal(approved.approvalSource, 'relay-url');
+    assert.equal(approved.walletRequestId, created.requestId);
+    assert.equal(
+      approved.nextAction,
+      'zk-agent wallet reapprove --name relay-approve-test --await-local'
+    );
     assert.equal(approved.wallet.walletName, 'relay-approve-test');
     assert.equal(approved.wallet.walletAddress, '0x9999999999999999999999999999999999999999');
     assert.equal(approved.wallet.ownerAddress, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
@@ -1106,9 +1158,18 @@ test('relay status --wait blocks until the encrypted approval payload is ready',
 
     const waited = JSON.parse(stdout);
     assert.equal(waited.ok, true);
+    assert.equal(waited.walletRequestId, created.requestId);
+    assert.equal(
+      waited.nextAction,
+      `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
+    );
     assert.equal(waited.relay.request_id, created.requestId);
     assert.equal(waited.relay.status, 'ready');
     assert.equal(waited.relay.approval_ready, true);
+    assert.equal(waited.relayRequestId, waited.relay.request_id);
+    assert.equal(waited.relayShareUrl, waited.relay.share_url);
+    assert.equal(waited.relayStatusUrl, waited.relay.status_url);
+    assert.equal(waited.relayApprovalUrl, waited.relay.approval_url);
     assert.deepEqual(waited.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
@@ -1275,11 +1336,20 @@ test('wallet create --relay-url publishes the request immediately for remote app
     );
 
     assert.equal(created.ok, true);
+    assert.equal(created.walletRequestId, created.requestId);
+    assert.equal(
+      created.nextAction,
+      `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`
+    );
     assert.equal(created.walletName, 'relay-create-direct');
     assert.equal(created.relay.request_id, created.requestId);
     assert.equal(created.relay.status, 'pending');
     assert.equal(created.relay.share_url, `${relayBaseUrl}/r/${created.requestId}`);
     assert.equal(created.relay.status_url, `${relayBaseUrl}/api/requests/${created.requestId}`);
+    assert.equal(created.relayRequestId, created.relay.request_id);
+    assert.equal(created.relayShareUrl, created.relay.share_url);
+    assert.equal(created.relayStatusUrl, created.relay.status_url);
+    assert.equal(created.relayApprovalUrl, created.relay.approval_url);
     assert.deepEqual(created.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
@@ -1416,9 +1486,18 @@ test('wallet create --relay-url --wait-relay --prompt-code can complete the remo
     const approved = JSON.parse(stdout);
     assert.equal(approved.ok, true);
     assert.equal(approved.approvalSource, 'relay-url');
+    assert.equal(approved.walletRequestId, request.requestId);
+    assert.equal(
+      approved.nextAction,
+      'zk-agent wallet reapprove --name relay-create-wait --await-local'
+    );
     assert.equal(approved.request.requestId, request.requestId);
     assert.equal(approved.wallet.walletName, 'relay-create-wait');
     assert.equal(approved.wallet.walletAddress, '0xdddddddddddddddddddddddddddddddddddddddd');
+    assert.equal(approved.relayRequestId, approved.relay.request_id);
+    assert.equal(approved.relayShareUrl, approved.relay.share_url);
+    assert.equal(approved.relayStatusUrl, approved.relay.status_url);
+    assert.equal(approved.relayApprovalUrl, approved.relay.approval_url);
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name relay-create-wait',
       status: 'zk-agent wallet status --name relay-create-wait',
@@ -1476,10 +1555,19 @@ test('wallet reapprove --relay-url publishes the request immediately for remote 
     );
 
     assert.equal(created.ok, true);
+    assert.equal(created.walletRequestId, created.request.requestId);
+    assert.equal(
+      created.nextAction,
+      `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`
+    );
     assert.equal(created.request.requestId, created.relay.request_id);
     assert.equal(created.relay.status, 'pending');
     assert.equal(created.relay.share_url, `${relayBaseUrl}/r/${created.request.requestId}`);
     assert.equal(created.relay.status_url, `${relayBaseUrl}/api/requests/${created.request.requestId}`);
+    assert.equal(created.relayRequestId, created.relay.request_id);
+    assert.equal(created.relayShareUrl, created.relay.share_url);
+    assert.equal(created.relayStatusUrl, created.relay.status_url);
+    assert.equal(created.relayApprovalUrl, created.relay.approval_url);
     assert.deepEqual(created.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.request.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,
@@ -1629,9 +1717,18 @@ test('wallet reapprove --relay-url --wait-relay --prompt-code can complete the r
     const approved = JSON.parse(stdout);
     assert.equal(approved.ok, true);
     assert.equal(approved.approvalSource, 'relay-url');
+    assert.equal(approved.walletRequestId, request.requestId);
+    assert.equal(
+      approved.nextAction,
+      'zk-agent wallet reapprove --name relay-reapprove-wait --await-local'
+    );
     assert.equal(approved.request.requestId, request.requestId);
     assert.equal(approved.wallet.walletName, 'relay-reapprove-wait');
     assert.equal(approved.wallet.sessionPayload.sessionPrivateKey, undefined);
+    assert.equal(approved.relayRequestId, approved.relay.request_id);
+    assert.equal(approved.relayShareUrl, approved.relay.share_url);
+    assert.equal(approved.relayStatusUrl, approved.relay.status_url);
+    assert.equal(approved.relayApprovalUrl, approved.relay.approval_url);
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name relay-reapprove-wait',
       status: 'zk-agent wallet status --name relay-reapprove-wait',
@@ -1922,6 +2019,8 @@ test('wallet reapprove --await-local restores a writable session without droppin
     assert.equal(result.ok, true);
     assert.equal(result.wallet.walletName, 'reapprove-wallet');
     assert.equal(result.wallet.smartAccountProfileId, 'sed-lite');
+    assert.equal(result.walletRequestId, requestId);
+    assert.equal(result.nextAction, 'zk-agent wallet next --name reapprove-wallet');
     assert.deepEqual(result.recommendedCommands, {
       next: 'zk-agent wallet next --name reapprove-wallet',
       status: 'zk-agent wallet status --name reapprove-wallet'

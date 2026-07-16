@@ -37,7 +37,9 @@ function writableEoaWallet(overrides: Partial<WalletSessionRecord> = {}): Wallet
 
 test('writeContract preview surfaces validated paymaster registry metadata', async () => {
   const defaults = loadValidatedDefaults();
-  const validatedPath = defaults.registry.paymasterPaths.find((entry) => entry.status === 'validated');
+  const validatedPath = defaults.registry.paymasterPaths.find(
+    (entry) => entry.mode === 'approval-based' && entry.status === 'validated'
+  );
 
   assert.ok(validatedPath, 'expected a validated approval-based paymaster path in validated defaults');
   assert.ok(validatedPath.paymasterAddress, 'validated paymaster path should include a paymaster address');
@@ -114,6 +116,82 @@ test('writeContract preview surfaces validated paymaster registry metadata', asy
       defaults.surfaceMatrix.paymaster.validatedDefaultEntryId === validatedPath.id
     );
     assert.equal(estimateCalls, 2);
+  } finally {
+    Provider.prototype.getCode = originalGetCode;
+    Provider.prototype.estimateFee = originalEstimateFee;
+  }
+});
+
+test('writeContract preview surfaces tracked sponsored paymaster registry metadata', async () => {
+  const defaults = loadValidatedDefaults();
+  const sponsoredPath = defaults.registry.paymasterPaths.find(
+    (entry) => entry.mode === 'sponsored' && entry.status === 'validated'
+  );
+
+  assert.ok(sponsoredPath, 'expected a validated sponsored paymaster path in validated defaults');
+  assert.ok(
+    sponsoredPath.paymasterAddress,
+    'validated sponsored paymaster path should include a paymaster address'
+  );
+
+  const wallet = writableEoaWallet({
+    paymasterMode: 'sponsored',
+    capabilities: {
+      read: true,
+      write: true,
+      transfer: true,
+      contractCall: true,
+      paymaster: true
+    },
+    sessionPayload: {
+      ...writableEoaWallet().sessionPayload!,
+      paymaster: {
+        mode: 'sponsored'
+      }
+    }
+  });
+
+  const originalGetCode = Provider.prototype.getCode;
+  const originalEstimateFee = Provider.prototype.estimateFee;
+  let estimateCalls = 0;
+
+  Provider.prototype.getCode = async function () {
+    return '0x';
+  };
+  Provider.prototype.estimateFee = async function (request) {
+    estimateCalls += 1;
+    assert.ok((request.customData as { paymasterParams?: unknown } | undefined)?.paymasterParams);
+
+    return {
+      gasLimit: 210000n,
+      maxFeePerGas: 100000000n,
+      maxPriorityFeePerGas: 0n,
+      gasPerPubdataLimit: 50000n
+    } as Awaited<ReturnType<Provider['estimateFee']>>;
+  };
+
+  try {
+    const provider = new ZkSyncWalletProvider();
+    const result = await provider.writeContract({
+      wallet,
+      to: '0x1111111111111111111111111111111111111111',
+      data: '0x1234',
+      broadcast: false
+    });
+
+    assert.equal(result.mode, 'preview');
+    assert.equal(result.paymaster.mode, 'sponsored');
+    assert.equal(result.paymaster.source, 'session');
+    assert.equal(result.paymaster.address, sponsoredPath.paymasterAddress);
+    assert.equal(result.paymaster.token, undefined);
+    assert.equal(result.paymaster.registry?.entryId, sponsoredPath.id);
+    assert.equal(result.paymaster.registry?.mode, 'sponsored');
+    assert.equal(result.paymaster.registry?.status, sponsoredPath.status);
+    assert.equal(result.paymaster.registry?.configuration, sponsoredPath.configuration);
+    assert.equal(result.paymaster.registry?.paymasterAddress, sponsoredPath.paymasterAddress);
+    assert.equal(result.paymaster.registry?.feeTokenAddress, null);
+    assert.equal(result.paymaster.registry?.isValidatedDefault, false);
+    assert.equal(estimateCalls, 1);
   } finally {
     Provider.prototype.getCode = originalGetCode;
     Provider.prototype.estimateFee = originalEstimateFee;

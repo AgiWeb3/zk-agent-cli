@@ -48,7 +48,7 @@ export function resolveEffectivePaymasterSelection(
   const supplementTrackedDefaults = (
     paymaster: PaymasterSelectionInput | undefined
   ): PaymasterSelectionInput | undefined => {
-    if (!paymaster?.mode || paymaster.mode !== 'approval-based') return paymaster;
+    if (!paymaster?.mode || paymaster.mode === 'none') return paymaster;
 
     const tracked = resolveTrackedPaymasterSelection({
       chain: wallet.chain,

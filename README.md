@@ -47,9 +47,20 @@ What is already in place:
 - local `packages/paymaster-test-assets` utility package for compiling and deploying paymaster test assets on zkSync Sepolia
 - `defaults` for a machine-readable registry view of the built-in chains plus the supported, validated, experimental, and manually configured zkSync Sepolia defaults
   including a top-level `surfaceMatrix` that summarizes the current validated
-  default swap, bridge, and paymaster paths, plus a local token registry view
-  derived from `packages/paymaster-test-assets/deployments`, and token-registry
-  source metadata that shows the active local-first resolution order
+  default swap, bridge, and paymaster paths, plus `defaultSelections` so
+  callers can read the resolved default/fallback entries directly without
+  re-joining `entryId` values by hand, a local token registry view derived
+  from `packages/paymaster-test-assets/deployments`, and token-registry source
+  metadata that shows the active local-first resolution order; the paymaster
+  registry now also tracks the validated Sepolia sponsored path alongside the
+  approval-based EraVM default and experimental comparison entries, including
+  mode-aware sponsored vs approval-based paymaster defaults, while the swap
+  registry/default selection surface now also carries the tracked validated
+  SyncSwap pair and pool metadata directly, the bridge default selection
+  surface now exposes chain IDs, asset coverage, asset-constraint metadata,
+  and finalize requirements for the validated Sepolia route pair, and the
+  registry now also exposes explicit token-role entries for tracked
+  validated/experimental swap and paymaster token paths
 - swap / bridge / paymaster execution results now also expose structured
   `registry` resolution metadata, so callers can distinguish validated defaults,
   tracked routes, and manual fallbacks without scraping `notes`
@@ -91,9 +102,11 @@ What is already in place:
 - `workflow status|run|resume --ensure-wallet-session [--await-local] [--relay-url <url>]` for connector-backed recovery when a workflow is blocked only because the local writable session is missing or stale, now with local callback, manual payload-return, and one-step relay publish plus relay status/approve guidance
 - the same workflow ensure-wallet-session path now also accepts `--session-preset`, `--session-hours`, `--allow-transfer-to`, `--allow-contract`, `--disallow-transfers`, and `--disallow-contract-calls`, so guided workflow recovery can request a constrained session instead of always reopening a broad default session; `--session-preset intent` can derive the narrowest default from the workflow goal
 - workflow checkpoint and JSON command outputs now distinguish the long-lived `workflowRequestId` from any temporary connector `walletRequestId`
+- relay-backed `workflow status|next|auto|resume|run` JSON outputs now also surface top-level `walletApprovalRelay` and `walletApprovalRecommendedCommands` aliases, so remote approval callers do not need to unpack the nested `walletApproval` object just to continue the flow
 - `workflow` write intents now also preserve explicit paymaster overrides for the supported send / call / swap goal types, so checkpointed execution can replay the same fee-payment mode later
 - `workflow` and `wallet next` now treat supported paymaster-backed smart-account writes as gas-satisfied even when the stored native balance is zero, so `send` / `send-token` / `call` / `swap` do not get blocked behind an unnecessary fund step before paymaster validation is attempted
 - on `zksync-sepolia`, approval-based paymaster mode can now fall back to the tracked validated paymaster + EraVM fee-token defaults when the wallet or workflow only specifies the mode and omits the explicit address/token
+- on `zksync-sepolia`, sponsored paymaster mode can now fall back to the tracked validated sponsored paymaster address when the wallet or workflow only specifies the mode, so the same paymaster-ready/no-fund path works for sponsored sessions too
 - `workflow status|next|resume` for checking whether a previously prepared workflow is still blocked, still waiting on funding, or ready to continue, with optional `--request-id` loading from the stored checkpoint
 - `workflow` bridge goals now resolve the tracked validated destination route automatically when the stored wallet chain makes the default path unambiguous, so `workflow plan|status|next|run|auto` can emit and reuse concrete bridge commands without forcing `--to-chain` every time
 - `workflow list|show|update|delete` for local checkpoint inspection, runtime-setting adjustments, and cleanup, so longer-running operator flows do not accumulate opaque local state
@@ -113,6 +126,10 @@ What is already in place:
   - relay-backed connector pages now show share/status URLs, auto-refresh pending approval state, and reflect encrypted submission immediately
   - `wallet request list` with expired-request pruning
   - connector callback handoff back into the waiting CLI process
+  - wallet/request JSON outputs now also expose a top-level `nextAction`, and
+    relay-backed outputs also expose top-level relay request/share/status
+    aliases, so remote callers do not have to infer the single next step from
+    nested objects
 - first agent-facing tool surface in `packages/agent-tools` for:
   - local agent profile read/write/export/import through `getAgentProfileTool`, `setAgentProfileTool`, `exportAgentProfileTool`, and `importAgentProfileTool`
   - funding guidance, including route-aware suggested commands
@@ -134,6 +151,7 @@ What is already in place:
   - workflow planning for concrete write intents
   - unified workflow orchestration from fresh goal input or stored checkpoint, with optional checkpoint persistence and execute-when-ready behavior
   - workflow orchestration can now auto-create a local reapproval request when a missing writable session blocks execution, auto-publish it to a relay when requested, wait for relay approval readiness when given the approval code, and continue straight through to goal execution when an approved payload is supplied in the same tool call
+  - workflow orchestration now also surfaces the wallet request id plus relay share/status metadata as top-level tool output aliases, so remote approval callers do not need to unpack the nested walletApproval object just to continue the flow
   - bounded workflow execution with separate funding-step dispatch
   - local workflow checkpoint lifecycle management for start/list/get/update/delete
   - workflow status / next-step guidance / execution directly from stored checkpoint `requestId`
@@ -144,7 +162,7 @@ What is already in place:
   - balances
   - defaults / registry readout for supported, validated, experimental, and manual paths
   - contract read
-  - same-chain swap preview / broadcast for explicit-router Uniswap V3 exactInputSingle paths
+  - same-chain swap preview / broadcast for the registry-backed validated default path plus explicit protocol overrides
   - bridge preview / broadcast / status for the supported Sepolia L1 <-> zkSync route
   - deposit preview / broadcast / status
   - native send
@@ -158,7 +176,7 @@ What is already in place:
   - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowAutoTool` as the recommended guided workflow entry, and keeps `workflowOrchestratorTool` as its compatibility alias
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
   - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke, now returning both the preferred single-chain `assets` view and the raw `balances` view
-  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing the resolved workflow registry/default-path summary in its JSON `summary`
+  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
@@ -215,7 +233,7 @@ What is already in place:
 - `swap` support through `packages/provider-zksync-defi`, including:
   - same-chain `Uniswap V3 exactInputSingle` and `SyncSwap classic` single-pool request shaping
   - explicit router / token / protocol input instead of hidden quote aggregation
-  - tracked SyncSwap classic router / factory defaults, so the CLI can fill Sepolia-safe values when `--protocol syncswap-classic` is selected and the operator omits those flags
+  - tracked SyncSwap classic router / factory defaults, and direct `swap` now also defaults to the current registry-backed validated swap path when `--protocol` is omitted
   - CLI-side fallback to local test-asset deployment records for token `decimals` / `symbol` lookup during swaps, token sends, and ERC-20 bridge/withdraw/deposit previews, so repeated Sepolia test runs do not always need manual decimal flags
   - allowance preflight with optional auto-approve before swap broadcast
   - router-factory pool preflight, so missing V3 pools fail before any approval transaction is sent

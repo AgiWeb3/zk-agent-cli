@@ -95,6 +95,8 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
   );
 
   assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'goal-executed');
+  assert.equal(payload.recommendedCommand, 'zk-agent send --wallet main --broadcast');
   assert.equal(payload.walletName, 'main');
   assert.equal(payload.targetAddress, '0xowner');
   assert.equal(payload.summary.topLevelNextCommand, 'zk-agent workflow auto --wallet main --intent <intent>');
@@ -177,12 +179,86 @@ test('runSmokeOperatorPath follows the workflow fund branch when execution is bl
 
   assert.equal(fundInvocations, 1);
   assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'workflow-fund');
+  assert.equal(
+    payload.recommendedCommand,
+    'zk-agent workflow fund --wallet main --amount 0.00001'
+  );
   assert.equal(payload.summary.workflowAction, 'blocked');
   assert.equal(
     payload.summary.workflowNextCommand,
     'zk-agent workflow fund --wallet main --amount 0.00001'
   );
   assert.ok(payload.workflowFund);
+});
+
+test('runSmokeOperatorPath surfaces a top-level blocked phase and remediation command', async () => {
+  const payload = await runSmokeOperatorPath(
+    {
+      walletName: 'main',
+      amount: '0.1'
+    },
+    {
+      context: {
+        loadWallet: async () => ({
+          walletAddress: '0xwallet',
+          ownerAddress: '0xowner'
+        })
+      },
+      tools: {
+        topLevelNextTool: {
+          execute: async () => ({
+            ok: true,
+            data: {
+              scope: 'wallet',
+              nextCommand: 'zk-agent wallet reapprove --name main --await-local'
+            }
+          })
+        },
+        walletStatusTool: {
+          execute: async () => ({
+            ok: true,
+            data: {}
+          })
+        },
+        walletNextTool: {
+          execute: async () => ({
+            ok: true,
+            data: {
+              summary: {
+                recommendedCommand: 'zk-agent wallet reapprove --name main --await-local'
+              }
+            }
+          })
+        },
+        workflowAutoTool: {
+          execute: async () => ({
+            ok: true,
+            data: {
+              action: 'blocked',
+              recommendedCommand: 'zk-agent wallet reapprove --name main --await-local',
+              workflowRecommendedCommands: {
+                nextAction: 'zk-agent wallet reapprove --name main --await-local'
+              }
+            }
+          })
+        },
+        workflowFundTool: {
+          execute: async () => {
+            throw new Error('workflowFundTool should not run for non-funding blockers');
+          }
+        }
+      }
+    }
+  );
+
+  assert.equal(payload.ok, false);
+  assert.equal(payload.phase, 'workflow-blocked');
+  assert.equal(payload.recommendedCommand, 'zk-agent wallet reapprove --name main --await-local');
+  assert.equal(
+    payload.message,
+    'Workflow auto is still blocked on wallet prerequisites before goal execution.'
+  );
 });
 
 test('runSmokePaymasterSuccess returns the normalized preview payload', async () => {

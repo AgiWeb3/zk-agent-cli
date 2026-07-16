@@ -179,14 +179,44 @@ export async function runSmokeOperatorPath(
       })
     : undefined;
   const workflowStage = workflowAuto.ok ? workflowAuto.data.run?.stage : undefined;
+  const phase = !walletStatus.ok
+    ? 'wallet-status'
+    : !walletNext.ok
+      ? 'wallet-next'
+      : !workflowAuto.ok
+        ? 'workflow-auto'
+        : workflowStage === 'goal-executed'
+          ? 'goal-executed'
+          : workflowNeedsFunding && workflowFund?.ok
+            ? 'workflow-fund'
+            : 'workflow-blocked';
+  const recommendedCommand = workflowAuto.ok
+    ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
+    : walletNext.ok
+      ? walletNext.data.summary.recommendedCommand
+      : topLevelNext.data.nextCommand;
   const ok =
     walletStatus.ok &&
     walletNext.ok &&
     workflowAuto.ok &&
     (workflowStage === 'goal-executed' || Boolean(workflowNeedsFunding && workflowFund?.ok));
+  const message = ok
+    ? undefined
+    : !walletStatus.ok
+      ? 'Wallet status inspection failed before the canonical operator path could continue.'
+      : !walletNext.ok
+        ? 'Wallet next-step guidance failed before the canonical operator path could continue.'
+        : !workflowAuto.ok
+          ? 'Workflow auto inspection failed before the canonical operator path could continue.'
+          : workflowNeedsFunding
+            ? 'Workflow auto reached a separate funding step instead of a direct goal preview.'
+            : 'Workflow auto is still blocked on wallet prerequisites before goal execution.';
 
   return {
     ok,
+    phase,
+    recommendedCommand,
+    ...(message ? { message } : {}),
     walletName: options.walletName,
     targetAddress,
     amount: options.amount,
@@ -211,6 +241,7 @@ export async function runSmokeOperatorPath(
         : undefined,
       workflowAgentProfile: workflowAuto.ok ? workflowAuto.data.agentProfile : undefined,
       workflowAgentFollowup: workflowAuto.ok ? workflowAuto.data.agentFollowup : undefined,
+      walletApprovalRelay: workflowAuto.ok ? workflowAuto.data.walletApproval?.relay : undefined,
       walletApprovalRecommendedCommands: workflowAuto.ok
         ? workflowAuto.data.recommendedCommands
         : undefined,

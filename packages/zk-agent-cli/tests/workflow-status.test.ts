@@ -276,3 +276,55 @@ test('workflow status stays ready when paymaster-backed send-native can cover ze
     )
   );
 });
+
+test('workflow status resolves the tracked sponsored paymaster path when sponsored mode can cover gas', async () => {
+  const result = await inspectWorkflowStatus(
+    {
+      wallet: {
+        ...sampleWallet,
+        paymasterMode: 'sponsored',
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        }
+      },
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      }
+    },
+    {
+      provider: {
+        async inspectWallet() {
+          return sampleInspection();
+        },
+        async getBalances() {
+          return {
+            walletName: 'main',
+            walletAddress: sampleWallet.walletAddress,
+            chain: 'zksync-sepolia',
+            chainId: 300,
+            balances: [{ type: 'native', symbol: 'ETH', balance: '0', decimals: 18 }]
+          };
+        },
+        async getFundingInfo() {
+          throw new Error('getFundingInfo should not run when sponsored paymaster can cover gas');
+        }
+      }
+    }
+  );
+
+  assert.equal(result.status, 'ready');
+  assert.equal(result.readyForGoal, true);
+  assert.equal(result.fundingNeeded, false);
+  assert.equal(result.funding, undefined);
+  assert.equal(result.plan.registry?.paymaster?.entryId, 'zksync-sepolia-sponsored');
+  assert.equal(result.plan.registry?.paymaster?.mode, 'sponsored');
+  assert.equal(result.plan.registry?.paymaster?.isValidatedDefault, false);
+  assert.ok(result.notes.some((note) => /Registry: sponsored paymaster on zksync-sepolia is validated\./.test(note)));
+});

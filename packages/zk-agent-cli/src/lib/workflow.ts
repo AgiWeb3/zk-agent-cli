@@ -15,6 +15,7 @@ import type {
   WorkflowPlan,
   WorkflowStatusResult
 } from '@zk-agent/agent-core';
+import { summarizeBridgeAssetConstraints } from './validated-defaults.js';
 import type { WorkflowRunResult } from './workflow-run.js';
 
 export interface WorkflowFollowupLinesInput {
@@ -43,6 +44,7 @@ function pushWorkflowRegistryLines(
   }
 
   if (registry.bridge) {
+    const bridgeConstraints = summarizeBridgeAssetConstraints(registry.bridge.assetConstraints);
     lines.push([
       'registry bridge',
       `${registry.bridge.entryId} (${registry.bridge.status}, ${registry.bridge.configuration})`
@@ -55,6 +57,26 @@ function pushWorkflowRegistryLines(
       'registry withdraw default',
       registry.bridge.isValidatedWithdrawRoute ? 'yes' : 'no'
     ]);
+    lines.push([
+      'registry bridge chains',
+      `${registry.bridge.fromChain} (${registry.bridge.fromChainId}) -> ${registry.bridge.toChain} (${registry.bridge.toChainId})`
+    ]);
+    lines.push([
+      'registry bridge assets',
+      [
+        registry.bridge.supportedAssets.native ? 'native' : null,
+        registry.bridge.supportedAssets.erc20 ? 'erc20' : null
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' + ')
+    ]);
+    lines.push([
+      'registry bridge finalize',
+      registry.bridge.requiresFinalize ? 'required' : 'not required'
+    ]);
+    if (bridgeConstraints) {
+      lines.push(['registry bridge constraints', bridgeConstraints]);
+    }
   }
 
   if (registry.paymaster) {

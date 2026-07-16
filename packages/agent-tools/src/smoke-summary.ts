@@ -11,6 +11,7 @@ export interface OperatorPathSummary {
   workflowNextCommand?: string;
   workflowAgentProfile?: unknown;
   workflowAgentFollowup?: unknown;
+  walletApprovalRelay?: unknown;
   walletApprovalRecommendedCommands?: unknown;
   workflowRecommendedCommands?: unknown;
 }
@@ -29,6 +30,7 @@ export function buildOperatorPathSummary(input: OperatorPathSummary): OperatorPa
     workflowNextCommand: input.workflowNextCommand,
     workflowAgentProfile: input.workflowAgentProfile,
     workflowAgentFollowup: input.workflowAgentFollowup,
+    walletApprovalRelay: input.walletApprovalRelay,
     walletApprovalRecommendedCommands: input.walletApprovalRecommendedCommands,
     workflowRecommendedCommands: input.workflowRecommendedCommands
   };
@@ -42,6 +44,7 @@ export interface SmokeStepFollowupSummary {
   agentFollowup?: unknown;
   workflowAgentProfile?: unknown;
   workflowAgentFollowup?: unknown;
+  walletApprovalRelay?: unknown;
 }
 
 export interface SmokeExecutionStepResult {
@@ -72,6 +75,7 @@ export function extractSmokeStepFollowupSummary(
           workflowNextCommand?: string;
           workflowAgentProfile?: unknown;
           workflowAgentFollowup?: unknown;
+          walletApprovalRelay?: unknown;
           walletApprovalRecommendedCommands?: unknown;
           workflowRecommendedCommands?: unknown;
           workflowRegistry?: unknown;
@@ -89,6 +93,7 @@ export function extractSmokeStepFollowupSummary(
         walletApproval: summary.walletApprovalRecommendedCommands,
         workflow: summary.workflowRecommendedCommands
       },
+      walletApprovalRelay: summary.walletApprovalRelay,
       agentProfile: summary.topLevelAgentProfile,
       agentFollowup: summary.topLevelAgentFollowup,
       workflowAgentProfile: summary.workflowAgentProfile,

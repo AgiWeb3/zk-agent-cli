@@ -75,6 +75,7 @@ import {
   buildWorkflowStatusRecommendedCommand
 } from '../lib/recommended-commands.js';
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
+import { summarizeBridgeAssetConstraints } from '../lib/validated-defaults.js';
 import { runWorkflow, type WorkflowGoalInput, type WorkflowRunResult } from '../lib/workflow-run.js';
 import {
   createFundCommand,
@@ -1138,6 +1139,8 @@ async function printWorkflowRunCommandResult(
         agentFollowup,
         result: execution.result,
         walletRequestId: execution.walletApproval?.request.requestId,
+        walletApprovalRelay: execution.walletApproval?.relay,
+        walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(execution.walletApproval),
         recommendedCommands
       }
@@ -1179,6 +1182,8 @@ async function printWorkflowRunCommandResult(
       status: execution.status,
       checkpoint: execution.checkpoint,
       walletRequestId: execution.walletApproval?.request.requestId,
+      walletApprovalRelay: execution.walletApproval?.relay,
+      walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
       walletApproval: serializeWalletApproval(execution.walletApproval),
       recommendedCommands
     }
@@ -1219,6 +1224,8 @@ function workflowNextLines(
   }
 
   if (result.plan.registry?.swap) {
+    const trackedTokenA = result.plan.registry.swap.trackedTokenA;
+    const trackedTokenB = result.plan.registry.swap.trackedTokenB;
     lines.push([
       'registry swap',
       `${result.plan.registry.swap.entryId} (${result.plan.registry.swap.status}, ${result.plan.registry.swap.configuration})`
@@ -1231,9 +1238,21 @@ function workflowNextLines(
       'registry swap fallback',
       result.plan.registry.swap.isManualFallback ? 'yes' : 'no'
     ]);
+    if (result.plan.registry.swap.trackedPoolAddress) {
+      lines.push(['registry swap pool', result.plan.registry.swap.trackedPoolAddress]);
+    }
+    if (trackedTokenA?.address && trackedTokenB?.address) {
+      lines.push([
+        'registry swap pair',
+        `${trackedTokenA.symbol || trackedTokenA.address} <-> ${trackedTokenB.symbol || trackedTokenB.address}`
+      ]);
+    }
   }
 
   if (result.plan.registry?.bridge) {
+    const bridgeConstraints = summarizeBridgeAssetConstraints(
+      result.plan.registry.bridge.assetConstraints
+    );
     lines.push([
       'registry bridge',
       `${result.plan.registry.bridge.entryId} (${result.plan.registry.bridge.status}, ${result.plan.registry.bridge.configuration})`
@@ -1246,6 +1265,26 @@ function workflowNextLines(
       'registry withdraw default',
       result.plan.registry.bridge.isValidatedWithdrawRoute ? 'yes' : 'no'
     ]);
+    lines.push([
+      'registry bridge chains',
+      `${result.plan.registry.bridge.fromChain} (${result.plan.registry.bridge.fromChainId}) -> ${result.plan.registry.bridge.toChain} (${result.plan.registry.bridge.toChainId})`
+    ]);
+    lines.push([
+      'registry bridge assets',
+      [
+        result.plan.registry.bridge.supportedAssets.native ? 'native' : null,
+        result.plan.registry.bridge.supportedAssets.erc20 ? 'erc20' : null
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' + ')
+    ]);
+    lines.push([
+      'registry bridge finalize',
+      result.plan.registry.bridge.requiresFinalize ? 'required' : 'not required'
+    ]);
+    if (bridgeConstraints) {
+      lines.push(['registry bridge constraints', bridgeConstraints]);
+    }
   }
 
   if (result.plan.registry?.paymaster) {
@@ -1488,6 +1527,8 @@ async function printWorkflowAutoCommandResult(
       result: execution.result,
       checkpoint: execution.checkpoint,
       walletRequestId: execution.walletApproval?.request.requestId,
+      walletApprovalRelay: execution.walletApproval?.relay,
+      walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
       walletApproval: serializeWalletApproval(execution.walletApproval),
       recommendedCommands
     }
@@ -2519,6 +2560,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         result: inspection.result,
         checkpoint: inspection.checkpoint,
         walletRequestId: inspection.walletApproval?.request.requestId,
+        walletApprovalRelay: inspection.walletApproval?.relay,
+        walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(inspection.walletApproval),
         recommendedCommands
       }
@@ -2590,6 +2633,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         result: inspection.result,
         checkpoint: inspection.checkpoint,
         walletRequestId: inspection.walletApproval?.request.requestId,
+        walletApprovalRelay: inspection.walletApproval?.relay,
+        walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(inspection.walletApproval),
         recommendedCommands
       }
@@ -2647,6 +2692,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           status: inspection.result,
           checkpoint: inspection.checkpoint,
           walletRequestId: inspection.walletApproval.request.requestId,
+          walletApprovalRelay: inspection.walletApproval.relay,
+          walletApprovalRecommendedCommands: inspection.walletApproval.recommendedCommands,
           walletApproval: serializeWalletApproval(inspection.walletApproval),
           recommendedCommands
         }
@@ -2699,6 +2746,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           status: execution.status,
           checkpoint: execution.checkpoint,
           walletRequestId: execution.walletApproval?.request.requestId,
+          walletApprovalRelay: execution.walletApproval?.relay,
+          walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
           walletApproval: serializeWalletApproval(execution.walletApproval),
           recommendedCommands
         }
@@ -2740,6 +2789,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         status: inspection.result,
         result: execution.result,
         walletRequestId: inspection.walletApproval?.request.requestId,
+        walletApprovalRelay: inspection.walletApproval?.relay,
+        walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(inspection.walletApproval),
         recommendedCommands
       }

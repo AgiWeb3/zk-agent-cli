@@ -403,6 +403,18 @@ test('syncswap classic preview quotes the pool and returns router preview data',
   assert.equal(result.registry?.swap?.entryId, 'syncswap-classic');
   assert.equal(result.registry?.swap?.configuration, 'tracked-default');
   assert.equal(
+    result.registry?.swap?.trackedPoolAddress,
+    defaults.validated.swapSyncswapClassic?.poolAddress
+  );
+  assert.equal(
+    result.registry?.swap?.trackedTokenA.address,
+    defaults.validated.swapSyncswapClassic?.tokenA.address
+  );
+  assert.equal(
+    result.registry?.swap?.trackedTokenB.address,
+    defaults.validated.swapSyncswapClassic?.tokenB.address
+  );
+  assert.equal(
     result.registry?.swap?.isValidatedDefault,
     defaults.surfaceMatrix.swap.validatedDefaultEntryId === 'syncswap-classic'
   );

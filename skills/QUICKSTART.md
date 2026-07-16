@@ -257,12 +257,15 @@ pnpm zk-agent balances --wallet main
 pnpm zk-agent balances --wallet main --owned-tokens
 pnpm zk-agent assets --wallet main
 pnpm zk-agent send --wallet main --to <address> --amount <amount>
-pnpm zk-agent swap --wallet main --protocol syncswap-classic [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] --amount-in <amount> --amount-out-min <amount>
+pnpm zk-agent swap --wallet main [--protocol syncswap-classic] [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] --amount-in <amount> --amount-out-min <amount>
 pnpm zk-agent bridge --wallet main --amount <amount> [--to-chain zksync-sepolia]
 pnpm zk-agent withdraw --wallet main --amount <amount>
 pnpm zk-agent withdraw-status --wallet main --tx-hash <hash>
 pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash>
 ```
+
+When `--protocol` is omitted, direct `swap` now follows the current
+registry-backed validated swap path.
 
 For `syncswap-classic`, tracked Sepolia router/factory defaults are used when
 `--router` and `--factory` are omitted.

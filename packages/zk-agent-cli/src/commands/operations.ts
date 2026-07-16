@@ -20,6 +20,7 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 import { executeFundAction } from '../lib/fund.js';
+import { summarizeBridgeAssetConstraints } from '../lib/validated-defaults.js';
 import {
   resolveOptionalTokenInput,
   resolveRequiredTokenInput,
@@ -299,6 +300,27 @@ export function linesForBridgeResult(
       'registry withdraw default',
       result.registry.bridge.isValidatedWithdrawRoute ? 'yes' : 'no'
     ]);
+    lines.push([
+      'registry bridge chains',
+      `${result.registry.bridge.fromChain} (${result.registry.bridge.fromChainId}) -> ${result.registry.bridge.toChain} (${result.registry.bridge.toChainId})`
+    ]);
+    lines.push([
+      'registry bridge assets',
+      [
+        result.registry.bridge.supportedAssets.native ? 'native' : null,
+        result.registry.bridge.supportedAssets.erc20 ? 'erc20' : null
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' + ')
+    ]);
+    lines.push([
+      'registry bridge finalize',
+      result.registry.bridge.requiresFinalize ? 'required' : 'not required'
+    ]);
+    const bridgeConstraints = summarizeBridgeAssetConstraints(result.registry.bridge.assetConstraints);
+    if (bridgeConstraints) {
+      lines.push(['registry bridge constraints', bridgeConstraints]);
+    }
   }
   if (result.preview.to) lines.push(['tx target', result.preview.to]);
   if (result.txHash) lines.push(['txHash', result.txHash]);
@@ -342,6 +364,8 @@ export function linesForSwapResult(
     lines.push(['sqrt price limit x96', result.sqrtPriceLimitX96]);
   }
   if (result.registry?.swap) {
+    const trackedTokenA = result.registry.swap.trackedTokenA;
+    const trackedTokenB = result.registry.swap.trackedTokenB;
     lines.push([
       'registry swap',
       `${result.registry.swap.entryId} (${result.registry.swap.status}, ${result.registry.swap.configuration})`
@@ -354,6 +378,15 @@ export function linesForSwapResult(
       'registry swap fallback',
       result.registry.swap.isManualFallback ? 'yes' : 'no'
     ]);
+    if (result.registry.swap.trackedPoolAddress) {
+      lines.push(['registry swap pool', result.registry.swap.trackedPoolAddress]);
+    }
+    if (trackedTokenA?.address && trackedTokenB?.address) {
+      lines.push([
+        'registry swap pair',
+        `${trackedTokenA.symbol || trackedTokenA.address} <-> ${trackedTokenB.symbol || trackedTokenB.address}`
+      ]);
+    }
   }
   if (result.quotedAmountOut) lines.push(['quoted amount out', result.quotedAmountOut]);
   lines.push(['paymaster', result.paymaster.mode]);
@@ -1315,8 +1348,7 @@ export function createSwapCommand(): Command {
     .description('Preview or broadcast a supported same-chain swap path')
     .option(
       '--protocol <protocol>',
-      'uniswap-v3-exact-input-single or syncswap-classic',
-      'uniswap-v3-exact-input-single'
+      'Optional swap protocol override: uniswap-v3-exact-input-single or syncswap-classic. Defaults to the current registry-backed validated swap path'
     )
     .option(
       '--router <address>',

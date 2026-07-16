@@ -575,6 +575,7 @@ test('workflow status can emit relay follow-up commands through commander when r
       status_url: 'http://127.0.0.1:4445/api/requests/wr-reuse-001',
       approval_url: 'http://127.0.0.1:4445/r/wr-reuse-001'
     });
+    assert.deepEqual(result.walletApprovalRelay, result.walletApproval.relay);
     assert.deepEqual(result.walletApproval.recommendedCommands, {
       awaitLocal: 'zk-agent wallet request await-local --request-id wr-reuse-001',
       approve: 'zk-agent wallet request approve --request-id wr-reuse-001 --payload @approved-session.json',
@@ -583,6 +584,10 @@ test('workflow status can emit relay follow-up commands through commander when r
       relayApprove:
         'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code> --wait'
     });
+    assert.deepEqual(
+      result.walletApprovalRecommendedCommands,
+      result.walletApproval.recommendedCommands
+    );
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',

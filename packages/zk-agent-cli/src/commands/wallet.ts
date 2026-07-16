@@ -219,6 +219,15 @@ export function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string
   };
 }
 
+function relayOutputAliases(relay: RelayStatusResponse | undefined) {
+  return {
+    relayRequestId: relay?.request_id,
+    relayShareUrl: relay?.share_url,
+    relayStatusUrl: relay?.status_url,
+    relayApprovalUrl: relay?.approval_url
+  };
+}
+
 export function sanitizeWalletRequestRecord(request: WalletRequestRecord): Record<string, unknown> {
   const { sessionSecretKey: _sessionSecretKey, ...rest } = request;
   return rest;
@@ -1899,6 +1908,11 @@ function walletFollowUpLines(walletRecord: WalletSessionRecord): Array<[string, 
   ];
 }
 
+function buildWalletFollowUpNextAction(walletRecord: WalletSessionRecord): string {
+  const recommendedCommands = buildWalletFollowUpRecommendedCommands(walletRecord);
+  return recommendedCommands.reapprove ?? recommendedCommands.next;
+}
+
 function buildPendingRequestRecommendedCommands(
   walletName: string,
   requestId: string,
@@ -1925,6 +1939,12 @@ function buildPendingRequestRecommendedCommands(
   };
 }
 
+function buildPendingRequestNextAction(
+  recommendedCommands: ReturnType<typeof buildPendingRequestRecommendedCommands>
+): string {
+  return recommendedCommands.relayStatus ?? recommendedCommands.awaitLocal;
+}
+
 function buildRequestListEntryRecommendedCommands(
   walletName: string,
   requestId: string
@@ -1938,6 +1958,13 @@ function buildRequestListEntryRecommendedCommands(
     afterApproval: buildTopLevelNextRecommendedCommand(),
     afterApprovalStatus: buildWalletStatusRecommendedCommand(walletName)
   };
+}
+
+function buildRequestListEntryNextAction(
+  walletName: string,
+  requestId: string
+): string {
+  return buildRequestListEntryRecommendedCommands(walletName, requestId).show;
 }
 
 function buildRelayCreateRequest(walletRequest: WalletRequestRecord): RelayCreateRequest {
@@ -2549,6 +2576,7 @@ async function printWalletList(): Promise<void> {
           : undefined,
       walletRecommendations: wallets.map((wallet) => ({
         walletName: wallet.walletName,
+        nextAction: buildWalletFollowUpNextAction(wallet),
         recommendedCommands: buildWalletFollowUpRecommendedCommands(wallet)
       }))
     });
@@ -2591,6 +2619,7 @@ async function printWalletRequestList(): Promise<void> {
       requestRecommendations: requests.map((request) => ({
         requestId: request.requestId,
         walletName: request.walletName,
+        nextAction: buildRequestListEntryNextAction(request.walletName, request.requestId),
         recommendedCommands: buildRequestListEntryRecommendedCommands(
           request.walletName,
           request.requestId
@@ -2827,11 +2856,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ),
           {
             ok: true,
+            walletRequestId: request.requestId,
             request: sanitizeWalletRequestRecord(request),
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(walletRecord),
             callbackUrl,
             approvalUrl,
+            nextAction: buildWalletFollowUpNextAction(walletRecord),
             recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
           }
         );
@@ -2857,10 +2888,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           {
             ok: true,
             approvalSource: 'relay-url',
+            walletRequestId: request.requestId,
             request: sanitizeWalletRequestRecord(request),
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(walletRecord),
             relay,
+            ...relayOutputAliases(relay),
+            nextAction: buildWalletFollowUpNextAction(walletRecord),
             recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
           }
         );
@@ -2915,8 +2949,10 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ok: true,
           walletName: request.walletName,
           requestId: request.requestId,
+          walletRequestId: request.requestId,
           approvalUrl: request.approvalUrl,
           relay,
+          ...relayOutputAliases(relay),
           expiresAt: request.expiresAt,
           chain: request.chain,
           chainId: request.chainId,
@@ -2924,6 +2960,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           paymasterMode: request.requestedPaymasterMode,
           capabilities: request.requestedCapabilities,
           sessionScope: request.requestedSessionScope,
+          nextAction: buildPendingRequestNextAction(recommendedCommands),
           recommendedCommands
         }
       );
@@ -3019,11 +3056,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ),
           {
             ok: true,
+            walletRequestId: request.requestId,
             request: sanitizeWalletRequestRecord(request),
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(approvedWallet),
             callbackUrl,
             approvalUrl,
+            nextAction: buildWalletFollowUpNextAction(approvedWallet),
             recommendedCommands: buildWalletFollowUpRecommendedCommands(approvedWallet)
           }
         );
@@ -3049,10 +3088,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           {
             ok: true,
             approvalSource: 'relay-url',
+            walletRequestId: request.requestId,
             request: sanitizeWalletRequestRecord(request),
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(approvedWallet),
             relay,
+            ...relayOutputAliases(relay),
+            nextAction: buildWalletFollowUpNextAction(approvedWallet),
             recommendedCommands: buildWalletFollowUpRecommendedCommands(approvedWallet)
           }
         );
@@ -3108,9 +3150,12 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         ],
         {
           ok: true,
+          walletRequestId: request.requestId,
           wallet: sanitizeWalletRecord(walletRecord),
           request: sanitizeWalletRequestRecord(request),
           relay,
+          ...relayOutputAliases(relay),
+          nextAction: buildPendingRequestNextAction(recommendedCommands),
           recommendedCommands
         }
       );
@@ -3443,6 +3488,9 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           request: sanitizeWalletRequestRecord(walletRequest),
           requestStatus: status,
           removed: status === 'expired',
+          nextAction: recommendedCommands
+            ? buildPendingRequestNextAction(recommendedCommands)
+            : undefined,
           recommendedCommands
         }
       );
@@ -3478,11 +3526,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
 
         printResult(buildWalletApprovalLines('Wallet request approved via local connector callback', walletRequest.requestId, walletRecord), {
           ok: true,
+          walletRequestId: walletRequest.requestId,
           request: sanitizeWalletRequestRecord(walletRequest),
           payload: sanitizeSessionPayload(payload),
           wallet: sanitizeWalletRecord(walletRecord),
           callbackUrl,
           approvalUrl,
+          nextAction: buildWalletFollowUpNextAction(walletRecord),
           recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
         });
       }
@@ -3506,13 +3556,16 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
             ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
             ['next approve', buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)]
           ],
-          {
-            ok: true,
-            relay,
-            request: sanitizeWalletRequestRecord(walletRequest),
-            recommendedCommands: {
-              status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
-              approve: buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
+        {
+          ok: true,
+          walletRequestId: walletRequest.requestId,
+          relay,
+          ...relayOutputAliases(relay),
+          request: sanitizeWalletRequestRecord(walletRequest),
+          nextAction: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
+          recommendedCommands: {
+            status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
+            approve: buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
             }
           }
         );
@@ -3551,7 +3604,12 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         ],
         {
           ok: true,
+          walletRequestId: relay.request_id,
           relay,
+          ...relayOutputAliases(relay),
+          nextAction: relay.approval_ready
+            ? buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
+            : buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
           recommendedCommands: {
             status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
             ...(relay.approval_ready
@@ -3634,6 +3692,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         ),
         {
           ok: true,
+          walletRequestId: walletRequest.requestId,
           request: sanitizeWalletRequestRecord(walletRequest),
           payload: sanitizeSessionPayload(payload),
           wallet: sanitizeWalletRecord(walletRecord),
@@ -3642,6 +3701,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
             : options.encryptedPayload
               ? 'encrypted-payload'
               : 'relay-url',
+          nextAction: buildWalletFollowUpNextAction(walletRecord),
           recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
         }
       );
@@ -3709,9 +3769,11 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           buildWalletApprovalLines('Wallet request approved locally', walletRequest.requestId, walletRecord),
           {
             ok: true,
+            walletRequestId: walletRequest.requestId,
             request: sanitizeWalletRequestRecord(walletRequest),
             payload: sanitizeSessionPayload(payload),
             wallet: sanitizeWalletRecord(walletRecord),
+            nextAction: buildWalletFollowUpNextAction(walletRecord),
             recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
           }
         );

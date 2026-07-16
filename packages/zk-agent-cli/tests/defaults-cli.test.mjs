@@ -74,6 +74,7 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(Array.isArray(result.defaults.registry.swapProtocols), true);
     assert.equal(Array.isArray(result.defaults.registry.bridgeRoutes), true);
     assert.equal(Array.isArray(result.defaults.registry.paymasterPaths), true);
+    assert.equal(Array.isArray(result.defaults.registry.tokens), true);
     assert.equal(typeof result.defaults.surfaceMatrix, 'object');
     assert.equal(Array.isArray(result.localTokenRegistry), true);
     assert.equal(Array.isArray(result.tokenRegistrySources), true);
@@ -92,6 +93,11 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     );
     assert.equal(syncswapRegistry.status, 'validated');
     assert.equal(syncswapRegistry.configuration, 'tracked-default');
+    assert.equal(syncswapRegistry.poolAddress, '0xdB341A7f3e01c14A2E2a2953E53fB2491eb05ec9');
+    assert.equal(syncswapRegistry.tokenA.address, '0xA0e40024ac1eC50416ab539AB533ce582080B885');
+    assert.equal(syncswapRegistry.tokenA.symbol, 'ZKAT');
+    assert.equal(syncswapRegistry.tokenB.address, '0xc4E33aa1c5b82142259D749EDab117a8B24348a6');
+    assert.equal(syncswapRegistry.tokenB.symbol, 'ZKAT');
 
     assert.equal(result.defaults.validated.swapSyncswapClassic.protocol, 'syncswap-classic');
     assert.equal(result.defaults.validated.swapSyncswapClassic.routerAddress, '0x3f39129e54d2331926c1E4bf034e111cf471AA97');
@@ -123,11 +129,46 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(validatedPaymasterPath.status, 'validated');
     assert.equal(validatedPaymasterPath.feeTokenDeploymentMode, 'eravm');
 
+    const sponsoredPaymasterPath = result.defaults.registry.paymasterPaths.find(
+      (entry) => entry.id === 'zksync-sepolia-sponsored'
+    );
+    assert.equal(sponsoredPaymasterPath.status, 'validated');
+    assert.equal(sponsoredPaymasterPath.mode, 'sponsored');
+    assert.equal(sponsoredPaymasterPath.paymasterAddress, '0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97');
+    assert.equal(sponsoredPaymasterPath.feeTokenAddress, null);
+
     const experimentalPaymasterPath = result.defaults.registry.paymasterPaths.find(
       (entry) => entry.id === 'zksync-sepolia-approval-based-evm-interpreter'
     );
     assert.equal(experimentalPaymasterPath.status, 'experimental');
     assert.equal(experimentalPaymasterPath.feeTokenDeploymentMode, 'evm-interpreter');
+
+    const validatedSwapTokenA = result.defaults.registry.tokens.find(
+      (entry) => entry.id === 'syncswap-classic-token-a'
+    );
+    assert.equal(validatedSwapTokenA.status, 'validated');
+    assert.equal(validatedSwapTokenA.role, 'swap-token-a');
+    assert.equal(validatedSwapTokenA.sourceKind, 'swap');
+    assert.equal(validatedSwapTokenA.sourceEntryId, 'syncswap-classic');
+    assert.equal(validatedSwapTokenA.address, '0xA0e40024ac1eC50416ab539AB533ce582080B885');
+
+    const validatedPaymasterFeeToken = result.defaults.registry.tokens.find(
+      (entry) => entry.id === 'zksync-sepolia-approval-based-eravm-fee-token'
+    );
+    assert.equal(validatedPaymasterFeeToken.status, 'validated');
+    assert.equal(validatedPaymasterFeeToken.role, 'paymaster-fee-token');
+    assert.equal(validatedPaymasterFeeToken.sourceKind, 'paymaster');
+    assert.equal(
+      validatedPaymasterFeeToken.sourceEntryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(validatedPaymasterFeeToken.deploymentMode, 'eravm');
+
+    const experimentalPaymasterFeeToken = result.defaults.registry.tokens.find(
+      (entry) => entry.id === 'zksync-sepolia-approval-based-evm-interpreter-fee-token'
+    );
+    assert.equal(experimentalPaymasterFeeToken.status, 'experimental');
+    assert.equal(experimentalPaymasterFeeToken.deploymentMode, 'evm-interpreter');
 
     assert.equal(
       result.defaults.surfaceMatrix.swap.validatedDefaultEntryId,
@@ -149,9 +190,126 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
       result.defaults.surfaceMatrix.paymaster.validatedDefaultEntryId,
       'zksync-sepolia-approval-based-eravm'
     );
+    assert.equal(
+      result.defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.sponsored,
+      'zksync-sepolia-sponsored'
+    );
+    assert.equal(
+      result.defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.approvalBased,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(
+      result.defaults.surfaceMatrix.paymaster.validatedEntryIds.includes('zksync-sepolia-sponsored'),
+      true
+    );
     assert.deepEqual(result.defaults.surfaceMatrix.paymaster.experimentalEntryIds, [
       'zksync-sepolia-approval-based-evm-interpreter'
     ]);
+
+    assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.entryId,
+      'syncswap-classic'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.isValidatedDefault,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.trackedPoolAddress,
+      '0xdB341A7f3e01c14A2E2a2953E53fB2491eb05ec9'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.trackedTokenA.address,
+      '0xA0e40024ac1eC50416ab539AB533ce582080B885'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.trackedTokenB.address,
+      '0xc4E33aa1c5b82142259D749EDab117a8B24348a6'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.manualFallback.entryId,
+      'uniswap-v3-exact-input-single'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.manualFallback.isManualFallback,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedDeposit.entryId,
+      'ethereum-sepolia-to-zksync-sepolia'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedDeposit.fromChainId,
+      11155111
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedDeposit.toChainId,
+      300
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedDeposit.isValidatedDepositRoute,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedDeposit.supportedAssets.native,
+      true
+    );
+    assert.deepEqual(
+      result.defaults.defaultSelections.bridge.validatedDeposit.assetConstraints,
+      []
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedWithdraw.entryId,
+      'zksync-sepolia-to-ethereum-sepolia'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedWithdraw.isValidatedWithdrawRoute,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.bridge.validatedWithdraw.requiresFinalize,
+      true
+    );
+    assert.deepEqual(
+      result.defaults.defaultSelections.bridge.validatedWithdraw.assetConstraints,
+      [
+        'erc20-requires-canonical-shared-bridge-mapping',
+        'erc20-requires-shared-bridge-registration',
+        'local-only-l2-token-not-supported'
+      ]
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedDefault.entryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedDefault.isValidatedDefault,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedSponsored.entryId,
+      'zksync-sepolia-sponsored'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedSponsored.isValidatedDefault,
+      false
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedSponsored.isValidatedDefaultForMode,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedApprovalBased.entryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedApprovalBased.isValidatedDefaultForMode,
+      true
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedDefault.feeTokenDeploymentMode,
+      'eravm'
+    );
 
     const localEraVmToken = result.localTokenRegistry.find(
       (entry) =>

@@ -43,3 +43,21 @@ test('resolveEffectivePaymasterSelection supplements the tracked validated Sepol
 test('canUsePaymasterForGas treats the tracked validated Sepolia paymaster path as usable', () => {
   assert.equal(canUsePaymasterForGas(sampleWallet), true);
 });
+
+test('resolveEffectivePaymasterSelection supplements the tracked sponsored paymaster path', () => {
+  const resolved = resolveEffectivePaymasterSelection(
+    {
+      ...sampleWallet,
+      paymasterMode: 'sponsored'
+    },
+    {
+      mode: 'sponsored'
+    }
+  );
+
+  assert.deepEqual(resolved, {
+    mode: 'sponsored',
+    address: trackedPaymasterAddress,
+    token: undefined
+  });
+});

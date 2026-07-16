@@ -342,12 +342,26 @@ function createProviderStub() {
               ? 'ethereum-sepolia-to-zksync-sepolia'
               : 'zksync-sepolia-to-ethereum-sepolia',
             fromChain: isDeposit ? 'ethereum-sepolia' : input.wallet.chain,
+            fromChainId: isDeposit ? 11155111 : input.wallet.chainId,
             toChain: isDeposit ? input.toChain : 'ethereum-sepolia',
+            toChainId: isDeposit ? 300 : 11155111,
             direction: isDeposit ? 'l1-to-l2' as const : 'l2-to-l1' as const,
             status: 'validated' as const,
             configuration: 'tracked-default' as const,
             isValidatedDepositRoute: isDeposit,
-            isValidatedWithdrawRoute: !isDeposit
+            isValidatedWithdrawRoute: !isDeposit,
+            supportedAssets: {
+              native: true,
+              erc20: true
+            },
+            assetConstraints: isDeposit
+              ? []
+              : [
+                  'erc20-requires-canonical-shared-bridge-mapping',
+                  'erc20-requires-shared-bridge-registration',
+                  'local-only-l2-token-not-supported'
+                ],
+            requiresFinalize: !isDeposit
           }
         },
         txHash: input.broadcast ? '0x' + '98'.repeat(32) : undefined,
@@ -888,6 +902,9 @@ test('createStandardAgentTools resolves wallet-scoped operations', async () => {
     assert.equal(bridge.data.route, 'l1-to-l2');
     assert.equal(bridge.data.registry?.bridge?.entryId, 'ethereum-sepolia-to-zksync-sepolia');
     assert.equal(bridge.data.registry?.bridge?.isValidatedDepositRoute, true);
+    assert.equal(bridge.data.registry?.bridge?.fromChainId, 11155111);
+    assert.equal(bridge.data.registry?.bridge?.requiresFinalize, false);
+    assert.deepEqual(bridge.data.registry?.bridge?.assetConstraints, []);
   }
 
   const bridgeStatus = await tools.bridgeStatusTool.execute({
@@ -3154,13 +3171,164 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       (
         defaults.data as {
           defaults: {
+            defaultSelections: {
+              swap: {
+                validatedDefault: {
+                  trackedPoolAddress: string | null;
+                  trackedTokenA: { address: string | null };
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.swap.validatedDefault.trackedPoolAddress,
+      '0xdB341A7f3e01c14A2E2a2953E53fB2491eb05ec9'
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            defaultSelections: {
+              swap: {
+                validatedDefault: {
+                  trackedPoolAddress: string | null;
+                  trackedTokenA: { address: string | null };
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.swap.validatedDefault.trackedTokenA.address,
+      '0xA0e40024ac1eC50416ab539AB533ce582080B885'
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
             registry: {
               bridgeRoutes: Array<{ id: string }>;
+              tokens: Array<{
+                id: string;
+                status: string;
+                role: string;
+                sourceEntryId: string;
+              }>;
             };
           };
         }
       ).defaults.registry.bridgeRoutes.some((entry) => entry.id === 'ethereum-sepolia-to-zksync-sepolia'),
       true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            registry: {
+              bridgeRoutes: Array<{ id: string }>;
+              tokens: Array<{
+                id: string;
+                status: string;
+                role: string;
+                sourceEntryId: string;
+              }>;
+            };
+          };
+        }
+      ).defaults.registry.tokens.some(
+        (entry) =>
+          entry.id === 'zksync-sepolia-approval-based-eravm-fee-token' &&
+          entry.status === 'validated' &&
+          entry.role === 'paymaster-fee-token' &&
+          entry.sourceEntryId === 'zksync-sepolia-approval-based-eravm'
+      ),
+      true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            defaultSelections: {
+              paymaster: {
+                validatedDefault?: {
+                  entryId: string;
+                  feeTokenDeploymentMode: string | null;
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.paymaster.validatedDefault?.entryId,
+      'zksync-sepolia-approval-based-eravm'
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            surfaceMatrix: {
+              paymaster: {
+                validatedDefaultEntryIdByMode: {
+                  sponsored: string | null;
+                };
+              };
+            };
+          };
+        }
+      ).defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.sponsored,
+      'zksync-sepolia-sponsored'
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            defaultSelections: {
+              swap: {
+                manualFallback?: {
+                  entryId: string;
+                  isManualFallback: boolean;
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.swap.manualFallback?.isManualFallback,
+      true
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            defaultSelections: {
+              paymaster: {
+                validatedSponsored?: {
+                  entryId: string;
+                  isValidatedDefaultForMode: boolean;
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.paymaster.validatedSponsored?.isValidatedDefaultForMode,
+      true
+    );
+    assert.deepEqual(
+      (
+        defaults.data as {
+          defaults: {
+            defaultSelections: {
+              bridge: {
+                validatedWithdraw?: {
+                  assetConstraints: string[];
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.bridge.validatedWithdraw?.assetConstraints,
+      [
+        'erc20-requires-canonical-shared-bridge-mapping',
+        'erc20-requires-shared-bridge-registration',
+        'local-only-l2-token-not-supported'
+      ]
     );
     assert.equal(
       (
@@ -3473,6 +3641,10 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
   assert.equal(requestCreated.data.status.status, 'blocked');
   assert.equal(requestCreated.data.walletApproval?.stage, 'request-created');
   assert.equal(
+    requestCreated.data.walletRequestId,
+    requestCreated.data.walletApproval?.requestId
+  );
+  assert.equal(
     requestCreated.data.recommendedCommand,
     `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`
   );
@@ -3480,6 +3652,10 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     awaitLocal: `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`,
     approve: `zk-agent wallet request approve --request-id ${requestCreated.data.walletApproval?.requestId} --payload @approved-session.json`
   });
+  assert.deepEqual(
+    requestCreated.data.walletApprovalRecommendedCommands,
+    requestCreated.data.recommendedCommands
+  );
   assert.equal(
     requestCreated.data.workflowRecommendedCommands.nextAction,
     `zk-agent wallet request await-local --request-id ${requestCreated.data.walletApproval?.requestId}`
@@ -3539,6 +3715,10 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     relayRequestCreated.data.recommendedCommand,
     `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`
   );
+  assert.equal(
+    relayRequestCreated.data.walletRequestId,
+    relayRequestCreated.data.walletApproval?.requestId
+  );
   assert.deepEqual(relayRequestCreated.data.walletApproval?.relay, {
     request_id: relayRequestCreated.data.walletApproval?.requestId,
     status: 'pending',
@@ -3546,12 +3726,20 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     status_url: `http://127.0.0.1:4445/api/requests/${relayRequestCreated.data.walletApproval?.requestId}`,
     approval_url: `http://127.0.0.1:4445/r/${relayRequestCreated.data.walletApproval?.requestId}`
   });
+  assert.deepEqual(
+    relayRequestCreated.data.walletApprovalRelay,
+    relayRequestCreated.data.walletApproval?.relay
+  );
   assert.deepEqual(relayRequestCreated.data.recommendedCommands, {
     awaitLocal: `zk-agent wallet request await-local --request-id ${relayRequestCreated.data.walletApproval?.requestId}`,
     approve: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --payload @approved-session.json`,
     relayStatus: `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`,
     relayApprove: `zk-agent wallet request approve --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445 --code <code> --wait`
   });
+  assert.deepEqual(
+    relayRequestCreated.data.walletApprovalRecommendedCommands,
+    relayRequestCreated.data.recommendedCommands
+  );
   assert.equal(
     relayRequestCreated.data.workflowRecommendedCommands.nextAction,
     `zk-agent wallet request relay-status --request-id ${relayRequestCreated.data.walletApproval?.requestId} --relay-url http://127.0.0.1:4445`
