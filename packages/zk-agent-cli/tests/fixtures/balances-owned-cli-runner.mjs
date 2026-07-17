@@ -1,7 +1,9 @@
 import { loadWalletSession, saveWalletSession } from '@zk-agent/agent-core';
 
 import { createAssetsCommand, createBalancesCommand } from '../../src/commands/operations.ts';
+import { requireIsolatedHome } from './require-isolated-home.mjs';
 
+requireIsolatedHome();
 await saveWalletSession({
   walletName: 'main',
   walletAddress: '0x1111111111111111111111111111111111111111',

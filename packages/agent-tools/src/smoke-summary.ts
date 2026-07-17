@@ -37,6 +37,10 @@ export function buildOperatorPathSummary(input: OperatorPathSummary): OperatorPa
 }
 
 export interface SmokeStepFollowupSummary {
+  phase?: string;
+  stage?: string;
+  goalMode?: string;
+  txHash?: string;
   nextCommand?: string;
   recommendedCommands?: unknown;
   registry?: unknown;
@@ -48,7 +52,7 @@ export interface SmokeStepFollowupSummary {
 }
 
 export interface SmokeExecutionStepResult {
-  id: 'operator-path' | 'paymaster-success' | 'withdraw-followup';
+  id: 'operator-path' | 'paymaster-success' | 'swap-success' | 'withdraw-followup';
   title: string;
   ok: boolean;
   exitCode: number;
@@ -64,6 +68,7 @@ export function extractSmokeStepFollowupSummary(
   if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
 
   if (step.id === 'operator-path') {
+    const phase = (result as { phase?: string }).phase;
     const summary = (
       result as {
         summary?: {
@@ -72,6 +77,7 @@ export function extractSmokeStepFollowupSummary(
           topLevelAgentProfile?: unknown;
           topLevelAgentFollowup?: unknown;
           walletNextCommand?: string;
+          workflowStage?: string;
           workflowNextCommand?: string;
           workflowAgentProfile?: unknown;
           workflowAgentFollowup?: unknown;
@@ -86,6 +92,8 @@ export function extractSmokeStepFollowupSummary(
     if (!summary) return undefined;
 
     return {
+      phase,
+      stage: summary.workflowStage,
       nextCommand:
         summary.workflowNextCommand || summary.walletNextCommand || summary.topLevelNextCommand,
       recommendedCommands: {
@@ -102,10 +110,14 @@ export function extractSmokeStepFollowupSummary(
     };
   }
 
-  if (step.id === 'paymaster-success') {
+  if (step.id === 'paymaster-success' || step.id === 'swap-success') {
     const payload = (
       result as {
+        phase?: string;
         result?: {
+          stage?: string;
+          goalMode?: string;
+          txHash?: string;
           nextCommand?: string;
           recommendedCommands?: unknown;
           registry?: unknown;
@@ -118,6 +130,10 @@ export function extractSmokeStepFollowupSummary(
     if (!payload) return undefined;
 
     return {
+      phase: (result as { phase?: string }).phase,
+      stage: payload.stage,
+      goalMode: payload.goalMode,
+      txHash: payload.txHash,
       nextCommand: payload.nextCommand,
       recommendedCommands: payload.recommendedCommands,
       registry: payload.registry,
@@ -127,10 +143,18 @@ export function extractSmokeStepFollowupSummary(
   }
 
   if (step.id === 'withdraw-followup') {
-    const status = (result as { status?: { nextCommand?: string } }).status;
+    const status = (
+      result as {
+        phase?: string;
+        status?: { stage?: string; txHash?: string; nextCommand?: string };
+      }
+    ).status;
     if (!status) return undefined;
 
     return {
+      phase: (result as { phase?: string }).phase,
+      stage: status.stage,
+      txHash: status.txHash,
       nextCommand: status.nextCommand
     };
   }

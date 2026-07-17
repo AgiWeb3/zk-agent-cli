@@ -12,13 +12,15 @@ export interface SmokeProductPathOptions {
   txHash?: string;
   chain?: string;
   index?: string;
+  executeAll: boolean;
   executePaymaster: boolean;
+  executeSwap: boolean;
   executeWithdrawFinalize: boolean;
   plan: boolean;
 }
 
 export interface SmokeStep {
-  id: 'operator-path' | 'paymaster-success' | 'withdraw-followup';
+  id: 'operator-path' | 'paymaster-success' | 'swap-success' | 'withdraw-followup';
   title: string;
   command: string;
   args: string[];
@@ -32,15 +34,18 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter @zk-agent/agent-tools smoke:product-path -- --wallet <name> [--tx-hash <hash>] [--chain <chain>] [--index <n>] [--execute-paymaster] [--execute-withdraw-finalize] [--plan]',
+      '  pnpm --filter @zk-agent/agent-tools smoke:product-path -- --wallet <name> [--tx-hash <hash>] [--chain <chain>] [--index <n>] [--execute-all] [--execute-paymaster] [--execute-swap] [--execute-withdraw-finalize] [--plan]',
       '',
       'What it does:',
       '  1. Runs the canonical operator-path preview validation.',
       '  2. Runs the validated paymaster-backed workflow-auto send-native path.',
-      '  3. Optionally runs withdraw follow-up validation when --tx-hash is supplied.',
+      '  3. Runs the validated default workflow-auto swap path.',
+      '  4. Optionally runs withdraw follow-up validation when --tx-hash is supplied.',
       '',
       'Defaults:',
+      '  --execute-all enables every broadcast/finalize-capable step in one flag',
       '  paymaster success runs in preview mode unless --execute-paymaster is supplied',
+      '  swap success runs in preview mode unless --execute-swap is supplied',
       '  withdraw follow-up runs in preview/finalize-preview mode unless --execute-withdraw-finalize is supplied',
       '  --plan prints the step plan without executing any live commands'
     ].join('\n') + '\n'
@@ -56,12 +61,25 @@ function requireOptionValue(argv: string[], index: number, flag: string): string
   return value;
 }
 
+function normalizeSmokeProductPathOptions(
+  options: SmokeProductPathOptions
+): SmokeProductPathOptions {
+  return {
+    ...options,
+    executePaymaster: options.executeAll || options.executePaymaster,
+    executeSwap: options.executeAll || options.executeSwap,
+    executeWithdrawFinalize: options.executeAll || options.executeWithdrawFinalize
+  };
+}
+
 function parseArgs(argv: string[]): SmokeProductPathOptions {
   let walletName = process.env.ZK_AGENT_SMOKE_WALLET?.trim() || '';
   let txHash: string | undefined;
   let chain: string | undefined;
   let index: string | undefined;
+  let executeAll = false;
   let executePaymaster = false;
+  let executeSwap = false;
   let executeWithdrawFinalize = false;
   let plan = false;
 
@@ -104,6 +122,16 @@ function parseArgs(argv: string[]): SmokeProductPathOptions {
       continue;
     }
 
+    if (arg === '--execute-all') {
+      executeAll = true;
+      continue;
+    }
+
+    if (arg === '--execute-swap') {
+      executeSwap = true;
+      continue;
+    }
+
     if (arg === '--execute-withdraw-finalize') {
       executeWithdrawFinalize = true;
       continue;
@@ -121,15 +149,17 @@ function parseArgs(argv: string[]): SmokeProductPathOptions {
     throw new Error('A wallet name is required. Pass --wallet <name> or set ZK_AGENT_SMOKE_WALLET.');
   }
 
-  return {
+  return normalizeSmokeProductPathOptions({
     walletName,
     txHash,
     chain,
     index,
+    executeAll,
     executePaymaster,
+    executeSwap,
     executeWithdrawFinalize,
     plan
-  };
+  });
 }
 
 function scriptInvocation(scriptName: string, stepArgs: string[]): { command: string; args: string[] } {
@@ -156,6 +186,11 @@ export function buildSmokeProductPathSteps(options: SmokeProductPathOptions): Sm
     options.walletName,
     ...(options.executePaymaster ? ['--execute'] : [])
   ]);
+  const swap = scriptInvocation('smoke-swap-success', [
+    '--wallet',
+    options.walletName,
+    ...(options.executeSwap ? ['--execute'] : [])
+  ]);
 
   const steps: SmokeStep[] = [
     {
@@ -169,6 +204,12 @@ export function buildSmokeProductPathSteps(options: SmokeProductPathOptions): Sm
       title: 'Validated paymaster-backed workflow-auto path',
       command: paymaster.command,
       args: paymaster.args
+    },
+    {
+      id: 'swap-success',
+      title: 'Validated default workflow-auto swap path',
+      command: swap.command,
+      args: swap.args
     }
   ];
 
@@ -202,8 +243,11 @@ function buildPlanSummary(options: SmokeProductPathOptions, steps: SmokeStep[]) 
   return {
     walletName: options.walletName,
     totalSteps: steps.length,
+    includesSwapSuccess: steps.some((step) => step.id === 'swap-success'),
     includesWithdrawFollowup: steps.some((step) => step.id === 'withdraw-followup'),
+    executeAll: options.executeAll,
     executePaymaster: options.executePaymaster,
+    executeSwap: options.executeSwap,
     executeWithdrawFinalize: options.executeWithdrawFinalize
   };
 }
@@ -262,15 +306,16 @@ export async function runSmokeProductPath(
   options: SmokeProductPathOptions,
   runtime: SmokeProductPathRuntime = {}
 ) {
-  const steps = buildSmokeProductPathSteps(options);
+  const normalizedOptions = normalizeSmokeProductPathOptions(options);
+  const steps = buildSmokeProductPathSteps(normalizedOptions);
   const executeStep = runtime.runStep || runStep;
 
-  if (options.plan) {
+  if (normalizedOptions.plan) {
     return {
       ok: true,
       planned: true,
-      walletName: options.walletName,
-      summary: buildPlanSummary(options, steps),
+      walletName: normalizedOptions.walletName,
+      summary: buildPlanSummary(normalizedOptions, steps),
       steps: steps.map((step) => ({
         id: step.id,
         title: step.title,
@@ -286,8 +331,8 @@ export async function runSmokeProductPath(
     if (!result.ok) {
       return {
         ok: false,
-        walletName: options.walletName,
-        summary: buildExecutionSummary(options, results, step.id),
+        walletName: normalizedOptions.walletName,
+        summary: buildExecutionSummary(normalizedOptions, results, step.id),
         failedStep: step.id,
         steps: results
       };
@@ -296,8 +341,8 @@ export async function runSmokeProductPath(
 
   return {
     ok: true,
-    walletName: options.walletName,
-    summary: buildExecutionSummary(options, results),
+    walletName: normalizedOptions.walletName,
+    summary: buildExecutionSummary(normalizedOptions, results),
     steps: results
   };
 }

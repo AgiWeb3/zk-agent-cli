@@ -1238,6 +1238,15 @@ function workflowNextLines(
       'registry swap fallback',
       result.plan.registry.swap.isManualFallback ? 'yes' : 'no'
     ]);
+    if (result.plan.registry.swap.routerAddress) {
+      lines.push(['registry swap router', result.plan.registry.swap.routerAddress]);
+    }
+    if (result.plan.registry.swap.factoryAddress) {
+      lines.push(['registry swap factory', result.plan.registry.swap.factoryAddress]);
+    }
+    if (result.plan.registry.swap.feeTier) {
+      lines.push(['registry swap fee tier', result.plan.registry.swap.feeTier]);
+    }
     if (result.plan.registry.swap.trackedPoolAddress) {
       lines.push(['registry swap pool', result.plan.registry.swap.trackedPoolAddress]);
     }

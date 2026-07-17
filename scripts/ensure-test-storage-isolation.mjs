@@ -1,0 +1,1 @@
+process.env.ZK_AGENT_ENFORCE_TEST_STORAGE = '1';

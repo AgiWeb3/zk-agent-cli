@@ -518,20 +518,24 @@ test('smoke-product-path --plan returns the canonical live validation sequence',
   assert.equal(result.walletName, 'main');
   assert.deepEqual(result.summary, {
     walletName: 'main',
-    totalSteps: 3,
+    totalSteps: 4,
+    includesSwapSuccess: true,
     includesWithdrawFollowup: true,
+    executeAll: false,
     executePaymaster: false,
+    executeSwap: false,
     executeWithdrawFinalize: false
   });
   assert.equal(Array.isArray(result.steps), true);
   assert.deepEqual(
     result.steps.map((step: { id: string }) => step.id),
-    ['operator-path', 'paymaster-success', 'withdraw-followup']
+    ['operator-path', 'paymaster-success', 'swap-success', 'withdraw-followup']
   );
   assert.match(result.steps[0]?.command || '', /smoke-operator-path\.(ts|js) --wallet main/);
   assert.match(result.steps[1]?.command || '', /smoke-paymaster-success\.(ts|js) --wallet main/);
+  assert.match(result.steps[2]?.command || '', /smoke-swap-success\.(ts|js) --wallet main/);
   assert.match(
-    result.steps[2]?.command || '',
+    result.steps[3]?.command || '',
     /smoke-withdraw-followup\.(ts|js) --wallet main --tx-hash 0x1111111111111111111111111111111111111111111111111111111111111111/
   );
 });

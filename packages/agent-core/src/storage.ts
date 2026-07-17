@@ -6,30 +6,78 @@ import path from 'node:path';
 import type { ProjectConfig, WalletRequestRecord, WalletSessionRecord } from './providers.js';
 import type { WorkflowCheckpointRecord } from './workflow-checkpoint.js';
 
-const STORAGE_DIR = path.join(os.homedir(), '.zk-agent');
-const ENCRYPTION_KEY_FILE = path.join(STORAGE_DIR, '.encryption-key');
-
 interface CipherData {
   iv: string;
   encrypted: string;
   authTag: string;
 }
 
-function ensureStorageDir(): void {
-  if (!fs.existsSync(STORAGE_DIR)) fs.mkdirSync(STORAGE_DIR, { recursive: true, mode: 0o700 });
+function normalizeOptionalPath(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? path.resolve(trimmed) : null;
+}
 
-  for (const directory of ['wallets', 'requests', 'workflows']) {
-    const fullPath = path.join(STORAGE_DIR, directory);
-    if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 });
+function resolveStorageDirPath(): string {
+  return normalizeOptionalPath(process.env.ZK_AGENT_STORAGE_DIR) || path.join(os.homedir(), '.zk-agent');
+}
+
+function realUserHomeDir(): string {
+  try {
+    return os.userInfo().homedir || os.homedir();
+  } catch {
+    return os.homedir();
   }
 }
 
+function shouldEnforceTestStorageIsolation(): boolean {
+  if (process.env.ZK_AGENT_ENFORCE_TEST_STORAGE === '1') return true;
+  return process.execArgv.includes('--test');
+}
+
+function assertTestStorageIsolation(storageDirectory: string): void {
+  if (!shouldEnforceTestStorageIsolation()) return;
+
+  const resolvedStorageDir = path.resolve(storageDirectory);
+  const realStorageDir = path.resolve(path.join(realUserHomeDir(), '.zk-agent'));
+
+  if (
+    resolvedStorageDir === realStorageDir ||
+    resolvedStorageDir.startsWith(`${realStorageDir}${path.sep}`)
+  ) {
+    throw new Error(
+      'Test storage isolation is enabled, but wallet storage still resolves to the real user ~/.zk-agent directory. Set HOME to an isolated temp directory or set ZK_AGENT_STORAGE_DIR explicitly before touching local storage.'
+    );
+  }
+}
+
+function ensureStorageDir(create = true): string {
+  const storageDirectory = resolveStorageDirPath();
+  assertTestStorageIsolation(storageDirectory);
+
+  if (!create) return storageDirectory;
+  if (!fs.existsSync(storageDirectory)) {
+    fs.mkdirSync(storageDirectory, { recursive: true, mode: 0o700 });
+  }
+
+  for (const directory of ['wallets', 'requests', 'workflows']) {
+    const fullPath = path.join(storageDirectory, directory);
+    if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 });
+  }
+
+  return storageDirectory;
+}
+
+function storagePath(...segments: string[]): string {
+  return path.join(ensureStorageDir(false), ...segments);
+}
+
 function getEncryptionKey(): Buffer {
-  ensureStorageDir();
-  if (fs.existsSync(ENCRYPTION_KEY_FILE)) return fs.readFileSync(ENCRYPTION_KEY_FILE);
+  const storageDirectory = ensureStorageDir();
+  const encryptionKeyFile = path.join(storageDirectory, '.encryption-key');
+  if (fs.existsSync(encryptionKeyFile)) return fs.readFileSync(encryptionKeyFile);
 
   const key = randomBytes(32);
-  fs.writeFileSync(ENCRYPTION_KEY_FILE, key, { mode: 0o600 });
+  fs.writeFileSync(encryptionKeyFile, key, { mode: 0o600 });
   return key;
 }
 
@@ -80,96 +128,95 @@ function readEncryptedJson<T>(filePath: string): T {
 }
 
 export function storageDir(): string {
-  ensureStorageDir();
-  return STORAGE_DIR;
+  return ensureStorageDir();
 }
 
 export async function saveProjectConfig(config: ProjectConfig): Promise<void> {
-  ensureStorageDir();
-  writeJson(path.join(STORAGE_DIR, 'config.json'), config);
+  const storageDirectory = ensureStorageDir();
+  writeJson(path.join(storageDirectory, 'config.json'), config);
 }
 
 export async function loadProjectConfig(): Promise<ProjectConfig | null> {
-  const filePath = path.join(STORAGE_DIR, 'config.json');
+  const filePath = storagePath('config.json');
   if (!fs.existsSync(filePath)) return null;
   return readJson<ProjectConfig>(filePath);
 }
 
 export async function saveWalletSession(record: WalletSessionRecord): Promise<void> {
-  ensureStorageDir();
-  writeEncryptedJson(path.join(STORAGE_DIR, 'wallets', `${record.walletName}.json`), record);
+  const storageDirectory = ensureStorageDir();
+  writeEncryptedJson(path.join(storageDirectory, 'wallets', `${record.walletName}.json`), record);
 }
 
 export async function loadWalletSession(walletName: string): Promise<WalletSessionRecord | null> {
-  const filePath = path.join(STORAGE_DIR, 'wallets', `${walletName}.json`);
+  const filePath = storagePath('wallets', `${walletName}.json`);
   if (!fs.existsSync(filePath)) return null;
   return readEncryptedJson<WalletSessionRecord>(filePath);
 }
 
 export async function listWalletNames(): Promise<string[]> {
-  ensureStorageDir();
+  const storageDirectory = ensureStorageDir();
   return fs
-    .readdirSync(path.join(STORAGE_DIR, 'wallets'))
+    .readdirSync(path.join(storageDirectory, 'wallets'))
     .filter((entry) => entry.endsWith('.json'))
     .map((entry) => entry.replace(/\.json$/, ''));
 }
 
 export async function listWalletRequestIds(): Promise<string[]> {
-  ensureStorageDir();
+  const storageDirectory = ensureStorageDir();
   return fs
-    .readdirSync(path.join(STORAGE_DIR, 'requests'))
+    .readdirSync(path.join(storageDirectory, 'requests'))
     .filter((entry) => entry.endsWith('.json'))
     .map((entry) => entry.replace(/\.json$/, ''));
 }
 
 export async function deleteWalletSession(walletName: string): Promise<boolean> {
-  const filePath = path.join(STORAGE_DIR, 'wallets', `${walletName}.json`);
+  const filePath = storagePath('wallets', `${walletName}.json`);
   if (!fs.existsSync(filePath)) return false;
   fs.unlinkSync(filePath);
   return true;
 }
 
 export async function saveWalletRequest(record: WalletRequestRecord): Promise<void> {
-  ensureStorageDir();
-  writeEncryptedJson(path.join(STORAGE_DIR, 'requests', `${record.requestId}.json`), record);
+  const storageDirectory = ensureStorageDir();
+  writeEncryptedJson(path.join(storageDirectory, 'requests', `${record.requestId}.json`), record);
 }
 
 export async function loadWalletRequest(requestId: string): Promise<WalletRequestRecord | null> {
-  const filePath = path.join(STORAGE_DIR, 'requests', `${requestId}.json`);
+  const filePath = storagePath('requests', `${requestId}.json`);
   if (!fs.existsSync(filePath)) return null;
   return readEncryptedJson<WalletRequestRecord>(filePath);
 }
 
 export async function deleteWalletRequest(requestId: string): Promise<boolean> {
-  const filePath = path.join(STORAGE_DIR, 'requests', `${requestId}.json`);
+  const filePath = storagePath('requests', `${requestId}.json`);
   if (!fs.existsSync(filePath)) return false;
   fs.unlinkSync(filePath);
   return true;
 }
 
 export async function saveWorkflowCheckpoint(record: WorkflowCheckpointRecord): Promise<void> {
-  ensureStorageDir();
-  writeEncryptedJson(path.join(STORAGE_DIR, 'workflows', `${record.requestId}.json`), record);
+  const storageDirectory = ensureStorageDir();
+  writeEncryptedJson(path.join(storageDirectory, 'workflows', `${record.requestId}.json`), record);
 }
 
 export async function loadWorkflowCheckpoint(
   requestId: string
 ): Promise<WorkflowCheckpointRecord | null> {
-  const filePath = path.join(STORAGE_DIR, 'workflows', `${requestId}.json`);
+  const filePath = storagePath('workflows', `${requestId}.json`);
   if (!fs.existsSync(filePath)) return null;
   return readEncryptedJson<WorkflowCheckpointRecord>(filePath);
 }
 
 export async function listWorkflowCheckpointIds(): Promise<string[]> {
-  ensureStorageDir();
+  const storageDirectory = ensureStorageDir();
   return fs
-    .readdirSync(path.join(STORAGE_DIR, 'workflows'))
+    .readdirSync(path.join(storageDirectory, 'workflows'))
     .filter((entry) => entry.endsWith('.json'))
     .map((entry) => entry.replace(/\.json$/, ''));
 }
 
 export async function deleteWorkflowCheckpoint(requestId: string): Promise<boolean> {
-  const filePath = path.join(STORAGE_DIR, 'workflows', `${requestId}.json`);
+  const filePath = storagePath('workflows', `${requestId}.json`);
   if (!fs.existsSync(filePath)) return false;
   fs.unlinkSync(filePath);
   return true;
@@ -185,7 +232,7 @@ export async function renameWalletSession(
   walletName: string,
   nextWalletName: string
 ): Promise<WalletRenameResult> {
-  ensureStorageDir();
+  const storageDirectory = ensureStorageDir();
 
   const currentName = walletName.trim();
   const targetName = nextWalletName.trim();
@@ -196,8 +243,8 @@ export async function renameWalletSession(
     throw new Error('New wallet name must be different from the current wallet name.');
   }
 
-  const currentFilePath = path.join(STORAGE_DIR, 'wallets', `${currentName}.json`);
-  const targetFilePath = path.join(STORAGE_DIR, 'wallets', `${targetName}.json`);
+  const currentFilePath = path.join(storageDirectory, 'wallets', `${currentName}.json`);
+  const targetFilePath = path.join(storageDirectory, 'wallets', `${targetName}.json`);
 
   if (!fs.existsSync(currentFilePath)) {
     throw new Error(`Wallet not found: ${currentName}`);

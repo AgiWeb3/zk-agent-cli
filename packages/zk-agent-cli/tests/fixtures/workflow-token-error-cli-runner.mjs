@@ -1,7 +1,9 @@
 import { saveWalletSession } from '@zk-agent/agent-core';
 
 import { createWorkflowCommand } from '../../src/commands/workflow.ts';
+import { requireIsolatedHome } from './require-isolated-home.mjs';
 
+requireIsolatedHome();
 await saveWalletSession({
   walletName: 'main',
   walletAddress: '0x1111111111111111111111111111111111111111',

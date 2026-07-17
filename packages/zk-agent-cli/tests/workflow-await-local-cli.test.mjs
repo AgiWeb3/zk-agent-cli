@@ -19,6 +19,7 @@ function createCliEnv(homeDir) {
   return {
     ...process.env,
     HOME: homeDir,
+    ZK_AGENT_STORAGE_DIR: path.join(homeDir, '.zk-agent'),
     ZK_AGENT_ACCOUNT_PROFILES_ROOT: path.resolve(packageRoot, '../account-profiles')
   };
 }
@@ -33,14 +34,36 @@ function collectOutput(stream) {
 }
 
 async function loadAgentCoreStorage(homeDir) {
-  const previousHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const storage = await import(
+    `${agentCoreStorageModuleUrl}?home=${encodeURIComponent(homeDir)}&ts=${Date.now()}`
+  );
+  const storageDir = path.join(homeDir, '.zk-agent');
 
-  try {
-    return await import(`${agentCoreStorageModuleUrl}?home=${encodeURIComponent(homeDir)}&ts=${Date.now()}`);
-  } finally {
-    process.env.HOME = previousHome;
+  async function withStorageEnv(fn) {
+    const previousHome = process.env.HOME;
+    const previousStorageDir = process.env.ZK_AGENT_STORAGE_DIR;
+    process.env.HOME = homeDir;
+    process.env.ZK_AGENT_STORAGE_DIR = storageDir;
+
+    try {
+      return await fn();
+    } finally {
+      process.env.HOME = previousHome;
+      if (previousStorageDir === undefined) {
+        delete process.env.ZK_AGENT_STORAGE_DIR;
+      } else {
+        process.env.ZK_AGENT_STORAGE_DIR = previousStorageDir;
+      }
+    }
   }
+
+  return new Proxy(storage, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (typeof value !== 'function') return value;
+      return async (...args) => withStorageEnv(() => value.apply(target, args));
+    }
+  });
 }
 
 async function getFreePort() {

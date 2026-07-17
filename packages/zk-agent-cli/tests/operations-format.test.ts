@@ -117,7 +117,10 @@ test('linesForSwapResult includes swap and paymaster registry summaries', () => 
         status: 'validated',
         configuration: 'tracked-default',
         isValidatedDefault: true,
-        isManualFallback: false
+        isManualFallback: false,
+        routerAddress: '0x6666666666666666666666666666666666666666',
+        factoryAddress: '0x7777777777777777777777777777777777777777',
+        feeTier: null
       }
     },
     preview: {
@@ -130,6 +133,14 @@ test('linesForSwapResult includes swap and paymaster registry summaries', () => 
   assert.equal(lineValue(lines, 'registry swap'), 'syncswap-classic (validated, tracked-default)');
   assert.equal(lineValue(lines, 'registry swap default'), 'yes');
   assert.equal(lineValue(lines, 'registry swap fallback'), 'no');
+  assert.equal(
+    lineValue(lines, 'registry swap router'),
+    '0x6666666666666666666666666666666666666666'
+  );
+  assert.equal(
+    lineValue(lines, 'registry swap factory'),
+    '0x7777777777777777777777777777777777777777'
+  );
   assert.equal(
     lineValue(lines, 'registry paymaster'),
     'zksync-sepolia-approval-based-eravm (validated, tracked-default)'

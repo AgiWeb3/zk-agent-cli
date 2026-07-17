@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,6 +23,20 @@ import {
   listStandardAgentTools,
   runStandardAgentTool
 } from '../src/index.js';
+
+const previousStorageDir = process.env.ZK_AGENT_STORAGE_DIR;
+const isolatedStorageDir = mkdtempSync(path.join(os.tmpdir(), 'zk-agent-toolset-storage-'));
+process.env.ZK_AGENT_STORAGE_DIR = isolatedStorageDir;
+
+process.on('exit', () => {
+  if (previousStorageDir === undefined) {
+    delete process.env.ZK_AGENT_STORAGE_DIR;
+  } else {
+    process.env.ZK_AGENT_STORAGE_DIR = previousStorageDir;
+  }
+
+  rmSync(isolatedStorageDir, { recursive: true, force: true });
+});
 
 const sampleWallet: WalletSessionRecord = {
   walletName: 'main',
@@ -284,7 +299,22 @@ function createProviderStub() {
             configuration:
               input.protocol === 'syncswap-classic' ? 'tracked-default' : 'manual',
             isValidatedDefault: input.protocol === 'syncswap-classic',
-            isManualFallback: input.protocol !== 'syncswap-classic'
+            isManualFallback: input.protocol !== 'syncswap-classic',
+            routerAddress: input.routerAddress,
+            factoryAddress: input.factoryAddress,
+            feeTier:
+              input.protocol === 'syncswap-classic' ? null : String(input.feeTier),
+            trackedPoolAddress: undefined,
+            trackedTokenA: {
+              address: null,
+              symbol: null,
+              decimals: null
+            },
+            trackedTokenB: {
+              address: null,
+              symbol: null,
+              decimals: null
+            }
           }
         },
         preview: {
@@ -1879,6 +1909,41 @@ test('createZkSyncAgentToolContext loads rpc env values from the local .env file
   }
 });
 
+test('createZkSyncAgentToolContext falls back to the workspace-root .env for filtered package scripts', async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-tools-workspace-dotenv-'));
+  const packageDir = path.join(workspaceRoot, 'packages', 'agent-tools');
+  const previousRpcUrl = process.env.ETHEREUM_SEPOLIA_RPC_URL;
+  const previousCwd = process.cwd();
+
+  try {
+    await mkdir(packageDir, { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, '.env'),
+      'ETHEREUM_SEPOLIA_RPC_URL=https://rpc.example.invalid/l1-from-workspace-dotenv\n',
+      'utf8'
+    );
+    delete process.env.ETHEREUM_SEPOLIA_RPC_URL;
+    process.chdir(packageDir);
+
+    createZkSyncAgentToolContext({
+      loadWallet: async () => sampleWallet
+    });
+
+    assert.equal(
+      process.env.ETHEREUM_SEPOLIA_RPC_URL,
+      'https://rpc.example.invalid/l1-from-workspace-dotenv'
+    );
+  } finally {
+    process.chdir(previousCwd);
+    if (previousRpcUrl === undefined) {
+      delete process.env.ETHEREUM_SEPOLIA_RPC_URL;
+    } else {
+      process.env.ETHEREUM_SEPOLIA_RPC_URL = previousRpcUrl;
+    }
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('resolveTokenTool returns local-first matches before token-directory matches', async () => {
   const previousWorkspaceRoot = process.env.ZK_AGENT_WORKSPACE_ROOT;
   const previousTokenDirectoryRoot = process.env.ZK_AGENT_TOKEN_DIRECTORY_ROOT;
@@ -3174,6 +3239,9 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
             defaultSelections: {
               swap: {
                 validatedDefault: {
+                  routerAddress: string | null;
+                  factoryAddress: string | null;
+                  feeTier: string | null;
                   trackedPoolAddress: string | null;
                   trackedTokenA: { address: string | null };
                 };
@@ -3191,6 +3259,39 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
             defaultSelections: {
               swap: {
                 validatedDefault: {
+                  routerAddress: string | null;
+                  factoryAddress: string | null;
+                  feeTier: string | null;
+                  trackedPoolAddress: string | null;
+                  trackedTokenA: { address: string | null };
+                };
+              };
+            };
+          };
+        }
+      ).defaults.defaultSelections.swap.validatedDefault.routerAddress,
+      (
+        defaults.data as {
+          defaults: {
+            validated: {
+              swapSyncswapClassic: {
+                routerAddress: string;
+              };
+            };
+          };
+        }
+      ).defaults.validated.swapSyncswapClassic.routerAddress
+    );
+    assert.equal(
+      (
+        defaults.data as {
+          defaults: {
+            defaultSelections: {
+              swap: {
+                validatedDefault: {
+                  routerAddress: string | null;
+                  factoryAddress: string | null;
+                  feeTier: string | null;
                   trackedPoolAddress: string | null;
                   trackedTokenA: { address: string | null };
                 };

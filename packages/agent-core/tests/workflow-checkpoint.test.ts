@@ -1,28 +1,16 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { pathToFileURL } from 'node:url';
 
 import type { WalletSessionRecord } from '../src/providers.ts';
+import * as storage from '../src/storage.ts';
 import {
   applyWorkflowRunToCheckpoint,
   createWorkflowCheckpointRecord
 } from '../src/workflow-checkpoint.ts';
-
-const storageModuleUrl = pathToFileURL(path.resolve(import.meta.dirname, '../src/storage.ts')).href;
-
-async function loadStorageForHome(homeDir: string) {
-  const previousHome = process.env.HOME;
-  process.env.HOME = homeDir;
-
-  try {
-    return await import(`${storageModuleUrl}?home=${encodeURIComponent(homeDir)}&ts=${Date.now()}`);
-  } finally {
-    process.env.HOME = previousHome;
-  }
-}
 
 const sampleWallet: WalletSessionRecord = {
   walletName: 'main',
@@ -36,42 +24,62 @@ const sampleWallet: WalletSessionRecord = {
   createdAt: '2026-06-23T00:00:00.000Z'
 };
 
+async function withHome<T>(homeDir: string, fn: () => Promise<T>): Promise<T> {
+  const previousHome = process.env.HOME;
+  const previousStorageDir = process.env.ZK_AGENT_STORAGE_DIR;
+
+  process.env.HOME = homeDir;
+  delete process.env.ZK_AGENT_STORAGE_DIR;
+
+  try {
+    return await fn();
+  } finally {
+    process.env.HOME = previousHome;
+    if (previousStorageDir === undefined) {
+      delete process.env.ZK_AGENT_STORAGE_DIR;
+    } else {
+      process.env.ZK_AGENT_STORAGE_DIR = previousStorageDir;
+    }
+  }
+}
+
 test('workflow checkpoint storage can save, load, list, and delete records', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-storage-'));
 
   try {
-    const storage = await loadStorageForHome(homeDir);
-    const checkpoint = createWorkflowCheckpointRecord({
-      requestId: 'wf-1234',
-      walletName: sampleWallet.walletName,
-      intent: 'send-native',
-      goal: {
+    await withHome(homeDir, async () => {
+      const checkpoint = createWorkflowCheckpointRecord({
+        requestId: 'wf-1234',
+        walletName: sampleWallet.walletName,
         intent: 'send-native',
-        to: '0x3333333333333333333333333333333333333333',
-        amount: '0.1'
-      },
-      fund: {
-        amount: '0.02',
-        via: 'deposit'
-      },
-      broadcast: true,
-      autoSync: true
+        goal: {
+          intent: 'send-native',
+          to: '0x3333333333333333333333333333333333333333',
+          amount: '0.1'
+        },
+        fund: {
+          amount: '0.02',
+          via: 'deposit'
+        },
+        broadcast: true,
+        autoSync: true
+      });
+
+      await storage.saveWorkflowCheckpoint(checkpoint);
+
+      const listed = await storage.listWorkflowCheckpointIds();
+      assert.deepEqual(listed, ['wf-1234']);
+
+      const loaded = await storage.loadWorkflowCheckpoint('wf-1234');
+      assert.equal(loaded?.requestId, 'wf-1234');
+      assert.equal(loaded?.walletName, 'main');
+      assert.equal(loaded?.goal.intent, 'send-native');
+      assert.equal(loaded?.fund?.via, 'deposit');
+
+      const removed = await storage.deleteWorkflowCheckpoint('wf-1234');
+      assert.equal(removed, true);
+      assert.equal(await storage.loadWorkflowCheckpoint('wf-1234'), null);
     });
-
-    await storage.saveWorkflowCheckpoint(checkpoint);
-
-    const listed = await storage.listWorkflowCheckpointIds();
-    assert.deepEqual(listed, ['wf-1234']);
-
-    const loaded = await storage.loadWorkflowCheckpoint('wf-1234');
-    assert.equal(loaded?.requestId, 'wf-1234');
-    assert.equal(loaded?.walletName, 'main');
-    assert.equal(loaded?.goal.intent, 'send-native');
-    assert.equal(loaded?.fund?.via, 'deposit');
-
-    const removed = await storage.deleteWorkflowCheckpoint('wf-1234');
-    assert.equal(removed, true);
-    assert.equal(await storage.loadWorkflowCheckpoint('wf-1234'), null);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -81,29 +89,83 @@ test('wallet rename updates stored workflow checkpoints that reference the walle
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-rename-'));
 
   try {
-    const storage = await loadStorageForHome(homeDir);
-
-    await storage.saveWalletSession(sampleWallet);
-    await storage.saveWorkflowCheckpoint(
-      createWorkflowCheckpointRecord({
-        requestId: 'wf-rename',
-        walletName: sampleWallet.walletName,
-        intent: 'send-native',
-        goal: {
+    await withHome(homeDir, async () => {
+      await storage.saveWalletSession(sampleWallet);
+      await storage.saveWorkflowCheckpoint(
+        createWorkflowCheckpointRecord({
+          requestId: 'wf-rename',
+          walletName: sampleWallet.walletName,
           intent: 'send-native',
-          to: '0x3333333333333333333333333333333333333333',
-          amount: '0.1'
-        }
-      })
-    );
+          goal: {
+            intent: 'send-native',
+            to: '0x3333333333333333333333333333333333333333',
+            amount: '0.1'
+          }
+        })
+      );
 
-    const result = await storage.renameWalletSession('main', 'renamed-wallet');
-    assert.deepEqual(result.updatedWorkflowRequestIds, ['wf-rename']);
+      const result = await storage.renameWalletSession('main', 'renamed-wallet');
+      assert.deepEqual(result.updatedWorkflowRequestIds, ['wf-rename']);
 
-    const renamed = await storage.loadWorkflowCheckpoint('wf-rename');
-    assert.equal(renamed?.walletName, 'renamed-wallet');
+      const renamed = await storage.loadWorkflowCheckpoint('wf-rename');
+      assert.equal(renamed?.walletName, 'renamed-wallet');
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('storage resolves the active home directory at call time instead of module-load time', async () => {
+  const homeDirA = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-storage-a-'));
+  const homeDirB = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-storage-b-'));
+
+  try {
+    await withHome(homeDirA, async () => {
+      await storage.saveWalletSession(sampleWallet);
+      assert.equal(fs.existsSync(path.join(homeDirA, '.zk-agent', 'wallets', 'main.json')), true);
+    });
+
+    await withHome(homeDirB, async () => {
+      assert.equal(await storage.loadWalletSession('main'), null);
+      await storage.saveWalletSession({
+        ...sampleWallet,
+        walletName: 'secondary'
+      });
+      assert.equal(
+        fs.existsSync(path.join(homeDirB, '.zk-agent', 'wallets', 'secondary.json')),
+        true
+      );
+    });
+
+    await withHome(homeDirA, async () => {
+      assert.equal((await storage.loadWalletSession('main'))?.walletName, 'main');
+      assert.equal(await storage.loadWalletSession('secondary'), null);
+    });
+  } finally {
+    await rm(homeDirA, { recursive: true, force: true });
+    await rm(homeDirB, { recursive: true, force: true });
+  }
+});
+
+test('storage refuses to touch the real user wallet directory when test isolation is enforced', async () => {
+  const previousHome = process.env.HOME;
+  const previousStorageDir = process.env.ZK_AGENT_STORAGE_DIR;
+
+  process.env.HOME = os.userInfo().homedir || os.homedir();
+  delete process.env.ZK_AGENT_STORAGE_DIR;
+
+  try {
+    await assert.rejects(
+      () => storage.loadWalletSession('main'),
+      /real user ~\/\.zk-agent directory/
+    );
+  } finally {
+    process.env.HOME = previousHome;
+    if (previousStorageDir === undefined) {
+      delete process.env.ZK_AGENT_STORAGE_DIR;
+    } else {
+      process.env.ZK_AGENT_STORAGE_DIR = previousStorageDir;
+    }
   }
 });
 

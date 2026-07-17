@@ -41,6 +41,26 @@ function pushWorkflowRegistryLines(
     ]);
     lines.push(['registry swap default', registry.swap.isValidatedDefault ? 'yes' : 'no']);
     lines.push(['registry swap fallback', registry.swap.isManualFallback ? 'yes' : 'no']);
+    if (registry.swap.routerAddress) {
+      lines.push(['registry swap router', registry.swap.routerAddress]);
+    }
+    if (registry.swap.factoryAddress) {
+      lines.push(['registry swap factory', registry.swap.factoryAddress]);
+    }
+    if (registry.swap.feeTier) {
+      lines.push(['registry swap fee tier', registry.swap.feeTier]);
+    }
+    if (registry.swap.trackedPoolAddress) {
+      lines.push(['registry swap pool', registry.swap.trackedPoolAddress]);
+    }
+    if (registry.swap.trackedTokenA?.address && registry.swap.trackedTokenB?.address) {
+      lines.push([
+        'registry swap pair',
+        `${registry.swap.trackedTokenA.symbol || registry.swap.trackedTokenA.address} <-> ${
+          registry.swap.trackedTokenB.symbol || registry.swap.trackedTokenB.address
+        }`
+      ]);
+    }
   }
 
   if (registry.bridge) {

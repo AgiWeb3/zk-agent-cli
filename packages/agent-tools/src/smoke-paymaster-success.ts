@@ -57,7 +57,7 @@ function printUsage(): void {
       '',
       'Defaults:',
       '  --amount defaults to 0.00001',
-      '  --to defaults to the wallet ownerAddress when available',
+      '  --to defaults to the wallet ownerAddress when available, otherwise the wallet execution address',
       '  when --paymaster-address / --paymaster-token are omitted, the workflow/provider path should resolve the tracked validated paymaster defaults itself'
     ].join('\n') + '\n'
   );
@@ -190,10 +190,10 @@ export async function runSmokePaymasterSuccess(
     throw new Error(`Wallet not found: ${options.walletName}`);
   }
 
-  const resolvedTarget = options.to || wallet.ownerAddress;
+  const resolvedTarget = options.to || wallet.ownerAddress || wallet.walletAddress;
   if (!resolvedTarget) {
     throw new Error(
-      `Wallet "${options.walletName}" does not have an ownerAddress and no --to override was supplied.`
+      `Wallet "${options.walletName}" does not have an ownerAddress or walletAddress and no --to override was supplied.`
     );
   }
 

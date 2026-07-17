@@ -1,12 +1,14 @@
 import { saveWalletSession } from '@zk-agent/agent-core';
 
 import { createWorkflowCommand } from '../../src/commands/workflow.ts';
+import { requireIsolatedHome } from './require-isolated-home.mjs';
 
 const bridgeCapturePath = process.env.ZK_AGENT_BRIDGE_CAPTURE_PATH;
 if (!bridgeCapturePath) {
   throw new Error('ZK_AGENT_BRIDGE_CAPTURE_PATH is required');
 }
 
+requireIsolatedHome();
 await saveWalletSession({
   walletName: 'main',
   walletAddress: '0x1111111111111111111111111111111111111111',

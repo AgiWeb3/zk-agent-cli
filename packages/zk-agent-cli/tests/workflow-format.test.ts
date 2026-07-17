@@ -39,7 +39,21 @@ test('workflowPlanLines includes structured swap registry summary', () => {
         status: 'validated',
         configuration: 'tracked-default',
         isValidatedDefault: true,
-        isManualFallback: false
+        isManualFallback: false,
+        routerAddress: '0x1111111111111111111111111111111111111111',
+        factoryAddress: '0x2222222222222222222222222222222222222222',
+        feeTier: null,
+        trackedPoolAddress: '0x3333333333333333333333333333333333333333',
+        trackedTokenA: {
+          address: '0x4444444444444444444444444444444444444444',
+          symbol: 'AAA',
+          decimals: 18
+        },
+        trackedTokenB: {
+          address: '0x5555555555555555555555555555555555555555',
+          symbol: 'BBB',
+          decimals: 6
+        }
       }
     }
   });
@@ -47,6 +61,19 @@ test('workflowPlanLines includes structured swap registry summary', () => {
   assert.equal(lineValue(lines, 'registry swap'), 'syncswap-classic (validated, tracked-default)');
   assert.equal(lineValue(lines, 'registry swap default'), 'yes');
   assert.equal(lineValue(lines, 'registry swap fallback'), 'no');
+  assert.equal(
+    lineValue(lines, 'registry swap router'),
+    '0x1111111111111111111111111111111111111111'
+  );
+  assert.equal(
+    lineValue(lines, 'registry swap factory'),
+    '0x2222222222222222222222222222222222222222'
+  );
+  assert.equal(
+    lineValue(lines, 'registry swap pool'),
+    '0x3333333333333333333333333333333333333333'
+  );
+  assert.equal(lineValue(lines, 'registry swap pair'), 'AAA <-> BBB');
 });
 
 test('workflowStatusLines includes structured bridge registry summary', () => {

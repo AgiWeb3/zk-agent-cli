@@ -223,6 +223,24 @@ export function createDefaultsCommand(): Command {
           'resolved swap default',
           `${defaults.defaultSelections.swap.validatedDefault.entryId} (${defaults.defaultSelections.swap.validatedDefault.status}, ${defaults.defaultSelections.swap.validatedDefault.configuration})`
         ]);
+        if (defaults.defaultSelections.swap.validatedDefault.routerAddress) {
+          lines.push([
+            'resolved swap router',
+            defaults.defaultSelections.swap.validatedDefault.routerAddress
+          ]);
+        }
+        if (defaults.defaultSelections.swap.validatedDefault.factoryAddress) {
+          lines.push([
+            'resolved swap factory',
+            defaults.defaultSelections.swap.validatedDefault.factoryAddress
+          ]);
+        }
+        if (defaults.defaultSelections.swap.validatedDefault.feeTier) {
+          lines.push([
+            'resolved swap fee tier',
+            defaults.defaultSelections.swap.validatedDefault.feeTier
+          ]);
+        }
         if (defaults.defaultSelections.swap.validatedDefault.trackedPoolAddress) {
           lines.push([
             'resolved swap pool',
@@ -247,6 +265,24 @@ export function createDefaultsCommand(): Command {
           'resolved swap fallback',
           `${defaults.defaultSelections.swap.manualFallback.entryId} (${defaults.defaultSelections.swap.manualFallback.status}, ${defaults.defaultSelections.swap.manualFallback.configuration})`
         ]);
+        if (defaults.defaultSelections.swap.manualFallback.routerAddress) {
+          lines.push([
+            'resolved swap fallback router',
+            defaults.defaultSelections.swap.manualFallback.routerAddress
+          ]);
+        }
+        if (defaults.defaultSelections.swap.manualFallback.factoryAddress) {
+          lines.push([
+            'resolved swap fallback factory',
+            defaults.defaultSelections.swap.manualFallback.factoryAddress
+          ]);
+        }
+        if (defaults.defaultSelections.swap.manualFallback.feeTier) {
+          lines.push([
+            'resolved swap fallback fee tier',
+            defaults.defaultSelections.swap.manualFallback.feeTier
+          ]);
+        }
       }
       if (defaults.defaultSelections.bridge.validatedDeposit) {
         const bridgeConstraints = summarizeBridgeAssetConstraints(

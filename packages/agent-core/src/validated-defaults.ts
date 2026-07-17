@@ -234,6 +234,9 @@ export interface SwapRegistryResolution {
   configuration: RegistryEntryConfiguration;
   isValidatedDefault: boolean;
   isManualFallback: boolean;
+  routerAddress: string | null;
+  factoryAddress: string | null;
+  feeTier: string | null;
   trackedPoolAddress: string | null;
   trackedTokenA: RegistryTokenDescriptor;
   trackedTokenB: RegistryTokenDescriptor;
@@ -1103,6 +1106,9 @@ export function resolveSwapRegistryResolution(input: {
     configuration: entry.configuration,
     isValidatedDefault: entry.id === defaults.surfaceMatrix.swap.validatedDefaultEntryId,
     isManualFallback: entry.id === defaults.surfaceMatrix.swap.manualFallbackEntryId,
+    routerAddress: entry.routerAddress,
+    factoryAddress: entry.factoryAddress,
+    feeTier: entry.feeTier,
     trackedPoolAddress: entry.poolAddress,
     trackedTokenA: entry.tokenA,
     trackedTokenB: entry.tokenB

@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { loadValidatedDefaults } from '@zk-agent/agent-core';
+
 import { runSmokeOperatorPath } from '../src/smoke-operator-path.js';
 import { runSmokePaymasterSuccess } from '../src/smoke-paymaster-success.js';
+import { runSmokeSwapSuccess } from '../src/smoke-swap-success.js';
 
 test('runSmokeOperatorPath returns a goal-executed operator summary', async () => {
   const payload = await runSmokeOperatorPath(
@@ -366,4 +369,205 @@ test('runSmokePaymasterSuccess fails when workflow auto does not execute the goa
   assert.equal(payload.ok, false);
   assert.equal(payload.phase, 'preview');
   assert.match(payload.message, /execute the goal action directly/);
+});
+
+test('runSmokePaymasterSuccess falls back to walletAddress when ownerAddress is absent', async () => {
+  const payload = await runSmokePaymasterSuccess(
+    {
+      walletName: 'main',
+      execute: false,
+      amount: '0.00001'
+    },
+    {
+      context: {
+        loadWallet: async () => ({
+          walletAddress: '0xeoa',
+          ownerAddress: undefined
+        })
+      },
+      tools: {
+        workflowAutoTool: {
+          execute: async () => ({
+            ok: true,
+            data: {
+              action: 'goal-executed',
+              run: {
+                stage: 'goal-executed',
+                goal: {
+                  mode: 'preview',
+                  paymaster: {
+                    address: '0xpaymaster',
+                    token: '0xtoken'
+                  }
+                }
+              }
+            }
+          })
+        }
+      },
+      resolveDefaultPaymasterAddress: async () => '0xpaymaster',
+      resolveDefaultPaymasterToken: async () => '0xtoken'
+    }
+  );
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.inputs.to, '0xeoa');
+});
+
+test('runSmokeSwapSuccess returns the normalized preview payload', async () => {
+  const defaults = loadValidatedDefaults();
+  let capturedInput: Record<string, unknown> | undefined;
+
+  const payload = await runSmokeSwapSuccess(
+    {
+      walletName: 'main',
+      execute: false,
+      amountIn: '0.01',
+      amountOutMin: '0',
+      paymasterMode: 'none'
+    },
+    {
+      tools: {
+        workflowAutoTool: {
+          execute: async (input) => {
+            capturedInput = input as Record<string, unknown>;
+            return {
+            ok: true,
+            data: {
+              action: 'goal-executed',
+              agentProfile: {
+                profileExists: true,
+                agentId: 'sed-operator'
+              },
+              agentFollowup: {
+                nextAction: 'zk-agent agent show'
+              },
+              registry: {
+                swap: {
+                  entryId: 'syncswap-classic',
+                  isValidatedDefault: true
+                }
+              },
+              workflowRecommendedCommands: {
+                inspectDefaults: 'zk-agent defaults'
+              },
+              run: {
+                stage: 'goal-executed',
+                nextCommand: 'zk-agent workflow swap --wallet main --broadcast',
+                notes: ['preview ok'],
+                goal: {
+                  mode: 'preview',
+                  protocol: 'syncswap-classic',
+                  routerAddress: defaults.validated.swapSyncswapClassic?.routerAddress,
+                  factoryAddress: defaults.validated.swapSyncswapClassic?.factoryAddress,
+                  quotedAmountOut: '12.34',
+                  quotedAmountOutRaw: '12340000',
+                  approval: {
+                    needed: true,
+                    mode: 'exact'
+                  }
+                }
+              }
+            }
+          };
+          }
+        }
+      }
+    }
+  );
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'preview');
+  assert.equal(payload.inputs.entryId, 'syncswap-classic');
+  assert.equal(payload.inputs.protocol, 'syncswap-classic');
+  assert.equal(payload.result.protocol, 'syncswap-classic');
+  assert.equal(payload.result.nextCommand, 'zk-agent workflow swap --wallet main --broadcast');
+  assert.deepEqual((capturedInput?.goal as { paymaster?: { mode?: string } }).paymaster, {
+    mode: 'none'
+  });
+  assert.deepEqual(payload.result.agentFollowup, {
+    nextAction: 'zk-agent agent show'
+  });
+});
+
+test('runSmokeSwapSuccess fails when workflow auto does not execute the goal directly', async () => {
+  const payload = await runSmokeSwapSuccess(
+    {
+      walletName: 'main',
+      execute: false,
+      amountIn: '0.01',
+      amountOutMin: '0',
+      paymasterMode: 'none'
+    },
+    {
+      tools: {
+        workflowAutoTool: {
+          execute: async () => ({
+            ok: true,
+            data: {
+              action: 'blocked',
+              recommendedCommand: 'zk-agent workflow fund --wallet main --amount 0.01',
+              run: {
+                stage: 'funding-dispatched'
+              }
+            }
+          })
+        }
+      }
+    }
+  );
+
+  assert.equal(payload.ok, false);
+  assert.equal(payload.phase, 'preview');
+  assert.match(payload.message, /validated default swap workflow path to execute the goal action directly/);
+});
+
+test('runSmokeSwapSuccess can forward an explicit paymaster mode override', async () => {
+  let capturedInput: Record<string, unknown> | undefined;
+
+  await runSmokeSwapSuccess(
+    {
+      walletName: 'main',
+      execute: false,
+      amountIn: '0.01',
+      amountOutMin: '0',
+      paymasterMode: 'approval-based'
+    },
+    {
+      tools: {
+        workflowAutoTool: {
+          execute: async (input) => {
+            capturedInput = input as Record<string, unknown>;
+            return {
+              ok: true,
+              data: {
+                action: 'goal-executed',
+                registry: {
+                  swap: {
+                    entryId: 'syncswap-classic',
+                    isValidatedDefault: true
+                  }
+                },
+                run: {
+                  stage: 'goal-executed',
+                  goal: {
+                    mode: 'preview',
+                    protocol: 'syncswap-classic',
+                    routerAddress:
+                      loadValidatedDefaults().validated.swapSyncswapClassic?.routerAddress,
+                    factoryAddress:
+                      loadValidatedDefaults().validated.swapSyncswapClassic?.factoryAddress
+                  }
+                }
+              }
+            };
+          }
+        }
+      }
+    }
+  );
+
+  assert.deepEqual((capturedInput?.goal as { paymaster?: { mode?: string } }).paymaster, {
+    mode: 'approval-based'
+  });
 });

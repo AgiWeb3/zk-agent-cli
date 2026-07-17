@@ -109,6 +109,8 @@ test('extractSmokeStepFollowupSummary reads operator-path agent follow-up fields
   });
 
   assert.deepEqual(followup, {
+    phase: undefined,
+    stage: undefined,
     nextCommand: 'zk-agent workflow auto --wallet main --intent send-native --to 0x1 --amount 0.1',
     recommendedCommands: {
       topLevel: {

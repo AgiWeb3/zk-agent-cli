@@ -378,6 +378,15 @@ export function linesForSwapResult(
       'registry swap fallback',
       result.registry.swap.isManualFallback ? 'yes' : 'no'
     ]);
+    if (result.registry.swap.routerAddress) {
+      lines.push(['registry swap router', result.registry.swap.routerAddress]);
+    }
+    if (result.registry.swap.factoryAddress) {
+      lines.push(['registry swap factory', result.registry.swap.factoryAddress]);
+    }
+    if (result.registry.swap.feeTier) {
+      lines.push(['registry swap fee tier', result.registry.swap.feeTier]);
+    }
     if (result.registry.swap.trackedPoolAddress) {
       lines.push(['registry swap pool', result.registry.swap.trackedPoolAddress]);
     }

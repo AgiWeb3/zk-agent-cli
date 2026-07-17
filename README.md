@@ -180,6 +180,7 @@ What is already in place:
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
+  - `pnpm smoke:swap-success -- --wallet <name> [--amount-in <amount>] [--amount-out-min <amount>] [--paymaster-mode <mode>] [--execute]` for the validated default workflow-backed swap path, now resolving the tracked default router/factory/token pair directly from the registry and defaulting to `--paymaster-mode none` so the swap route can be validated independently from wallet paymaster compatibility
   - `pnpm smoke:withdraw-followup -- --wallet <name> --tx-hash <hash> [--execute]` for withdraw-status -> finalize-preview / finalize-broadcast follow-up on a previously broadcast L2 withdraw
   - `pnpm smoke:broadcast -- --wallet <name> --execute` for the opt-in live legacy fee-token incompatibility smoke, which may now fail during estimation or broadcast depending on current Sepolia behavior
   - built `dist` entrypoints now also run directly, for example `node packages/agent-tools/dist/run-tool.js --list`
@@ -588,8 +589,10 @@ pnpm tool:run -- --tool workflowAutoTool --input '{"walletName":"main","intent":
 pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","policyPreset":"full-access"}'
 pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
 pnpm smoke:operator-path -- --wallet <name>
-pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--execute-swap]
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] --execute-all
 pnpm smoke:paymaster-success -- --wallet <name>
+pnpm smoke:swap-success -- --wallet <name>
 pnpm validate:phase3
 pnpm typecheck
 pnpm test
@@ -617,16 +620,29 @@ Recommended root wrappers for the current stable product surface:
   and now returns structured follow-up fields in `summary`, including
   `topLevelRecommendedCommands`, `workflowRecommendedCommands`,
   `topLevelAgentFollowup`, and `workflowAgentFollowup`
-- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]`
+- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--execute-swap]`
   aggregates the current product-level live validation sequence:
-  canonical operator path, validated paymaster-backed workflow-auto path, and
-  optional withdraw follow-up when a previous withdraw tx hash is supplied,
-  with per-step `followups` alongside the legacy flat `nextCommands` summary
+  canonical operator path, validated paymaster-backed workflow-auto path,
+  validated default workflow-auto swap path, and optional withdraw follow-up
+  when a previous withdraw tx hash is supplied, with per-step `followups`
+  alongside the legacy flat `nextCommands` summary; those `followups` now also
+  preserve per-step `phase`, `stage`, `goalMode`, and `txHash` when available
+- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] --execute-all`
+  is the convenience form for future controlled broadcast/finalize runs: it
+  turns on paymaster execute, swap execute, and withdraw finalize execute
+  together instead of repeating all three flags manually
 - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` validates the
   tracked approval-based Sepolia paymaster path, including the mode-only
   fallback to the tracked validated paymaster address and EraVM fee token,
   and now exposes the workflow-layer `recommendedCommands` plus
-  `agentFollowup` used by that path
+  structured `agentFollowup` / registry metadata in its normalized payload
+- `pnpm smoke:swap-success -- --wallet <name> [--amount-in <amount>] [--amount-out-min <amount>] [--paymaster-mode <mode>] [--execute]`
+  validates the tracked default Sepolia swap path through `workflow auto`,
+  resolves the current default router / factory / tracked token pair from the
+  registry, defaults to `--paymaster-mode none` so swap-path validation is not
+  blocked by an incompatible wallet paymaster, and returns the quoted output
+  plus workflow-layer `recommendedCommands` plus `agentFollowup` in one
+  normalized payload
 - `pnpm validate:phase3` runs the current Phase 3 regression set across
   `agent-core`, `agent-tools`, and `zk-agent-cli`
 

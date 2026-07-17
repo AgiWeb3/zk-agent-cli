@@ -215,6 +215,15 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
       true
     );
     assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.routerAddress,
+      result.defaults.validated.swapSyncswapClassic.routerAddress
+    );
+    assert.equal(
+      result.defaults.defaultSelections.swap.validatedDefault.factoryAddress,
+      result.defaults.validated.swapSyncswapClassic.factoryAddress
+    );
+    assert.equal(result.defaults.defaultSelections.swap.validatedDefault.feeTier, null);
+    assert.equal(
       result.defaults.defaultSelections.swap.validatedDefault.trackedPoolAddress,
       '0xdB341A7f3e01c14A2E2a2953E53fB2491eb05ec9'
     );
@@ -234,6 +243,7 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
       result.defaults.defaultSelections.swap.manualFallback.isManualFallback,
       true
     );
+    assert.equal(result.defaults.defaultSelections.swap.manualFallback.feeTier, uniswap.feeTier);
     assert.equal(
       result.defaults.defaultSelections.bridge.validatedDeposit.entryId,
       'ethereum-sepolia-to-zksync-sepolia'
