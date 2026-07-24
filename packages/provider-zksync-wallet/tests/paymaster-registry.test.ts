@@ -111,6 +111,11 @@ test('writeContract preview surfaces validated paymaster registry metadata', asy
     assert.equal(result.paymaster.registry?.paymasterAddress, validatedPath.paymasterAddress);
     assert.equal(result.paymaster.registry?.feeTokenAddress, validatedPath.feeTokenAddress);
     assert.equal(result.paymaster.registry?.feeTokenSymbol, validatedPath.feeTokenSymbol);
+    assert.deepEqual(result.paymaster.registry?.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(result.paymaster.registry?.validatedAccountKinds, ['eoa', 'smart-account']);
+    assert.equal(result.paymaster.registry?.requestedAccountKind, 'eoa');
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindSupported, true);
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindValidated, true);
     assert.equal(
       result.paymaster.registry?.isValidatedDefault,
       defaults.surfaceMatrix.paymaster.validatedDefaultEntryId === validatedPath.id
@@ -190,8 +195,165 @@ test('writeContract preview surfaces tracked sponsored paymaster registry metada
     assert.equal(result.paymaster.registry?.configuration, sponsoredPath.configuration);
     assert.equal(result.paymaster.registry?.paymasterAddress, sponsoredPath.paymasterAddress);
     assert.equal(result.paymaster.registry?.feeTokenAddress, null);
+    assert.deepEqual(result.paymaster.registry?.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(result.paymaster.registry?.validatedAccountKinds, ['eoa', 'smart-account']);
+    assert.equal(result.paymaster.registry?.requestedAccountKind, 'eoa');
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindSupported, true);
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindValidated, true);
     assert.equal(result.paymaster.registry?.isValidatedDefault, false);
     assert.equal(estimateCalls, 1);
+  } finally {
+    Provider.prototype.getCode = originalGetCode;
+    Provider.prototype.estimateFee = originalEstimateFee;
+  }
+});
+
+test('writeContract preview drops a legacy session fee token when the request switches to sponsored mode', async () => {
+  const defaults = loadValidatedDefaults();
+  const sponsoredPath = defaults.registry.paymasterPaths.find(
+    (entry) => entry.mode === 'sponsored' && entry.status === 'validated'
+  );
+  const approvalPath = defaults.registry.paymasterPaths.find(
+    (entry) => entry.mode === 'approval-based' && entry.status === 'validated'
+  );
+
+  assert.ok(sponsoredPath, 'expected a validated sponsored paymaster path in validated defaults');
+  assert.ok(approvalPath, 'expected a validated approval-based paymaster path in validated defaults');
+  assert.ok(approvalPath.feeTokenAddress, 'expected approval-based path to expose a fee token');
+
+  const wallet = writableEoaWallet({
+    paymasterMode: 'approval-based',
+    capabilities: {
+      read: true,
+      write: true,
+      transfer: true,
+      contractCall: true,
+      paymaster: true
+    },
+    sessionPayload: {
+      ...writableEoaWallet().sessionPayload!,
+      paymaster: {
+        mode: 'approval-based',
+        address: approvalPath.paymasterAddress!,
+        token: approvalPath.feeTokenAddress!
+      },
+      paymasterAddress: approvalPath.paymasterAddress!
+    }
+  });
+
+  const originalGetCode = Provider.prototype.getCode;
+  const originalEstimateFee = Provider.prototype.estimateFee;
+
+  Provider.prototype.getCode = async function () {
+    return '0x';
+  };
+  Provider.prototype.estimateFee = async function (request) {
+    assert.ok((request.customData as { paymasterParams?: unknown } | undefined)?.paymasterParams);
+
+    return {
+      gasLimit: 210000n,
+      maxFeePerGas: 100000000n,
+      maxPriorityFeePerGas: 0n,
+      gasPerPubdataLimit: 50000n
+    } as Awaited<ReturnType<Provider['estimateFee']>>;
+  };
+
+  try {
+    const provider = new ZkSyncWalletProvider();
+    const result = await provider.writeContract({
+      wallet,
+      to: '0x1111111111111111111111111111111111111111',
+      data: '0x1234',
+      broadcast: false,
+      paymaster: {
+        mode: 'sponsored'
+      }
+    });
+
+    assert.equal(result.mode, 'preview');
+    assert.equal(result.paymaster.mode, 'sponsored');
+    assert.equal(result.paymaster.address, sponsoredPath.paymasterAddress);
+    assert.equal(result.paymaster.token, undefined);
+    assert.equal(result.paymaster.registry?.entryId, sponsoredPath.id);
+    assert.equal(result.paymaster.registry?.feeTokenAddress, null);
+  } finally {
+    Provider.prototype.getCode = originalGetCode;
+    Provider.prototype.estimateFee = originalEstimateFee;
+  }
+});
+
+test('writeContract preview surfaces explicit no-paymaster registry metadata', async () => {
+  const defaults = loadValidatedDefaults();
+  const noPaymasterPath = defaults.registry.paymasterPaths.find(
+    (entry) => entry.mode === 'none' && entry.status === 'supported'
+  );
+
+  assert.ok(noPaymasterPath, 'expected a supported no-paymaster path in validated defaults');
+
+  const wallet = writableEoaWallet({
+    paymasterMode: 'none',
+    capabilities: {
+      read: true,
+      write: true,
+      transfer: true,
+      contractCall: true,
+      paymaster: true
+    },
+    sessionPayload: {
+      ...writableEoaWallet().sessionPayload!,
+      paymaster: {
+        mode: 'none'
+      }
+    }
+  });
+
+  const originalGetCode = Provider.prototype.getCode;
+  const originalEstimateFee = Provider.prototype.estimateFee;
+  let estimateCalls = 0;
+
+  Provider.prototype.getCode = async function () {
+    return '0x';
+  };
+  Provider.prototype.estimateFee = async function (request) {
+    estimateCalls += 1;
+    assert.equal((request.customData as { paymasterParams?: unknown } | undefined)?.paymasterParams, undefined);
+
+    return {
+      gasLimit: 210000n,
+      maxFeePerGas: 100000000n,
+      maxPriorityFeePerGas: 0n,
+      gasPerPubdataLimit: 50000n
+    } as Awaited<ReturnType<Provider['estimateFee']>>;
+  };
+
+  try {
+    const provider = new ZkSyncWalletProvider();
+    const result = await provider.writeContract({
+      wallet,
+      to: '0x1111111111111111111111111111111111111111',
+      data: '0x1234',
+      broadcast: false
+    });
+
+    assert.equal(result.mode, 'preview');
+    assert.equal(result.paymaster.mode, 'none');
+    assert.equal(result.paymaster.source, 'none');
+    assert.equal(result.paymaster.address, undefined);
+    assert.equal(result.paymaster.token, undefined);
+    assert.equal(result.paymaster.registry?.entryId, noPaymasterPath.id);
+    assert.equal(result.paymaster.registry?.mode, 'none');
+    assert.equal(result.paymaster.registry?.status, noPaymasterPath.status);
+    assert.equal(result.paymaster.registry?.configuration, noPaymasterPath.configuration);
+    assert.equal(result.paymaster.registry?.paymasterAddress, null);
+    assert.equal(result.paymaster.registry?.feeTokenAddress, null);
+    assert.deepEqual(result.paymaster.registry?.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(result.paymaster.registry?.validatedAccountKinds, []);
+    assert.equal(result.paymaster.registry?.requestedAccountKind, 'eoa');
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindSupported, true);
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindValidated, false);
+    assert.equal(result.paymaster.registry?.isValidatedDefault, false);
+    assert.equal(result.paymaster.registry?.isValidatedDefaultForMode, false);
+    assert.equal(estimateCalls, 0);
   } finally {
     Provider.prototype.getCode = originalGetCode;
     Provider.prototype.estimateFee = originalEstimateFee;

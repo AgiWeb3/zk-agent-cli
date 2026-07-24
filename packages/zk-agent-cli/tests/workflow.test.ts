@@ -245,6 +245,45 @@ test('workflow plan respects an explicit paymaster none override', () => {
   assert.equal(plan.registry?.paymaster, undefined);
 });
 
+test('workflow plan omits paymaster-token for sponsored mode even when the wallet stores a legacy fee token', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        paymaster: {
+          mode: 'approval-based',
+          address: '0x4444444444444444444444444444444444444444',
+          token: '0x5555555555555555555555555555555555555555'
+        }
+      },
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'send-native',
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    paymaster: {
+      mode: 'sponsored'
+    }
+  });
+
+  assert.match(plan.goalCommand, /--paymaster-mode sponsored/);
+  assert.match(plan.goalCommand, /--paymaster-address 0x4444444444444444444444444444444444444444/);
+  assert.doesNotMatch(plan.goalCommand, /--paymaster-token/);
+});
+
 test('workflow plan uses a symbol-first send-token skeleton with token discovery guidance', () => {
   const plan = buildWorkflowPlan({
     wallet: {

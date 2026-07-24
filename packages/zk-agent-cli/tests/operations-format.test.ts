@@ -147,6 +147,46 @@ test('linesForSwapResult includes swap and paymaster registry summaries', () => 
   );
 });
 
+test('linesForWriteResult includes supported no-paymaster registry summary', () => {
+  const lines = linesForWriteResult({
+    walletName: 'main',
+    walletAddress: '0x1111111111111111111111111111111111111111',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    accountKind: 'eoa',
+    mode: 'preview',
+    to: '0x3333333333333333333333333333333333333333',
+    data: '0x',
+    value: '0',
+    paymaster: {
+      mode: 'none',
+      source: 'none',
+      supported: true,
+      registry: {
+        kind: 'paymaster',
+        entryId: 'zksync-sepolia-no-paymaster',
+        chain: 'zksync-sepolia',
+        mode: 'none',
+        status: 'supported',
+        configuration: 'manual',
+        isValidatedDefault: false,
+        isValidatedDefaultForMode: false,
+        paymasterAddress: null,
+        feeTokenAddress: null,
+        feeTokenSymbol: null,
+        feeTokenDeploymentMode: null
+      }
+    },
+    preview: {}
+  });
+
+  assert.equal(
+    lineValue(lines, 'registry paymaster'),
+    'zksync-sepolia-no-paymaster (supported, manual)'
+  );
+  assert.equal(lineValue(lines, 'registry paymaster default'), 'no');
+});
+
 test('linesForBridgeResult includes structured bridge registry summary', () => {
   const lines = linesForBridgeResult({
     walletName: 'main',

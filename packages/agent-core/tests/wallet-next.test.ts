@@ -57,7 +57,57 @@ test('resolveEffectivePaymasterSelection supplements the tracked sponsored payma
 
   assert.deepEqual(resolved, {
     mode: 'sponsored',
-    address: trackedPaymasterAddress,
-    token: undefined
+    address: trackedPaymasterAddress
   });
+});
+
+test('resolveEffectivePaymasterSelection drops legacy fee tokens when switching to sponsored mode', () => {
+  const resolved = resolveEffectivePaymasterSelection(
+    {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'local'
+        },
+        paymaster: {
+          mode: 'approval-based',
+          address: trackedPaymasterAddress,
+          token: trackedPaymasterToken
+        }
+      }
+    },
+    {
+      mode: 'sponsored'
+    }
+  );
+
+  assert.deepEqual(resolved, {
+    mode: 'sponsored',
+    address: trackedPaymasterAddress
+  });
+});
+
+test('canUsePaymasterForGas rejects paths that are not marked supported for the wallet account kind', () => {
+  assert.equal(
+    canUsePaymasterForGas(
+      {
+        ...sampleWallet,
+        accountKind: 'session-key',
+        paymasterMode: 'sponsored'
+      },
+      {
+        mode: 'sponsored'
+      }
+    ),
+    false
+  );
 });

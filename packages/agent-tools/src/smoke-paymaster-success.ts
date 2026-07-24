@@ -2,15 +2,20 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
+
 import { createZkSyncAgentToolContext, createZkSyncAgentTools } from './create-zksync-toolset.js';
 import type { StandardAgentTools } from './create-toolset.js';
 import type { AgentToolContext } from './types.js';
+
+type SmokePaymasterMode = Exclude<PaymasterMode, 'none'>;
 
 export interface SmokePaymasterSuccessOptions {
   walletName: string;
   execute: boolean;
   to?: string;
   amount: string;
+  paymasterMode: SmokePaymasterMode;
   paymasterAddress?: string;
   paymasterToken?: string;
 }
@@ -42,14 +47,16 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute] [--to <address>] [--amount <native>] [--paymaster-address <address>] [--paymaster-token <address>]',
+      '  pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute] [--to <address>] [--amount <native>] [--paymaster-mode <mode>] [--paymaster-address <address>] [--paymaster-token <address>]',
       '',
       'What it does:',
-      '  1. Validates the approval-based workflow-auto send-native path.',
-      '  2. By default, only requests paymaster mode and relies on tracked validated Sepolia defaults to fill address/token.',
-      '  3. Runs a real guided workflow send-native preview by default.',
-      '  4. With --execute, broadcasts the real paymaster-backed send-native transaction.',
-      '  5. Asserts that guided workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
+      '  1. Validates the paymaster-backed workflow-auto send-native path.',
+      '  2. By default, only requests paymaster mode and relies on tracked validated Sepolia defaults to fill the paymaster address.',
+      '  3. Approval-based mode also expects the tracked validated fee token to resolve automatically.',
+      '  4. Sponsored mode intentionally skips the fee-token fallback check.',
+      '  5. Runs a real guided workflow send-native preview by default.',
+      '  6. With --execute, broadcasts the real paymaster-backed send-native transaction.',
+      '  7. Asserts that guided workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
       '',
       'Safety:',
       '  Without --execute this command only performs a live preview.',
@@ -57,8 +64,11 @@ function printUsage(): void {
       '',
       'Defaults:',
       '  --amount defaults to 0.00001',
+      '  --paymaster-mode defaults to approval-based',
       '  --to defaults to the wallet ownerAddress when available, otherwise the wallet execution address',
-      '  when --paymaster-address / --paymaster-token are omitted, the workflow/provider path should resolve the tracked validated paymaster defaults itself'
+      '  when --paymaster-address is omitted, the workflow/provider path should resolve the tracked validated paymaster address itself',
+      '  when --paymaster-token is omitted in approval-based mode, the workflow/provider path should resolve the tracked validated fee token itself',
+      '  --paymaster-token is only valid for approval-based mode'
     ].join('\n') + '\n'
   );
 }
@@ -77,6 +87,7 @@ function parseArgs(argv: string[]): SmokePaymasterSuccessOptions {
   let execute = false;
   let to: string | undefined;
   let amount = '0.00001';
+  let paymasterMode: SmokePaymasterMode = 'approval-based';
   let paymasterAddress: string | undefined;
   let paymasterToken: string | undefined;
 
@@ -113,6 +124,18 @@ function parseArgs(argv: string[]): SmokePaymasterSuccessOptions {
       continue;
     }
 
+    if (arg === '--paymaster-mode') {
+      const mode = requireOptionValue(argv, index, arg).trim() as SmokePaymasterMode;
+      if (mode !== 'approval-based' && mode !== 'sponsored') {
+        throw new Error(
+          `Unsupported --paymaster-mode value: ${mode}. Expected one of approval-based or sponsored.`
+        );
+      }
+      paymasterMode = mode;
+      index += 1;
+      continue;
+    }
+
     if (arg === '--paymaster-address') {
       paymasterAddress = requireOptionValue(argv, index, arg).trim();
       index += 1;
@@ -137,6 +160,7 @@ function parseArgs(argv: string[]): SmokePaymasterSuccessOptions {
     execute,
     to,
     amount,
+    paymasterMode,
     paymasterAddress,
     paymasterToken
   };
@@ -197,6 +221,10 @@ export async function runSmokePaymasterSuccess(
     );
   }
 
+  if (options.paymasterMode === 'sponsored' && options.paymasterToken) {
+    throw new Error('Sponsored paymaster smoke does not accept --paymaster-token.');
+  }
+
   const expectedDefaultPaymasterAddress =
     wallet.sessionPayload?.paymaster?.address || (await resolvePaymasterAddress());
   if (!options.paymasterAddress && !expectedDefaultPaymasterAddress) {
@@ -206,17 +234,25 @@ export async function runSmokePaymasterSuccess(
   }
 
   const expectedDefaultPaymasterToken =
-    wallet.sessionPayload?.paymaster?.token || (await resolvePaymasterToken());
-  if (!options.paymasterToken && !expectedDefaultPaymasterToken) {
+    options.paymasterMode === 'approval-based'
+      ? wallet.sessionPayload?.paymaster?.token || (await resolvePaymasterToken())
+      : undefined;
+  if (
+    options.paymasterMode === 'approval-based' &&
+    !options.paymasterToken &&
+    !expectedDefaultPaymasterToken
+  ) {
     throw new Error(
       'Unable to resolve the tracked validated EraVM fee token. Pass --paymaster-token explicitly or deploy the EraVM token assets first.'
     );
   }
 
   const requestedPaymaster = {
-    mode: 'approval-based' as const,
+    mode: options.paymasterMode,
     ...(options.paymasterAddress ? { address: options.paymasterAddress } : {}),
-    ...(options.paymasterToken ? { token: options.paymasterToken } : {})
+    ...(options.paymasterMode === 'approval-based' && options.paymasterToken
+      ? { token: options.paymasterToken }
+      : {})
   };
 
   const result = await tools.workflowAutoTool.execute({
@@ -241,6 +277,7 @@ export async function runSmokePaymasterSuccess(
       inputs: {
         to: resolvedTarget,
         amount: options.amount,
+        paymasterMode: options.paymasterMode,
         requestedPaymaster,
         expectedDefaultPaymasterAddress,
         expectedDefaultPaymasterToken
@@ -258,6 +295,7 @@ export async function runSmokePaymasterSuccess(
       inputs: {
         to: resolvedTarget,
         amount: options.amount,
+        paymasterMode: options.paymasterMode,
         requestedPaymaster,
         expectedDefaultPaymasterAddress,
         expectedDefaultPaymasterToken
@@ -291,6 +329,7 @@ export async function runSmokePaymasterSuccess(
   }
 
   if (
+    options.paymasterMode === 'approval-based' &&
     !options.paymasterToken &&
     expectedDefaultPaymasterToken &&
     resolvedPaymaster?.token?.toLowerCase() !== expectedDefaultPaymasterToken.toLowerCase()
@@ -307,6 +346,7 @@ export async function runSmokePaymasterSuccess(
     inputs: {
       to: resolvedTarget,
       amount: options.amount,
+      paymasterMode: options.paymasterMode,
       requestedPaymaster,
       expectedDefaultPaymasterAddress,
       expectedDefaultPaymasterToken

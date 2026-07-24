@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { AccountKind } from '@zk-agent/agent-session-protocol';
+
 import { listBuiltinChains, type ChainDefinition } from './chains.js';
 
 const DEFAULT_SYNCSWAP_ROUTER_ADDRESS = '0x3f39129e54d2331926c1E4bf034e111cf471AA97';
@@ -165,9 +167,11 @@ export interface ValidatedDefaultsPayload {
     paymasterPaths: Array<{
       id: string;
       chain: string;
-      mode: 'sponsored' | 'approval-based';
-      status: Extract<RegistryEntryStatus, 'validated' | 'experimental'>;
-      configuration: 'tracked-default';
+      mode: 'none' | 'sponsored' | 'approval-based';
+      status: RegistryEntryStatus;
+      configuration: RegistryEntryConfiguration;
+      supportedAccountKinds: AccountKind[];
+      validatedAccountKinds: AccountKind[];
       paymasterAddress: string | null;
       feeTokenAddress: string | null;
       feeTokenSymbol: string | null;
@@ -211,6 +215,7 @@ export interface ValidatedDefaultsPayload {
         sponsored: string | null;
         approvalBased: string | null;
       };
+      supportedEntryIds: string[];
       validatedEntryIds: string[];
       experimentalEntryIds: string[];
       notes: string[];
@@ -275,6 +280,11 @@ export interface PaymasterRegistryResolution {
   feeTokenAddress: string | null;
   feeTokenSymbol: string | null;
   feeTokenDeploymentMode: string | null;
+  supportedAccountKinds?: AccountKind[];
+  validatedAccountKinds?: AccountKind[];
+  requestedAccountKind?: AccountKind | null;
+  isRequestedAccountKindSupported?: boolean | null;
+  isRequestedAccountKindValidated?: boolean | null;
 }
 
 export interface ValidatedDefaultSelections {
@@ -287,6 +297,7 @@ export interface ValidatedDefaultSelections {
     validatedWithdraw?: BridgeRegistryResolution;
   };
   paymaster: {
+    manualNoPaymaster?: PaymasterRegistryResolution;
     validatedDefault?: PaymasterRegistryResolution;
     validatedSponsored?: PaymasterRegistryResolution;
     validatedApprovalBased?: PaymasterRegistryResolution;
@@ -382,6 +393,17 @@ function createRegistryTokenDescriptor(input?: {
     symbol: normalizeOptionalString(input?.symbol),
     decimals: normalizeOptionalInteger(input?.decimals)
   };
+}
+
+function includesAccountKind(
+  kinds: AccountKind[],
+  accountKind: AccountKind | null | undefined
+): boolean {
+  return Boolean(accountKind && kinds.includes(accountKind));
+}
+
+function describeAccountKinds(kinds: AccountKind[]): string {
+  return kinds.join(', ');
 }
 
 export function describeBridgeAssetConstraint(constraint: BridgeAssetConstraint): string {
@@ -558,6 +580,23 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
   ];
 
   const paymasterPaths: ValidatedDefaultsPayload['registry']['paymasterPaths'] = [
+    {
+      id: 'zksync-sepolia-no-paymaster',
+      chain: 'zksync-sepolia',
+      mode: 'none',
+      status: 'supported',
+      configuration: 'manual',
+      supportedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
+      validatedAccountKinds: [] as AccountKind[],
+      paymasterAddress: null,
+      feeTokenAddress: null,
+      feeTokenSymbol: null,
+      feeTokenDeploymentMode: null,
+      notes: [
+        'This is the explicit no-paymaster execution path for zkSync Sepolia.',
+        'Use this path when sponsored or approval-based execution is unnecessary or incompatible.'
+      ]
+    },
     ...(paymaster && paymaster.generalFlowEnabled === true
       ? [
           {
@@ -566,6 +605,8 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
             mode: 'sponsored' as const,
             status: 'validated' as const,
             configuration: 'tracked-default' as const,
+            supportedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
+            validatedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
             paymasterAddress: paymaster.contractAddress,
             feeTokenAddress: null,
             feeTokenSymbol: null,
@@ -584,6 +625,8 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
             mode: 'approval-based' as const,
             status: 'validated' as const,
             configuration: 'tracked-default' as const,
+            supportedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
+            validatedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
             paymasterAddress: paymaster.contractAddress,
             feeTokenAddress: eraVmToken.contractAddress,
             feeTokenSymbol: normalizeOptionalString(eraVmToken.symbol),
@@ -602,6 +645,8 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
             mode: 'approval-based' as const,
             status: 'experimental' as const,
             configuration: 'tracked-default' as const,
+            supportedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
+            validatedAccountKinds: [] as AccountKind[],
             paymasterAddress: paymaster.contractAddress,
             feeTokenAddress: evmToken.contractAddress,
             feeTokenSymbol: normalizeOptionalString(evmToken.symbol),
@@ -704,6 +749,8 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
         entry.status === 'validated' &&
         entry.configuration === 'tracked-default'
     ) || null;
+  const manualNoPaymaster =
+    paymasterPaths.find((entry) => entry.mode === 'none' && entry.configuration === 'manual') || null;
   const validatedSponsoredPaymasterDefault =
     paymasterPaths.find(
       (entry) =>
@@ -842,6 +889,7 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
           sponsored: validatedSponsoredPaymasterDefault?.id || null,
           approvalBased: validatedPaymasterDefault?.id || null
         },
+        supportedEntryIds: collectRegistryIdsByStatus(paymasterPaths, 'supported'),
         validatedEntryIds: collectRegistryIdsByStatus(paymasterPaths, 'validated'),
         experimentalEntryIds: collectRegistryIdsByStatus(paymasterPaths, 'experimental'),
         notes: [
@@ -860,6 +908,9 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
                 'experimental'
               ).join(', ')}.`
             : 'No experimental comparison paymaster paths are currently tracked.',
+          manualNoPaymaster
+            ? `Manual no-paymaster path: ${manualNoPaymaster.id}.`
+            : 'No explicit no-paymaster path is currently tracked.',
           paymasterPaths.some(
             (entry) => entry.mode === 'sponsored' && entry.status === 'validated'
           )
@@ -925,6 +976,16 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
     });
     payload.defaultSelections.paymaster.validatedApprovalBased =
       payload.defaultSelections.paymaster.validatedDefault;
+  }
+
+  if (manualNoPaymaster) {
+    payload.defaultSelections.paymaster.manualNoPaymaster = resolvePaymasterRegistryResolution({
+      chain: manualNoPaymaster.chain,
+      mode: manualNoPaymaster.mode,
+      paymasterAddress: manualNoPaymaster.paymasterAddress,
+      tokenAddress: manualNoPaymaster.feeTokenAddress,
+      defaults: payload
+    });
   }
 
   if (validatedSponsoredPaymasterDefault) {
@@ -1024,13 +1085,19 @@ export function findPaymasterPathRegistryEntry(input: {
   tokenAddress?: string | null;
   defaults?: ValidatedDefaultsPayload;
 }): PaymasterPathRegistryEntry | undefined {
-  if (input.mode !== 'approval-based' && input.mode !== 'sponsored') return undefined;
+  if (input.mode !== 'none' && input.mode !== 'approval-based' && input.mode !== 'sponsored') {
+    return undefined;
+  }
 
   const defaults = input.defaults ?? loadValidatedDefaults();
   const entries = defaults.registry.paymasterPaths.filter(
     (entry) => entry.chain === input.chain && entry.mode === input.mode
   );
   if (entries.length === 0) return undefined;
+
+  if (input.mode === 'none') {
+    return entries.find((entry) => entry.status === 'supported') || entries[0];
+  }
 
   if (input.mode === 'sponsored') {
     if (input.paymasterAddress) {
@@ -1150,6 +1217,7 @@ export function resolvePaymasterRegistryResolution(input: {
   mode?: string | null;
   paymasterAddress?: string | null;
   tokenAddress?: string | null;
+  accountKind?: AccountKind | null;
   defaults?: ValidatedDefaultsPayload;
 }): PaymasterRegistryResolution | undefined {
   const defaults = input.defaults ?? loadValidatedDefaults();
@@ -1174,7 +1242,18 @@ export function resolvePaymasterRegistryResolution(input: {
     paymasterAddress: entry.paymasterAddress,
     feeTokenAddress: entry.feeTokenAddress,
     feeTokenSymbol: entry.feeTokenSymbol,
-    feeTokenDeploymentMode: entry.feeTokenDeploymentMode
+    feeTokenDeploymentMode: entry.feeTokenDeploymentMode,
+    supportedAccountKinds: entry.supportedAccountKinds,
+    validatedAccountKinds: entry.validatedAccountKinds,
+    requestedAccountKind: input.accountKind ?? null,
+    isRequestedAccountKindSupported:
+      input.accountKind !== undefined && input.accountKind !== null
+        ? includesAccountKind(entry.supportedAccountKinds, input.accountKind)
+        : null,
+    isRequestedAccountKindValidated:
+      input.accountKind !== undefined && input.accountKind !== null
+        ? includesAccountKind(entry.validatedAccountKinds, input.accountKind)
+        : null
   };
 }
 
@@ -1267,6 +1346,7 @@ export function buildPaymasterRegistryNotes(input: {
   mode?: string | null;
   paymasterAddress?: string | null;
   tokenAddress?: string | null;
+  accountKind?: AccountKind | null;
   defaults?: ValidatedDefaultsPayload;
 }): string[] {
   const defaults = input.defaults ?? loadValidatedDefaults();
@@ -1277,8 +1357,10 @@ export function buildPaymasterRegistryNotes(input: {
   if (!entry) return [];
 
   const notes =
-    entry.mode === 'sponsored'
-      ? [`Registry: sponsored paymaster on ${entry.chain} is ${entry.status}.`]
+    entry.mode === 'none'
+      ? [`Registry: no-paymaster execution on ${entry.chain} is ${entry.status}.`]
+      : entry.mode === 'sponsored'
+        ? [`Registry: sponsored paymaster on ${entry.chain} is ${entry.status}.`]
       : [
           `Registry: ${entry.mode} paymaster on ${entry.chain} with fee token ${
             entry.feeTokenSymbol || entry.feeTokenAddress || 'unknown token'
@@ -1293,6 +1375,34 @@ export function buildPaymasterRegistryNotes(input: {
 
   if (entry.mode === 'sponsored' && entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.sponsored) {
     notes.push('Registry default: this is the current validated default sponsored paymaster path.');
+  }
+
+  if (entry.validatedAccountKinds.length > 0) {
+    notes.push(
+      `Registry account coverage: live-validated for ${describeAccountKinds(entry.validatedAccountKinds)}.`
+    );
+  }
+
+  if (entry.supportedAccountKinds.length > 0) {
+    notes.push(
+      `Registry supported account kinds: ${describeAccountKinds(entry.supportedAccountKinds)}.`
+    );
+  }
+
+  if (input.accountKind) {
+    if (includesAccountKind(entry.validatedAccountKinds, input.accountKind)) {
+      notes.push(`Registry account kind: ${input.accountKind} is already live-validated for this path.`);
+    } else if (includesAccountKind(entry.supportedAccountKinds, input.accountKind)) {
+      notes.push(
+        `Registry account kind: ${input.accountKind} is supported for this path, but it is not currently marked as live-validated.`
+      );
+    } else {
+      notes.push(`Registry account kind: ${input.accountKind} is not currently supported for this path.`);
+    }
+  }
+
+  if (entry.mode === 'none') {
+    notes.push('Registry fallback: this is the explicit supported no-paymaster execution path.');
   }
 
   return notes;

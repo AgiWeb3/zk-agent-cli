@@ -314,6 +314,18 @@ test('wallet next adds a registry note for the tracked sponsored paymaster path'
   assert.equal(summary.actions.find((action) => action.id === 'fund'), undefined);
   assert.ok(summary.notes.some((note) => /paymaster mode sponsored is configured/.test(note)));
   assert.ok(summary.notes.some((note) => /Registry: sponsored paymaster on zksync-sepolia is validated\./.test(note)));
+  assert.ok(
+    summary.notes.some((note) =>
+      /Registry account coverage: live-validated for eoa, smart-account\./.test(note)
+    )
+  );
+  assert.ok(
+    summary.notes.some((note) =>
+      /Registry account kind: smart-account is already live-validated for this path\./.test(
+        note
+      )
+    )
+  );
 });
 
 test('explicit paymaster none overrides a saved paymaster selection', () => {

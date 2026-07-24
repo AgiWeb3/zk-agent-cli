@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "smoke:remote-approval": "node --import tsx ./src/smoke-remote-approval.ts",
     "typecheck": "tsc --noEmit",
     "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/*.test.mjs ./tests/*.test.ts"
   },

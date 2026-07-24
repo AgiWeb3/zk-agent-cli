@@ -219,7 +219,7 @@ function appendPaymasterCommandArgs(
   if (resolved.address) {
     nextCommand += ` --paymaster-address ${resolved.address}`;
   }
-  if (resolved.token) {
+  if (resolved.mode === 'approval-based' && resolved.token) {
     nextCommand += ` --paymaster-token ${resolved.token}`;
   }
 

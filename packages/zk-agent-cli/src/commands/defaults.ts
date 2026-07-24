@@ -164,6 +164,14 @@ export function createDefaultsCommand(): Command {
           `${paymasterPath.status} paymaster path`,
           `${paymasterPath.mode} on ${paymasterPath.chain}`
         ]);
+        lines.push([
+          'path supported accounts',
+          paymasterPath.supportedAccountKinds.join(', ')
+        ]);
+        lines.push([
+          'path validated accounts',
+          paymasterPath.validatedAccountKinds.join(', ') || 'none'
+        ]);
         if (paymasterPath.paymasterAddress) {
           lines.push(['path paymaster', paymasterPath.paymasterAddress]);
         }
@@ -216,6 +224,10 @@ export function createDefaultsCommand(): Command {
       lines.push([
         'paymaster matrix approval default',
         defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.approvalBased || 'none'
+      ]);
+      lines.push([
+        'paymaster matrix supported',
+        defaults.surfaceMatrix.paymaster.supportedEntryIds.join(', ') || 'none'
       ]);
 
       if (defaults.defaultSelections.swap.validatedDefault) {
@@ -365,6 +377,13 @@ export function createDefaultsCommand(): Command {
         lines.push([
           'resolved approval paymaster',
           `${paymasterDefault.entryId} (${paymasterDefault.status}, ${tokenSummary}${deploymentMode})`
+        ]);
+      }
+      if (defaults.defaultSelections.paymaster.manualNoPaymaster) {
+        const paymasterDefault = defaults.defaultSelections.paymaster.manualNoPaymaster;
+        lines.push([
+          'resolved no-paymaster',
+          `${paymasterDefault.entryId} (${paymasterDefault.status}, ${paymasterDefault.configuration})`
         ]);
       }
 

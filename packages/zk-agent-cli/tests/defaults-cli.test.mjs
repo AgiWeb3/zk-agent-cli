@@ -128,6 +128,8 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     );
     assert.equal(validatedPaymasterPath.status, 'validated');
     assert.equal(validatedPaymasterPath.feeTokenDeploymentMode, 'eravm');
+    assert.deepEqual(validatedPaymasterPath.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(validatedPaymasterPath.validatedAccountKinds, ['eoa', 'smart-account']);
 
     const sponsoredPaymasterPath = result.defaults.registry.paymasterPaths.find(
       (entry) => entry.id === 'zksync-sepolia-sponsored'
@@ -136,12 +138,25 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(sponsoredPaymasterPath.mode, 'sponsored');
     assert.equal(sponsoredPaymasterPath.paymasterAddress, '0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97');
     assert.equal(sponsoredPaymasterPath.feeTokenAddress, null);
+    assert.deepEqual(sponsoredPaymasterPath.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(sponsoredPaymasterPath.validatedAccountKinds, ['eoa', 'smart-account']);
 
     const experimentalPaymasterPath = result.defaults.registry.paymasterPaths.find(
       (entry) => entry.id === 'zksync-sepolia-approval-based-evm-interpreter'
     );
     assert.equal(experimentalPaymasterPath.status, 'experimental');
     assert.equal(experimentalPaymasterPath.feeTokenDeploymentMode, 'evm-interpreter');
+
+    const noPaymasterPath = result.defaults.registry.paymasterPaths.find(
+      (entry) => entry.id === 'zksync-sepolia-no-paymaster'
+    );
+    assert.equal(noPaymasterPath.status, 'supported');
+    assert.equal(noPaymasterPath.mode, 'none');
+    assert.equal(noPaymasterPath.configuration, 'manual');
+    assert.equal(noPaymasterPath.paymasterAddress, null);
+    assert.equal(noPaymasterPath.feeTokenAddress, null);
+    assert.deepEqual(noPaymasterPath.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(noPaymasterPath.validatedAccountKinds, []);
 
     const validatedSwapTokenA = result.defaults.registry.tokens.find(
       (entry) => entry.id === 'syncswap-classic-token-a'
@@ -204,6 +219,9 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     );
     assert.deepEqual(result.defaults.surfaceMatrix.paymaster.experimentalEntryIds, [
       'zksync-sepolia-approval-based-evm-interpreter'
+    ]);
+    assert.deepEqual(result.defaults.surfaceMatrix.paymaster.supportedEntryIds, [
+      'zksync-sepolia-no-paymaster'
     ]);
 
     assert.equal(
@@ -319,6 +337,26 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(
       result.defaults.defaultSelections.paymaster.validatedDefault.feeTokenDeploymentMode,
       'eravm'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.manualNoPaymaster.entryId,
+      'zksync-sepolia-no-paymaster'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.manualNoPaymaster.mode,
+      'none'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.manualNoPaymaster.configuration,
+      'manual'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.manualNoPaymaster.isValidatedDefault,
+      false
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.manualNoPaymaster.isValidatedDefaultForMode,
+      false
     );
 
     const localEraVmToken = result.localTokenRegistry.find(

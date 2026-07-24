@@ -123,7 +123,7 @@ function appendWalletPaymasterCommandArgs(
   if (address) {
     nextCommand += ` --paymaster-address ${address}`;
   }
-  if (token) {
+  if (mode === 'approval-based' && token) {
     nextCommand += ` --paymaster-token ${token}`;
   }
 
@@ -415,7 +415,8 @@ export function buildWorkflowPlan(input: {
             chain: input.inspection.chain,
             mode: resolvedPaymaster.mode,
             paymasterAddress: resolvedPaymaster.address,
-            tokenAddress: resolvedPaymaster.token
+            tokenAddress: resolvedPaymaster.token,
+            accountKind: input.inspection.accountKind
           })
         }
       : {
@@ -475,7 +476,8 @@ export function buildWorkflowPlan(input: {
             chain: input.inspection.chain,
             mode: paymaster?.mode,
             paymasterAddress: paymaster?.address,
-            tokenAddress: paymaster?.token
+            tokenAddress: paymaster?.token,
+            accountKind: input.inspection.accountKind
           })
         : [];
     })(),

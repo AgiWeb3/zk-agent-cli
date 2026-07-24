@@ -13,6 +13,7 @@
     "tool:list": "pnpm --filter @zk-agent/agent-tools tool:run -- --list",
     "tool:run": "pnpm --filter @zk-agent/agent-tools tool:run --",
     "smoke:readonly": "pnpm --filter @zk-agent/agent-tools smoke:readonly --",
+    "smoke:remote-approval": "pnpm --filter @zk-agent/cli smoke:remote-approval --",
     "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",
     "smoke:product-path": "pnpm --filter @zk-agent/agent-tools smoke:product-path --",
     "smoke:lifecycle": "pnpm --filter @zk-agent/agent-tools smoke:lifecycle --",

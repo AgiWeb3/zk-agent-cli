@@ -6,6 +6,7 @@ import type {
 } from './providers.js';
 import {
   buildPaymasterRegistryNotes,
+  resolvePaymasterRegistryResolution,
   resolveTrackedPaymasterSelection
 } from './validated-defaults.js';
 
@@ -45,6 +46,28 @@ export function resolveEffectivePaymasterSelection(
   wallet: WalletSessionRecord,
   requested?: PaymasterSelectionInput
 ): PaymasterSelectionInput | undefined {
+  const normalizePaymasterSelection = (
+    paymaster: PaymasterSelectionInput | undefined
+  ): PaymasterSelectionInput | undefined => {
+    if (!paymaster?.mode) return paymaster;
+    if (paymaster.mode === 'none') {
+      return {
+        mode: 'none'
+      };
+    }
+    if (paymaster.mode === 'approval-based') {
+      return {
+        mode: paymaster.mode,
+        address: paymaster.address,
+        token: paymaster.token
+      };
+    }
+    return {
+      mode: paymaster.mode,
+      address: paymaster.address
+    };
+  };
+
   const supplementTrackedDefaults = (
     paymaster: PaymasterSelectionInput | undefined
   ): PaymasterSelectionInput | undefined => {
@@ -58,11 +81,11 @@ export function resolveEffectivePaymasterSelection(
     });
     if (!tracked) return paymaster;
 
-    return {
+    return normalizePaymasterSelection({
       ...paymaster,
       address: paymaster.address ?? tracked.address,
-      token: paymaster.token ?? tracked.token
-    };
+      token: paymaster.mode === 'approval-based' ? paymaster.token ?? tracked.token : undefined
+    });
   };
 
   if (requested?.mode === 'none') {
@@ -79,7 +102,10 @@ export function resolveEffectivePaymasterSelection(
         wallet.sessionPayload?.paymaster?.address ??
         wallet.sessionPayload?.paymasterAddress ??
         undefined,
-      token: requested.token ?? wallet.sessionPayload?.paymaster?.token
+      token:
+        requested.mode === 'approval-based'
+          ? requested.token ?? wallet.sessionPayload?.paymaster?.token
+          : undefined
     });
   }
 
@@ -92,7 +118,7 @@ export function resolveEffectivePaymasterSelection(
       wallet.sessionPayload?.paymaster?.address ??
       wallet.sessionPayload?.paymasterAddress ??
       undefined,
-    token: wallet.sessionPayload?.paymaster?.token
+    token: mode === 'approval-based' ? wallet.sessionPayload?.paymaster?.token : undefined
   });
 }
 
@@ -108,6 +134,17 @@ export function canUsePaymasterForGas(
   if (paymasterCapability === false) return false;
 
   if (paymaster.mode === 'approval-based' && !paymaster.token) {
+    return false;
+  }
+
+  const registry = resolvePaymasterRegistryResolution({
+    chain: wallet.chain,
+    mode: paymaster.mode,
+    paymasterAddress: paymaster.address,
+    tokenAddress: paymaster.token,
+    accountKind: wallet.accountKind
+  });
+  if (registry?.isRequestedAccountKindSupported === false) {
     return false;
   }
 
@@ -251,7 +288,8 @@ export function buildWalletNextSummary(input: {
         chain: inspection.chain,
         mode: paymaster?.mode,
         paymasterAddress: paymaster?.address,
-        tokenAddress: paymaster?.token
+        tokenAddress: paymaster?.token,
+        accountKind: inspection.accountKind
       })
     );
   }

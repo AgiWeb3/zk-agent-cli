@@ -25,15 +25,19 @@ The project is intentionally modeled after the real architecture of `polygon-age
 
 The project has moved past scaffolding and isolated chain experiments.
 
-Current stage: `Phase 3: productization and parity`.
+Current stage: `Phase 4: product hardening and expansion`.
 
 What that means:
 
 - the zkSync-native engineering baseline already exists
-- the main remaining gap versus `polygon-agent-cli` is product packaging, not
-  raw chain mechanics
-- the next work should optimize for agent/operator usability before broadening
-  the AA surface further
+- Phase 3 productization/parity exit is complete:
+  - default operator path is aligned across README, CLI, tools, and follow-up commands
+  - installable `skills/` surface exists
+  - relay-capable remote approval is now covered by an explicit product-level smoke path
+  - workflow-first operator entrypoints cover the common actions
+  - registry-backed validated defaults are documented and machine-readable
+- the next work is no longer Phase 3 closeout; it is Phase 4 product hardening,
+  broader validated coverage, and packaging/distribution polish
 
 What is already in place:
 
@@ -54,7 +58,9 @@ What is already in place:
   metadata that shows the active local-first resolution order; the paymaster
   registry now also tracks the validated Sepolia sponsored path alongside the
   approval-based EraVM default and experimental comparison entries, including
-  mode-aware sponsored vs approval-based paymaster defaults, while the swap
+  mode-aware sponsored vs approval-based paymaster defaults, with the current
+  sponsored path now live-validated for both EOA and smart-account execution,
+  while the swap
   registry/default selection surface now also carries the tracked validated
   SyncSwap pair and pool metadata directly, the bridge default selection
   surface now exposes chain IDs, asset coverage, asset-constraint metadata,
@@ -177,6 +183,7 @@ What is already in place:
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
   - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke, now returning both the preferred single-chain `assets` view and the raw `balances` view
   - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
+  - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
@@ -643,8 +650,13 @@ Recommended root wrappers for the current stable product surface:
   blocked by an incompatible wallet paymaster, and returns the quoted output
   plus workflow-layer `recommendedCommands` plus `agentFollowup` in one
   normalized payload
+- `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]`
+  validates the relay-backed create -> publish -> pending -> ready -> approve
+  -> import lifecycle through the real CLI JSON surface, using a local relay
+  automatically when `--relay-url` is omitted
 - `pnpm validate:phase3` runs the current Phase 3 regression set across
-  `agent-core`, `agent-tools`, and `zk-agent-cli`
+  `agent-core`, `agent-tools`, and `zk-agent-cli`, including the remote
+  approval smoke runtime regression
 
 Test ERC-20 utility:
 

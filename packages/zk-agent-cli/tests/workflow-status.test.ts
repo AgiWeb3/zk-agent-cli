@@ -327,4 +327,16 @@ test('workflow status resolves the tracked sponsored paymaster path when sponsor
   assert.equal(result.plan.registry?.paymaster?.mode, 'sponsored');
   assert.equal(result.plan.registry?.paymaster?.isValidatedDefault, false);
   assert.ok(result.notes.some((note) => /Registry: sponsored paymaster on zksync-sepolia is validated\./.test(note)));
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry account coverage: live-validated for eoa, smart-account\./.test(note)
+    )
+  );
+  assert.ok(
+    result.notes.some((note) =>
+      /Registry account kind: smart-account is already live-validated for this path\./.test(
+        note
+      )
+    )
+  );
 });

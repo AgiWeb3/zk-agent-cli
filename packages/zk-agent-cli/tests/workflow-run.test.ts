@@ -1041,3 +1041,121 @@ test('workflow run does not treat an explicit paymaster none override as gas cov
     }
   );
 });
+
+test('workflow run omits legacy paymaster-token data when an explicit sponsored override is used', async () => {
+  let receivedPaymaster: { mode?: string; address?: string; token?: string } | undefined;
+
+  const provider = {
+    async inspectWallet() {
+      return sampleInspection();
+    },
+    async getBalances() {
+      return {
+        walletName: 'main',
+        walletAddress: sampleWallet.walletAddress,
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        balances: [{ type: 'native', symbol: 'ETH', balance: '0', decimals: 18 }]
+      };
+    },
+    async getFundingInfo() {
+      return sampleFunding();
+    },
+    async sendNative(input: { paymaster?: { mode?: string; address?: string; token?: string } }) {
+      receivedPaymaster = input.paymaster;
+      return {
+        mode: 'preview' as const,
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletName: 'main',
+        from: sampleWallet.walletAddress,
+        to: '0x3333333333333333333333333333333333333333',
+        value: '0.1',
+        preview: {},
+        paymaster: {
+          mode: 'sponsored',
+          address: trackedPaymasterAddress,
+          supported: true,
+          source: 'command' as const
+        }
+      };
+    },
+    async sendToken() {
+      throw new Error('sendToken should not run for send-native workflow');
+    },
+    async writeContract() {
+      throw new Error('writeContract should not run for send-native workflow');
+    }
+  };
+
+  const defiProvider = {
+    async swap() {
+      throw new Error('swap should not run for send-native workflow');
+    },
+    async bridge() {
+      throw new Error('bridge should not run for send-native workflow');
+    },
+    async deposit() {
+      throw new Error('deposit should not run for send-native workflow');
+    },
+    async withdraw() {
+      throw new Error('withdraw should not run for send-native workflow');
+    }
+  };
+
+  const result = await runWorkflow(
+    {
+      wallet: {
+        ...sampleWallet,
+        paymasterMode: 'approval-based',
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: true
+        },
+        sessionPayload: {
+          version: 1,
+          provider: 'zksync-sso',
+          chain: 'zksync-sepolia',
+          chainId: 300,
+          walletAddress: sampleWallet.walletAddress,
+          account: {
+            kind: 'smart-account',
+            address: sampleWallet.walletAddress,
+            ownerAddress: sampleWallet.ownerAddress,
+            signerType: 'local'
+          },
+          paymaster: {
+            mode: 'approval-based',
+            address: trackedPaymasterAddress,
+            token: trackedPaymasterToken
+          }
+        }
+      },
+      intent: 'send-native',
+      broadcast: false,
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1',
+        paymaster: {
+          mode: 'sponsored'
+        }
+      }
+    },
+    {
+      provider,
+      defiProvider
+    }
+  );
+
+  assert.deepEqual(receivedPaymaster, {
+    mode: 'sponsored'
+  });
+  assert.equal(result.stage, 'goal-executed');
+  assert.match(result.nextCommand || '', /--paymaster-mode sponsored/);
+  assert.match(result.nextCommand || '', new RegExp(`--paymaster-address ${trackedPaymasterAddress}`));
+  assert.doesNotMatch(result.nextCommand || '', /--paymaster-token/);
+});

@@ -265,11 +265,14 @@ test('runSmokeOperatorPath surfaces a top-level blocked phase and remediation co
 });
 
 test('runSmokePaymasterSuccess returns the normalized preview payload', async () => {
+  let capturedInput: Record<string, unknown> | undefined;
+
   const payload = await runSmokePaymasterSuccess(
     {
       walletName: 'main',
       execute: false,
-      amount: '0.00001'
+      amount: '0.00001',
+      paymasterMode: 'approval-based'
     },
     {
       context: {
@@ -280,39 +283,42 @@ test('runSmokePaymasterSuccess returns the normalized preview payload', async ()
       },
       tools: {
         workflowAutoTool: {
-          execute: async () => ({
-            ok: true,
-            data: {
-              action: 'goal-executed',
-              agentProfile: {
-                profileExists: true,
-                agentId: 'sed-operator'
-              },
-              agentFollowup: {
-                nextAction: 'zk-agent agent show'
-              },
-              registry: {
-                paymaster: {
-                  entryId: 'validated-paymaster'
-                }
-              },
-              workflowRecommendedCommands: {
-                inspectDefaults: 'zk-agent defaults'
-              },
-              run: {
-                stage: 'goal-executed',
-                nextCommand: 'zk-agent workflow next --request-id wf123',
-                notes: ['preview ok'],
-                goal: {
-                  mode: 'approval-based',
+          execute: async (input) => {
+            capturedInput = input as Record<string, unknown>;
+            return {
+              ok: true,
+              data: {
+                action: 'goal-executed',
+                agentProfile: {
+                  profileExists: true,
+                  agentId: 'sed-operator'
+                },
+                agentFollowup: {
+                  nextAction: 'zk-agent agent show'
+                },
+                registry: {
                   paymaster: {
-                    address: '0xpaymaster',
-                    token: '0xtoken'
+                    entryId: 'validated-paymaster'
+                  }
+                },
+                workflowRecommendedCommands: {
+                  inspectDefaults: 'zk-agent defaults'
+                },
+                run: {
+                  stage: 'goal-executed',
+                  nextCommand: 'zk-agent workflow next --request-id wf123',
+                  notes: ['preview ok'],
+                  goal: {
+                    mode: 'approval-based',
+                    paymaster: {
+                      address: '0xpaymaster',
+                      token: '0xtoken'
+                    }
                   }
                 }
               }
-            }
-          })
+            };
+          }
         }
       },
       resolveDefaultPaymasterAddress: async () => '0xpaymaster',
@@ -323,7 +329,9 @@ test('runSmokePaymasterSuccess returns the normalized preview payload', async ()
   assert.equal(payload.ok, true);
   assert.equal(payload.phase, 'preview');
   assert.equal(payload.inputs.to, '0xowner');
+  assert.equal(payload.inputs.paymasterMode, 'approval-based');
   assert.equal(payload.inputs.expectedDefaultPaymasterAddress, '0xpaymaster');
+  assert.equal(payload.inputs.expectedDefaultPaymasterToken, '0xtoken');
   assert.equal(payload.result.nextCommand, 'zk-agent workflow next --request-id wf123');
   assert.deepEqual(payload.result.agentFollowup, {
     nextAction: 'zk-agent agent show'
@@ -331,6 +339,74 @@ test('runSmokePaymasterSuccess returns the normalized preview payload', async ()
   assert.deepEqual(payload.result.recommendedCommands, {
     inspectDefaults: 'zk-agent defaults'
   });
+  assert.deepEqual((capturedInput?.goal as { paymaster?: { mode?: string } }).paymaster, {
+    mode: 'approval-based'
+  });
+});
+
+test('runSmokePaymasterSuccess supports sponsored preview without fee-token fallback', async () => {
+  let capturedInput: Record<string, unknown> | undefined;
+  let tokenFallbackLookups = 0;
+
+  const payload = await runSmokePaymasterSuccess(
+    {
+      walletName: 'sed-lite-sa-v2',
+      execute: false,
+      amount: '0.00001',
+      paymasterMode: 'sponsored'
+    },
+    {
+      context: {
+        loadWallet: async () => ({
+          walletAddress: '0xsmartaccount',
+          ownerAddress: '0xowner'
+        })
+      },
+      tools: {
+        workflowAutoTool: {
+          execute: async (input) => {
+            capturedInput = input as Record<string, unknown>;
+            return {
+              ok: true,
+              data: {
+                action: 'goal-executed',
+                registry: {
+                  paymaster: {
+                    entryId: 'zksync-sepolia-sponsored'
+                  }
+                },
+                run: {
+                  stage: 'goal-executed',
+                  goal: {
+                    mode: 'sponsored',
+                    paymaster: {
+                      address: '0xpaymaster'
+                    }
+                  }
+                }
+              }
+            };
+          }
+        }
+      },
+      resolveDefaultPaymasterAddress: async () => '0xpaymaster',
+      resolveDefaultPaymasterToken: async () => {
+        tokenFallbackLookups += 1;
+        return '0xtoken';
+      }
+    }
+  );
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'preview');
+  assert.equal(payload.inputs.paymasterMode, 'sponsored');
+  assert.equal(payload.inputs.expectedDefaultPaymasterAddress, '0xpaymaster');
+  assert.equal(payload.inputs.expectedDefaultPaymasterToken, undefined);
+  assert.equal(tokenFallbackLookups, 0);
+  assert.deepEqual((capturedInput?.goal as { paymaster?: { mode?: string } }).paymaster, {
+    mode: 'sponsored'
+  });
+  assert.equal(payload.result.registry?.paymaster?.entryId, 'zksync-sepolia-sponsored');
 });
 
 test('runSmokePaymasterSuccess fails when workflow auto does not execute the goal directly', async () => {
@@ -338,7 +414,8 @@ test('runSmokePaymasterSuccess fails when workflow auto does not execute the goa
     {
       walletName: 'main',
       execute: false,
-      amount: '0.00001'
+      amount: '0.00001',
+      paymasterMode: 'approval-based'
     },
     {
       context: {
@@ -376,7 +453,8 @@ test('runSmokePaymasterSuccess falls back to walletAddress when ownerAddress is 
     {
       walletName: 'main',
       execute: false,
-      amount: '0.00001'
+      amount: '0.00001',
+      paymasterMode: 'approval-based'
     },
     {
       context: {

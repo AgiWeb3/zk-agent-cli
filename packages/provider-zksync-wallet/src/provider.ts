@@ -401,10 +401,16 @@ function resolvePaymasterSelection(
       : 'session';
 
   if (mode === 'none') {
+    const registry = resolvePaymasterRegistryResolution({
+      chain: wallet.chain,
+      mode,
+      accountKind: wallet.accountKind
+    });
     return {
       mode,
       source,
-      supported: true
+      supported: true,
+      registry
     };
   }
 
@@ -457,7 +463,10 @@ function resolvePaymasterSelection(
     });
   }
 
-  const token = effectiveSelection?.token ?? requested?.token ?? sessionPaymaster?.token;
+  const token =
+    mode === 'approval-based'
+      ? effectiveSelection?.token ?? requested?.token ?? sessionPaymaster?.token
+      : undefined;
   if (mode === 'approval-based' && !token) {
     throw new AgentError(
       'PAYMASTER_TOKEN_REQUIRED',
@@ -474,7 +483,8 @@ function resolvePaymasterSelection(
     chain: wallet.chain,
     mode,
     paymasterAddress: address || null,
-    tokenAddress: token || null
+    tokenAddress: token || null,
+    accountKind: wallet.accountKind
   });
 
   return {
