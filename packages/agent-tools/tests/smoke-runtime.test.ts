@@ -8,10 +8,13 @@ import { runSmokePaymasterSuccess } from '../src/smoke-paymaster-success.js';
 import { runSmokeSwapSuccess } from '../src/smoke-swap-success.js';
 
 test('runSmokeOperatorPath returns a goal-executed operator summary', async () => {
+  const topLevelInvocations: Array<Record<string, unknown>> = [];
+  const workflowInvocations: Array<Record<string, unknown>> = [];
   const payload = await runSmokeOperatorPath(
     {
       walletName: 'main',
-      amount: '0.1'
+      amount: '0.1',
+      paymasterMode: 'sponsored'
     },
     {
       context: {
@@ -22,11 +25,14 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
       },
       tools: {
         topLevelNextTool: {
-          execute: async () => ({
+          execute: async (input) => {
+            topLevelInvocations.push(input as Record<string, unknown>);
+            return {
             ok: true,
             data: {
               scope: 'wallet',
-              nextCommand: 'zk-agent workflow auto --wallet main --intent <intent>',
+              nextCommand:
+                'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored',
               agentProfile: {
                 profileExists: true,
                 agentId: 'sed-operator'
@@ -35,10 +41,12 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
                 nextAction: 'zk-agent agent show'
               },
               recommendedCommands: {
-                workflowAuto: 'zk-agent workflow auto --wallet main --intent <intent>'
+                workflowAuto:
+                  'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored'
               }
             }
-          })
+          };
+          }
         },
         walletStatusTool: {
           execute: async () => ({
@@ -59,7 +67,9 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
           })
         },
         workflowAutoTool: {
-          execute: async () => ({
+          execute: async (input) => {
+            workflowInvocations.push(input as Record<string, unknown>);
+            return {
             ok: true,
             data: {
               action: 'goal-executed',
@@ -86,7 +96,8 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
                 inspectDefaults: 'zk-agent defaults'
               }
             }
-          })
+          };
+          }
         },
         workflowFundTool: {
           execute: async () => {
@@ -102,7 +113,10 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
   assert.equal(payload.recommendedCommand, 'zk-agent send --wallet main --broadcast');
   assert.equal(payload.walletName, 'main');
   assert.equal(payload.targetAddress, '0xowner');
-  assert.equal(payload.summary.topLevelNextCommand, 'zk-agent workflow auto --wallet main --intent <intent>');
+  assert.equal(
+    payload.summary.topLevelNextCommand,
+    'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored'
+  );
   assert.equal(payload.summary.workflowNextCommand, 'zk-agent send --wallet main --broadcast');
   assert.deepEqual(payload.summary.workflowAgentFollowup, {
     nextAction: 'zk-agent agent show'
@@ -110,6 +124,28 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
   assert.deepEqual(payload.summary.workflowRecommendedCommands, {
     inspectDefaults: 'zk-agent defaults'
   });
+  assert.deepEqual(topLevelInvocations, [
+    {
+      walletName: 'main',
+      paymasterMode: 'sponsored'
+    }
+  ]);
+  assert.deepEqual(workflowInvocations, [
+    {
+      walletName: 'main',
+      intent: 'send-native',
+      createCheckpoint: false,
+      executeWhenReady: true,
+      goal: {
+        intent: 'send-native',
+        to: '0xowner',
+        amount: '0.1',
+        paymaster: {
+          mode: 'sponsored'
+        }
+      }
+    }
+  ]);
 });
 
 test('runSmokeOperatorPath follows the workflow fund branch when execution is blocked on gas', async () => {

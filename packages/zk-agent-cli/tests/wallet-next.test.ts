@@ -222,6 +222,13 @@ test('wallet next supplements the tracked validated paymaster path when only app
       )
     )
   );
+  assert.ok(
+    summary.notes.some((note) =>
+      /Registry alternatives: other validated paymaster paths for smart-account on zksync-sepolia: no-paymaster, sponsored\./.test(
+        note
+      )
+    )
+  );
 });
 
 test('wallet next adds a registry note for a tracked validated paymaster path', () => {
@@ -322,6 +329,13 @@ test('wallet next adds a registry note for the tracked sponsored paymaster path'
   assert.ok(
     summary.notes.some((note) =>
       /Registry account kind: smart-account is already live-validated for this path\./.test(
+        note
+      )
+    )
+  );
+  assert.ok(
+    summary.notes.some((note) =>
+      /Registry alternatives: other validated paymaster paths for smart-account on zksync-sepolia: no-paymaster, approval-based via ZKAT \(eravm\)\./.test(
         note
       )
     )

@@ -61,6 +61,7 @@ import {
   buildAssetsRecommendedCommand,
   buildOwnedTokensRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildTopLevelNextRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletRequestApproveRecommendedCommand,
   buildWalletRequestAwaitLocalRecommendedCommand,
@@ -145,6 +146,7 @@ interface WorkflowCommandOptions {
   fundTo?: string;
   fundToken?: string;
   fundSymbol?: string;
+  fundRole?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
   fundDecimals?: string;
   fundBridgeAddress?: string;
   fundingKind?: string;
@@ -153,6 +155,7 @@ interface WorkflowCommandOptions {
   amount?: string;
   token?: string;
   symbol?: string;
+  role?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
   decimals?: string;
   data?: string;
   value?: string;
@@ -168,6 +171,8 @@ interface WorkflowCommandOptions {
   feeTier?: string;
   tokenInSymbol?: string;
   tokenOutSymbol?: string;
+  tokenInRole?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
+  tokenOutRole?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
   recipient?: string;
   sqrtPriceLimitX96?: string;
   autoApprove?: boolean;
@@ -224,6 +229,8 @@ export interface WorkflowWalletApprovalResult {
     approve: string;
     relayStatus?: string;
     relayApprove?: string;
+    afterApproval: string;
+    afterApprovalStatus: string;
   };
   wallet?: WalletSessionRecord;
   payload?: Record<string, unknown>;
@@ -268,6 +275,7 @@ interface WorkflowUpdateOptions extends WorkflowRequestIdOptions {
   fundTo?: string;
   fundToken?: string;
   fundSymbol?: string;
+  fundRole?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
   fundDecimals?: string;
   fundBridgeAddress?: string;
   clearFund?: boolean;
@@ -290,6 +298,7 @@ type WorkflowFundOptionSource = Pick<
   | 'fundTo'
   | 'fundToken'
   | 'fundSymbol'
+  | 'fundRole'
   | 'fundDecimals'
   | 'fundBridgeAddress'
 >;
@@ -438,6 +447,7 @@ async function resolveWorkflowGoalInput(
       const token = await resolveRequiredTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
+        role: options.role,
         decimals: options.decimals,
         chain: wallet.chain,
         tokenOptionLabel: '--token',
@@ -477,6 +487,7 @@ async function resolveWorkflowGoalInput(
       const tokenIn = await resolveRequiredTokenInput({
         tokenAddress: options.tokenIn,
         symbol: options.tokenInSymbol,
+        role: options.tokenInRole,
         decimals: options.tokenInDecimals,
         chain: wallet.chain,
         tokenOptionLabel: '--token-in',
@@ -486,6 +497,7 @@ async function resolveWorkflowGoalInput(
       const tokenOut = await resolveRequiredTokenInput({
         tokenAddress: options.tokenOut,
         symbol: options.tokenOutSymbol,
+        role: options.tokenOutRole,
         decimals: options.tokenOutDecimals,
         chain: wallet.chain,
         tokenOptionLabel: '--token-out',
@@ -530,6 +542,7 @@ async function resolveWorkflowGoalInput(
       const token = await resolveOptionalTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
+        role: options.role,
         decimals: options.decimals,
         chain: options.fromChain || wallet.chain,
         tokenOptionLabel: '--token',
@@ -553,6 +566,7 @@ async function resolveWorkflowGoalInput(
       const token = await resolveOptionalTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
+        role: options.role,
         decimals: options.decimals,
         chain: wallet.chain,
         tokenOptionLabel: '--token',
@@ -574,6 +588,7 @@ async function resolveWorkflowGoalInput(
       const token = await resolveOptionalTokenInput({
         tokenAddress: options.token,
         symbol: options.symbol,
+        role: options.role,
         decimals: options.decimals,
         chain: wallet.chain,
         tokenOptionLabel: '--token',
@@ -622,6 +637,7 @@ async function resolveWorkflowFundInput(
   const token = await resolveOptionalTokenInput({
     tokenAddress: options.fundToken,
     symbol: options.fundSymbol,
+    role: options.fundRole,
     decimals: options.fundDecimals,
     chain,
     tokenOptionLabel: '--fund-token',
@@ -647,6 +663,7 @@ function hasWorkflowFundOverride(options: WorkflowFundOptionSource): boolean {
       options.fundTo ||
       options.fundToken ||
       options.fundSymbol ||
+      options.fundRole ||
       options.fundDecimals ||
       options.fundBridgeAddress
   );
@@ -971,7 +988,12 @@ export async function ensureWorkflowWalletSession(
     : undefined;
   const recommendedCommands: NonNullable<WorkflowWalletApprovalResult['recommendedCommands']> = {
     awaitLocal: nextCommand,
-    approve: buildWalletRequestApproveRecommendedCommand(walletRequest.requestId)
+    approve: buildWalletRequestApproveRecommendedCommand(walletRequest.requestId),
+    afterApproval: buildTopLevelNextRecommendedCommand(
+      undefined,
+      walletRequest.requestedPaymasterMode
+    ),
+    afterApprovalStatus: buildWalletStatusRecommendedCommand(walletRequest.walletName)
   };
 
   if (relayUrl) {
@@ -1079,6 +1101,8 @@ function workflowWalletApprovalLines(
     if (walletApproval.recommendedCommands.relayApprove) {
       lines.push(['next relay approve', walletApproval.recommendedCommands.relayApprove]);
     }
+    lines.push(['after approval', walletApproval.recommendedCommands.afterApproval]);
+    lines.push(['after approval status', walletApproval.recommendedCommands.afterApprovalStatus]);
   }
 
   return lines;
@@ -1690,12 +1714,14 @@ function buildWorkflowTokenErrorRecommendedCommands(error: AgentError): {
 } {
   const chain = typeof error.details?.chain === 'string' ? error.details.chain : undefined;
   const symbol = typeof error.details?.symbol === 'string' ? error.details.symbol : undefined;
+  const role = typeof error.details?.role === 'string' ? error.details.role : undefined;
   const tokenAddress =
     typeof error.details?.tokenAddress === 'string' ? error.details.tokenAddress : undefined;
 
   const discoverParts = ['zk-agent', 'tokens'];
   if (chain) discoverParts.push('--chain', chain);
   if (symbol) discoverParts.push('--symbol', symbol);
+  if (role) discoverParts.push('--role', role);
 
   const inspectParts = ['zk-agent', 'resolve-token'];
   if (chain) {
@@ -1705,6 +1731,9 @@ function buildWorkflowTokenErrorRecommendedCommands(error: AgentError): {
     inspectParts.push('--address', tokenAddress);
   } else if (symbol) {
     inspectParts.push('--symbol', symbol);
+  }
+  if (role && !tokenAddress) {
+    inspectParts.push('--role', role);
   }
 
   return {
@@ -1792,6 +1821,7 @@ function addWorkflowGoalOptions(
         'Optional funding token address. Also optional when --fund-symbol resolves from the configured token registry'
       )
       .option('--fund-symbol <symbol>', 'Optional funding token symbol or token-registry lookup key')
+      .option('--fund-role <role>', 'Optional defaults-registry role filter for funding symbol-based token resolution')
       .option('--fund-decimals <value>', 'Optional funding token decimals')
       .option('--fund-bridge-address <address>', 'Optional funding bridge override');
   }
@@ -1859,6 +1889,7 @@ function addWorkflowGoalOptions(
       'Token address for send-token, bridge, deposit, or withdraw. Optional when the relevant symbol resolves from the configured token registry'
     )
     .option('--symbol <symbol>', 'Optional token symbol. Also used for token-registry lookup when tokenized intents omit --token')
+    .option('--role <role>', 'Optional defaults-registry role filter for symbol-based token resolution')
     .option('--decimals <value>', 'Optional token decimals when not found in the configured token registry')
     .option('--data <hex>', 'Hex call data for call-write')
     .option('--value <wei>', 'Optional call value for call-write')
@@ -1889,6 +1920,8 @@ function addWorkflowGoalOptions(
     .option('--fee-tier <value>', 'Uniswap V3 fee tier')
     .option('--token-in-symbol <symbol>', 'Swap input token symbol or token-registry lookup key')
     .option('--token-out-symbol <symbol>', 'Swap output token symbol or token-registry lookup key')
+    .option('--token-in-role <role>', 'Optional defaults-registry role filter for input symbol-based token resolution')
+    .option('--token-out-role <role>', 'Optional defaults-registry role filter for output symbol-based token resolution')
     .option('--recipient <address>', 'Swap recipient override')
     .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
     .option('--auto-approve', 'Allow swap to send an approval transaction before the swap if needed', false)
@@ -2211,8 +2244,8 @@ const WORKFLOW_HELP_COMMAND_ORDER = [
 ] as const;
 
 function applyWorkflowHelpCommandOrder(workflow: Command): void {
-  const order = new Map(WORKFLOW_HELP_COMMAND_ORDER.map((name, index) => [name, index]));
-  workflow.commands.sort((left, right) => {
+  const order = new Map<string, number>(WORKFLOW_HELP_COMMAND_ORDER.map((name, index) => [name, index]));
+  const sortedCommands = [...workflow.commands].sort((left: Command, right: Command) => {
     const leftOrder = order.get(left.name()) ?? Number.MAX_SAFE_INTEGER;
     const rightOrder = order.get(right.name()) ?? Number.MAX_SAFE_INTEGER;
     if (leftOrder !== rightOrder) {
@@ -2221,6 +2254,7 @@ function applyWorkflowHelpCommandOrder(workflow: Command): void {
 
     return left.name().localeCompare(right.name());
   });
+  ((workflow as unknown) as { commands: Command[] }).commands = sortedCommands;
 }
 
 export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Command {
@@ -2375,6 +2409,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     .option('--fund-to <address>', 'Replace the stored funding recipient override')
     .option('--fund-token <address>', 'Replace the stored funding token address')
     .option('--fund-symbol <symbol>', 'Replace the stored funding token symbol')
+    .option('--fund-role <role>', 'Replace the stored funding token role filter')
     .option('--fund-decimals <value>', 'Replace the stored funding token decimals')
     .option('--fund-bridge-address <address>', 'Replace the stored funding bridge override')
     .option('--clear-fund', 'Remove the stored separate funding payload', false)

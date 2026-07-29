@@ -1,20 +1,32 @@
 import {
   AgentError,
+  REGISTRY_TOKEN_ROLES,
+  isRegistryTokenRole,
   inspectDefaultTokenRegistry,
   resolveChain,
+  type RegistryTokenRole,
+  type TokenRegistrySourceDescriptor,
   type TokenRegistryInspectionResult
 } from '@zk-agent/agent-core';
 
 import { createAgentTool, requireWalletRecord } from './tool-helpers.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
+import {
+  buildDiscoveryToolRecommendedCommands,
+  type DiscoveryToolRecommendedCommands
+} from './workflow-followups.js';
 
 export interface ResolveTokenToolInput extends Partial<WalletNameInput> {
   chain?: string;
   symbol?: string;
   address?: string;
+  role?: string;
+  source?: TokenRegistrySourceDescriptor['id'];
 }
 
-export type ResolveTokenToolOutput = TokenRegistryInspectionResult;
+export interface ResolveTokenToolOutput extends TokenRegistryInspectionResult {
+  recommendedCommands: DiscoveryToolRecommendedCommands;
+}
 
 export function createResolveTokenTool(context: AgentToolContext) {
   return createAgentTool<ResolveTokenToolInput, ResolveTokenToolOutput>({
@@ -45,6 +57,8 @@ export function createResolveTokenTool(context: AgentToolContext) {
       }
 
       let chainId: number;
+      const role = normalizeRole(input.role);
+      const source = normalizeSource(input.source);
 
       if (input.chain?.trim()) {
         chainId = resolveChain(input.chain.trim()).chainId;
@@ -62,11 +76,53 @@ export function createResolveTokenTool(context: AgentToolContext) {
         );
       }
 
-      return inspectDefaultTokenRegistry({
+      const result = await inspectDefaultTokenRegistry({
         chainId,
         symbol: input.symbol,
-        address: input.address
+        address: input.address,
+        role,
+        source
       });
+
+      return {
+        ...result,
+        recommendedCommands: buildDiscoveryToolRecommendedCommands({
+          walletName: input.walletName?.trim() || undefined,
+          chain: result.chainKey,
+          tokenSymbol: result.queryType === 'symbol' ? result.symbol : undefined,
+          tokenRole: result.role,
+          tokenSource: result.source,
+          includeInspectToken: false
+        })
+      };
     }
   });
+}
+
+function normalizeRole(value: string | undefined): RegistryTokenRole | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (isRegistryTokenRole(trimmed)) return trimmed;
+
+  throw new AgentError('TOKEN_REGISTRY_ROLE_INVALID', `Unsupported role: ${trimmed}`, {
+    toolName: 'resolveTokenTool',
+    suggestedAction: `Pass role as one of: ${REGISTRY_TOKEN_ROLES.join(', ')}.`
+  });
+}
+
+function normalizeSource(
+  value: string | undefined
+): TokenRegistrySourceDescriptor['id'] | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed === 'local-deployments' || trimmed === 'token-directory') return trimmed;
+
+  throw new AgentError(
+    'TOKEN_DISCOVERY_SOURCE_INVALID',
+    `Unsupported source: ${trimmed}`,
+    {
+      toolName: 'resolveTokenTool',
+      suggestedAction: 'Pass source as local-deployments or token-directory.'
+    }
+  );
 }

@@ -88,6 +88,7 @@ import {
   type CallPolicy,
   type EncryptedPayload,
   type Limit,
+  type RelayCreateResponse,
   type RelayCreateRequest,
   type RelayStatusResponse,
   type SessionPayload,
@@ -182,8 +183,8 @@ const WALLET_SMART_ACCOUNT_HELP_COMMAND_ORDER = [
 ] as const;
 
 function applyCommandOrder(command: Command, orderedNames: readonly string[]): void {
-  const order = new Map(orderedNames.map((name, index) => [name, index]));
-  command.commands.sort((left, right) => {
+  const order = new Map<string, number>(orderedNames.map((name, index) => [name, index]));
+  const sortedCommands = [...command.commands].sort((left: Command, right: Command) => {
     const leftOrder = order.get(left.name()) ?? Number.MAX_SAFE_INTEGER;
     const rightOrder = order.get(right.name()) ?? Number.MAX_SAFE_INTEGER;
     if (leftOrder !== rightOrder) {
@@ -192,6 +193,7 @@ function applyCommandOrder(command: Command, orderedNames: readonly string[]): v
 
     return left.name().localeCompare(right.name());
   });
+  ((command as unknown) as { commands: Command[] }).commands = sortedCommands;
 }
 
 export function sanitizeSessionPayload(payload?: SessionPayload): Record<string, unknown> | undefined {
@@ -219,11 +221,13 @@ export function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string
   };
 }
 
-function relayOutputAliases(relay: RelayStatusResponse | undefined) {
+function relayOutputAliases(relay: RelayCreateResponse | RelayStatusResponse | undefined) {
+  const shareUrl = relay && 'share_url' in relay ? relay.share_url : undefined;
+  const statusUrl = relay && 'status_url' in relay ? relay.status_url : undefined;
   return {
     relayRequestId: relay?.request_id,
-    relayShareUrl: relay?.share_url,
-    relayStatusUrl: relay?.status_url,
+    relayShareUrl: shareUrl,
+    relayStatusUrl: statusUrl,
     relayApprovalUrl: relay?.approval_url
   };
 }
@@ -1916,7 +1920,8 @@ function buildWalletFollowUpNextAction(walletRecord: WalletSessionRecord): strin
 function buildPendingRequestRecommendedCommands(
   walletName: string,
   requestId: string,
-  relayUrl?: string
+  relayUrl?: string,
+  paymasterMode?: PaymasterMode
 ): {
   awaitLocal: string;
   approve: string;
@@ -1934,7 +1939,7 @@ function buildPendingRequestRecommendedCommands(
           relayApprove: buildWalletRequestRelayApproveRecommendedCommand(requestId, relayUrl)
         }
       : {}),
-    afterApproval: buildTopLevelNextRecommendedCommand(),
+    afterApproval: buildTopLevelNextRecommendedCommand(undefined, paymasterMode),
     afterApprovalStatus: buildWalletStatusRecommendedCommand(walletName)
   };
 }
@@ -1947,7 +1952,8 @@ function buildPendingRequestNextAction(
 
 function buildRequestListEntryRecommendedCommands(
   walletName: string,
-  requestId: string
+  requestId: string,
+  paymasterMode?: PaymasterMode
 ): {
   show: string;
   afterApproval: string;
@@ -1955,7 +1961,7 @@ function buildRequestListEntryRecommendedCommands(
 } {
   return {
     show: buildWalletRequestShowRecommendedCommand(requestId),
-    afterApproval: buildTopLevelNextRecommendedCommand(),
+    afterApproval: buildTopLevelNextRecommendedCommand(undefined, paymasterMode),
     afterApprovalStatus: buildWalletStatusRecommendedCommand(walletName)
   };
 }
@@ -2622,7 +2628,8 @@ async function printWalletRequestList(): Promise<void> {
         nextAction: buildRequestListEntryNextAction(request.walletName, request.requestId),
         recommendedCommands: buildRequestListEntryRecommendedCommands(
           request.walletName,
-          request.requestId
+          request.requestId,
+          request.requestedPaymasterMode
         )
       }))
     });
@@ -2904,7 +2911,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       const recommendedCommands = buildPendingRequestRecommendedCommands(
         request.walletName,
         request.requestId,
-        options.relayUrl
+        options.relayUrl,
+        request.requestedPaymasterMode
       );
 
       printResult(
@@ -3104,7 +3112,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       const recommendedCommands = buildPendingRequestRecommendedCommands(
         request.walletName,
         request.requestId,
-        options.relayUrl
+        options.relayUrl,
+        request.requestedPaymasterMode
       );
 
       printResult(
@@ -3460,7 +3469,12 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       }
       const recommendedCommands =
         status === 'pending'
-          ? buildPendingRequestRecommendedCommands(walletRequest.walletName, walletRequest.requestId)
+          ? buildPendingRequestRecommendedCommands(
+              walletRequest.walletName,
+              walletRequest.requestId,
+              undefined,
+              walletRequest.requestedPaymasterMode
+            )
           : undefined;
 
       printResult(

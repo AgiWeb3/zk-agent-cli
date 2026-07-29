@@ -1,11 +1,27 @@
+import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
+import type { RegistryTokenRole, TokenRegistrySourceDescriptor } from '@zk-agent/agent-core';
+
+function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): string {
+  if (!paymasterMode || paymasterMode === 'none') {
+    return command;
+  }
+
+  return `${command} --paymaster-mode ${paymasterMode}`;
+}
+
 export function buildDefaultsRecommendedCommand(): string {
   return 'zk-agent defaults';
 }
 
-export function buildTopLevelNextRecommendedCommand(requestId?: string): string {
-  return requestId
+export function buildTopLevelNextRecommendedCommand(
+  requestId?: string,
+  paymasterMode?: PaymasterMode
+): string {
+  const command = requestId
     ? `zk-agent next --request-id ${requestId}`
     : 'zk-agent next';
+
+  return appendPaymasterMode(command, paymasterMode);
 }
 
 export function buildWalletCreateRecommendedCommand(): string {
@@ -28,12 +44,81 @@ export function buildOwnedTokensRecommendedCommand(walletName: string): string {
   return `zk-agent tokens --wallet ${walletName} --owned`;
 }
 
-export function buildTokensRecommendedCommand(chain: string): string {
-  return `zk-agent tokens --chain ${chain}`;
+export function buildTokensRecommendedCommand(
+  chain: string,
+  symbol?: string,
+  role?: RegistryTokenRole,
+  source?: TokenRegistrySourceDescriptor['id']
+): string {
+  const command = `zk-agent tokens --chain ${chain}`;
+  const withSymbol = symbol?.trim() ? `${command} --symbol ${symbol.trim()}` : command;
+  const withRole = role ? `${withSymbol} --role ${role}` : withSymbol;
+  return source ? `${withRole} --source ${source}` : withRole;
 }
 
-export function buildResolveTokenRecommendedCommand(chain: string): string {
-  return `zk-agent resolve-token --chain ${chain} --symbol <symbol>`;
+export function buildResolveTokenRecommendedCommand(
+  chain: string,
+  symbol?: string,
+  role?: RegistryTokenRole,
+  source?: TokenRegistrySourceDescriptor['id']
+): string {
+  const command = `zk-agent resolve-token --chain ${chain} --symbol ${symbol?.trim() || '<symbol>'}`;
+  const withRole = role ? `${command} --role ${role}` : command;
+  return source ? `${withRole} --source ${source}` : withRole;
+}
+
+export interface DiscoveryRecommendedCommands {
+  inspectDefaults: string;
+  discoverAssets?: string;
+  discoverOwnedTokens?: string;
+  discoverTokens?: string;
+  inspectToken?: string;
+}
+
+export function buildDiscoveryRecommendedCommands(input: {
+  walletName?: string;
+  chain: string;
+  tokenSymbol?: string;
+  tokenRole?: RegistryTokenRole;
+  tokenSource?: TokenRegistrySourceDescriptor['id'];
+  includeAssets?: boolean;
+  includeOwnedTokens?: boolean;
+  includeTokens?: boolean;
+  includeInspectToken?: boolean;
+}): DiscoveryRecommendedCommands {
+  return {
+    inspectDefaults: buildDefaultsRecommendedCommand(),
+    ...(input.walletName && input.includeAssets !== false
+      ? {
+          discoverAssets: buildAssetsRecommendedCommand(input.walletName)
+        }
+      : {}),
+    ...(input.walletName && input.includeOwnedTokens !== false
+      ? {
+          discoverOwnedTokens: buildOwnedTokensRecommendedCommand(input.walletName)
+        }
+      : {}),
+    ...(input.includeTokens !== false
+      ? {
+          discoverTokens: buildTokensRecommendedCommand(
+            input.chain,
+            input.tokenSymbol,
+            input.tokenRole,
+            input.tokenSource
+          )
+        }
+      : {}),
+    ...(input.includeInspectToken !== false
+      ? {
+          inspectToken: buildResolveTokenRecommendedCommand(
+            input.chain,
+            input.tokenSymbol,
+            input.tokenRole,
+            input.tokenSource
+          )
+        }
+      : {})
+  };
 }
 
 export function buildWalletReapproveRecommendedCommand(walletName: string): string {

@@ -9,12 +9,18 @@ import {
   type ExtendedGetBalancesToolOutput
 } from './get-balances-tool.js';
 import type { AgentToolContext, WalletNameInput } from './types.js';
+import {
+  buildDiscoveryToolRecommendedCommands,
+  type DiscoveryToolRecommendedCommands
+} from './workflow-followups.js';
 
 export interface GetAssetsToolInput extends WalletNameInput {
   chain?: string;
 }
 
-export type GetAssetsToolOutput = ExtendedGetBalancesToolOutput;
+export interface GetAssetsToolOutput extends ExtendedGetBalancesToolOutput {
+  recommendedCommands: DiscoveryToolRecommendedCommands;
+}
 
 export function createGetAssetsTool(context: AgentToolContext) {
   return createAgentTool<GetAssetsToolInput, GetAssetsToolOutput>({
@@ -42,7 +48,14 @@ export function createGetAssetsTool(context: AgentToolContext) {
           );
         }
 
-        return result;
+        return {
+          ...result,
+          recommendedCommands: buildDiscoveryToolRecommendedCommands({
+            walletName: wallet.walletName,
+            chain: result.chain,
+            includeAssets: false
+          })
+        };
       })
   });
 }

@@ -77,8 +77,8 @@ const ROOT_HELP_COMMAND_ORDER = [
 ] as const;
 
 function applyRootHelpCommandOrder(program: Command): void {
-  const order = new Map(ROOT_HELP_COMMAND_ORDER.map((name, index) => [name, index]));
-  program.commands.sort((left, right) => {
+  const order = new Map<string, number>(ROOT_HELP_COMMAND_ORDER.map((name, index) => [name, index]));
+  const sortedCommands = [...program.commands].sort((left: Command, right: Command) => {
     const leftOrder = order.get(left.name()) ?? Number.MAX_SAFE_INTEGER;
     const rightOrder = order.get(right.name()) ?? Number.MAX_SAFE_INTEGER;
     if (leftOrder !== rightOrder) {
@@ -87,6 +87,7 @@ function applyRootHelpCommandOrder(program: Command): void {
 
     return left.name().localeCompare(right.name());
   });
+  ((program as unknown) as { commands: Command[] }).commands = sortedCommands;
 }
 
 function createProgram(): Command {

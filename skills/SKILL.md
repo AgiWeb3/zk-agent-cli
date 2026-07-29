@@ -41,6 +41,12 @@ For detailed action-path reference, also read:
 pnpm zk-agent <command>
 ```
 
+- packaged CLI release target:
+
+```bash
+npx @zk-agent/cli <command>
+```
+
 Storage is local-first and encrypted at rest under:
 
 ```text
@@ -73,6 +79,13 @@ This creates local config and records the default chain and connector URL.
 
 ```bash
 pnpm zk-agent next
+```
+
+When you need the wallet-scoped recommendation path to stay on a specific fee
+mode instead of inheriting the stored wallet default:
+
+```bash
+pnpm zk-agent next --paymaster-mode sponsored
 ```
 
 If you want the local operator identity to be explicit and portable instead of
@@ -370,13 +383,29 @@ Use `pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC` when you want
 to inspect all discoverable entries for one symbol before choosing an explicit
 token address.
 
+Use `pnpm zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`
+when one symbol maps to multiple local entries and you only want the token that
+currently fills one tracked defaults-registry role.
+
+Add `--source local-deployments|token-directory` when you want to stay inside
+one discovery source instead of the merged local-first view. The suggested
+follow-up commands now preserve that source filter too.
+
 Use `pnpm zk-agent tokens --wallet main --owned` when you want the stored
 wallet's currently held registry-backed ERC-20 assets on its active chain.
-Treat this as the narrower ERC-20 subset view; for the default asset view,
-start with `assets`.
+That owned-token view now also includes shared-bridge mapping status plus a
+structured summary of source counts, bridge-mapping counts, and tracked
+registry-role counts. Treat this as the narrower ERC-20 subset view; for the
+default asset view, start with `assets`.
 
 Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need a direct token-resolution check before running a tokenized command.
+
+Add `--role swap-token-a|swap-token-b|paymaster-fee-token` when you need that
+resolution narrowed to one tracked default role instead of the whole symbol set.
+
+Add `--source local-deployments|token-directory` when you need to confirm one
+source-specific resolution path only.
 
 ### Built-in smart-account profiles
 
@@ -513,7 +542,9 @@ sandbox:
 
 ## What not to assume
 
-- there is no published npm package for this repo documented here
+- the packaged CLI target is `@zk-agent/cli`, but this skill does not assume a
+  public npm release has already been cut; when operating inside this repo,
+  keep using `pnpm zk-agent ...`
 - there is only a local hosted relay prototype; it is file-backed and suitable for development, not a production multi-tenant relay service
 - there is no broad identity or reputation product layer yet
 - there is no guarantee that custom local ERC-20 assets can bridge through the

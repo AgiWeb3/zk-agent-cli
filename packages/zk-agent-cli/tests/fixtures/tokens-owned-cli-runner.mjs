@@ -53,10 +53,25 @@ await saveWalletSession({
 
 const usdcAddress = '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const usdtAddress = '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+const sharedBridgeL2Address = '0x0000000000000000000000000000000000010003';
+const l1TokenAddressSelector = '0xf54266a2';
+const canonicalUsdcL1 = '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC';
 
 const provider = {
   async call(input) {
     const target = input.to.toLowerCase();
+    if (target === sharedBridgeL2Address.toLowerCase() && input.data.startsWith(l1TokenAddressSelector)) {
+      const tokenAddress = `0x${input.data.slice(-40)}`.toLowerCase();
+      const mappedAddress =
+        tokenAddress === usdcAddress.toLowerCase() ? canonicalUsdcL1.toLowerCase() : '0x0000000000000000000000000000000000000000';
+
+      return {
+        ...input,
+        chainId: 300,
+        result: `0x${mappedAddress.slice(2).padStart(64, '0')}`
+      };
+    }
+
     const rawBalance =
       target === usdcAddress.toLowerCase() ? 1230000n
       : target === usdtAddress.toLowerCase() ? 0n

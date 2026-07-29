@@ -41,7 +41,9 @@ test('buildOperatorPathSummary preserves agent and workflow follow-up fields', (
       share_url: 'http://127.0.0.1:4445/r/req123'
     },
     walletApprovalRecommendedCommands: {
-      awaitLocal: 'zk-agent wallet request await-local --request-id req123'
+      awaitLocal: 'zk-agent wallet request await-local --request-id req123',
+      afterApproval: 'zk-agent next',
+      afterApprovalStatus: 'zk-agent wallet status --name main'
     },
     workflowRecommendedCommands: {
       inspectDefaults: 'zk-agent defaults'

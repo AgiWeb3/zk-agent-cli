@@ -13,6 +13,7 @@ import {
 import { loadAgentIdentitySummary } from '@zk-agent/plugin-identity';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
+import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 
 import { agentFollowupLines, buildAgentFollowup } from '../lib/agent-followup.js';
 import { agentProfileLines } from '../lib/agent-profile.js';
@@ -49,6 +50,7 @@ interface NextCommandDeps {
 interface NextCommandOptions {
   wallet?: string;
   requestId?: string;
+  paymasterMode?: string;
 }
 
 function workflowIntentSupportsTokenDiscovery(intent: string): boolean {
@@ -106,6 +108,11 @@ function buildTopLevelNextRecommendedCommand(requestId?: string): string {
   return requestId ? `zk-agent next --request-id ${requestId}` : 'zk-agent next';
 }
 
+function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): string {
+  if (!paymasterMode) return command;
+  return `${command} --paymaster-mode ${paymasterMode}`;
+}
+
 function topLevelNextLines(
   scope: 'setup' | 'wallet-bootstrap' | 'wallet' | 'workflow',
   lines: Array<[string, string]>
@@ -139,8 +146,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
     .addHelpText('after', buildNextHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--request-id <id>', 'Stored workflow checkpoint id')
+    .option('--paymaster-mode <mode>', 'none, sponsored, or approval-based')
     .action(async (options: NextCommandOptions) => {
       const walletName = options.wallet?.trim() || 'main';
+      const paymasterMode = options.paymasterMode
+        ? parsePaymasterMode(options.paymasterMode)
+        : undefined;
       const agentProfile = await loadAgentIdentitySummary(walletName);
       const defaultAgentFollowup = buildAgentFollowup(agentProfile, {
         walletName,
@@ -258,8 +269,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
       const wallet = await loadWalletSession(walletName);
       if (!wallet) {
         const recommendedCommands = {
-          createWallet: buildWalletCreateRecommendedCommand(),
-          afterApproval: buildTopLevelNextRecommendedCommand(),
+          createWallet: appendPaymasterMode(
+            buildWalletCreateRecommendedCommand(),
+            paymasterMode
+          ),
+          afterApproval: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
 
@@ -311,7 +325,10 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         funding
       });
 
-      const workflowAuto = buildWorkflowAutoRecommendedCommand(wallet.walletName);
+      const workflowAuto = appendPaymasterMode(
+        buildWorkflowAutoRecommendedCommand(wallet.walletName),
+        paymasterMode
+      );
       const nextCommand = summary.recommendedCommand || workflowAuto;
       const agentFollowup = buildAgentFollowup(agentProfile, {
         walletName: wallet.walletName,
@@ -354,4 +371,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         }
       );
     });
+}
+
+function parsePaymasterMode(value: string): PaymasterMode {
+  if (value === 'none' || value === 'sponsored' || value === 'approval-based') {
+    return value;
+  }
+
+  throw new Error(`Unsupported paymaster mode: ${value}`);
 }

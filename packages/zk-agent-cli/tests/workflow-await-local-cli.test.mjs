@@ -605,7 +605,9 @@ test('workflow status can emit relay follow-up commands through commander when r
       relayStatus:
         'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445',
       relayApprove:
-        'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code> --wait'
+        'zk-agent wallet request approve --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445 --code <code> --wait',
+      afterApproval: 'zk-agent next',
+      afterApprovalStatus: 'zk-agent wallet status --name main'
     });
     assert.deepEqual(
       result.walletApprovalRecommendedCommands,

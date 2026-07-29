@@ -73,6 +73,32 @@ test('recommended token discovery commands include wallet or chain context', () 
     buildResolveTokenRecommendedCommand('zksync-sepolia'),
     'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
   );
+  assert.equal(
+    buildTokensRecommendedCommand('zksync-sepolia', 'USDC'),
+    'zk-agent tokens --chain zksync-sepolia --symbol USDC'
+  );
+  assert.equal(
+    buildResolveTokenRecommendedCommand('zksync-sepolia', 'USDC'),
+    'zk-agent resolve-token --chain zksync-sepolia --symbol USDC'
+  );
+  assert.equal(
+    buildTokensRecommendedCommand(
+      'zksync-sepolia',
+      'USDC',
+      'paymaster-fee-token',
+      'token-directory'
+    ),
+    'zk-agent tokens --chain zksync-sepolia --symbol USDC --role paymaster-fee-token --source token-directory'
+  );
+  assert.equal(
+    buildResolveTokenRecommendedCommand(
+      'zksync-sepolia',
+      'USDC',
+      'paymaster-fee-token',
+      'token-directory'
+    ),
+    'zk-agent resolve-token --chain zksync-sepolia --symbol USDC --role paymaster-fee-token --source token-directory'
+  );
 });
 
 test('recommended wallet reapprove command includes await-local flow', () => {

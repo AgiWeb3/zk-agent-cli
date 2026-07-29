@@ -5,7 +5,9 @@ import type {
   WalletSessionRecord
 } from './providers.js';
 import {
+  buildPaymasterRegistryCatalogNotes,
   buildPaymasterRegistryNotes,
+  loadValidatedDefaults,
   resolvePaymasterRegistryResolution,
   resolveTrackedPaymasterSelection
 } from './validated-defaults.js';
@@ -273,6 +275,7 @@ export function buildWalletNextSummary(input: {
   const notes: string[] = [];
   const paymasterCanCoverGas =
     isZeroBalance(input.nativeBalance) && canUsePaymasterForGas(wallet);
+  const defaults = paymasterCanCoverGas ? loadValidatedDefaults() : undefined;
   const actions = buildWalletPreparationActions({
     ...input,
     paymasterCanCoverGas
@@ -289,7 +292,18 @@ export function buildWalletNextSummary(input: {
         mode: paymaster?.mode,
         paymasterAddress: paymaster?.address,
         tokenAddress: paymaster?.token,
-        accountKind: inspection.accountKind
+        accountKind: inspection.accountKind,
+        defaults
+      })
+    );
+    notes.push(
+      ...buildPaymasterRegistryCatalogNotes({
+        chain: inspection.chain,
+        mode: paymaster?.mode,
+        paymasterAddress: paymaster?.address,
+        tokenAddress: paymaster?.token,
+        accountKind: inspection.accountKind,
+        defaults
       })
     );
   }

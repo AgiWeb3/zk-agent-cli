@@ -221,7 +221,9 @@ test('ensureWorkflowWalletSession creates a local wallet request and overrides t
   );
   assert.deepEqual(result.walletApproval?.recommendedCommands, {
     awaitLocal: 'zk-agent wallet request await-local --request-id req12345',
-    approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json'
+    approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json',
+    afterApproval: 'zk-agent next',
+    afterApprovalStatus: 'zk-agent wallet status --name main'
   });
 });
 
@@ -335,7 +337,9 @@ test('ensureWorkflowWalletSession prefers relay status guidance after relay auto
     awaitLocal: 'zk-agent wallet request await-local --request-id req12345',
     approve: 'zk-agent wallet request approve --request-id req12345 --payload @approved-session.json',
     relayStatus: 'zk-agent wallet request relay-status --request-id req12345 --relay-url http://127.0.0.1:4445',
-    relayApprove: 'zk-agent wallet request approve --request-id req12345 --relay-url http://127.0.0.1:4445 --code <code> --wait'
+    relayApprove: 'zk-agent wallet request approve --request-id req12345 --relay-url http://127.0.0.1:4445 --code <code> --wait',
+    afterApproval: 'zk-agent next',
+    afterApprovalStatus: 'zk-agent wallet status --name main'
   });
 });
 

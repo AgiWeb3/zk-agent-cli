@@ -8,6 +8,7 @@ import {
   type WorkflowCheckpointRecord,
   type WorkflowStatusResult
 } from '@zk-agent/agent-core';
+import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 
 import { loadToolAgentProfileSummary } from './agent-profile-summary.js';
 import { buildAgentProfileFollowup, type AgentProfileFollowup } from './agent-profile-followup.js';
@@ -19,6 +20,7 @@ import type { AgentToolContext } from './types.js';
 export interface TopLevelNextToolInput {
   walletName?: string;
   requestId?: string;
+  paymasterMode?: PaymasterMode;
 }
 
 export interface TopLevelNextToolOutputSetup {
@@ -141,8 +143,21 @@ function buildResolveTokenCommand(chain: string): string {
   return `zk-agent resolve-token --chain ${chain} --symbol <symbol>`;
 }
 
-function buildWorkflowAutoCommand(walletName: string): string {
-  return `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] --create-checkpoint --execute-when-ready`;
+function buildWorkflowAutoCommand(walletName: string, paymasterMode?: PaymasterMode): string {
+  let command =
+    `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] ` +
+    '--create-checkpoint --execute-when-ready';
+
+  if (paymasterMode) {
+    command += ` --paymaster-mode ${paymasterMode}`;
+  }
+
+  return command;
+}
+
+function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): string {
+  if (!paymasterMode) return command;
+  return `${command} --paymaster-mode ${paymasterMode}`;
 }
 
 export function createTopLevelNextTool(context: AgentToolContext) {
@@ -225,12 +240,12 @@ export function createTopLevelNextTool(context: AgentToolContext) {
         return {
           scope: 'wallet-bootstrap',
           walletName,
-          nextCommand: buildWalletCreateCommand(),
+          nextCommand: appendPaymasterMode(buildWalletCreateCommand(), input.paymasterMode),
           agentProfile,
           agentFollowup: defaultAgentFollowup,
           recommendedCommands: {
-            createWallet: buildWalletCreateCommand(),
-            afterApproval: buildTopLevelNextCommand(),
+            createWallet: appendPaymasterMode(buildWalletCreateCommand(), input.paymasterMode),
+            afterApproval: appendPaymasterMode(buildTopLevelNextCommand(), input.paymasterMode),
             inspectDefaults: buildDefaultsCommand()
           }
         };
@@ -258,7 +273,7 @@ export function createTopLevelNextTool(context: AgentToolContext) {
         nativeSymbol: nativeBalance?.symbol,
         funding
       });
-      const workflowAuto = buildWorkflowAutoCommand(wallet.walletName);
+      const workflowAuto = buildWorkflowAutoCommand(wallet.walletName, input.paymasterMode);
       const nextCommand = summary.recommendedCommand || workflowAuto;
 
       return {

@@ -1,8 +1,10 @@
 import {
   AgentError,
   createDefaultTokenRegistry,
+  findDefaultsRegistryTokenMatches,
   resolveChain,
-  resolveLocalTokenMetadata
+  resolveLocalTokenMetadata,
+  type RegistryTokenRole
 } from '@zk-agent/agent-core';
 
 export interface ResolvedTokenInput {
@@ -14,6 +16,7 @@ export interface ResolvedTokenInput {
 export interface TokenInputResolutionOptions {
   tokenAddress?: string;
   symbol?: string;
+  role?: RegistryTokenRole;
   decimals?: string;
   chain?: string;
   tokenOptionLabel: string;
@@ -49,11 +52,13 @@ export function resolveOptionalLabel(value: string | undefined): string | undefi
 
 function buildTokenDiscoveryCommand(
   chain: string | undefined,
-  symbol: string | undefined
+  symbol: string | undefined,
+  role: RegistryTokenRole | undefined
 ): string {
   const parts = ['zk-agent', 'tokens'];
   if (chain) parts.push('--chain', chain);
   if (symbol) parts.push('--symbol', symbol);
+  if (role) parts.push('--role', role);
   return parts.join(' ');
 }
 
@@ -128,16 +133,26 @@ export async function resolveRequiredTokenInput(
         chain: options.chain,
         suggestedAction: `Pass ${options.tokenOptionLabel} <address> explicitly or inspect discoverable tokens with ${buildTokenDiscoveryCommand(
           options.chain,
-          undefined
+          undefined,
+          options.role
         )}.`
       }
     );
   }
 
   const matches = chainId ? await registry.findBySymbol(chainId, explicitSymbol) : [];
+  const filteredMatches =
+    options.role
+      ? matches.filter((match) =>
+          findDefaultsRegistryTokenMatches({
+            chain: chainId || options.chain || 'zksync-sepolia',
+            address: match.address
+          }).some((roleMatch) => roleMatch.role === options.role)
+        )
+      : matches;
 
-  if (matches.length === 0) {
-    const discoveryCommand = buildTokenDiscoveryCommand(options.chain, explicitSymbol);
+  if (filteredMatches.length === 0) {
+    const discoveryCommand = buildTokenDiscoveryCommand(options.chain, explicitSymbol, options.role);
     throw new AgentError(
       'TOKEN_RESOLUTION_NOT_FOUND',
       `${options.tokenOptionLabel} is required unless ${options.symbolOptionLabel} resolves from the configured token registry for ${
@@ -146,13 +161,14 @@ export async function resolveRequiredTokenInput(
       {
         chain: options.chain,
         symbol: explicitSymbol,
+        role: options.role,
         suggestedAction: `Inspect discoverable tokens with ${discoveryCommand}, then retry with ${options.tokenOptionLabel} <address> if needed.`
       }
     );
   }
 
-  if (matches.length > 1) {
-    const discoveryCommand = buildTokenDiscoveryCommand(options.chain, explicitSymbol);
+  if (filteredMatches.length > 1) {
+    const discoveryCommand = buildTokenDiscoveryCommand(options.chain, explicitSymbol, options.role);
     throw new AgentError(
       'TOKEN_RESOLUTION_AMBIGUOUS',
       `${options.symbolOptionLabel} ${explicitSymbol} is ambiguous in the configured token registry for ${
@@ -161,13 +177,14 @@ export async function resolveRequiredTokenInput(
       {
         chain: options.chain,
         symbol: explicitSymbol,
-        matchCount: matches.length,
+        role: options.role,
+        matchCount: filteredMatches.length,
         suggestedAction: `Inspect candidates with ${discoveryCommand}, then retry with ${options.tokenOptionLabel} <address>.`
       }
     );
   }
 
-  const match = matches[0];
+  const match = filteredMatches[0];
   const decimals =
     options.decimals?.trim() && options.decimals.trim()
       ? requireTokenDecimals(options.decimals)

@@ -3,8 +3,12 @@ import {
   AgentError,
   discoverOwnedDefaultTokenRegistry,
   discoverDefaultTokenRegistry,
+  type OwnedTokenDiscoverySummary,
+  REGISTRY_TOKEN_ROLES,
+  isRegistryTokenRole,
   loadWalletSession,
   resolveChain,
+  type RegistryTokenRole,
   type TokenRegistrySourceDescriptor,
   type WalletProvider,
   type WalletSessionRecord
@@ -12,11 +16,17 @@ import {
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { printResult } from '../lib/io.js';
+import {
+  buildDefaultsRecommendedCommand,
+  buildDiscoveryRecommendedCommands
+} from '../lib/recommended-commands.js';
+import { workflowFollowupLines } from '../lib/workflow.js';
 
 interface TokensCommandOptions {
   wallet?: string;
   chain?: string;
   symbol?: string;
+  role?: string;
   source?: TokenRegistrySourceDescriptor['id'];
   owned?: boolean;
 }
@@ -87,6 +97,68 @@ function normalizeSource(
   );
 }
 
+function formatBridgeMapping(entry: {
+  symbol: string;
+  bridgeMapping?: {
+    status: 'canonical-l1' | 'local-only-or-unmapped' | 'lookup-failed';
+    l1TokenAddress: string | null;
+    error?: string;
+  };
+}): string | null {
+  if (!entry.bridgeMapping) return null;
+
+  if (entry.bridgeMapping.status === 'canonical-l1') {
+    return `${entry.symbol} shared-bridge canonical-l1 ${entry.bridgeMapping.l1TokenAddress}`;
+  }
+
+  if (entry.bridgeMapping.status === 'local-only-or-unmapped') {
+    return `${entry.symbol} shared-bridge unmapped`;
+  }
+
+  return `${entry.symbol} shared-bridge lookup-failed${entry.bridgeMapping.error ? ` ${entry.bridgeMapping.error}` : ''}`;
+}
+
+function ownedTokenSummaryLines(summary: OwnedTokenDiscoverySummary): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['owned source', `local-deployments ${summary.sourceCounts.localDeployments}`],
+    ['owned source', `token-directory ${summary.sourceCounts.tokenDirectory}`]
+  ];
+
+  if (summary.sourceCounts.unknown > 0) {
+    lines.push(['owned source', `unknown ${summary.sourceCounts.unknown}`]);
+  }
+
+  lines.push(
+    ['owned bridge mapping', `canonical-l1 ${summary.bridgeMappingCounts.canonicalL1}`],
+    [
+      'owned bridge mapping',
+      `local-only-or-unmapped ${summary.bridgeMappingCounts.localOnlyOrUnmapped}`
+    ]
+  );
+
+  if (summary.bridgeMappingCounts.lookupFailed > 0) {
+    lines.push([
+      'owned bridge mapping',
+      `lookup-failed ${summary.bridgeMappingCounts.lookupFailed}`
+    ]);
+  }
+
+  if (summary.bridgeMappingCounts.unavailable > 0) {
+    lines.push([
+      'owned bridge mapping',
+      `unavailable ${summary.bridgeMappingCounts.unavailable}`
+    ]);
+  }
+
+  for (const [role, count] of Object.entries(summary.registryRoleCounts)) {
+    if (count > 0) {
+      lines.push(['owned registry role', `${role} ${count}`]);
+    }
+  }
+
+  return lines;
+}
+
 export function createTokensCommand(
   deps?: Partial<TokensCommandDeps>
 ): Command {
@@ -98,6 +170,10 @@ export function createTokensCommand(
     .option('--chain <chain>', 'Chain key or chain id override')
     .option('--symbol <symbol>', 'Optional exact symbol filter')
     .option(
+      '--role <role>',
+      `Optional defaults-registry role filter: ${REGISTRY_TOKEN_ROLES.join(', ')}`
+    )
+    .option(
       '--source <source>',
       'Restrict results to one registry source: local-deployments or token-directory'
     )
@@ -107,6 +183,7 @@ export function createTokensCommand(
     )
     .action(async (options: TokensCommandOptions) => {
       const source = normalizeSource(options.source);
+      const role = normalizeRole(options.role);
 
       if (options.owned) {
         const walletName = options.wallet?.trim();
@@ -149,7 +226,16 @@ export function createTokensCommand(
           chain: wallet.chain,
           provider: resolvedDeps.provider,
           symbol: options.symbol,
+          role,
           source
+        });
+        const recommendedCommands = buildDiscoveryRecommendedCommands({
+          walletName: wallet.walletName,
+          chain: result.chainFilter.chainKey,
+          tokenSymbol: result.symbol,
+          tokenRole: result.role,
+          tokenSource: result.source,
+          includeOwnedTokens: false
         });
 
         const lines: Array<[string, string]> = [
@@ -163,11 +249,16 @@ export function createTokensCommand(
           lines.push(['symbol filter', result.symbol]);
         }
 
+        if (result.role) {
+          lines.push(['role filter', result.role]);
+        }
+
         if (result.source) {
           lines.push(['source filter', result.source]);
         }
 
         lines.push(['mode', 'owned-registry-erc20']);
+        lines.push(...ownedTokenSummaryLines(result.summary));
 
         for (const registrySource of result.tokenRegistrySources) {
           lines.push([
@@ -183,6 +274,16 @@ export function createTokensCommand(
             'token',
             `${entry.chainKey} ${entry.symbol} ${entry.address} balance=${entry.balance} raw=${entry.rawBalance} (${entry.decimals}) [${entry.source || 'unknown'}]`
           ]);
+          const bridgeMapping = formatBridgeMapping(entry);
+          if (bridgeMapping) {
+            lines.push(['bridge mapping', bridgeMapping]);
+          }
+          for (const match of entry.defaultsRegistryMatches || []) {
+            lines.push([
+              'registry role',
+              `${entry.symbol} ${match.role} via ${match.sourceEntryId} (${match.status}${match.isCurrentValidatedDefault ? ', current-default' : ''})`
+            ]);
+          }
         }
 
         for (const failure of result.probeFailures) {
@@ -192,8 +293,11 @@ export function createTokensCommand(
           ]);
         }
 
+        lines.push(...workflowFollowupLines(recommendedCommands));
+
         printResult(lines, {
           ok: true,
+          recommendedCommands,
           ...result
         });
         return;
@@ -203,8 +307,20 @@ export function createTokensCommand(
       const result = await discoverDefaultTokenRegistry({
         chainId: chainFilter?.chainId,
         symbol: options.symbol,
+        role,
         source
       });
+      const recommendedCommands = result.chainFilter
+        ? buildDiscoveryRecommendedCommands({
+            walletName: options.wallet?.trim() || undefined,
+            chain: result.chainFilter.chainKey,
+            tokenSymbol: result.symbol,
+            tokenRole: result.role,
+            tokenSource: result.source
+          })
+        : {
+            inspectDefaults: buildDefaultsRecommendedCommand()
+          };
 
       const lines: Array<[string, string]> = [
         ['chain scope', result.chainFilter ? `${result.chainFilter.chainKey} (${result.chainFilter.chainId})` : 'all built-in chains'],
@@ -213,6 +329,10 @@ export function createTokensCommand(
 
       if (result.symbol) {
         lines.push(['symbol filter', result.symbol]);
+      }
+
+      if (result.role) {
+        lines.push(['role filter', result.role]);
       }
 
       if (result.source) {
@@ -233,11 +353,32 @@ export function createTokensCommand(
           'token',
           `${entry.chainKey} ${entry.symbol} ${entry.address} (${entry.decimals}) [${entry.source || 'unknown'}]`
         ]);
+        for (const match of entry.defaultsRegistryMatches || []) {
+          lines.push([
+            'registry role',
+            `${entry.symbol} ${match.role} via ${match.sourceEntryId} (${match.status}${match.isCurrentValidatedDefault ? ', current-default' : ''})`
+          ]);
+        }
       }
+
+      lines.push(...workflowFollowupLines(recommendedCommands));
 
       printResult(lines, {
         ok: true,
+        recommendedCommands,
         ...result
       });
     });
+}
+
+function normalizeRole(value: string | undefined): RegistryTokenRole | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (isRegistryTokenRole(trimmed)) {
+    return trimmed;
+  }
+
+  throw new AgentError('TOKEN_REGISTRY_ROLE_INVALID', `Unsupported --role value: ${trimmed}`, {
+    suggestedAction: `Use --role ${REGISTRY_TOKEN_ROLES.join(', ')}.`
+  });
 }

@@ -35,6 +35,37 @@ function writableEoaWallet(overrides: Partial<WalletSessionRecord> = {}): Wallet
   };
 }
 
+function writableSmartAccountWallet(overrides: Partial<WalletSessionRecord> = {}): WalletSessionRecord {
+  return {
+    walletName: 'sed-lite-sa-v2',
+    walletAddress: '0x60E5E483DC4315f3db1185aF08499ce9a4C862CE',
+    ownerAddress: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    provider: 'zksync-sso',
+    accountKind: 'smart-account',
+    createdAt: '2026-06-16T00:53:29.400Z',
+    sessionPayload: {
+      version: 1,
+      provider: 'zksync-sso',
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      walletAddress: '0x60E5E483DC4315f3db1185aF08499ce9a4C862CE',
+      account: {
+        kind: 'smart-account',
+        address: '0x60E5E483DC4315f3db1185aF08499ce9a4C862CE',
+        ownerAddress: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+        signerType: 'local'
+      },
+      permissions: {},
+      sessionPublicKey: '33'.repeat(32),
+      sessionPrivateKey:
+        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+    },
+    ...overrides
+  };
+}
+
 test('writeContract preview surfaces validated paymaster registry metadata', async () => {
   const defaults = loadValidatedDefaults();
   const validatedPath = defaults.registry.paymasterPaths.find(
@@ -285,10 +316,10 @@ test('writeContract preview drops a legacy session fee token when the request sw
 test('writeContract preview surfaces explicit no-paymaster registry metadata', async () => {
   const defaults = loadValidatedDefaults();
   const noPaymasterPath = defaults.registry.paymasterPaths.find(
-    (entry) => entry.mode === 'none' && entry.status === 'supported'
+    (entry) => entry.mode === 'none' && entry.status === 'validated'
   );
 
-  assert.ok(noPaymasterPath, 'expected a supported no-paymaster path in validated defaults');
+  assert.ok(noPaymasterPath, 'expected a validated no-paymaster path in validated defaults');
 
   const wallet = writableEoaWallet({
     paymasterMode: 'none',
@@ -347,12 +378,82 @@ test('writeContract preview surfaces explicit no-paymaster registry metadata', a
     assert.equal(result.paymaster.registry?.paymasterAddress, null);
     assert.equal(result.paymaster.registry?.feeTokenAddress, null);
     assert.deepEqual(result.paymaster.registry?.supportedAccountKinds, ['eoa', 'smart-account']);
-    assert.deepEqual(result.paymaster.registry?.validatedAccountKinds, []);
+    assert.deepEqual(result.paymaster.registry?.validatedAccountKinds, ['eoa', 'smart-account']);
     assert.equal(result.paymaster.registry?.requestedAccountKind, 'eoa');
     assert.equal(result.paymaster.registry?.isRequestedAccountKindSupported, true);
-    assert.equal(result.paymaster.registry?.isRequestedAccountKindValidated, false);
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindValidated, true);
     assert.equal(result.paymaster.registry?.isValidatedDefault, false);
-    assert.equal(result.paymaster.registry?.isValidatedDefaultForMode, false);
+    assert.equal(result.paymaster.registry?.isValidatedDefaultForMode, true);
+    assert.equal(estimateCalls, 0);
+  } finally {
+    Provider.prototype.getCode = originalGetCode;
+    Provider.prototype.estimateFee = originalEstimateFee;
+  }
+});
+
+test('writeContract preview marks no-paymaster smart-account coverage as validated', async () => {
+  const defaults = loadValidatedDefaults();
+  const noPaymasterPath = defaults.registry.paymasterPaths.find(
+    (entry) => entry.mode === 'none' && entry.status === 'validated'
+  );
+
+  assert.ok(noPaymasterPath, 'expected a validated no-paymaster path in validated defaults');
+
+  const wallet = writableSmartAccountWallet({
+    paymasterMode: 'none',
+    capabilities: {
+      read: true,
+      write: true,
+      transfer: true,
+      contractCall: true,
+      paymaster: true
+    },
+    sessionPayload: {
+      ...writableSmartAccountWallet().sessionPayload!,
+      paymaster: {
+        mode: 'none'
+      }
+    }
+  });
+
+  const originalGetCode = Provider.prototype.getCode;
+  const originalEstimateFee = Provider.prototype.estimateFee;
+  let estimateCalls = 0;
+
+  Provider.prototype.getCode = async function () {
+    return '0x1234';
+  };
+  Provider.prototype.estimateFee = async function (request) {
+    estimateCalls += 1;
+    assert.equal((request.customData as { paymasterParams?: unknown } | undefined)?.paymasterParams, undefined);
+
+    return {
+      gasLimit: 210000n,
+      maxFeePerGas: 100000000n,
+      maxPriorityFeePerGas: 0n,
+      gasPerPubdataLimit: 50000n
+    } as Awaited<ReturnType<Provider['estimateFee']>>;
+  };
+
+  try {
+    const provider = new ZkSyncWalletProvider();
+    const result = await provider.writeContract({
+      wallet,
+      to: '0x1111111111111111111111111111111111111111',
+      data: '0x1234',
+      broadcast: false
+    });
+
+    assert.equal(result.mode, 'preview');
+    assert.equal(result.paymaster.mode, 'none');
+    assert.equal(result.paymaster.source, 'none');
+    assert.equal(result.paymaster.registry?.entryId, noPaymasterPath.id);
+    assert.equal(result.paymaster.registry?.requestedAccountKind, 'smart-account');
+    assert.deepEqual(result.paymaster.registry?.supportedAccountKinds, ['eoa', 'smart-account']);
+    assert.deepEqual(result.paymaster.registry?.validatedAccountKinds, ['eoa', 'smart-account']);
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindSupported, true);
+    assert.equal(result.paymaster.registry?.isRequestedAccountKindValidated, true);
+    assert.equal(result.paymaster.registry?.isValidatedDefaultForMode, true);
     assert.equal(estimateCalls, 0);
   } finally {
     Provider.prototype.getCode = originalGetCode;

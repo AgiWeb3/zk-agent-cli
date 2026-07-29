@@ -104,3 +104,57 @@ test('fund command resolves token metadata from token-directory when local deplo
     await rm(tokenDirectoryRoot, { recursive: true, force: true });
   }
 });
+
+test('fund command can narrow an ambiguous symbol with a defaults-registry role', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-fund-token-role-home-'));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-fund-token-role-workspace-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-fund-token-role-data-'));
+  const capturePath = path.join(workspaceRoot, 'fund-input.json');
+  const deploymentsDir = path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments');
+
+  await mkdir(deploymentsDir, { recursive: true });
+  await writeFile(
+    path.join(deploymentsDir, 'token-a.json'),
+    JSON.stringify({
+      network: 'zksync-sepolia',
+      contractAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885',
+      symbol: 'ZKAT',
+      decimals: 18
+    }),
+    'utf8'
+  );
+  await writeFile(
+    path.join(deploymentsDir, 'token-b.json'),
+    JSON.stringify({
+      network: 'zksync-sepolia',
+      contractAddress: '0xB0e40024ac1eC50416ab539AB533ce582080B886',
+      symbol: 'ZKAT',
+      decimals: 6
+    }),
+    'utf8'
+  );
+
+  try {
+    const result = await runCliJson(
+      ['--wallet', 'main', '--amount', '1', '--symbol', 'ZKAT', '--role', 'paymaster-fee-token'],
+      {
+        ...process.env,
+        HOME: homeDir,
+        ZK_AGENT_WORKSPACE_ROOT: workspaceRoot,
+        ZK_AGENT_TOKEN_DIRECTORY_ROOT: tokenDirectoryRoot,
+        ZK_AGENT_FUND_CAPTURE_PATH: capturePath
+      }
+    );
+
+    const capturedInput = JSON.parse(await readFile(capturePath, 'utf8'));
+
+    assert.equal(result.ok, true);
+    assert.equal(capturedInput.tokenAddress, '0xa0e40024ac1ec50416ab539ab533ce582080b885');
+    assert.equal(capturedInput.symbol, 'ZKAT');
+    assert.equal(capturedInput.decimals, 18);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
+  }
+});

@@ -112,12 +112,63 @@ function assertOwnedBalancesResult(result) {
       }
     ]
   );
-  assert.deepEqual(result.ownedTokenRegistry, {
-    enabled: true,
-    entryCount: 1,
-    probeFailureCount: 0,
-    probeFailures: []
+  assert.equal(result.ownedTokenRegistry.enabled, true);
+  assert.equal(result.ownedTokenRegistry.entryCount, 1);
+  assert.deepEqual(result.ownedTokenRegistry.summary, {
+    sourceCounts: {
+      localDeployments: 1,
+      tokenDirectory: 0,
+      unknown: 0
+    },
+    bridgeMappingCounts: {
+      canonicalL1: 1,
+      localOnlyOrUnmapped: 0,
+      lookupFailed: 0,
+      unavailable: 0
+    },
+    registryRoleCounts: {
+      'swap-token-a': 0,
+      'swap-token-b': 0,
+      'paymaster-fee-token': 0
+    }
   });
+  assert.equal(result.ownedTokenRegistry.probeFailureCount, 0);
+  assert.deepEqual(result.ownedTokenRegistry.probeFailures, []);
+  assert.deepEqual(
+    result.ownedTokenRegistry.entries.map((entry) => ({
+      chainId: entry.chainId,
+      chainKey: entry.chainKey,
+      symbol: entry.symbol,
+      address: entry.address,
+      decimals: entry.decimals,
+      source: entry.source,
+      balance: entry.balance,
+      rawBalance: entry.rawBalance,
+      hasDefaultsRegistryMatches: Array.isArray(entry.defaultsRegistryMatches),
+      bridgeMapping: entry.bridgeMapping
+    })),
+    [
+      {
+        chainId: 300,
+        chainKey: 'zksync-sepolia',
+        symbol: 'USDC',
+        address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        decimals: 6,
+        source: 'local-deployments',
+        balance: '1.23',
+        rawBalance: '1230000',
+        hasDefaultsRegistryMatches: false,
+        bridgeMapping: {
+          scheme: 'zksync-shared-bridge',
+          status: 'canonical-l1',
+          l1TokenAddress: '0xcccccccccccccccccccccccccccccccccccccccc',
+          note:
+            'Shared bridge maps this L2 token to L1 token 0xcccccccccccccccccccccccccccccccccccccccc.'
+        }
+      }
+    ]
+  );
+  assert.match(result.ownedTokenRegistry.entries[0].sourcePath || '', /local-usdc\.json$/);
 }
 
 test('balances command can include registry-backed ERC-20 holdings on the single-chain path', async () => {
@@ -128,4 +179,10 @@ test('balances command can include registry-backed ERC-20 holdings on the single
 test('assets command returns the owned-token asset view without extra flags', async () => {
   const result = await runOwnedBalancesFixture(['assets', '--wallet', 'main']);
   assertOwnedBalancesResult(result);
+  assert.deepEqual(result.recommendedCommands, {
+    inspectDefaults: 'zk-agent defaults',
+    discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+    discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+    inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+  });
 });

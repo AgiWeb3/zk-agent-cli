@@ -9,6 +9,7 @@ import {
 test('buildSmokeProductPathSteps includes withdraw follow-up only when tx hash is supplied', () => {
   const baseSteps = buildSmokeProductPathSteps({
     walletName: 'main',
+    paymasterMode: 'approval-based',
     executeAll: false,
     executePaymaster: false,
     executeSwap: false,
@@ -18,6 +19,7 @@ test('buildSmokeProductPathSteps includes withdraw follow-up only when tx hash i
   const withdrawSteps = buildSmokeProductPathSteps({
     walletName: 'main',
     txHash: '0x' + '11'.repeat(32),
+    paymasterMode: 'approval-based',
     executeAll: false,
     executePaymaster: true,
     executeSwap: true,
@@ -33,12 +35,42 @@ test('buildSmokeProductPathSteps includes withdraw follow-up only when tx hash i
     withdrawSteps.map((step) => step.id),
     ['operator-path', 'paymaster-success', 'swap-success', 'withdraw-followup']
   );
+  assert.match(
+    [baseSteps[0]?.command, ...(baseSteps[0]?.args || [])].join(' '),
+    /smoke-operator-path\.(ts|js) --wallet main --paymaster-mode approval-based/
+  );
+  assert.match(
+    [baseSteps[1]?.command, ...(baseSteps[1]?.args || [])].join(' '),
+    /smoke-paymaster-success\.(ts|js) --wallet main --paymaster-mode approval-based/
+  );
+});
+
+test('buildSmokeProductPathSteps forwards an explicit sponsored paymaster mode', () => {
+  const steps = buildSmokeProductPathSteps({
+    walletName: 'sed-lite-sa-v2',
+    paymasterMode: 'sponsored',
+    executeAll: false,
+    executePaymaster: false,
+    executeSwap: false,
+    executeWithdrawFinalize: false,
+    plan: false
+  });
+
+  assert.match(
+    [steps[0]?.command, ...(steps[0]?.args || [])].join(' '),
+    /smoke-operator-path\.(ts|js) --wallet sed-lite-sa-v2 --paymaster-mode sponsored/
+  );
+  assert.match(
+    [steps[1]?.command, ...(steps[1]?.args || [])].join(' '),
+    /smoke-paymaster-success\.(ts|js) --wallet sed-lite-sa-v2 --paymaster-mode sponsored/
+  );
 });
 
 test('runSmokeProductPath returns a stable plan payload', async () => {
   const payload = await runSmokeProductPath({
     walletName: 'main',
     txHash: '0x' + '11'.repeat(32),
+    paymasterMode: 'approval-based',
     executeAll: false,
     executePaymaster: false,
     executeSwap: false,
@@ -49,12 +81,16 @@ test('runSmokeProductPath returns a stable plan payload', async () => {
   assert.equal(payload.ok, true);
   assert.equal(payload.planned, true);
   assert.equal(payload.summary.walletName, 'main');
+  assert.equal(payload.summary.paymasterMode, 'approval-based');
   assert.equal(payload.summary.totalSteps, 4);
   assert.equal(payload.summary.includesSwapSuccess, true);
   assert.equal(payload.summary.includesWithdrawFollowup, true);
   assert.equal(payload.steps.length, 4);
   assert.equal(payload.steps[0]?.id, 'operator-path');
-  assert.match(payload.steps[0]?.command || '', /smoke-operator-path/);
+  assert.match(
+    payload.steps[0]?.command || '',
+    /smoke-operator-path\.(ts|js) --wallet main --paymaster-mode approval-based/
+  );
 });
 
 test('runSmokeProductPath aggregates successful smoke step follow-ups', async () => {
@@ -63,6 +99,7 @@ test('runSmokeProductPath aggregates successful smoke step follow-ups', async ()
     {
       walletName: 'main',
       txHash: '0x' + '22'.repeat(32),
+      paymasterMode: 'approval-based',
       executeAll: false,
       executePaymaster: false,
       executeSwap: false,
@@ -196,6 +233,7 @@ test('runSmokeProductPath stops at the first failed step and reports partial sum
   const payload = await runSmokeProductPath(
     {
       walletName: 'main',
+      paymasterMode: 'approval-based',
       executeAll: false,
       executePaymaster: false,
       executeSwap: false,
@@ -260,6 +298,7 @@ test('runSmokeProductPath plan enables all execution flags when executeAll is re
   const payload = await runSmokeProductPath({
     walletName: 'main',
     txHash: '0x' + '33'.repeat(32),
+    paymasterMode: 'approval-based',
     executeAll: true,
     executePaymaster: false,
     executeSwap: false,

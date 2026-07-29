@@ -13,6 +13,7 @@
     "tool:list": "pnpm --filter @zk-agent/agent-tools tool:run -- --list",
     "tool:run": "pnpm --filter @zk-agent/agent-tools tool:run --",
     "smoke:readonly": "pnpm --filter @zk-agent/agent-tools smoke:readonly --",
+    "smoke:discovery": "pnpm --filter @zk-agent/cli smoke:discovery --",
     "smoke:remote-approval": "pnpm --filter @zk-agent/cli smoke:remote-approval --",
     "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",
     "smoke:product-path": "pnpm --filter @zk-agent/agent-tools smoke:product-path --",
@@ -22,7 +23,8 @@
     "smoke:swap-success": "pnpm --filter @zk-agent/agent-tools smoke:swap-success --",
     "smoke:withdraw-followup": "pnpm --filter @zk-agent/agent-tools smoke:withdraw-followup --",
     "smoke:broadcast": "pnpm --filter @zk-agent/agent-tools smoke:broadcast --",
-    "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter @zk-agent/cli test"
+    "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter @zk-agent/cli test",
+    "validate:phase4a": "pnpm --filter @zk-agent/cli release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter @zk-agent/cli test"
   },
   "engines": {
     "node": ">=24"

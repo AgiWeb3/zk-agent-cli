@@ -5,8 +5,11 @@ import {
   type DefiProvider,
   type GetBalancesResult,
   type MultiChainBalancesResult,
+  type OwnedTokenDiscoverySummary,
   type OwnedTokenProbeFailure,
   type PaymasterSelectionInput,
+  type TokenBridgeMapping,
+  type TokenDefaultsRegistryMatch,
   type WalletBalance,
   type WalletProvider,
   type WalletSessionRecord,
@@ -20,6 +23,7 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 import { executeFundAction } from '../lib/fund.js';
+import { buildDiscoveryRecommendedCommands } from '../lib/recommended-commands.js';
 import { summarizeBridgeAssetConstraints } from '../lib/validated-defaults.js';
 import {
   resolveOptionalTokenInput,
@@ -36,6 +40,7 @@ import {
   buildWithdrawPreviewNextCommand
 } from '../lib/preview-next-command.js';
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
+import { workflowFollowupLines } from '../lib/workflow.js';
 
 const provider = new ZkSyncWalletProvider();
 const defiProvider = new ZkSyncDefiProvider({
@@ -63,6 +68,16 @@ interface BalancesCommandDeps {
 interface OwnedTokenRegistrySummary {
   enabled: true;
   entryCount: number;
+  entries: Array<{
+    symbol: string;
+    address: string;
+    decimals: number;
+    balance: string;
+    rawBalance: string;
+    defaultsRegistryMatches?: TokenDefaultsRegistryMatch[];
+    bridgeMapping?: TokenBridgeMapping;
+  }>;
+  summary: OwnedTokenDiscoverySummary;
   probeFailureCount: number;
   probeFailures: OwnedTokenProbeFailure[];
 }
@@ -99,6 +114,7 @@ interface FundCommandOptions {
   amount?: string;
   token?: string;
   symbol?: string;
+  role?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
   to?: string;
   bridgeAddress?: string;
   via?: string;
@@ -196,7 +212,7 @@ function isDepositStatusTerminal(
 function isWithdrawStatusTerminal(
   status: Awaited<ReturnType<ZkSyncDefiProvider['withdrawStatus']>>['status']
 ): boolean {
-  return status === 'finalized' || status === 'failed';
+  return status === 'finalized';
 }
 
 function isBridgeStatusTerminal(
@@ -658,6 +674,47 @@ function parseChainList(value: string | undefined): string[] {
   return [...new Set(chains.map((entry) => resolveChain(entry).key))];
 }
 
+function ownedTokenSummaryLines(summary: OwnedTokenDiscoverySummary): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['owned source', `local-deployments ${summary.sourceCounts.localDeployments}`],
+    ['owned source', `token-directory ${summary.sourceCounts.tokenDirectory}`]
+  ];
+
+  if (summary.sourceCounts.unknown > 0) {
+    lines.push(['owned source', `unknown ${summary.sourceCounts.unknown}`]);
+  }
+
+  lines.push(
+    ['owned bridge mapping', `canonical-l1 ${summary.bridgeMappingCounts.canonicalL1}`],
+    [
+      'owned bridge mapping',
+      `local-only-or-unmapped ${summary.bridgeMappingCounts.localOnlyOrUnmapped}`
+    ]
+  );
+
+  if (summary.bridgeMappingCounts.lookupFailed > 0) {
+    lines.push([
+      'owned bridge mapping',
+      `lookup-failed ${summary.bridgeMappingCounts.lookupFailed}`
+    ]);
+  }
+
+  if (summary.bridgeMappingCounts.unavailable > 0) {
+    lines.push([
+      'owned bridge mapping',
+      `unavailable ${summary.bridgeMappingCounts.unavailable}`
+    ]);
+  }
+
+  for (const [role, count] of Object.entries(summary.registryRoleCounts)) {
+    if (count > 0) {
+      lines.push(['owned registry role', `${role} ${count}`]);
+    }
+  }
+
+  return lines;
+}
+
 function linesForSingleBalances(result: ExtendedSingleChainBalancesResult): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['wallet', result.walletName],
@@ -668,8 +725,27 @@ function linesForSingleBalances(result: ExtendedSingleChainBalancesResult): Arra
 
   if (result.ownedTokenRegistry) {
     lines.push(['owned registry tokens', String(result.ownedTokenRegistry.entryCount)]);
+    lines.push(...ownedTokenSummaryLines(result.ownedTokenRegistry.summary));
     if (result.ownedTokenRegistry.probeFailureCount > 0) {
       lines.push(['owned token probe failures', String(result.ownedTokenRegistry.probeFailureCount)]);
+    }
+    for (const entry of result.ownedTokenRegistry.entries) {
+      if (entry.bridgeMapping) {
+        lines.push([
+          'bridge mapping',
+          entry.bridgeMapping.status === 'canonical-l1'
+            ? `${entry.symbol} shared-bridge canonical-l1 ${entry.bridgeMapping.l1TokenAddress}`
+            : entry.bridgeMapping.status === 'local-only-or-unmapped'
+              ? `${entry.symbol} shared-bridge unmapped`
+              : `${entry.symbol} shared-bridge lookup-failed${entry.bridgeMapping.error ? ` ${entry.bridgeMapping.error}` : ''}`
+        ]);
+      }
+      for (const match of entry.defaultsRegistryMatches || []) {
+        lines.push([
+          'registry role',
+          `${entry.symbol} ${match.role} via ${match.sourceEntryId} (${match.status}${match.isCurrentValidatedDefault ? ', current-default' : ''})`
+        ]);
+      }
     }
   }
 
@@ -708,6 +784,8 @@ async function extendSingleChainBalancesWithOwnedTokens(input: {
     ownedTokenRegistry: {
       enabled: true,
       entryCount: owned.entryCount,
+      entries: owned.entries,
+      summary: owned.summary,
       probeFailureCount: owned.probeFailureCount,
       probeFailures: owned.probeFailures
     }
@@ -857,8 +935,16 @@ export function createAssetsCommand(deps?: Partial<BalancesCommandDeps>): Comman
         provider: resolvedDeps.provider,
         ownedTokens: true
       });
+      const recommendedCommands = buildDiscoveryRecommendedCommands({
+        walletName,
+        chain: payload.chain,
+        includeAssets: false
+      });
 
-      printResult(linesForSingleBalances(payload), { ok: true, ...payload });
+      printResult(
+        [...linesForSingleBalances(payload), ...workflowFollowupLines(recommendedCommands)],
+        { ok: true, recommendedCommands, ...payload }
+      );
     });
 }
 
@@ -875,6 +961,7 @@ export async function executeFundCommand(
   const token = await resolveOptionalTokenInput({
     tokenAddress: options.token,
     symbol: options.symbol,
+    role: options.role,
     decimals: options.decimals,
     chain: wallet.chain,
     tokenOptionLabel: '--token',
@@ -1002,6 +1089,7 @@ export function createFundCommand(deps?: Partial<FundCommandDeps>): Command {
       'Optional token address to embed into the suggested funding commands. Also optional when --symbol resolves from the configured token registry'
     )
     .option('--symbol <symbol>', 'Optional token symbol label or token-registry lookup key for the funding commands')
+    .option('--role <role>', 'Optional defaults-registry role filter for symbol-based token resolution')
     .option('--to <address>', 'Optional recipient override for executed funding actions')
     .option('--bridge-address <address>', 'Optional bridge override for executed funding actions')
     .option('--via <mode>', 'Execution mode override: deposit or bridge')
@@ -1071,6 +1159,7 @@ export function createSendTokenCommand(): Command {
       '--symbol <symbol>',
       'Token symbol for display. Also used for token-registry lookup when --token is omitted'
     )
+    .option('--role <role>', 'Optional defaults-registry role filter for symbol-based token resolution')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in the configured token registry'
@@ -1083,6 +1172,7 @@ export function createSendTokenCommand(): Command {
         amount: string;
         token?: string;
         symbol?: string;
+        role?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
         decimals?: string;
         wallet: string;
         broadcast?: boolean;
@@ -1094,6 +1184,7 @@ export function createSendTokenCommand(): Command {
         const token = await resolveRequiredTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
+          role: options.role,
           decimals: options.decimals,
           chain: wallet.chain,
           tokenOptionLabel: '--token',
@@ -1233,6 +1324,7 @@ export function createWithdrawCommand(): Command {
       'L2 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry'
     )
     .option('--symbol <symbol>', 'Optional token symbol for display or token-registry lookup key')
+    .option('--role <role>', 'Optional defaults-registry role filter for symbol-based token resolution')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in the configured token registry'
@@ -1246,6 +1338,7 @@ export function createWithdrawCommand(): Command {
         to?: string;
         token?: string;
         symbol?: string;
+        role?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
         decimals?: string;
         bridgeAddress?: string;
         wallet: string;
@@ -1255,6 +1348,7 @@ export function createWithdrawCommand(): Command {
         const token = await resolveOptionalTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
+          role: options.role,
           decimals: options.decimals,
           chain: wallet.chain,
           tokenOptionLabel: '--token',
@@ -1299,6 +1393,7 @@ export function createDepositCommand(): Command {
       'L1 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry'
     )
     .option('--symbol <symbol>', 'Optional token symbol for display or token-registry lookup key')
+    .option('--role <role>', 'Optional defaults-registry role filter for symbol-based token resolution')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in the configured token registry'
@@ -1312,6 +1407,7 @@ export function createDepositCommand(): Command {
         to?: string;
         token?: string;
         symbol?: string;
+        role?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
         decimals?: string;
         bridgeAddress?: string;
         wallet: string;
@@ -1321,6 +1417,7 @@ export function createDepositCommand(): Command {
         const token = await resolveOptionalTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
+          role: options.role,
           decimals: options.decimals,
           chain: wallet.chain,
           tokenOptionLabel: '--token',
@@ -1388,6 +1485,8 @@ export function createSwapCommand(): Command {
     .option('--fee-tier <value>', 'Uniswap V3 pool fee tier')
     .option('--token-in-symbol <symbol>', 'Input token symbol label or token-registry lookup key')
     .option('--token-out-symbol <symbol>', 'Output token symbol label or token-registry lookup key')
+    .option('--token-in-role <role>', 'Optional defaults-registry role filter for input symbol-based token resolution')
+    .option('--token-out-role <role>', 'Optional defaults-registry role filter for output symbol-based token resolution')
     .option('--recipient <address>', 'Recipient override. Defaults to the wallet execution address')
     .option('--sqrt-price-limit-x96 <value>', 'Optional Uniswap sqrtPriceLimitX96 override', '0')
     .option('--auto-approve', 'If allowance is insufficient, send an approval transaction before the swap', false)
@@ -1408,6 +1507,8 @@ export function createSwapCommand(): Command {
         feeTier?: string;
         tokenInSymbol?: string;
         tokenOutSymbol?: string;
+        tokenInRole?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
+        tokenOutRole?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
         recipient?: string;
         sqrtPriceLimitX96?: string;
         autoApprove?: boolean;
@@ -1428,6 +1529,7 @@ export function createSwapCommand(): Command {
         const tokenIn = await resolveRequiredTokenInput({
           tokenAddress: options.tokenIn,
           symbol: options.tokenInSymbol,
+          role: options.tokenInRole,
           decimals: options.tokenInDecimals,
           chain: wallet.chain,
           tokenOptionLabel: '--token-in',
@@ -1437,6 +1539,7 @@ export function createSwapCommand(): Command {
         const tokenOut = await resolveRequiredTokenInput({
           tokenAddress: options.tokenOut,
           symbol: options.tokenOutSymbol,
+          role: options.tokenOutRole,
           decimals: options.tokenOutDecimals,
           chain: wallet.chain,
           tokenOptionLabel: '--token-out',
@@ -1500,6 +1603,7 @@ export function createBridgeCommand(): Command {
       'L1 token address for deposits or L2 token address for withdraws. Optional when --symbol resolves from the configured token registry'
     )
     .option('--symbol <symbol>', 'Optional token symbol label or token-registry lookup key')
+    .option('--role <role>', 'Optional defaults-registry role filter for symbol-based token resolution')
     .option(
       '--decimals <value>',
       'Token decimals. Optional when the token exists in the configured token registry'
@@ -1515,6 +1619,7 @@ export function createBridgeCommand(): Command {
         to?: string;
         token?: string;
         symbol?: string;
+        role?: 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
         decimals?: string;
         bridgeAddress?: string;
         wallet: string;
@@ -1535,6 +1640,7 @@ export function createBridgeCommand(): Command {
         const token = await resolveOptionalTokenInput({
           tokenAddress: options.token,
           symbol: options.symbol,
+          role: options.role,
           decimals: options.decimals,
           chain: options.fromChain || wallet.chain,
           tokenOptionLabel: '--token',

@@ -104,3 +104,61 @@ test('workflow next returns formal recommendedCommands for ambiguous token symbo
     await rm(workspaceRoot, { recursive: true, force: true });
   }
 });
+
+test('workflow next preserves an explicit token role in token-resolution recovery commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-token-role-home-'));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-token-role-workspace-'));
+  const deploymentsDir = path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments');
+
+  try {
+    await mkdir(deploymentsDir, { recursive: true });
+    await writeFile(
+      path.join(deploymentsDir, 'token-a.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xB0e40024ac1eC50416ab539AB533ce582080B886',
+        symbol: 'ZKAT',
+        decimals: 6
+      }),
+      'utf8'
+    );
+
+    const result = await runCliJsonExpectFailure(
+      [
+        'next',
+        '--wallet',
+        'main',
+        '--intent',
+        'send-token',
+        '--to',
+        '0x3333333333333333333333333333333333333333',
+        '--amount',
+        '1',
+        '--symbol',
+        'ZKAT',
+        '--role',
+        'paymaster-fee-token'
+      ],
+      {
+        ...process.env,
+        HOME: homeDir,
+        ZK_AGENT_WORKSPACE_ROOT: workspaceRoot
+      }
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'TOKEN_RESOLUTION_NOT_FOUND');
+    assert.match(
+      String(result.details?.suggestedAction || ''),
+      /zk-agent tokens --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token/
+    );
+    assert.deepEqual(result.recommendedCommands, {
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token',
+      inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token',
+      workflowHelp: 'zk-agent workflow --help'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});

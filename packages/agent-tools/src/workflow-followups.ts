@@ -1,4 +1,9 @@
-import type { WorkflowIntent, WorkflowPlan } from '@zk-agent/agent-core';
+import type {
+  RegistryTokenRole,
+  TokenRegistrySourceDescriptor,
+  WorkflowIntent,
+  WorkflowPlan
+} from '@zk-agent/agent-core';
 
 export interface WorkflowToolRecommendedCommands {
   inspectDefaults?: string;
@@ -16,6 +21,83 @@ export interface WorkflowToolRecommendedCommands {
   discoverOwnedTokens?: string;
   discoverTokens?: string;
   inspectToken?: string;
+}
+
+export interface DiscoveryToolRecommendedCommands {
+  inspectDefaults: string;
+  discoverAssets?: string;
+  discoverOwnedTokens?: string;
+  discoverTokens?: string;
+  inspectToken?: string;
+}
+
+function buildInspectTokenCommand(
+  chain: string,
+  tokenSymbol?: string,
+  tokenRole?: RegistryTokenRole,
+  tokenSource?: TokenRegistrySourceDescriptor['id']
+): string {
+  const command = `zk-agent resolve-token --chain ${chain} --symbol ${tokenSymbol?.trim() || '<symbol>'}`;
+  const withRole = tokenRole ? `${command} --role ${tokenRole}` : command;
+  return tokenSource ? `${withRole} --source ${tokenSource}` : withRole;
+}
+
+function buildListTokensCommand(
+  chain: string,
+  tokenSymbol?: string,
+  tokenRole?: RegistryTokenRole,
+  tokenSource?: TokenRegistrySourceDescriptor['id']
+): string {
+  const command = `zk-agent tokens --chain ${chain}`;
+  const withSymbol = tokenSymbol?.trim() ? `${command} --symbol ${tokenSymbol.trim()}` : command;
+  const withRole = tokenRole ? `${withSymbol} --role ${tokenRole}` : withSymbol;
+  return tokenSource ? `${withRole} --source ${tokenSource}` : withRole;
+}
+
+export function buildDiscoveryToolRecommendedCommands(input: {
+  walletName?: string;
+  chain: string;
+  tokenSymbol?: string;
+  tokenRole?: RegistryTokenRole;
+  tokenSource?: TokenRegistrySourceDescriptor['id'];
+  includeAssets?: boolean;
+  includeOwnedTokens?: boolean;
+  includeTokens?: boolean;
+  includeInspectToken?: boolean;
+}): DiscoveryToolRecommendedCommands {
+  return {
+    inspectDefaults: 'zk-agent defaults',
+    ...(input.walletName && input.includeAssets !== false
+      ? {
+          discoverAssets: `zk-agent assets --wallet ${input.walletName}`
+        }
+      : {}),
+    ...(input.walletName && input.includeOwnedTokens !== false
+      ? {
+          discoverOwnedTokens: `zk-agent tokens --wallet ${input.walletName} --owned`
+        }
+      : {}),
+    ...(input.includeTokens !== false
+      ? {
+          discoverTokens: buildListTokensCommand(
+            input.chain,
+            input.tokenSymbol,
+            input.tokenRole,
+            input.tokenSource
+          )
+        }
+      : {}),
+    ...(input.includeInspectToken !== false
+      ? {
+          inspectToken: buildInspectTokenCommand(
+            input.chain,
+            input.tokenSymbol,
+            input.tokenRole,
+            input.tokenSource
+          )
+        }
+      : {})
+  };
 }
 
 export function workflowIntentSupportsTokenDiscovery(intent: WorkflowIntent): boolean {

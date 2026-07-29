@@ -62,6 +62,22 @@ const provider = {
     };
   },
   async call(input) {
+    if (
+      input.to.toLowerCase() === '0x0000000000000000000000000000000000010003' &&
+      input.data.startsWith('0xf54266a2')
+    ) {
+      const tokenAddress = `0x${input.data.slice(-40)}`.toLowerCase();
+      const mappedAddress =
+        tokenAddress === '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          ? '0xcccccccccccccccccccccccccccccccccccccccc'
+          : '0x0000000000000000000000000000000000000000';
+      return {
+        ...input,
+        chainId: 300,
+        result: `0x${mappedAddress.slice(2).padStart(64, '0')}`
+      };
+    }
+
     const rawBalance =
       input.to.toLowerCase() === '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ? 1230000n : 0n;
     return {

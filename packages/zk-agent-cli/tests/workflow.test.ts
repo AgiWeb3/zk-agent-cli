@@ -153,6 +153,13 @@ test('workflow plan emits a protocol-specific swap goal command when requested',
   assert.ok(plan.notes.some((note) => /Registry: syncswap-classic on zksync-sepolia is a validated/.test(note)));
   assert.ok(plan.notes.some((note) => /Registry default: this is the current validated default swap path\./.test(note)));
   assert.ok(
+    plan.notes.some((note) =>
+      /Registry alternatives: supported-but-not-validated swap paths on zksync-sepolia: uniswap-v3-exact-input-single\./.test(
+        note
+      )
+    )
+  );
+  assert.ok(
     plan.notes.some((note) => /Discover token symbols on zksync-sepolia with zk-agent tokens --chain zksync-sepolia\./.test(note))
   );
   assert.ok(
@@ -181,6 +188,20 @@ test('workflow plan defaults generic swap skeleton to the current validated swap
   assert.match(plan.goalCommand, /--token-out-symbol <symbol>/);
   assert.equal(plan.registry?.swap?.entryId, 'syncswap-classic');
   assert.equal(plan.registry?.swap?.isValidatedDefault, true);
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry: syncswap-classic on zksync-sepolia is a validated tracked-default swap path\./.test(
+        note
+      )
+    )
+  );
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry alternatives: supported-but-not-validated swap paths on zksync-sepolia: uniswap-v3-exact-input-single\./.test(
+        note
+      )
+    )
+  );
   assert.ok(
     plan.notes.some((note) =>
       /Command skeleton uses the current registry-backed default swap path\./.test(note)
@@ -446,4 +467,47 @@ test('workflow plan skips fund when paymaster-backed swap can cover gas', () => 
   assert.deepEqual(plan.steps.map((step) => step.id), ['swap']);
   assert.equal(plan.registry?.swap?.entryId, 'syncswap-classic');
   assert.match(plan.notes[0] || '', /paymaster mode approval-based is configured/);
+});
+
+test('workflow plan surfaces tracked paymaster registry breadth when approval-based mode is resolved from defaults', () => {
+  const plan = buildWorkflowPlan({
+    wallet: {
+      ...sampleWallet,
+      paymasterMode: 'approval-based',
+      capabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: true
+      },
+      syncedAt: '2026-06-23T01:00:00.000Z'
+    },
+    inspection: sampleInspection(),
+    intent: 'swap',
+    nativeBalance: '0',
+    nativeSymbol: 'ETH',
+    funding: sampleFunding(),
+    protocol: 'syncswap-classic'
+  });
+
+  assert.equal(plan.status, 'planned');
+  assert.deepEqual(plan.steps.map((step) => step.id), ['swap']);
+  assert.match(plan.goalCommand, /--paymaster-mode approval-based/);
+  assert.match(plan.goalCommand, /--paymaster-address 0x6AF9771e57854BD9aC07fa66034F71F6d90a3F97/);
+  assert.match(plan.goalCommand, /--paymaster-token 0xA0e40024ac1eC50416ab539AB533ce582080B885/);
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry: approval-based paymaster on zksync-sepolia with fee token ZKAT \(eravm\) is validated\./.test(
+        note
+      )
+    )
+  );
+  assert.ok(
+    plan.notes.some((note) =>
+      /Registry alternatives: other validated paymaster paths for smart-account on zksync-sepolia: no-paymaster, sponsored\./.test(
+        note
+      )
+    )
+  );
 });

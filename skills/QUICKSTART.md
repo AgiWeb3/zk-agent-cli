@@ -3,6 +3,18 @@
 This quickstart is intentionally narrow. It describes the shortest verified
 operator path for the current phase of the project.
 
+The commands below use the repo-local wrapper:
+
+```bash
+pnpm zk-agent <command>
+```
+
+The packaged CLI release target is the same command surface under:
+
+```bash
+npx @zk-agent/cli <command>
+```
+
 ## 1. Install dependencies
 
 From the repository root:
@@ -125,6 +137,13 @@ Shortest next-step summary across setup, wallet readiness, and stored workflow c
 
 ```bash
 pnpm zk-agent next
+```
+
+If you want the wallet-scoped recommendation to stay on a specific paymaster
+path during preview or operator guidance:
+
+```bash
+pnpm zk-agent next --paymaster-mode sponsored
 ```
 
 Wallet-only detailed view:
@@ -290,13 +309,19 @@ Inspect discoverable tokens before running a tokenized command:
 ```bash
 pnpm zk-agent tokens --chain zksync-sepolia
 pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC
+pnpm zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
+pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC --source token-directory
 pnpm zk-agent tokens --wallet main --owned
 pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC
+pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC --role paymaster-fee-token
+pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC --source token-directory
 ```
 
 Use `assets` as the default single-chain asset entrypoint. Keep
 `balances --owned-tokens` for the raw balances surface and `tokens --owned`
-for the narrower owned ERC-20 registry subset.
+for the narrower owned ERC-20 registry subset. Those owned-token surfaces now
+also return shared-bridge mapping annotations plus a structured summary of
+source counts, bridge-mapping counts, and tracked registry-role counts.
 
 `pnpm zk-agent defaults` now also shows that source order and token-directory
 chain coverage explicitly.
@@ -377,18 +402,24 @@ already orders those stages for the default product path.
 Preferred root wrappers for the validated product smokes:
 
 ```bash
-pnpm smoke:operator-path -- --wallet <name>
-pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>]
+pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]
+pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored]
 pnpm smoke:paymaster-success -- --wallet <name>
 pnpm validate:phase3
 ```
 
 Those smoke JSON responses now preserve structured workflow follow-ups:
 
+- `smoke:discovery` validates the real CLI discovery/default inspection path
+  across `defaults`, `assets`, `balances --owned-tokens`, `tokens --owned`,
+  `tokens --chain`, and `resolve-token`
 - `smoke:operator-path` includes `summary.topLevelRecommendedCommands` and
-  `summary.workflowRecommendedCommands`, plus
+  `summary.workflowRecommendedCommands`, accepts an optional
+  `--paymaster-mode` override for the previewed workflow guidance, plus
   `summary.topLevelAgentFollowup` and `summary.workflowAgentFollowup`
-- `smoke:product-path` includes per-step `summary.followups`
+- `smoke:product-path` includes per-step `summary.followups` and can switch
+  the paymaster validation step between `approval-based` and `sponsored`
 - `smoke:paymaster-success` includes `result.recommendedCommands` plus
   `result.agentFollowup`
 

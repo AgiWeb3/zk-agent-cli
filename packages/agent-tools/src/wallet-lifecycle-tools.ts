@@ -47,6 +47,8 @@ export interface WalletApprovalRecommendedCommands {
   approve: string;
   relayStatus?: string;
   relayApprove?: string;
+  afterApproval: string;
+  afterApprovalStatus: string;
 }
 
 export interface WalletSyncToolInput extends WalletNameInput {
@@ -383,11 +385,18 @@ function sanitizeWalletRequestRecord(request: WalletRequestRecord): SanitizedWal
 
 function buildWalletApprovalRecommendedCommands(
   requestId: string,
+  walletName: string,
+  paymasterMode?: PaymasterMode,
   relayUrl?: string
 ): WalletApprovalRecommendedCommands {
   const commands: WalletApprovalRecommendedCommands = {
     awaitLocal: `zk-agent wallet request await-local --request-id ${requestId}`,
-    approve: `zk-agent wallet request approve --request-id ${requestId} --payload @approved-session.json`
+    approve: `zk-agent wallet request approve --request-id ${requestId} --payload @approved-session.json`,
+    afterApproval:
+      paymasterMode && paymasterMode !== 'none'
+        ? `zk-agent next --paymaster-mode ${paymasterMode}`
+        : 'zk-agent next',
+    afterApprovalStatus: `zk-agent wallet status --name ${walletName}`
   };
 
   if (relayUrl?.trim()) {
@@ -1265,7 +1274,12 @@ export async function runWalletApprovalOrchestration(
       relay,
       wallet: wallet ? stripSensitiveWalletRecord(wallet) : undefined,
       nextAction: 'submit-approved-payload',
-      recommendedCommands: buildWalletApprovalRecommendedCommands(request.requestId, relayUrl)
+      recommendedCommands: buildWalletApprovalRecommendedCommands(
+        request.requestId,
+        request.walletName,
+        request.requestedPaymasterMode,
+        relayUrl
+      )
     };
   }
 

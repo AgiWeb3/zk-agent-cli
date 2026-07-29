@@ -282,6 +282,28 @@ test('top-level next recommends wallet creation when config exists but the walle
   }
 });
 
+test('top-level next preserves an explicit paymaster override in wallet-bootstrap follow-up', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-bootstrap-sponsored-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveProjectConfig(sampleConfig());
+
+    const result = await runNextCli(['--paymaster-mode', 'sponsored'], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'wallet-bootstrap');
+    assert.deepEqual(result.recommendedCommands, {
+      createWallet: 'zk-agent wallet create --await-local --paymaster-mode sponsored',
+      afterApproval: 'zk-agent next --paymaster-mode sponsored',
+      inspectDefaults: 'zk-agent defaults'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('top-level next recommends starting a workflow when the wallet is already ready', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-ready-'));
 
@@ -322,6 +344,41 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.equal(result.agentFollowup.show, 'zk-agent agent show');
     assert.equal(result.agentFollowup.linkWallet, undefined);
     assert.equal(result.agentFollowup.nextAction, 'zk-agent agent show');
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('top-level next preserves an explicit sponsored paymaster override in wallet guidance', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-sponsored-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveProjectConfig(sampleConfig());
+    await storage.saveWalletSession(sampleWallet({ writable: true }));
+
+    const result = await runNextCli(['--paymaster-mode', 'sponsored'], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'wallet');
+    assert.equal(
+      result.nextCommand,
+      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored'
+    );
+    assert.deepEqual(result.recommendedCommands, {
+      walletNext: 'zk-agent wallet next --name main',
+      walletStatus: 'zk-agent wallet status --name main',
+      discoverAssets: 'zk-agent assets --wallet main',
+      discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+      inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+      workflowAuto:
+        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored',
+      nextAction:
+        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored',
+      inspectDefaults: 'zk-agent defaults'
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

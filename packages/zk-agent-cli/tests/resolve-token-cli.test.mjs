@@ -62,7 +62,7 @@ test('resolve-token returns local-first matches before token-directory matches o
       path.join(deploymentsDir, 'local-usdc.json'),
       JSON.stringify({
         network: 'zksync-sepolia',
-        contractAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        contractAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885',
         symbol: 'USDC',
         decimals: 6
       }),
@@ -112,10 +112,190 @@ test('resolve-token returns local-first matches before token-directory matches o
     assert.equal(result.chainKey, 'zksync-sepolia');
     assert.equal(result.matchCount, 2);
     assert.equal(result.ambiguous, true);
-    assert.equal(result.primaryMatch.address, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC'
+    });
+    assert.equal(result.primaryMatch.address, '0xa0e40024ac1ec50416ab539ab533ce582080b885');
     assert.equal(result.primaryMatch.source, 'local-deployments');
+    assert.deepEqual(result.primaryMatch.defaultsRegistryMatches, [
+      {
+        id: 'syncswap-classic-token-a',
+        role: 'swap-token-a',
+        sourceKind: 'swap',
+        sourceEntryId: 'syncswap-classic',
+        status: 'validated',
+        deploymentMode: null,
+        notes: ['Tracked token A for the currently validated SyncSwap classic Sepolia path.'],
+        isCurrentValidatedDefault: true
+      },
+      {
+        id: 'zksync-sepolia-approval-based-eravm-fee-token',
+        role: 'paymaster-fee-token',
+        sourceKind: 'paymaster',
+        sourceEntryId: 'zksync-sepolia-approval-based-eravm',
+        status: 'validated',
+        deploymentMode: 'eravm',
+        notes: ['Tracked fee token for the validated approval-based paymaster path on zkSync Sepolia.'],
+        isCurrentValidatedDefault: true
+      }
+    ]);
     assert.equal(result.matches[1].address, '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
     assert.equal(result.matches[1].source, 'token-directory');
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('resolve-token can restrict matches to one defaults-registry role', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-resolve-token-role-home-'));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-resolve-token-role-workspace-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-resolve-token-role-dir-'));
+
+  try {
+    const deploymentsDir = path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments');
+    await mkdir(deploymentsDir, { recursive: true });
+    await writeFile(
+      path.join(deploymentsDir, 'local-usdc.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885',
+        symbol: 'USDC',
+        decimals: 6
+      }),
+      'utf8'
+    );
+
+    await mkdir(path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia'), { recursive: true });
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'index.json'),
+      JSON.stringify({
+        index: {
+          'zksync-sepolia': {
+            chainId: 300,
+            tokenLists: {
+              'erc20.json': 'mock'
+            }
+          }
+        }
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia', 'erc20.json'),
+      JSON.stringify({
+        tokens: [
+          {
+            chainId: 300,
+            address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            symbol: 'USDC',
+            decimals: 6,
+            extensions: {
+              verified: true
+            }
+          }
+        ]
+      }),
+      'utf8'
+    );
+
+    const result = await runCliJson(
+      ['resolve-token', '--chain', 'zksync-sepolia', '--symbol', 'USDC', '--role', 'paymaster-fee-token'],
+      {
+        ...createCliEnv(homeDir),
+        ZK_AGENT_WORKSPACE_ROOT: workspaceRoot,
+        ZK_AGENT_TOKEN_DIRECTORY_ROOT: tokenDirectoryRoot
+      }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.role, 'paymaster-fee-token');
+    assert.equal(result.matchCount, 1);
+    assert.equal(result.ambiguous, false);
+    assert.equal(result.primaryMatch.address, '0xa0e40024ac1ec50416ab539ab533ce582080b885');
+    assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC --role paymaster-fee-token'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(tokenDirectoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('resolve-token can restrict matches to one registry source and preserve that source in follow-ups', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-resolve-token-source-home-'));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-resolve-token-source-workspace-'));
+  const tokenDirectoryRoot = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-resolve-token-source-dir-'));
+
+  try {
+    const deploymentsDir = path.join(workspaceRoot, 'packages', 'paymaster-test-assets', 'deployments');
+    await mkdir(deploymentsDir, { recursive: true });
+    await writeFile(
+      path.join(deploymentsDir, 'local-usdc.json'),
+      JSON.stringify({
+        network: 'zksync-sepolia',
+        contractAddress: '0xA0e40024ac1eC50416ab539AB533ce582080B885',
+        symbol: 'USDC',
+        decimals: 6
+      }),
+      'utf8'
+    );
+
+    await mkdir(path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia'), { recursive: true });
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'index.json'),
+      JSON.stringify({
+        index: {
+          'zksync-sepolia': {
+            chainId: 300,
+            tokenLists: {
+              'erc20.json': 'mock'
+            }
+          }
+        }
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(tokenDirectoryRoot, 'index', 'zksync-sepolia', 'erc20.json'),
+      JSON.stringify({
+        tokens: [
+          {
+            chainId: 300,
+            address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            symbol: 'USDC',
+            decimals: 6,
+            extensions: {
+              verified: true
+            }
+          }
+        ]
+      }),
+      'utf8'
+    );
+
+    const result = await runCliJson(
+      ['resolve-token', '--chain', 'zksync-sepolia', '--symbol', 'USDC', '--source', 'token-directory'],
+      {
+        ...createCliEnv(homeDir),
+        ZK_AGENT_WORKSPACE_ROOT: workspaceRoot,
+        ZK_AGENT_TOKEN_DIRECTORY_ROOT: tokenDirectoryRoot
+      }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, 'token-directory');
+    assert.equal(result.matchCount, 1);
+    assert.equal(result.primaryMatch.address, '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
+    assert.equal(result.primaryMatch.source, 'token-directory');
+    assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC --source token-directory'
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
     await rm(workspaceRoot, { recursive: true, force: true });

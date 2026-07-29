@@ -2,7 +2,14 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { encryptSession } from '@zk-agent/agent-session-protocol';
+import {
+  encryptSession,
+  type PaymasterMode,
+  type SessionCapabilities,
+  type SessionChainScope,
+  type SessionPayload,
+  type SessionPolicies
+} from '@zk-agent/agent-session-protocol';
 
 import { startRelayServer } from './lib/relay.js';
 
@@ -20,26 +27,17 @@ interface JsonCommandResult {
 
 interface DecodedApprovalRequest {
   requestId: string;
-  provider: string;
+  provider: 'zksync-sso';
   chain: string;
   chainId: number;
   connectorUrl: string;
   expiresAt: string;
   sessionPublicKey: string;
   requestedAccountKind: 'eoa' | 'smart-account';
-  requestedSessionScope?: {
-    chainKeys?: string[];
-    chainIds?: number[];
-  };
-  requestedCapabilities?: {
-    read?: boolean;
-    write?: boolean;
-    transfer?: boolean;
-    contractCall?: boolean;
-    paymaster?: boolean;
-  };
-  requestedPaymasterMode?: 'none' | 'sponsored' | 'approval-based';
-  policies?: Record<string, unknown>;
+  requestedSessionScope?: SessionChainScope;
+  requestedCapabilities?: SessionCapabilities;
+  requestedPaymasterMode?: PaymasterMode;
+  policies?: SessionPolicies;
 }
 
 function printUsage(): void {
@@ -181,7 +179,10 @@ async function runCliJson(args: string[]): Promise<JsonCommandResult> {
   return JSON.parse(stdout) as JsonCommandResult;
 }
 
-function buildApprovedPayload(request: DecodedApprovalRequest, relayOrigin: string) {
+function buildApprovedPayload(
+  request: DecodedApprovalRequest,
+  relayOrigin: string
+): SessionPayload {
   const executionAddress = '0x9999999999999999999999999999999999999999';
   const ownerAddress = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 

@@ -1,37 +1,68 @@
 {
   "name": "@zk-agent/cli",
   "version": "0.1.0",
-  "private": true,
+  "description": "Local-first zkSync Era and ZK Stack agent CLI with wallet session recovery, workflow orchestration, relay-backed approval, and SED smart-account support.",
+  "license": "UNLICENSED",
   "type": "module",
+  "homepage": "https://github.com/AgiWeb3/zk-agent-cli/tree/main/packages/zk-agent-cli",
+  "bugs": {
+    "url": "https://github.com/AgiWeb3/zk-agent-cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgiWeb3/zk-agent-cli.git",
+    "directory": "packages/zk-agent-cli"
+  },
+  "keywords": [
+    "zksync",
+    "zksync-era",
+    "aa",
+    "account-abstraction",
+    "agent",
+    "cli",
+    "wallet",
+    "workflow"
+  ],
   "bin": {
     "zk-agent": "dist/index.js",
     "zksync-agent": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "pack:check": "node scripts/release-check.mjs",
+    "release:check": "pnpm run build && pnpm run typecheck && pnpm run pack:check",
+    "prepublishOnly": "pnpm run release:check",
+    "smoke:discovery": "node --import tsx ./src/smoke-discovery.ts",
     "smoke:remote-approval": "node --import tsx ./src/smoke-remote-approval.ts",
     "typecheck": "tsc --noEmit",
     "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/*.test.mjs ./tests/*.test.ts"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "dependencies": {
     "@noble/ciphers": "^1.2.1",
     "@noble/curves": "^1.8.1",
     "@noble/hashes": "^1.7.2",
-    "@zk-agent/account-profiles": "workspace:*",
-    "@zk-agent/agent-core": "workspace:*",
-    "@zk-agent/agent-session-protocol": "workspace:*",
-    "@zk-agent/plugin-identity": "workspace:*",
-    "@zk-agent/provider-zksync-defi": "workspace:*",
-    "@zk-agent/provider-zksync-wallet": "workspace:*",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
     "ethers": "^6.16.0",
     "zksync-ethers": "^6.21.2"
   },
   "devDependencies": {
+    "@zk-agent/account-profiles": "workspace:*",
+    "@zk-agent/agent-core": "workspace:*",
+    "@zk-agent/agent-session-protocol": "workspace:*",
+    "@zk-agent/plugin-identity": "workspace:*",
+    "@zk-agent/provider-zksync-defi": "workspace:*",
+    "@zk-agent/provider-zksync-wallet": "workspace:*",
     "esbuild": "^0.28.0"
   }
 }

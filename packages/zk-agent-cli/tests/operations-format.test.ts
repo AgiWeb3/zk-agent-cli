@@ -147,7 +147,7 @@ test('linesForSwapResult includes swap and paymaster registry summaries', () => 
   );
 });
 
-test('linesForWriteResult includes supported no-paymaster registry summary', () => {
+test('linesForWriteResult includes validated no-paymaster registry summary', () => {
   const lines = linesForWriteResult({
     walletName: 'main',
     walletAddress: '0x1111111111111111111111111111111111111111',
@@ -167,10 +167,10 @@ test('linesForWriteResult includes supported no-paymaster registry summary', () 
         entryId: 'zksync-sepolia-no-paymaster',
         chain: 'zksync-sepolia',
         mode: 'none',
-        status: 'supported',
+        status: 'validated',
         configuration: 'manual',
         isValidatedDefault: false,
-        isValidatedDefaultForMode: false,
+        isValidatedDefaultForMode: true,
         paymasterAddress: null,
         feeTokenAddress: null,
         feeTokenSymbol: null,
@@ -182,7 +182,7 @@ test('linesForWriteResult includes supported no-paymaster registry summary', () 
 
   assert.equal(
     lineValue(lines, 'registry paymaster'),
-    'zksync-sepolia-no-paymaster (supported, manual)'
+    'zksync-sepolia-no-paymaster (validated, manual)'
   );
   assert.equal(lineValue(lines, 'registry paymaster default'), 'no');
 });

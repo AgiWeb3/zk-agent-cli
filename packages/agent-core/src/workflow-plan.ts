@@ -6,7 +6,9 @@ import type {
 } from './providers.js';
 import {
   buildBridgeRegistryNotes,
+  buildPaymasterRegistryCatalogNotes,
   buildPaymasterRegistryNotes,
+  buildSwapRegistryCatalogNotes,
   buildSwapRegistryNotes,
   findSwapProtocolRegistryEntry,
   loadValidatedDefaults,
@@ -325,6 +327,7 @@ export function buildWorkflowPlan(input: {
   toChain?: string;
   paymaster?: PaymasterSelectionInput;
 }): WorkflowPlan {
+  const defaults = loadValidatedDefaults();
   const paymasterCanCoverGas =
     workflowIntentSupportsPaymaster(input.intent) &&
     isZeroBalance(input.nativeBalance) &&
@@ -355,7 +358,7 @@ export function buildWorkflowPlan(input: {
     : undefined;
   const preferredSwapProtocol =
     input.intent === 'swap'
-      ? resolvePreferredWorkflowSwapProtocol(input.protocol)
+      ? resolvePreferredWorkflowSwapProtocol(input.protocol, defaults)
       : undefined;
   const resolvedBridgeTarget =
     input.intent === 'bridge'
@@ -380,7 +383,8 @@ export function buildWorkflowPlan(input: {
             ? {
                 swap: resolveSwapRegistryResolution({
                   chain: input.wallet.chain,
-                  protocol: preferredSwapProtocol
+                  protocol: preferredSwapProtocol,
+                  defaults
                 })
               }
             : {}),
@@ -389,7 +393,8 @@ export function buildWorkflowPlan(input: {
               return {
                 bridge: resolveBridgeRegistryResolution({
                   fromChain: input.wallet.chain,
-                  toChain: resolvedBridgeTarget
+                  toChain: resolvedBridgeTarget,
+                  defaults
                 })
               };
             }
@@ -397,7 +402,8 @@ export function buildWorkflowPlan(input: {
               return {
                 bridge: resolveBridgeRegistryResolution({
                   fromChain: 'ethereum-sepolia',
-                  toChain: input.wallet.chain
+                  toChain: input.wallet.chain,
+                  defaults
                 })
               };
             }
@@ -405,7 +411,8 @@ export function buildWorkflowPlan(input: {
               return {
                 bridge: resolveBridgeRegistryResolution({
                   fromChain: input.wallet.chain,
-                  toChain: 'ethereum-sepolia'
+                  toChain: 'ethereum-sepolia',
+                  defaults
                 })
               };
             }
@@ -416,7 +423,8 @@ export function buildWorkflowPlan(input: {
             mode: resolvedPaymaster.mode,
             paymasterAddress: resolvedPaymaster.address,
             tokenAddress: resolvedPaymaster.token,
-            accountKind: input.inspection.accountKind
+            accountKind: input.inspection.accountKind,
+            defaults
           })
         }
       : {
@@ -424,7 +432,8 @@ export function buildWorkflowPlan(input: {
             ? {
                 swap: resolveSwapRegistryResolution({
                   chain: input.wallet.chain,
-                  protocol: preferredSwapProtocol
+                  protocol: preferredSwapProtocol,
+                  defaults
                 })
               }
             : {}),
@@ -433,7 +442,8 @@ export function buildWorkflowPlan(input: {
               return {
                 bridge: resolveBridgeRegistryResolution({
                   fromChain: input.wallet.chain,
-                  toChain: resolvedBridgeTarget
+                  toChain: resolvedBridgeTarget,
+                  defaults
                 })
               };
             }
@@ -441,7 +451,8 @@ export function buildWorkflowPlan(input: {
               return {
                 bridge: resolveBridgeRegistryResolution({
                   fromChain: 'ethereum-sepolia',
-                  toChain: input.wallet.chain
+                  toChain: input.wallet.chain,
+                  defaults
                 })
               };
             }
@@ -449,7 +460,8 @@ export function buildWorkflowPlan(input: {
               return {
                 bridge: resolveBridgeRegistryResolution({
                   fromChain: input.wallet.chain,
-                  toChain: 'ethereum-sepolia'
+                  toChain: 'ethereum-sepolia',
+                  defaults
                 })
               };
             }
@@ -470,39 +482,62 @@ export function buildWorkflowPlan(input: {
         ]
       : []),
     ...(() => {
-      const paymaster = resolveEffectivePaymasterSelection(input.wallet, input.paymaster);
-      return paymasterCanCoverGas
-        ? buildPaymasterRegistryNotes({
-            chain: input.inspection.chain,
-            mode: paymaster?.mode,
-            paymasterAddress: paymaster?.address,
-            tokenAddress: paymaster?.token,
-            accountKind: input.inspection.accountKind
-          })
-        : [];
+      if (!resolvedPaymaster?.mode || resolvedPaymaster.mode === 'none') {
+        return [];
+      }
+
+      return [
+        ...buildPaymasterRegistryNotes({
+          chain: input.inspection.chain,
+          mode: resolvedPaymaster.mode,
+          paymasterAddress: resolvedPaymaster.address,
+          tokenAddress: resolvedPaymaster.token,
+          accountKind: input.inspection.accountKind,
+          defaults
+        }),
+        ...buildPaymasterRegistryCatalogNotes({
+          chain: input.inspection.chain,
+          mode: resolvedPaymaster.mode,
+          paymasterAddress: resolvedPaymaster.address,
+          tokenAddress: resolvedPaymaster.token,
+          accountKind: input.inspection.accountKind,
+          defaults
+        })
+      ];
     })(),
-    ...(input.intent === 'swap' && input.protocol
+    ...(input.intent === 'swap' && preferredSwapProtocol
       ? buildSwapRegistryNotes({
           chain: input.inspection.chain,
-          protocol: input.protocol
+          protocol: preferredSwapProtocol,
+          defaults
+        })
+      : []),
+    ...(input.intent === 'swap' && preferredSwapProtocol
+      ? buildSwapRegistryCatalogNotes({
+          chain: input.inspection.chain,
+          protocol: preferredSwapProtocol,
+          defaults
         })
       : []),
     ...(input.intent === 'bridge' && resolvedBridgeTarget
       ? buildBridgeRegistryNotes({
           fromChain: input.wallet.chain,
-          toChain: resolvedBridgeTarget
+          toChain: resolvedBridgeTarget,
+          defaults
         })
       : []),
     ...(input.intent === 'deposit'
       ? buildBridgeRegistryNotes({
           fromChain: 'ethereum-sepolia',
-          toChain: input.wallet.chain
+          toChain: input.wallet.chain,
+          defaults
         })
       : []),
     ...(input.intent === 'withdraw'
       ? buildBridgeRegistryNotes({
           fromChain: input.wallet.chain,
-          toChain: 'ethereum-sepolia'
+          toChain: 'ethereum-sepolia',
+          defaults
         })
       : []),
     ...goal.notes,

@@ -788,6 +788,58 @@ test('wallet request approve imports an approved connector payload and removes t
   }
 });
 
+test('wallet request follow-up commands preserve an explicit sponsored paymaster mode', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-request-paymaster-followup-'));
+  const env = createCliEnv(homeDir);
+
+  try {
+    const created = await runCliJson(
+      [
+        'wallet',
+        'create',
+        '--name',
+        'paymaster-followup-test',
+        '--chain',
+        'zksync-sepolia',
+        '--paymaster-mode',
+        'sponsored'
+      ],
+      env
+    );
+
+    assert.equal(created.paymasterMode, 'sponsored');
+    assert.equal(
+      created.recommendedCommands.afterApproval,
+      'zk-agent next --paymaster-mode sponsored'
+    );
+
+    const shown = await runCliJson(
+      ['wallet', 'request', 'show', '--request-id', created.requestId],
+      env
+    );
+    assert.equal(
+      shown.recommendedCommands.afterApproval,
+      'zk-agent next --paymaster-mode sponsored'
+    );
+
+    const listed = await runCliJson(['wallet', 'request', 'list'], env);
+    assert.deepEqual(listed.requestRecommendations, [
+      {
+        requestId: created.requestId,
+        walletName: 'paymaster-followup-test',
+        nextAction: `zk-agent wallet request show --request-id ${created.requestId}`,
+        recommendedCommands: {
+          show: `zk-agent wallet request show --request-id ${created.requestId}`,
+          afterApproval: 'zk-agent next --paymaster-mode sponsored',
+          afterApprovalStatus: 'zk-agent wallet status --name paymaster-followup-test'
+        }
+      }
+    ]);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('wallet request approve decrypts an encrypted relay payload and removes the stored request', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-request-approve-encrypted-'));
   const env = createCliEnv(homeDir);
@@ -1596,7 +1648,7 @@ test('wallet reapprove --relay-url publishes the request immediately for remote 
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,
       relayApprove: `zk-agent wallet request approve --request-id ${created.request.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`,
       approve: `zk-agent wallet request approve --request-id ${created.request.requestId} --payload @approved-session.json`,
-      afterApproval: 'zk-agent next',
+      afterApproval: 'zk-agent next --paymaster-mode approval-based',
       afterApprovalStatus: 'zk-agent wallet status --name relay-reapprove-direct'
     });
 

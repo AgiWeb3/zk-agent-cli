@@ -518,6 +518,7 @@ test('smoke-product-path --plan returns the canonical live validation sequence',
   assert.equal(result.walletName, 'main');
   assert.deepEqual(result.summary, {
     walletName: 'main',
+    paymasterMode: 'approval-based',
     totalSteps: 4,
     includesSwapSuccess: true,
     includesWithdrawFollowup: true,
@@ -531,8 +532,14 @@ test('smoke-product-path --plan returns the canonical live validation sequence',
     result.steps.map((step: { id: string }) => step.id),
     ['operator-path', 'paymaster-success', 'swap-success', 'withdraw-followup']
   );
-  assert.match(result.steps[0]?.command || '', /smoke-operator-path\.(ts|js) --wallet main/);
-  assert.match(result.steps[1]?.command || '', /smoke-paymaster-success\.(ts|js) --wallet main/);
+  assert.match(
+    result.steps[0]?.command || '',
+    /smoke-operator-path\.(ts|js) --wallet main --paymaster-mode approval-based/
+  );
+  assert.match(
+    result.steps[1]?.command || '',
+    /smoke-paymaster-success\.(ts|js) --wallet main --paymaster-mode approval-based/
+  );
   assert.match(result.steps[2]?.command || '', /smoke-swap-success\.(ts|js) --wallet main/);
   assert.match(
     result.steps[3]?.command || '',

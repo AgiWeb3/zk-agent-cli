@@ -56,7 +56,13 @@ interface RegistryTokenDescriptor {
   decimals: number | null;
 }
 
-export type RegistryTokenRole = 'swap-token-a' | 'swap-token-b' | 'paymaster-fee-token';
+export const REGISTRY_TOKEN_ROLES = [
+  'swap-token-a',
+  'swap-token-b',
+  'paymaster-fee-token'
+] as const;
+
+export type RegistryTokenRole = (typeof REGISTRY_TOKEN_ROLES)[number];
 export type BridgeAssetConstraint =
   | 'erc20-requires-canonical-shared-bridge-mapping'
   | 'erc20-requires-shared-bridge-registration'
@@ -212,6 +218,7 @@ export interface ValidatedDefaultsPayload {
     paymaster: {
       validatedDefaultEntryId: string | null;
       validatedDefaultEntryIdByMode: {
+        none: string | null;
         sponsored: string | null;
         approvalBased: string | null;
       };
@@ -222,6 +229,7 @@ export interface ValidatedDefaultsPayload {
     };
   };
   defaultSelections: ValidatedDefaultSelections;
+  resolvedCatalog: ResolvedRegistryCatalog;
   notes: string[];
 }
 
@@ -298,9 +306,33 @@ export interface ValidatedDefaultSelections {
   };
   paymaster: {
     manualNoPaymaster?: PaymasterRegistryResolution;
+    validatedNone?: PaymasterRegistryResolution;
     validatedDefault?: PaymasterRegistryResolution;
     validatedSponsored?: PaymasterRegistryResolution;
     validatedApprovalBased?: PaymasterRegistryResolution;
+  };
+}
+
+export interface ResolvedRegistryCatalog {
+  swap: {
+    validated: SwapRegistryResolution[];
+    supported: SwapRegistryResolution[];
+    experimental: SwapRegistryResolution[];
+  };
+  bridge: {
+    validated: BridgeRegistryResolution[];
+    supported: BridgeRegistryResolution[];
+    experimental: BridgeRegistryResolution[];
+  };
+  paymaster: {
+    validated: PaymasterRegistryResolution[];
+    supported: PaymasterRegistryResolution[];
+    experimental: PaymasterRegistryResolution[];
+    validatedByMode: {
+      none: PaymasterRegistryResolution[];
+      sponsored: PaymasterRegistryResolution[];
+      approvalBased: PaymasterRegistryResolution[];
+    };
   };
 }
 
@@ -574,7 +606,7 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
       ],
       requiresFinalize: true,
       notes: [
-        'This is the currently tracked validated Sepolia withdraw route. Finalization still depends on later proof availability.'
+        'This is the currently tracked validated Sepolia withdraw route. Native withdraw follow-up now reaches finalize-preview readiness, while ERC-20 breadth still depends on canonical shared-bridge asset mapping.'
       ]
     }
   ];
@@ -584,17 +616,18 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
       id: 'zksync-sepolia-no-paymaster',
       chain: 'zksync-sepolia',
       mode: 'none',
-      status: 'supported',
+      status: 'validated',
       configuration: 'manual',
       supportedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
-      validatedAccountKinds: [] as AccountKind[],
+      validatedAccountKinds: ['eoa', 'smart-account'] as AccountKind[],
       paymasterAddress: null,
       feeTokenAddress: null,
       feeTokenSymbol: null,
       feeTokenDeploymentMode: null,
       notes: [
         'This is the explicit no-paymaster execution path for zkSync Sepolia.',
-        'Use this path when sponsored or approval-based execution is unnecessary or incompatible.'
+        'Use this path when sponsored or approval-based execution is unnecessary or incompatible.',
+        'This path is currently live-validated on both the EOA and smart-account preview baselines.'
       ]
     },
     ...(paymaster && paymaster.generalFlowEnabled === true
@@ -751,6 +784,13 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
     ) || null;
   const manualNoPaymaster =
     paymasterPaths.find((entry) => entry.mode === 'none' && entry.configuration === 'manual') || null;
+  const validatedNoPaymasterDefault =
+    paymasterPaths.find(
+      (entry) =>
+        entry.mode === 'none' &&
+        entry.status === 'validated' &&
+        entry.configuration === 'manual'
+    ) || null;
   const validatedSponsoredPaymasterDefault =
     paymasterPaths.find(
       (entry) =>
@@ -886,6 +926,7 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
       paymaster: {
         validatedDefaultEntryId: validatedPaymasterDefault?.id || null,
         validatedDefaultEntryIdByMode: {
+          none: validatedNoPaymasterDefault?.id || null,
           sponsored: validatedSponsoredPaymasterDefault?.id || null,
           approvalBased: validatedPaymasterDefault?.id || null
         },
@@ -896,6 +937,9 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
           validatedPaymasterDefault
             ? `Validated default paymaster path: ${validatedPaymasterDefault.id}.`
             : 'No validated default paymaster path is currently promoted into the registry.',
+          validatedNoPaymasterDefault
+            ? `Validated default no-paymaster path: ${validatedNoPaymasterDefault.id}.`
+            : 'No validated default no-paymaster path is currently promoted into the registry.',
           validatedSponsoredPaymasterDefault
             ? `Validated default sponsored paymaster path: ${validatedSponsoredPaymasterDefault.id}.`
             : 'No validated default sponsored paymaster path is currently promoted into the registry.',
@@ -926,6 +970,28 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
       swap: {},
       bridge: {},
       paymaster: {}
+    },
+    resolvedCatalog: {
+      swap: {
+        validated: [],
+        supported: [],
+        experimental: []
+      },
+      bridge: {
+        validated: [],
+        supported: [],
+        experimental: []
+      },
+      paymaster: {
+        validated: [],
+        supported: [],
+        experimental: [],
+        validatedByMode: {
+          none: [],
+          sponsored: [],
+          approvalBased: []
+        }
+      }
     },
     notes: [
       'The managed paymaster and EraVM fee token below are the currently tracked validated Sepolia approval-based path.',
@@ -988,6 +1054,16 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
     });
   }
 
+  if (validatedNoPaymasterDefault) {
+    payload.defaultSelections.paymaster.validatedNone = resolvePaymasterRegistryResolution({
+      chain: validatedNoPaymasterDefault.chain,
+      mode: validatedNoPaymasterDefault.mode,
+      paymasterAddress: validatedNoPaymasterDefault.paymasterAddress,
+      tokenAddress: validatedNoPaymasterDefault.feeTokenAddress,
+      defaults: payload
+    });
+  }
+
   if (validatedSponsoredPaymasterDefault) {
     payload.defaultSelections.paymaster.validatedSponsored = resolvePaymasterRegistryResolution({
       chain: validatedSponsoredPaymasterDefault.chain,
@@ -997,6 +1073,42 @@ export function loadValidatedDefaults(): ValidatedDefaultsPayload {
       defaults: payload
     });
   }
+
+  payload.resolvedCatalog.swap.validated = payload.registry.swapProtocols
+    .filter((entry) => entry.status === 'validated')
+    .map((entry) => resolveSwapRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.swap.supported = payload.registry.swapProtocols
+    .filter((entry) => entry.status === 'supported')
+    .map((entry) => resolveSwapRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.swap.experimental = payload.registry.swapProtocols
+    .filter((entry) => entry.status === 'experimental')
+    .map((entry) => resolveSwapRegistryResolutionFromEntry(entry, payload));
+
+  payload.resolvedCatalog.bridge.validated = payload.registry.bridgeRoutes
+    .filter((entry) => entry.status === 'validated')
+    .map((entry) => resolveBridgeRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.bridge.supported = payload.registry.bridgeRoutes
+    .filter((entry) => entry.status === 'supported')
+    .map((entry) => resolveBridgeRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.bridge.experimental = payload.registry.bridgeRoutes
+    .filter((entry) => entry.status === 'experimental')
+    .map((entry) => resolveBridgeRegistryResolutionFromEntry(entry, payload));
+
+  payload.resolvedCatalog.paymaster.validated = payload.registry.paymasterPaths
+    .filter((entry) => entry.status === 'validated')
+    .map((entry) => resolvePaymasterRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.paymaster.supported = payload.registry.paymasterPaths
+    .filter((entry) => entry.status === 'supported')
+    .map((entry) => resolvePaymasterRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.paymaster.experimental = payload.registry.paymasterPaths
+    .filter((entry) => entry.status === 'experimental')
+    .map((entry) => resolvePaymasterRegistryResolutionFromEntry(entry, payload));
+  payload.resolvedCatalog.paymaster.validatedByMode.none =
+    payload.resolvedCatalog.paymaster.validated.filter((entry) => entry.mode === 'none');
+  payload.resolvedCatalog.paymaster.validatedByMode.sponsored =
+    payload.resolvedCatalog.paymaster.validated.filter((entry) => entry.mode === 'sponsored');
+  payload.resolvedCatalog.paymaster.validatedByMode.approvalBased =
+    payload.resolvedCatalog.paymaster.validated.filter((entry) => entry.mode === 'approval-based');
 
   return payload;
 }
@@ -1096,7 +1208,11 @@ export function findPaymasterPathRegistryEntry(input: {
   if (entries.length === 0) return undefined;
 
   if (input.mode === 'none') {
-    return entries.find((entry) => entry.status === 'supported') || entries[0];
+    return (
+      entries.find((entry) => entry.status === 'validated') ||
+      entries.find((entry) => entry.status === 'supported') ||
+      entries[0]
+    );
   }
 
   if (input.mode === 'sponsored') {
@@ -1164,6 +1280,46 @@ export function resolveSwapRegistryResolution(input: {
   });
   if (!entry) return undefined;
 
+  return resolveSwapRegistryResolutionFromEntry(entry, defaults);
+}
+
+export function resolveBridgeRegistryResolution(input: {
+  fromChain: string;
+  toChain: string;
+  defaults?: ValidatedDefaultsPayload;
+}): BridgeRegistryResolution | undefined {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findBridgeRouteRegistryEntry({
+    ...input,
+    defaults
+  });
+  if (!entry) return undefined;
+
+  return resolveBridgeRegistryResolutionFromEntry(entry, defaults);
+}
+
+export function resolvePaymasterRegistryResolution(input: {
+  chain: string;
+  mode?: string | null;
+  paymasterAddress?: string | null;
+  tokenAddress?: string | null;
+  accountKind?: AccountKind | null;
+  defaults?: ValidatedDefaultsPayload;
+}): PaymasterRegistryResolution | undefined {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const entry = findPaymasterPathRegistryEntry({
+    ...input,
+    defaults
+  });
+  if (!entry) return undefined;
+
+  return resolvePaymasterRegistryResolutionFromEntry(entry, defaults, input.accountKind ?? null);
+}
+
+function resolveSwapRegistryResolutionFromEntry(
+  entry: SwapProtocolRegistryEntry,
+  defaults: ValidatedDefaultsPayload
+): SwapRegistryResolution {
   return {
     kind: 'swap',
     entryId: entry.id,
@@ -1182,18 +1338,10 @@ export function resolveSwapRegistryResolution(input: {
   };
 }
 
-export function resolveBridgeRegistryResolution(input: {
-  fromChain: string;
-  toChain: string;
-  defaults?: ValidatedDefaultsPayload;
-}): BridgeRegistryResolution | undefined {
-  const defaults = input.defaults ?? loadValidatedDefaults();
-  const entry = findBridgeRouteRegistryEntry({
-    ...input,
-    defaults
-  });
-  if (!entry) return undefined;
-
+function resolveBridgeRegistryResolutionFromEntry(
+  entry: BridgeRouteRegistryEntry,
+  defaults: ValidatedDefaultsPayload
+): BridgeRegistryResolution {
   return {
     kind: 'bridge',
     entryId: entry.id,
@@ -1212,21 +1360,11 @@ export function resolveBridgeRegistryResolution(input: {
   };
 }
 
-export function resolvePaymasterRegistryResolution(input: {
-  chain: string;
-  mode?: string | null;
-  paymasterAddress?: string | null;
-  tokenAddress?: string | null;
-  accountKind?: AccountKind | null;
-  defaults?: ValidatedDefaultsPayload;
-}): PaymasterRegistryResolution | undefined {
-  const defaults = input.defaults ?? loadValidatedDefaults();
-  const entry = findPaymasterPathRegistryEntry({
-    ...input,
-    defaults
-  });
-  if (!entry) return undefined;
-
+function resolvePaymasterRegistryResolutionFromEntry(
+  entry: PaymasterPathRegistryEntry,
+  defaults: ValidatedDefaultsPayload,
+  accountKind: AccountKind | null = null
+): PaymasterRegistryResolution {
   return {
     kind: 'paymaster',
     entryId: entry.id,
@@ -1236,7 +1374,9 @@ export function resolvePaymasterRegistryResolution(input: {
     configuration: entry.configuration,
     isValidatedDefault: entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryId,
     isValidatedDefaultForMode:
-      entry.mode === 'sponsored'
+      entry.mode === 'none'
+        ? entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.none
+      : entry.mode === 'sponsored'
         ? entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.sponsored
         : entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.approvalBased,
     paymasterAddress: entry.paymasterAddress,
@@ -1245,14 +1385,14 @@ export function resolvePaymasterRegistryResolution(input: {
     feeTokenDeploymentMode: entry.feeTokenDeploymentMode,
     supportedAccountKinds: entry.supportedAccountKinds,
     validatedAccountKinds: entry.validatedAccountKinds,
-    requestedAccountKind: input.accountKind ?? null,
+    requestedAccountKind: accountKind,
     isRequestedAccountKindSupported:
-      input.accountKind !== undefined && input.accountKind !== null
-        ? includesAccountKind(entry.supportedAccountKinds, input.accountKind)
+      accountKind !== undefined && accountKind !== null
+        ? includesAccountKind(entry.supportedAccountKinds, accountKind)
         : null,
     isRequestedAccountKindValidated:
-      input.accountKind !== undefined && input.accountKind !== null
-        ? includesAccountKind(entry.validatedAccountKinds, input.accountKind)
+      accountKind !== undefined && accountKind !== null
+        ? includesAccountKind(entry.validatedAccountKinds, accountKind)
         : null
   };
 }
@@ -1298,6 +1438,56 @@ export function buildSwapRegistryNotes(input: {
       `Registry pair: ${entry.tokenA.symbol || entry.tokenA.address} <-> ${
         entry.tokenB.symbol || entry.tokenB.address
       }.`
+    );
+  }
+
+  return notes;
+}
+
+function describeSwapCatalogEntry(entry: SwapRegistryResolution): string {
+  const pair =
+    entry.trackedTokenA.symbol && entry.trackedTokenB.symbol
+      ? ` (${entry.trackedTokenA.symbol} <-> ${entry.trackedTokenB.symbol})`
+      : '';
+  const protocolDetail =
+    entry.protocol === 'uniswap-v3-exact-input-single' && entry.feeTier
+      ? ` fee ${entry.feeTier}`
+      : '';
+  return `${entry.protocol}${protocolDetail}${pair}`;
+}
+
+export function buildSwapRegistryCatalogNotes(input: {
+  chain: string;
+  protocol: 'uniswap-v3-exact-input-single' | 'syncswap-classic';
+  defaults?: ValidatedDefaultsPayload;
+}): string[] {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const selected = resolveSwapRegistryResolution({
+    ...input,
+    defaults
+  });
+  if (!selected) return [];
+
+  const validatedAlternatives = defaults.resolvedCatalog.swap.validated.filter(
+    (entry) => entry.chain === input.chain && entry.entryId !== selected.entryId
+  );
+  const supportedAlternatives = defaults.resolvedCatalog.swap.supported.filter(
+    (entry) => entry.chain === input.chain && entry.entryId !== selected.entryId
+  );
+
+  const notes: string[] = [];
+  if (validatedAlternatives.length > 0) {
+    notes.push(
+      `Registry alternatives: other validated swap paths on ${input.chain}: ${validatedAlternatives
+        .map((entry) => describeSwapCatalogEntry(entry))
+        .join(', ')}.`
+    );
+  }
+  if (supportedAlternatives.length > 0) {
+    notes.push(
+      `Registry alternatives: supported-but-not-validated swap paths on ${input.chain}: ${supportedAlternatives
+        .map((entry) => describeSwapCatalogEntry(entry))
+        .join(', ')}.`
     );
   }
 
@@ -1373,6 +1563,10 @@ export function buildPaymasterRegistryNotes(input: {
     notes.push('Registry default: this is the current validated default approval-based paymaster path.');
   }
 
+  if (entry.mode === 'none' && entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.none) {
+    notes.push('Registry default: this is the current validated default no-paymaster path.');
+  }
+
   if (entry.mode === 'sponsored' && entry.id === defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.sponsored) {
     notes.push('Registry default: this is the current validated default sponsored paymaster path.');
   }
@@ -1402,8 +1596,59 @@ export function buildPaymasterRegistryNotes(input: {
   }
 
   if (entry.mode === 'none') {
-    notes.push('Registry fallback: this is the explicit supported no-paymaster execution path.');
+    notes.push(
+      `Registry fallback: this is the explicit ${
+        entry.status === 'validated' ? 'validated' : 'supported'
+      } no-paymaster execution path.`
+    );
   }
 
   return notes;
+}
+
+function describePaymasterCatalogEntry(entry: PaymasterRegistryResolution): string {
+  if (entry.mode === 'sponsored') {
+    return 'sponsored';
+  }
+  if (entry.mode === 'none') {
+    return 'no-paymaster';
+  }
+
+  const token = entry.feeTokenSymbol || entry.feeTokenAddress || 'unknown token';
+  return `approval-based via ${token}${
+    entry.feeTokenDeploymentMode ? ` (${entry.feeTokenDeploymentMode})` : ''
+  }`;
+}
+
+export function buildPaymasterRegistryCatalogNotes(input: {
+  chain: string;
+  mode?: string | null;
+  paymasterAddress?: string | null;
+  tokenAddress?: string | null;
+  accountKind?: AccountKind | null;
+  defaults?: ValidatedDefaultsPayload;
+}): string[] {
+  const defaults = input.defaults ?? loadValidatedDefaults();
+  const selected = resolvePaymasterRegistryResolution({
+    ...input,
+    defaults
+  });
+  if (!selected) return [];
+
+  const alternatives = defaults.resolvedCatalog.paymaster.validated.filter((entry) => {
+    if (entry.chain !== input.chain || entry.entryId === selected.entryId) {
+      return false;
+    }
+    if (!input.accountKind) {
+      return true;
+    }
+    return includesAccountKind(entry.validatedAccountKinds ?? [], input.accountKind);
+  });
+  if (alternatives.length === 0) return [];
+
+  return [
+    `Registry alternatives: other validated paymaster paths${
+      input.accountKind ? ` for ${input.accountKind}` : ''
+    } on ${input.chain}: ${alternatives.map((entry) => describePaymasterCatalogEntry(entry)).join(', ')}.`
+  ];
 }

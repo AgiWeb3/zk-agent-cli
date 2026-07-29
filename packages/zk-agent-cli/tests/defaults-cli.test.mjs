@@ -150,13 +150,13 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     const noPaymasterPath = result.defaults.registry.paymasterPaths.find(
       (entry) => entry.id === 'zksync-sepolia-no-paymaster'
     );
-    assert.equal(noPaymasterPath.status, 'supported');
+    assert.equal(noPaymasterPath.status, 'validated');
     assert.equal(noPaymasterPath.mode, 'none');
     assert.equal(noPaymasterPath.configuration, 'manual');
     assert.equal(noPaymasterPath.paymasterAddress, null);
     assert.equal(noPaymasterPath.feeTokenAddress, null);
     assert.deepEqual(noPaymasterPath.supportedAccountKinds, ['eoa', 'smart-account']);
-    assert.deepEqual(noPaymasterPath.validatedAccountKinds, []);
+    assert.deepEqual(noPaymasterPath.validatedAccountKinds, ['eoa', 'smart-account']);
 
     const validatedSwapTokenA = result.defaults.registry.tokens.find(
       (entry) => entry.id === 'syncswap-classic-token-a'
@@ -206,6 +206,10 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
       'zksync-sepolia-approval-based-eravm'
     );
     assert.equal(
+      result.defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.none,
+      'zksync-sepolia-no-paymaster'
+    );
+    assert.equal(
       result.defaults.surfaceMatrix.paymaster.validatedDefaultEntryIdByMode.sponsored,
       'zksync-sepolia-sponsored'
     );
@@ -220,9 +224,7 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.deepEqual(result.defaults.surfaceMatrix.paymaster.experimentalEntryIds, [
       'zksync-sepolia-approval-based-evm-interpreter'
     ]);
-    assert.deepEqual(result.defaults.surfaceMatrix.paymaster.supportedEntryIds, [
-      'zksync-sepolia-no-paymaster'
-    ]);
+    assert.deepEqual(result.defaults.surfaceMatrix.paymaster.supportedEntryIds, []);
 
     assert.equal(
       result.defaults.defaultSelections.swap.validatedDefault.entryId,
@@ -339,6 +341,14 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
       'eravm'
     );
     assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedNone.entryId,
+      'zksync-sepolia-no-paymaster'
+    );
+    assert.equal(
+      result.defaults.defaultSelections.paymaster.validatedNone.isValidatedDefaultForMode,
+      true
+    );
+    assert.equal(
       result.defaults.defaultSelections.paymaster.manualNoPaymaster.entryId,
       'zksync-sepolia-no-paymaster'
     );
@@ -356,7 +366,49 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     );
     assert.equal(
       result.defaults.defaultSelections.paymaster.manualNoPaymaster.isValidatedDefaultForMode,
-      false
+      true
+    );
+    assert.equal(result.defaults.resolvedCatalog.swap.validated.length, 1);
+    assert.equal(
+      result.defaults.resolvedCatalog.swap.validated[0].entryId,
+      'syncswap-classic'
+    );
+    assert.equal(result.defaults.resolvedCatalog.swap.supported.length, 1);
+    assert.equal(
+      result.defaults.resolvedCatalog.swap.supported[0].entryId,
+      'uniswap-v3-exact-input-single'
+    );
+    assert.equal(result.defaults.resolvedCatalog.bridge.validated.length, 2);
+    assert.deepEqual(
+      result.defaults.resolvedCatalog.bridge.validated.map((entry) => entry.entryId),
+      ['ethereum-sepolia-to-zksync-sepolia', 'zksync-sepolia-to-ethereum-sepolia']
+    );
+    assert.equal(result.defaults.resolvedCatalog.paymaster.validated.length, 3);
+    assert.deepEqual(
+      result.defaults.resolvedCatalog.paymaster.validated.map((entry) => entry.entryId),
+      [
+        'zksync-sepolia-no-paymaster',
+        'zksync-sepolia-sponsored',
+        'zksync-sepolia-approval-based-eravm'
+      ]
+    );
+    assert.equal(result.defaults.resolvedCatalog.paymaster.supported.length, 0);
+    assert.equal(result.defaults.resolvedCatalog.paymaster.experimental.length, 1);
+    assert.equal(
+      result.defaults.resolvedCatalog.paymaster.experimental[0].entryId,
+      'zksync-sepolia-approval-based-evm-interpreter'
+    );
+    assert.deepEqual(
+      result.defaults.resolvedCatalog.paymaster.validatedByMode.none.map((entry) => entry.entryId),
+      ['zksync-sepolia-no-paymaster']
+    );
+    assert.deepEqual(
+      result.defaults.resolvedCatalog.paymaster.validatedByMode.sponsored.map((entry) => entry.entryId),
+      ['zksync-sepolia-sponsored']
+    );
+    assert.deepEqual(
+      result.defaults.resolvedCatalog.paymaster.validatedByMode.approvalBased.map((entry) => entry.entryId),
+      ['zksync-sepolia-approval-based-eravm']
     );
 
     const localEraVmToken = result.localTokenRegistry.find(

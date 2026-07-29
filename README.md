@@ -21,6 +21,25 @@ The project is intentionally modeled after the real architecture of `polygon-age
 - provider packages for zkSync-specific wallet and DeFi capabilities
 - agent tool adapters for LLM / framework integration
 
+## Install Surfaces
+
+There are now two explicit install surfaces:
+
+- repo-local development and daily project use:
+  - `pnpm install`
+  - `pnpm zk-agent --help`
+- packaged CLI release target:
+  - `npx @zk-agent/cli --help`
+  - `npm install -g @zk-agent/cli`
+  - binaries: `zk-agent`, `zksync-agent`
+
+Current status:
+
+- the package/release posture is now prepared in `packages/zk-agent-cli`
+- release validation is local and explicit through `pnpm validate:phase4a`
+- until an actual public publish is cut, the repo-local `pnpm zk-agent ...`
+  path remains the default way to run the CLI from this repository
+
 ## Current Phase
 
 The project has moved past scaffolding and isolated chain experiments.
@@ -37,7 +56,10 @@ What that means:
   - workflow-first operator entrypoints cover the common actions
   - registry-backed validated defaults are documented and machine-readable
 - the next work is no longer Phase 3 closeout; it is Phase 4 product hardening,
-  broader validated coverage, and packaging/distribution polish
+  broader validated coverage and packaging/distribution polish
+- the vertical-workflow review is also complete on the current baseline:
+  no zkSync-native first-class vertical has enough repeated operator evidence
+  yet to justify a dedicated command family or skill slice
 
 What is already in place:
 
@@ -53,8 +75,10 @@ What is already in place:
   including a top-level `surfaceMatrix` that summarizes the current validated
   default swap, bridge, and paymaster paths, plus `defaultSelections` so
   callers can read the resolved default/fallback entries directly without
-  re-joining `entryId` values by hand, a local token registry view derived
-  from `packages/paymaster-test-assets/deployments`, and token-registry source
+  re-joining `entryId` values by hand, plus `resolvedCatalog` so callers can
+  consume the full resolved validated/supported/experimental candidate set for
+  each surface without rebuilding those joins themselves, a local token
+  registry view derived from `packages/paymaster-test-assets/deployments`, and token-registry source
   metadata that shows the active local-first resolution order; the paymaster
   registry now also tracks the validated Sepolia sponsored path alongside the
   approval-based EraVM default and experimental comparison entries, including
@@ -70,6 +94,9 @@ What is already in place:
 - swap / bridge / paymaster execution results now also expose structured
   `registry` resolution metadata, so callers can distinguish validated defaults,
   tracked routes, and manual fallbacks without scraping `notes`
+- `wallet next` and `workflow` planning now surface registry-backed breadth in
+  operator-facing notes, including alternative validated paymaster candidates
+  and supported-but-not-yet-validated swap fallbacks where applicable
 - `zksync-ethers` read path for balances and contract calls
 - `balances` now supports:
   - stored-wallet default chain reads
@@ -182,7 +209,8 @@ What is already in place:
   - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowAutoTool` as the recommended guided workflow entry, and keeps `workflowOrchestratorTool` as its compatibility alias
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
   - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke, now returning both the preferred single-chain `assets` view and the raw `balances` view
-  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
+  - `pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]` for focused CLI discovery/default inspection smoke, validating the real `defaults` / `assets` / `balances --owned-tokens` / `tokens --owned` / `tokens --chain` / `resolve-token` JSON path in one bounded read-only sequence
+  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
   - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
@@ -272,7 +300,8 @@ What is already in place:
   - approval-based live broadcast now works on the validated EraVM token path
   - smart-account approval-based live broadcast is validated on `sed-lite-sa-v2` with tx hash `0x2783de9185bcd6af21822c9c0ffa35e5329e96c8137ff41598d3cd001344ce8c`
   - native L2 withdraw broadcast works from `paymaster-eoa` with tx hash `0xea192d3fda23a747328c1d63b6d2e22664fd353511faf327ba8f28c408800ba8`
-  - immediate withdraw follow-up reaches `included`, and early L1 finalize attempts now return retryable `WITHDRAW_FINALIZE_NOT_READY` guidance with explicit `withdraw-status` / `withdraw-finalize` retry commands while the receipt or log proof is still unavailable
+  - `withdraw-status` on that tx now reaches `status = finalized` with verified batch telemetry
+  - `withdraw-finalize` preview on that tx now succeeds and returns concrete finalization parameters plus a Merkle proof; only L1 finalize broadcast remains intentionally unvalidated here
 - background docs in `docs/`
 - execution plan in `PLANS.md`
 - cross-environment handoff snapshot in `PROJECT_STATE.md`
@@ -292,10 +321,13 @@ The active focus is:
 - keep one installable agent-facing surface through `skills/`
 - keep one connector flow that works both for colocated `--await-local`
   approval and relay/manual approval return
+- keep ecosystem verticals explicitly demand-driven:
+  no Polygon-style `polymarket` or `x402-pay` parity surface is currently
+  justified on zkSync without stronger repeated operator demand
 - keep one workflow-first action layer simpler than the lower-level direct
   commands
 - continue chain validation only where the product path still has a real gap:
-  withdraw finalization, richer bridge coverage, broader swap routing, and
+  L1 withdraw finalize broadcast validation, richer bridge coverage, broader swap routing, and
   broader validated defaults
 
 ## Recommended Operator Path
@@ -371,6 +403,16 @@ default guided action entry once the wallet is writable; if gas is still
 missing, it points to `workflow fund` as the next step. The root help output
 now also prioritizes `next`, `wallet`, and `workflow` before the lower-level
 command families, so the product path is visible before the raw primitives.
+
+When you want the wallet-scoped recommendation path to stay on a specific fee
+mode instead of inheriting the stored wallet default, use:
+
+```bash
+pnpm zk-agent next --paymaster-mode sponsored
+```
+
+That override changes the recommended follow-up commands returned by `next`;
+it does not rewrite the saved wallet record.
 
 ### 2. Wallet entrypoint
 
@@ -482,6 +524,27 @@ Resolution stays local-first:
 `pnpm zk-agent defaults` now shows both the source order and the token-directory
 chain coverage that the current local index exposes.
 
+The discovery-facing commands now also emit structured `recommendedCommands`
+in JSON mode and matching follow-up lines in TTY mode, so operators can move
+from `assets`, `tokens`, or `resolve-token` into the next concrete discovery
+step without inferring the command shape by hand.
+
+Those same discovery results now also surface any current validated-default
+registry roles attached to a token address, so the operator can see whether a
+token is currently acting as the tracked SyncSwap pair token or paymaster fee
+token instead of only seeing symbol/address metadata.
+
+When one symbol is still ambiguous, `tokens` and `resolve-token` now also
+accept `--role swap-token-a|swap-token-b|paymaster-fee-token`, so the operator
+can stay on a symbol-first path and constrain the result to the tracked
+defaults-registry role instead of falling back to manual address picking
+immediately.
+
+When you want to stay inside one discovery source, `tokens` and
+`resolve-token` also accept `--source local-deployments|token-directory`, and
+their follow-up commands now preserve that source filter instead of silently
+dropping back to the merged local-first view.
+
 Use `pnpm zk-agent tokens --chain zksync-sepolia` when you need to inspect the
 currently discoverable local-first token set for one chain.
 
@@ -489,10 +552,22 @@ Use `pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC` when you want
 to inspect all discoverable entries for one symbol before deciding which token
 address to pass explicitly.
 
+Use `pnpm zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`
+when the symbol itself is ambiguous and you want only the entries currently
+serving one tracked default role.
+
+Use `pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC --source token-directory`
+when you want to inspect only token-directory-backed entries and keep that same
+source context in the suggested follow-up commands.
+
 Use `pnpm zk-agent tokens --wallet main --owned` when you want the current
 stored wallet's registry-backed ERC-20 holdings on its active chain, instead
-of the full discoverable registry universe. This is the narrower ERC-20 subset
-view, not the main asset entrypoint.
+of the full discoverable registry universe. On zkSync chains, this owned-token
+view now also surfaces the current shared-bridge canonical-mapping status for
+each held ERC-20, so bridge blockers are visible before you try `withdraw` or
+`bridge`, and it now includes a structured summary of owned-token sources,
+bridge-mapping counts, and tracked defaults-registry role counts. This is the
+narrower ERC-20 subset view, not the main asset entrypoint.
 
 Use `pnpm zk-agent balances --wallet main --owned-tokens` when you want the
 normal native balance view plus the same registry-backed ERC-20 holdings merged
@@ -501,11 +576,19 @@ or when you may switch to `--chains`; otherwise prefer `assets`.
 
 Use `pnpm zk-agent assets --wallet main` when you want that richer single-chain
 asset view directly, without remembering the extra balances flag. This is the
-preferred product-facing asset command.
+preferred product-facing asset command, and it now preserves the same owned
+token shared-bridge mapping annotations and owned-token discovery summary as
+`tokens --wallet <name> --owned`.
 
 Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need to confirm how the current local-first registry resolves one exact token
 query before trying `fund`, `send-token`, or `swap`.
+
+Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC --role paymaster-fee-token`
+when you want that same resolution narrowed to one tracked default role.
+
+Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC --source token-directory`
+when you want to confirm the token-directory-backed resolution path only.
 
 If you want a local token-directory generated from this repo's own deployment
 records, run:
@@ -595,12 +678,14 @@ pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool workflowAutoTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"createCheckpoint":true}'
 pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","policyPreset":"full-access"}'
 pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
-pnpm smoke:operator-path -- --wallet <name>
-pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--execute-swap]
-pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] --execute-all
+pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]
+pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] [--execute-swap]
+pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] --execute-all
 pnpm smoke:paymaster-success -- --wallet <name>
 pnpm smoke:swap-success -- --wallet <name>
 pnpm validate:phase3
+pnpm validate:phase4a
 pnpm typecheck
 pnpm test
 pnpm build
@@ -622,19 +707,29 @@ Recommended root wrappers for the current stable product surface:
 - `pnpm tool:list` now also returns a top-level `recommendedSequence`, so an
   agent can consume the default product path directly instead of reconstructing
   stage order from individual tool rows
-- `pnpm smoke:operator-path -- --wallet <name>` validates the canonical
+- `pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]` validates the
+  product-layer discovery/default inspection path through the real CLI JSON
+  surface:
+  `defaults`, `assets`, `balances --owned-tokens`, `tokens --owned`,
+  `tokens --chain`, and `resolve-token`
+- `pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]` validates the canonical
   `next -> wallet -> workflow auto -> funding fallback or goal preview` path
-  and now returns structured follow-up fields in `summary`, including
+  and now accepts an optional `--paymaster-mode` override so the operator-path
+  guidance can be previewed against a specific fee path instead of always
+  inheriting the stored wallet default, and returns structured follow-up fields
+  in `summary`, including
   `topLevelRecommendedCommands`, `workflowRecommendedCommands`,
   `topLevelAgentFollowup`, and `workflowAgentFollowup`
-- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--execute-swap]`
+- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] [--execute-swap]`
   aggregates the current product-level live validation sequence:
   canonical operator path, validated paymaster-backed workflow-auto path,
   validated default workflow-auto swap path, and optional withdraw follow-up
   when a previous withdraw tx hash is supplied, with per-step `followups`
   alongside the legacy flat `nextCommands` summary; those `followups` now also
-  preserve per-step `phase`, `stage`, `goalMode`, and `txHash` when available
-- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] --execute-all`
+  preserve per-step `phase`, `stage`, `goalMode`, and `txHash` when available;
+  `--paymaster-mode sponsored` lets the same product-path harness exercise the
+  smart-account sponsored path instead of the approval-based default
+- `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] --execute-all`
   is the convenience form for future controlled broadcast/finalize runs: it
   turns on paymaster execute, swap execute, and withdraw finalize execute
   together instead of repeating all three flags manually
@@ -650,6 +745,9 @@ Recommended root wrappers for the current stable product surface:
   blocked by an incompatible wallet paymaster, and returns the quoted output
   plus workflow-layer `recommendedCommands` plus `agentFollowup` in one
   normalized payload
+- the tracked Sepolia `no-paymaster` path is now promoted into the validated
+  defaults surface as the current `--paymaster-mode none` default for both EOA
+  and smart-account
 - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]`
   validates the relay-backed create -> publish -> pending -> ready -> approve
   -> import lifecycle through the real CLI JSON surface, using a local relay

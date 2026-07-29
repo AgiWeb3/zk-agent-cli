@@ -7,11 +7,14 @@ import {
   type SmokeExecutionStepResult
 } from './smoke-summary.js';
 
+type SmokeProductPaymasterMode = 'approval-based' | 'sponsored';
+
 export interface SmokeProductPathOptions {
   walletName: string;
   txHash?: string;
   chain?: string;
   index?: string;
+  paymasterMode: SmokeProductPaymasterMode;
   executeAll: boolean;
   executePaymaster: boolean;
   executeSwap: boolean;
@@ -34,7 +37,7 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter @zk-agent/agent-tools smoke:product-path -- --wallet <name> [--tx-hash <hash>] [--chain <chain>] [--index <n>] [--execute-all] [--execute-paymaster] [--execute-swap] [--execute-withdraw-finalize] [--plan]',
+      '  pnpm --filter @zk-agent/agent-tools smoke:product-path -- --wallet <name> [--tx-hash <hash>] [--chain <chain>] [--index <n>] [--paymaster-mode <mode>] [--execute-all] [--execute-paymaster] [--execute-swap] [--execute-withdraw-finalize] [--plan]',
       '',
       'What it does:',
       '  1. Runs the canonical operator-path preview validation.',
@@ -43,6 +46,7 @@ function printUsage(): void {
       '  4. Optionally runs withdraw follow-up validation when --tx-hash is supplied.',
       '',
       'Defaults:',
+      '  --paymaster-mode defaults to approval-based',
       '  --execute-all enables every broadcast/finalize-capable step in one flag',
       '  paymaster success runs in preview mode unless --execute-paymaster is supplied',
       '  swap success runs in preview mode unless --execute-swap is supplied',
@@ -77,6 +81,7 @@ function parseArgs(argv: string[]): SmokeProductPathOptions {
   let txHash: string | undefined;
   let chain: string | undefined;
   let index: string | undefined;
+  let paymasterMode: SmokeProductPaymasterMode = 'approval-based';
   let executeAll = false;
   let executePaymaster = false;
   let executeSwap = false;
@@ -113,6 +118,18 @@ function parseArgs(argv: string[]): SmokeProductPathOptions {
 
     if (arg === '--index') {
       index = requireOptionValue(argv, i, arg).trim();
+      i += 1;
+      continue;
+    }
+
+    if (arg === '--paymaster-mode') {
+      const mode = requireOptionValue(argv, i, arg).trim() as SmokeProductPaymasterMode;
+      if (mode !== 'approval-based' && mode !== 'sponsored') {
+        throw new Error(
+          `Unsupported --paymaster-mode value: ${mode}. Expected one of approval-based or sponsored.`
+        );
+      }
+      paymasterMode = mode;
       i += 1;
       continue;
     }
@@ -154,6 +171,7 @@ function parseArgs(argv: string[]): SmokeProductPathOptions {
     txHash,
     chain,
     index,
+    paymasterMode,
     executeAll,
     executePaymaster,
     executeSwap,
@@ -180,10 +198,17 @@ function scriptInvocation(scriptName: string, stepArgs: string[]): { command: st
 }
 
 export function buildSmokeProductPathSteps(options: SmokeProductPathOptions): SmokeStep[] {
-  const operator = scriptInvocation('smoke-operator-path', ['--wallet', options.walletName]);
+  const operator = scriptInvocation('smoke-operator-path', [
+    '--wallet',
+    options.walletName,
+    '--paymaster-mode',
+    options.paymasterMode
+  ]);
   const paymaster = scriptInvocation('smoke-paymaster-success', [
     '--wallet',
     options.walletName,
+    '--paymaster-mode',
+    options.paymasterMode,
     ...(options.executePaymaster ? ['--execute'] : [])
   ]);
   const swap = scriptInvocation('smoke-swap-success', [
@@ -242,6 +267,7 @@ function writeJson(payload: unknown): void {
 function buildPlanSummary(options: SmokeProductPathOptions, steps: SmokeStep[]) {
   return {
     walletName: options.walletName,
+    paymasterMode: options.paymasterMode,
     totalSteps: steps.length,
     includesSwapSuccess: steps.some((step) => step.id === 'swap-success'),
     includesWithdrawFollowup: steps.some((step) => step.id === 'withdraw-followup'),

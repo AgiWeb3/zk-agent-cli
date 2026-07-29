@@ -51,6 +51,10 @@ test('send-token command help marks token as optional when symbol can resolve lo
     ),
     true
   );
+  assert.equal(
+    help.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
+    true
+  );
 });
 
 test('swap command help marks token addresses as optional when symbols resolve locally', () => {
@@ -75,6 +79,18 @@ test('swap command help marks token addresses as optional when symbols resolve l
     ),
     true
   );
+  assert.equal(
+    help.includes(
+      '--token-in-role <role> Optional defaults-registry role filter for input symbol-based token resolution'
+    ),
+    true
+  );
+  assert.equal(
+    help.includes(
+      '--token-out-role <role> Optional defaults-registry role filter for output symbol-based token resolution'
+    ),
+    true
+  );
 });
 
 test('fund, deposit, and withdraw help mark token addresses as optional when symbols resolve locally', () => {
@@ -89,15 +105,27 @@ test('fund, deposit, and withdraw help mark token addresses as optional when sym
     true
   );
   assert.equal(
+    fundHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
+    true
+  );
+  assert.equal(
     depositHelp.includes(
       '--token <address> L1 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry'
     ),
     true
   );
   assert.equal(
+    depositHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
+    true
+  );
+  assert.equal(
     withdrawHelp.includes(
       '--token <address> L2 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry'
     ),
+    true
+  );
+  assert.equal(
+    withdrawHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
     true
   );
 });
@@ -132,6 +160,10 @@ test('workflow help marks send-token and swap token addresses as locally resolva
     true
   );
   assert.equal(
+    sendTokenHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
+    true
+  );
+  assert.equal(
     swapHelp.includes(
       '--token-in <address> Swap input token address. Optional when --token-in-symbol resolves from the configured token registry'
     ),
@@ -144,9 +176,25 @@ test('workflow help marks send-token and swap token addresses as locally resolva
     true
   );
   assert.equal(
+    swapHelp.includes(
+      '--token-in-role <role> Optional defaults-registry role filter for input symbol-based token resolution'
+    ),
+    true
+  );
+  assert.equal(
+    swapHelp.includes(
+      '--token-out-role <role> Optional defaults-registry role filter for output symbol-based token resolution'
+    ),
+    true
+  );
+  assert.equal(
     bridgeHelp.includes(
       '--token <address> Token address for send-token, bridge, deposit, or withdraw. Optional when the relevant symbol resolves from the configured token registry'
     ),
+    true
+  );
+  assert.equal(
+    bridgeHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
     true
   );
   assert.equal(
@@ -156,9 +204,17 @@ test('workflow help marks send-token and swap token addresses as locally resolva
     true
   );
   assert.equal(
+    depositHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
+    true
+  );
+  assert.equal(
     withdrawHelp.includes(
       '--token <address> Token address for send-token, bridge, deposit, or withdraw. Optional when the relevant symbol resolves from the configured token registry'
     ),
+    true
+  );
+  assert.equal(
+    withdrawHelp.includes('--role <role> Optional defaults-registry role filter for symbol-based token resolution'),
     true
   );
 });

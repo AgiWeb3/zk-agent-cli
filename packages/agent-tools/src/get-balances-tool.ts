@@ -3,8 +3,11 @@ import {
   discoverOwnedDefaultTokenRegistry,
   type GetBalancesResult,
   type MultiChainBalancesResult,
+  type OwnedTokenDiscoverySummary,
   type OwnedTokenProbeFailure,
   resolveChain,
+  type TokenBridgeMapping,
+  type TokenDefaultsRegistryMatch,
   type WalletBalance
 } from '@zk-agent/agent-core';
 
@@ -22,6 +25,16 @@ export interface GetBalancesToolInput extends WalletNameInput {
 interface OwnedTokenRegistrySummary {
   enabled: true;
   entryCount: number;
+  entries: Array<{
+    symbol: string;
+    address: string;
+    decimals: number;
+    balance: string;
+    rawBalance: string;
+    defaultsRegistryMatches?: TokenDefaultsRegistryMatch[];
+    bridgeMapping?: TokenBridgeMapping;
+  }>;
+  summary: OwnedTokenDiscoverySummary;
   probeFailureCount: number;
   probeFailures: OwnedTokenProbeFailure[];
 }
@@ -119,6 +132,8 @@ export async function readBalances(
       ownedTokenRegistry: {
         enabled: true,
         entryCount: owned.entryCount,
+        entries: owned.entries,
+        summary: owned.summary,
         probeFailureCount: owned.probeFailureCount,
         probeFailures: owned.probeFailures
       }
