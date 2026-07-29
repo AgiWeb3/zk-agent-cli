@@ -418,8 +418,22 @@ export interface DepositExecutionInput extends DepositPreviewInput {
   broadcast: boolean;
 }
 
+export interface DepositApprovalTransaction {
+  tokenAddress: string;
+  spender?: string;
+  requiredAllowance: string;
+  requiredAllowanceRaw: string;
+  txHash: string;
+  explorerUrl?: string;
+}
+
 export interface DepositExecutionResult extends DepositPreviewResult {
   mode: 'preview' | 'broadcast';
+  approval?: {
+    needed: boolean;
+    transactionCount: number;
+    transactions: DepositApprovalTransaction[];
+  };
   txHash?: string;
   explorerUrl?: string;
 }

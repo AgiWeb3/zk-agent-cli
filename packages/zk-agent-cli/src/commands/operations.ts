@@ -252,7 +252,7 @@ function linesForWithdrawResult(
   return lines;
 }
 
-function linesForDepositResult(
+export function linesForDepositResult(
   result: Awaited<ReturnType<ZkSyncDefiProvider['deposit']>>,
   nextCommand?: string
 ): Array<[string, string]> {
@@ -273,6 +273,29 @@ function linesForDepositResult(
 
   if (result.bridgeAddress) lines.push(['bridge override', result.bridgeAddress]);
   if (result.preview.to) lines.push(['tx target', result.preview.to]);
+  if (result.approval) {
+    lines.push(['approval needed', result.approval.needed ? 'yes' : 'no']);
+    lines.push(['approval count', String(result.approval.transactionCount)]);
+    if (result.approval.transactionCount === 1) {
+      const [approval] = result.approval.transactions;
+      lines.push(['approval token', approval.tokenAddress]);
+      if (approval.spender) lines.push(['approval spender', approval.spender]);
+      lines.push(['approval allowance', approval.requiredAllowance]);
+      lines.push(['approval txHash', approval.txHash]);
+      if (approval.explorerUrl) lines.push(['approval explorer', approval.explorerUrl]);
+    } else {
+      for (const [index, approval] of result.approval.transactions.entries()) {
+        const label = String(index + 1);
+        lines.push([`approval ${label} token`, approval.tokenAddress]);
+        if (approval.spender) lines.push([`approval ${label} spender`, approval.spender]);
+        lines.push([`approval ${label} allowance`, approval.requiredAllowance]);
+        lines.push([`approval ${label} txHash`, approval.txHash]);
+        if (approval.explorerUrl) {
+          lines.push([`approval ${label} explorer`, approval.explorerUrl]);
+        }
+      }
+    }
+  }
   if (result.txHash) lines.push(['txHash', result.txHash]);
   if (result.explorerUrl) lines.push(['explorer', result.explorerUrl]);
   for (const note of result.notes) lines.push(['note', note]);

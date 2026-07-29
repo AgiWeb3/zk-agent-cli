@@ -4219,16 +4219,19 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
       ).tokenRegistrySources.some((entry) => entry.id === 'local-deployments' && entry.enabled),
       true
     );
-    assert.equal(
-      (
-        defaults.data as {
-          localTokenRegistry: Array<{ chainKey: string; symbol: string }>;
-          tokenRegistrySources: Array<{ id: string; enabled: boolean }>;
-          tokenDirectoryChains: Array<{ chainId: number }>;
-        }
-      ).tokenDirectoryChains.length,
-      0
+    const defaultsData = defaults.data as {
+      localTokenRegistry: Array<{ chainKey: string; symbol: string }>;
+      tokenRegistrySources: Array<{ id: string; enabled: boolean }>;
+      tokenDirectoryChains: Array<{ chainId: number }>;
+    };
+    const tokenDirectorySource = defaultsData.tokenRegistrySources.find(
+      (entry) => entry.id === 'token-directory'
     );
+    if (tokenDirectorySource?.enabled) {
+      assert.equal(defaultsData.tokenDirectoryChains.length > 0, true);
+    } else {
+      assert.equal(defaultsData.tokenDirectoryChains.length, 0);
+    }
   }
 
   const workflowFundingGuidance = await runStandardAgentTool(context, 'workflowFundTool', {

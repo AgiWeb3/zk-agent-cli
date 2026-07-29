@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   linesForBridgeResult,
+  linesForDepositResult,
   linesForSwapResult,
   linesForWriteResult
 } from '../src/commands/operations.ts';
@@ -262,4 +263,67 @@ test('linesForBridgeResult includes structured bridge registry summary', () => {
     lineValue(lines, 'registry bridge constraints'),
     'erc20 requires canonical shared-bridge mapping'
   );
+});
+
+test('linesForDepositResult includes approval telemetry when present', () => {
+  const lines = linesForDepositResult({
+    walletName: 'main',
+    walletAddress: '0x1111111111111111111111111111111111111111',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    l1ChainId: 11155111,
+    from: '0x2222222222222222222222222222222222222222',
+    recipient: '0x2222222222222222222222222222222222222222',
+    bridgeAddresses: {
+      erc20L1: '0x1000000000000000000000000000000000000001',
+      erc20L2: '0x2000000000000000000000000000000000000002',
+      wethL1: '0x3000000000000000000000000000000000000003',
+      wethL2: '0x4000000000000000000000000000000000000004',
+      sharedL1: '0x5000000000000000000000000000000000000005',
+      sharedL2: '0x6000000000000000000000000000000000000006'
+    },
+    estimatedGas: '210000',
+    token: {
+      address: '0x7777777777777777777777777777777777777777',
+      symbol: 'USDC',
+      amount: '1',
+      decimals: 6,
+      isNative: false
+    },
+    preview: {
+      to: '0x5000000000000000000000000000000000000005',
+      type: '2'
+    },
+    mode: 'broadcast',
+    approval: {
+      needed: true,
+      transactionCount: 1,
+      transactions: [
+        {
+          tokenAddress: '0x7777777777777777777777777777777777777777',
+          spender: '0x5000000000000000000000000000000000000005',
+          requiredAllowance: '1',
+          requiredAllowanceRaw: '1000000',
+          txHash: '0x' + 'aa'.repeat(32),
+          explorerUrl: 'https://sepolia.etherscan.io/tx/' + '0x' + 'aa'.repeat(32)
+        }
+      ]
+    },
+    txHash: '0x' + 'bb'.repeat(32),
+    explorerUrl: 'https://sepolia.etherscan.io/tx/' + '0x' + 'bb'.repeat(32),
+    notes: []
+  });
+
+  assert.equal(lineValue(lines, 'approval needed'), 'yes');
+  assert.equal(lineValue(lines, 'approval count'), '1');
+  assert.equal(
+    lineValue(lines, 'approval token'),
+    '0x7777777777777777777777777777777777777777'
+  );
+  assert.equal(
+    lineValue(lines, 'approval spender'),
+    '0x5000000000000000000000000000000000000005'
+  );
+  assert.equal(lineValue(lines, 'approval allowance'), '1');
+  assert.equal(lineValue(lines, 'approval txHash'), '0x' + 'aa'.repeat(32));
 });

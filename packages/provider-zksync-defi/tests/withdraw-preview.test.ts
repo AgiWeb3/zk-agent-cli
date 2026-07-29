@@ -448,6 +448,131 @@ test('deposit broadcasts an L1 transaction when L1 RPC is configured', async () 
   }
 });
 
+test('deposit broadcasts an ERC20 transaction after approving missing allowance', async () => {
+  const previousRpcUrl = process.env.ETHEREUM_SEPOLIA_RPC_URL;
+  const originalGetDepositTx = Wallet.prototype.getDepositTx;
+  const originalEstimateGasDeposit = Wallet.prototype.estimateGasDeposit;
+  const originalDeposit = Wallet.prototype.deposit;
+  const originalGetDepositAllowanceParams = Wallet.prototype.getDepositAllowanceParams;
+  const originalGetAllowanceL1 = Wallet.prototype.getAllowanceL1;
+  const originalApproveERC20 = Wallet.prototype.approveERC20;
+
+  let approved = false;
+  let approveCount = 0;
+
+  process.env.ETHEREUM_SEPOLIA_RPC_URL = 'http://127.0.0.1:8545';
+  Wallet.prototype.getDepositAllowanceParams = async function () {
+    return [
+      {
+        token: '0x7000000000000000000000000000000000000007',
+        allowance: 1000000n
+      }
+    ] as any;
+  };
+  Wallet.prototype.getAllowanceL1 = async function () {
+    return approved ? 1000000n : 0n;
+  };
+  Wallet.prototype.approveERC20 = async function () {
+    approveCount += 1;
+    approved = true;
+    return {
+      hash: '0x' + 'aa'.repeat(32),
+      wait: async () => ({ status: 1 })
+    } as any;
+  };
+  Wallet.prototype.getDepositTx = async function () {
+    assert.equal(approved, true);
+    return {
+      from: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      to: '0x5000000000000000000000000000000000000005',
+      data: '0xfeedcafe',
+      value: 0n,
+      gasLimit: 210000n,
+      maxFeePerGas: 100n,
+      maxPriorityFeePerGas: 2n,
+      type: 2
+    };
+  };
+  Wallet.prototype.estimateGasDeposit = async function () {
+    assert.equal(approved, true);
+    return 210000n;
+  };
+  Wallet.prototype.deposit = async function (transaction) {
+    assert.equal(transaction.approveERC20, true);
+    return {
+      hash: '0x' + 'ee'.repeat(32)
+    } as any;
+  };
+
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        return {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        };
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        throw new Error('getWithdrawTx should not be reached');
+      },
+      async estimateGasWithdraw() {
+        throw new Error('estimateGasWithdraw should not be reached');
+      }
+    })
+  });
+
+  try {
+    const result = await provider.deposit({
+      wallet: writableEoaWallet(),
+      amount: '1',
+      tokenAddress: '0x7000000000000000000000000000000000000007',
+      symbol: 'USDC',
+      decimals: 6,
+      broadcast: true
+    });
+
+    assert.equal(approveCount, 1);
+    assert.equal(result.mode, 'broadcast');
+    assert.equal(result.txHash, '0x' + 'ee'.repeat(32));
+    assert.equal(result.approval?.needed, true);
+    assert.equal(result.approval?.transactionCount, 1);
+    assert.equal(result.approval?.transactions[0]?.tokenAddress, '0x7000000000000000000000000000000000000007');
+    assert.equal(result.approval?.transactions[0]?.txHash, '0x' + 'aa'.repeat(32));
+    assert.match(
+      result.notes.join('\n'),
+      /Submitted 1 L1 approval transaction\(s\) before deposit/
+    );
+  } finally {
+    Wallet.prototype.getDepositTx = originalGetDepositTx;
+    Wallet.prototype.estimateGasDeposit = originalEstimateGasDeposit;
+    Wallet.prototype.deposit = originalDeposit;
+    Wallet.prototype.getDepositAllowanceParams = originalGetDepositAllowanceParams;
+    Wallet.prototype.getAllowanceL1 = originalGetAllowanceL1;
+    Wallet.prototype.approveERC20 = originalApproveERC20;
+    if (previousRpcUrl === undefined) {
+      delete process.env.ETHEREUM_SEPOLIA_RPC_URL;
+    } else {
+      process.env.ETHEREUM_SEPOLIA_RPC_URL = previousRpcUrl;
+    }
+  }
+});
+
 test('depositStatus returns finalized mapped L2 lifecycle for a known L1 transaction hash', async () => {
   const previousRpcUrl = process.env.ETHEREUM_SEPOLIA_RPC_URL;
   const originalGetTransaction = ethers.JsonRpcProvider.prototype.getTransaction;

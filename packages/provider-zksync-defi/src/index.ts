@@ -16,6 +16,7 @@ import {
   type DepositStatusResult,
   type DepositExecutionInput,
   type DepositExecutionResult,
+  type DepositApprovalTransaction,
   type DepositPreviewInput,
   type DepositPreviewResult,
   type DefiProvider,
@@ -1346,6 +1347,7 @@ function buildDepositNotes(options: {
   isNative: boolean;
   signerAddress: string;
   mode: 'preview' | 'broadcast';
+  approvalCount?: number;
 }): string[] {
   const notes = [
     'zkSync deposit is initiated on L1 and then finalized on L2; the initiating L1 transaction is only the first stage.'
@@ -1357,6 +1359,11 @@ function buildDepositNotes(options: {
   }
   if (!options.isNative) {
     notes.push('ERC-20 deposit broadcast may require L1 allowance or approveERC20 handling before execution.');
+  }
+  if ((options.approvalCount || 0) > 0) {
+    notes.push(
+      `Submitted ${options.approvalCount} L1 approval transaction(s) before deposit because the required ERC-20 allowance was missing.`
+    );
   }
 
   notes.push(`L1 signer for this request: ${options.signerAddress}.`);
@@ -1727,7 +1734,8 @@ function buildDepositResult(
   input: DepositPreviewInput,
   prepared: PreparedDepositPreview,
   mode: 'preview' | 'broadcast',
-  txHash?: string
+  txHash?: string,
+  approvalTransactions: DepositApprovalTransaction[] = []
 ): DepositExecutionResult {
   return {
     walletName: input.wallet.walletName,
@@ -1743,6 +1751,14 @@ function buildDepositResult(
     token: prepared.token,
     preview: buildPreview(prepared.txRequest),
     mode,
+    approval:
+      mode === 'broadcast'
+        ? {
+            needed: approvalTransactions.length > 0,
+            transactionCount: approvalTransactions.length,
+            transactions: approvalTransactions
+          }
+        : undefined,
     txHash,
     explorerUrl: getL1ExplorerUrl(prepared.l1ChainId, txHash),
     notes: buildDepositNotes({
@@ -1750,9 +1766,62 @@ function buildDepositResult(
       hasBridgeOverride: Boolean(prepared.bridgeAddress),
       isNative: prepared.token.isNative,
       signerAddress: prepared.signerAddress,
-      mode
+      mode,
+      approvalCount: approvalTransactions.length
     })
   };
+}
+
+async function ensureDepositAllowanceForBroadcast(
+  input: DepositExecutionInput,
+  resolved: ResolvedDepositContext
+): Promise<DepositApprovalTransaction[]> {
+  if (resolved.token.isNative) return [];
+
+  const l1ChainId = await resolved.provider.l1ChainId();
+  const l1Wallet = createL1ConnectedWallet(
+    input.wallet,
+    resolved.provider,
+    l1ChainId,
+    'Deposit allowance approval'
+  );
+  const bridgeAddresses = await resolved.provider.getDefaultBridgeAddresses();
+  const allowanceParams = await l1Wallet.wallet.getDepositAllowanceParams(
+    resolved.token.address,
+    resolved.amount
+  );
+
+  const approvalTransactions: DepositApprovalTransaction[] = [];
+  for (const param of allowanceParams) {
+    const tokenAddress = ethers.getAddress(param.token);
+    const isRequestedToken = tokenAddress.toLowerCase() === resolved.token.address.toLowerCase();
+    const bridgeAddress = isRequestedToken
+      ? (resolved.bridgeAddress ?? bridgeAddresses.sharedL1)
+      : bridgeAddresses.sharedL1;
+    const requiredAllowance = ethers.toBigInt(param.allowance);
+    const currentAllowance = await l1Wallet.wallet.getAllowanceL1(tokenAddress, bridgeAddress);
+
+    if (currentAllowance >= requiredAllowance) continue;
+
+    const approveTx = await l1Wallet.wallet.approveERC20(
+      tokenAddress,
+      requiredAllowance,
+      bridgeAddress ? { bridgeAddress } : undefined
+    );
+    await approveTx.wait();
+    approvalTransactions.push({
+      tokenAddress,
+      spender: bridgeAddress,
+      requiredAllowance: isRequestedToken
+        ? ethers.formatUnits(requiredAllowance, resolved.token.decimals)
+        : requiredAllowance.toString(),
+      requiredAllowanceRaw: requiredAllowance.toString(),
+      txHash: approveTx.hash,
+      explorerUrl: getL1ExplorerUrl(l1ChainId, approveTx.hash)
+    });
+  }
+
+  return approvalTransactions;
 }
 
 async function resolveBridgeRoute(
@@ -2801,6 +2870,12 @@ export class ZkSyncDefiProvider implements DefiProvider {
     const chain = resolveChain(input.wallet.chain);
 
     try {
+      let approvalTransactions: DepositApprovalTransaction[] = [];
+      if (input.broadcast) {
+        const resolved = await resolveDepositContext(input, this.providerFactory);
+        approvalTransactions = await ensureDepositAllowanceForBroadcast(input, resolved);
+      }
+
       const prepared = await prepareDepositPreview(input, this.providerFactory);
       if (!input.broadcast) {
         return buildDepositResult(input, prepared, 'preview');
@@ -2821,7 +2896,7 @@ export class ZkSyncDefiProvider implements DefiProvider {
         approveERC20: !prepared.token.isNative
       });
 
-      return buildDepositResult(input, prepared, 'broadcast', response.hash);
+      return buildDepositResult(input, prepared, 'broadcast', response.hash, approvalTransactions);
     } catch (error) {
       if (error instanceof AgentError) throw error;
 
