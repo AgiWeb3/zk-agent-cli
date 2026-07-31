@@ -63,11 +63,30 @@ function createPackDir() {
   mkdirSync(packDir, { recursive: true });
 }
 
+function envWithoutDryRun() {
+  const env = { ...process.env };
+  delete env.npm_config_dry_run;
+  delete env.NPM_CONFIG_DRY_RUN;
+  return env;
+}
+
 function packPackage() {
-  execFileSync('pnpm', ['pack', '--pack-destination', packDir], {
+  const output = execFileSync('pnpm', ['pack', '--pack-destination', packDir], {
     cwd: packageDir,
-    stdio: 'inherit'
-  });
+    env: envWithoutDryRun(),
+    encoding: 'utf8'
+  }).trim();
+
+  if (output) {
+    process.stdout.write(`${output}\n`);
+  }
+
+  const lines = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const lastLine = lines.at(-1);
+  return lastLine && lastLine.endsWith('.tgz') ? lastLine : null;
 }
 
 function listPackedFiles(tarballPath) {
@@ -199,10 +218,13 @@ function main() {
   const pkg = readPackageJson();
   assertReleaseMetadata(pkg);
   createPackDir();
-  packPackage();
+  const reportedTarballPath = packPackage();
 
   const tarballName = `${pkg.name.replace('@', '').replace('/', '-')}-${pkg.version}.tgz`;
-  const tarballPath = join(packDir, tarballName);
+  const tarballPath =
+    reportedTarballPath && existsSync(reportedTarballPath)
+      ? reportedTarballPath
+      : join(packDir, tarballName);
   assert.equal(existsSync(tarballPath), true, `Expected tarball not found: ${tarballPath}`);
 
   const entries = listPackedFiles(tarballPath);
