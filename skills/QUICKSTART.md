@@ -12,7 +12,7 @@ pnpm zk-agent <command>
 The packaged CLI release target is the same command surface under:
 
 ```bash
-npx @zk-agent/cli <command>
+npx zk-agent-cli <command>
 ```
 
 ## 1. Install dependencies

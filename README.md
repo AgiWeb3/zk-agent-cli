@@ -29,8 +29,8 @@ There are now two explicit install surfaces:
   - `pnpm install`
   - `pnpm zk-agent --help`
 - packaged CLI release target:
-  - `npx @zk-agent/cli --help`
-  - `npm install -g @zk-agent/cli`
+  - `npx zk-agent-cli --help`
+  - `npm install -g zk-agent-cli`
   - binaries: `zk-agent`, `zksync-agent`
 
 Current status:

@@ -25,7 +25,7 @@ function readPackageJson() {
 }
 
 function assertReleaseMetadata(pkg) {
-  assert.equal(pkg.name, '@zk-agent/cli');
+  assert.equal(pkg.name, 'zk-agent-cli');
   assert.equal(pkg.type, 'module');
   assert.equal(pkg.bin?.['zk-agent'], 'dist/index.js');
   assert.equal(pkg.bin?.['zksync-agent'], 'dist/index.js');

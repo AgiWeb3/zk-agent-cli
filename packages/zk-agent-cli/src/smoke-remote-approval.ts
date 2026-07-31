@@ -44,7 +44,7 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter @zk-agent/cli smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--plan]',
+      '  pnpm --filter zk-agent-cli smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--plan]',
       '',
       'What it does:',
       '  1. Creates a wallet approval request through the real CLI.',

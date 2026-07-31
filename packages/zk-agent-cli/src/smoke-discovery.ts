@@ -69,7 +69,7 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter @zk-agent/cli smoke:discovery -- --wallet <name> [--symbol <symbol>] [--plan]',
+      '  pnpm --filter zk-agent-cli smoke:discovery -- --wallet <name> [--symbol <symbol>] [--plan]',
       '',
       'What it does:',
       '  1. Runs the real CLI defaults/discovery read path.',

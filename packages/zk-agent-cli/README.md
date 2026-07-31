@@ -1,6 +1,6 @@
-# @zk-agent/cli
+# zk-agent-cli
 
-`@zk-agent/cli` is the packaged `zk-agent-cli` command surface for zkSync Era
+`zk-agent-cli` is the packaged `zk-agent-cli` command surface for zkSync Era
 and zkSync Sepolia.
 
 Current strengths:
@@ -16,13 +16,13 @@ Current strengths:
 One-shot execution:
 
 ```bash
-npx @zk-agent/cli --help
+npx zk-agent-cli --help
 ```
 
 Global install:
 
 ```bash
-npm install -g @zk-agent/cli
+npm install -g zk-agent-cli
 zk-agent --help
 ```
 

@@ -44,7 +44,7 @@ pnpm zk-agent <command>
 - packaged CLI release target:
 
 ```bash
-npx @zk-agent/cli <command>
+npx zk-agent-cli <command>
 ```
 
 Storage is local-first and encrypted at rest under:
@@ -542,7 +542,7 @@ sandbox:
 
 ## What not to assume
 
-- the packaged CLI target is `@zk-agent/cli`, but this skill does not assume a
+- the packaged CLI target is `zk-agent-cli`, but this skill does not assume a
   public npm release has already been cut; when operating inside this repo,
   keep using `pnpm zk-agent ...`
 - there is only a local hosted relay prototype; it is file-backed and suitable for development, not a production multi-tenant relay service

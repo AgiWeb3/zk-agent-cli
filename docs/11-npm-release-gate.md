@@ -1,6 +1,6 @@
 # npm Release Gate
 
-这份清单用于判断 `@zk-agent/cli` 是否可以进入**第一次公开 npm 发布**。
+这份清单用于判断 `zk-agent-cli` 是否可以进入**第一次公开 npm 发布**。
 
 目标不是证明“功能很多”，而是证明：
 
@@ -21,14 +21,14 @@
 发布前必须确认：
 
 - [ ] 已确认本次使用的 npm 账号和 scope 权限
-- [ ] `@zk-agent/cli` 的目标 scope 可发布
+- [ ] `zk-agent-cli` 的包名与版本号可发布
 - [ ] 当前版本号已确认，不会覆盖错误版本
 
 建议命令：
 
 ```bash
 npm whoami
-npm view @zk-agent/cli version
+npm view zk-agent-cli version
 npm publish --dry-run
 ```
 
@@ -103,7 +103,7 @@ npm publish --dry-run
 执行命令：
 
 ```bash
-pnpm --filter @zk-agent/cli release:check
+pnpm --filter zk-agent-cli release:check
 ```
 
 当前检查脚本位置：
@@ -143,9 +143,9 @@ pnpm validate:phase4a
 说明：
 
 - 这条命令当前串行覆盖：
-  - `@zk-agent/cli release:check`
+  - `zk-agent-cli release:check`
   - `@zk-agent/agent-tools test`
-  - `@zk-agent/cli test`
+  - `zk-agent-cli test`
 
 通过标准：
 
@@ -235,8 +235,8 @@ pnpm zk-agent workflow --help
 
 自动化通过后，仍要补一轮短路径人工确认。
 
-- [ ] `npx @zk-agent/cli --help` 预期输出正常
-- [ ] `npm install -g @zk-agent/cli` 后 `zk-agent --help` 正常
+- [ ] `npx zk-agent-cli --help` 预期输出正常
+- [ ] `npm install -g zk-agent-cli` 后 `zk-agent --help` 正常
 - [ ] `zk-agent setup`
 - [ ] `zk-agent next`
 - [ ] 一条 wallet create 或 reapprove 路径在目标环境可走通
@@ -264,8 +264,8 @@ pnpm zk-agent workflow --help
 发布后最少回读：
 
 ```bash
-npm view @zk-agent/cli version
-npx @zk-agent/cli --help
+npm view zk-agent-cli version
+npx zk-agent-cli --help
 ```
 
 ## 当前已知阻塞
