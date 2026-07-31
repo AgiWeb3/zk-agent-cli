@@ -25,5 +25,6 @@
 8. [08-daily-spend-limit-profile.md](./08-daily-spend-limit-profile.md)
 9. [09-sed-lite-profile.md](./09-sed-lite-profile.md)
 10. [10-operator-json-contract.md](./10-operator-json-contract.md)
+11. [11-npm-release-gate.md](./11-npm-release-gate.md)
 
 这些文档默认基于本地 `../zksync-docs` 目录中的资料整理，方便我们离线推进实现。

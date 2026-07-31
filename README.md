@@ -932,3 +932,7 @@ Current limitations and cautions:
   - mainnet RPC `https://mainnet.era.zksync.io/`
   - sepolia RPC `https://sepolia.era.zksync.dev`
 - Other Elastic Network chains should be added through explicit registry entries instead of hardcoded guesses.
+
+## License
+
+MIT. See `LICENSE`.

@@ -26,6 +26,7 @@ export interface BuiltinSmartAccountProfile {
 }
 
 const PACKAGE_NAME = '@zk-agent/account-profiles';
+const PACKAGE_ROOT_FALLBACK = `<${PACKAGE_NAME} package root unavailable>`;
 
 function isExpectedPackageRoot(candidate: string): boolean {
   const manifestPath = path.join(candidate, 'package.json');
@@ -66,7 +67,21 @@ function resolvePackageRoot(): string {
   );
 }
 
-const packageRoot = resolvePackageRoot();
+let cachedPackageRoot: string | null | undefined;
+
+function tryResolvePackageRoot(): string | undefined {
+  if (cachedPackageRoot !== undefined) {
+    return cachedPackageRoot ?? undefined;
+  }
+
+  try {
+    cachedPackageRoot = resolvePackageRoot();
+  } catch {
+    cachedPackageRoot = null;
+  }
+
+  return cachedPackageRoot ?? undefined;
+}
 
 function normalizeHexString(value: string, label: string): string {
   const trimmed = value.trim();
@@ -129,15 +144,22 @@ function missingArtifactError(profileId: BuiltinSmartAccountProfileId, artifactP
 }
 
 function contractPath(...segments: string[]): string {
-  return path.join(packageRoot, 'contracts', ...segments);
+  const packageRoot = tryResolvePackageRoot();
+  return packageRoot
+    ? path.join(packageRoot, 'contracts', ...segments)
+    : path.join(PACKAGE_ROOT_FALLBACK, 'contracts', ...segments);
 }
 
 function artifactPath(...segments: string[]): string {
-  return path.join(packageRoot, 'artifacts', ...segments);
+  const packageRoot = tryResolvePackageRoot();
+  return packageRoot
+    ? path.join(packageRoot, 'artifacts', ...segments)
+    : path.join(PACKAGE_ROOT_FALLBACK, 'artifacts', ...segments);
 }
 
 function createDailySpendLimitProfile(): BuiltinSmartAccountProfile {
   const resolvedArtifactPath = artifactPath('daily-spend-limit', 'Account.json');
+  const packageRootResolved = tryResolvePackageRoot();
   const sourceContracts = [
     contractPath('daily-spend-limit', 'Account.sol'),
     contractPath('daily-spend-limit', 'SpendLimit.sol'),
@@ -154,18 +176,23 @@ function createDailySpendLimitProfile(): BuiltinSmartAccountProfile {
     constructorArgsDescription: ['ownerAddress'],
     sourceContracts,
     artifactPath: resolvedArtifactPath,
-    artifactReady: fs.existsSync(resolvedArtifactPath),
+    artifactReady: Boolean(packageRootResolved) && fs.existsSync(resolvedArtifactPath),
     notes: [
       'This profile starts from the zkSync community daily-spend-limit reference.',
       'The current spend-limit hook only guards native-token value transfer, not arbitrary ERC-20 calldata.',
       'The checked-in Solidity source uses 24 hours instead of the tutorial 1 minute reset window.',
-      'AAFactory is kept as a reference helper, but the CLI deploy path targets the account artifact directly.'
+      'AAFactory is kept as a reference helper, but the CLI deploy path targets the account artifact directly.',
+      ...(packageRootResolved
+        ? []
+        : [
+            `Built-in profile assets are not available in this runtime. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to a checked-out ${PACKAGE_NAME} package directory to enable artifact-backed built-in profile deploys.`
+          ])
     ],
     buildConstructorArgs(context) {
       return [context.ownerAddress];
     },
     resolveArtifact() {
-      if (!fs.existsSync(resolvedArtifactPath)) {
+      if (!packageRootResolved || !fs.existsSync(resolvedArtifactPath)) {
         throw missingArtifactError('daily-spend-limit', resolvedArtifactPath);
       }
       return parseArtifactFile(resolvedArtifactPath);
@@ -175,6 +202,7 @@ function createDailySpendLimitProfile(): BuiltinSmartAccountProfile {
 
 function createSedLiteProfile(): BuiltinSmartAccountProfile {
   const resolvedArtifactPath = artifactPath('sed-lite', 'Account.json');
+  const packageRootResolved = tryResolvePackageRoot();
   const sourceContracts = [
     contractPath('sed-lite', 'Account.sol'),
     contractPath('sed-lite', 'EOAValidator.sol'),
@@ -195,7 +223,7 @@ function createSedLiteProfile(): BuiltinSmartAccountProfile {
     constructorArgsDescription: ['ownerAddress'],
     sourceContracts,
     artifactPath: resolvedArtifactPath,
-    artifactReady: fs.existsSync(resolvedArtifactPath),
+    artifactReady: Boolean(packageRootResolved) && fs.existsSync(resolvedArtifactPath),
     notes: [
       'SED Lite now separates account state from signature verification by bootstrapping a dedicated K1 validator contract for each deployed account.',
       'It still keeps the current CLI-compatible raw ECDSA signature format instead of validator-encoded custom signature payloads.',
@@ -205,13 +233,18 @@ function createSedLiteProfile(): BuiltinSmartAccountProfile {
       'Owner rotation, module toggling, and validation-hook toggling are self-calls, so they work through the existing smart-account write path.',
       'SED Lite is the AA base layer for this repository; policy hooks can now be added on top without rebaking account core logic.',
       'The first standalone policy hook, NativePerTxLimitHook, is now deployed and live-validated on zkSync Sepolia.',
-      'The second standalone policy hook, TargetAllowlistHook, is now deployed and live-validated on zkSync Sepolia.'
+      'The second standalone policy hook, TargetAllowlistHook, is now deployed and live-validated on zkSync Sepolia.',
+      ...(packageRootResolved
+        ? []
+        : [
+            `Built-in profile assets are not available in this runtime. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to a checked-out ${PACKAGE_NAME} package directory to enable artifact-backed built-in profile deploys.`
+          ])
     ],
     buildConstructorArgs(context) {
       return [context.ownerAddress];
     },
     resolveArtifact() {
-      if (!fs.existsSync(resolvedArtifactPath)) {
+      if (!packageRootResolved || !fs.existsSync(resolvedArtifactPath)) {
         throw missingArtifactError('sed-lite', resolvedArtifactPath);
       }
       return parseArtifactFile(resolvedArtifactPath);
