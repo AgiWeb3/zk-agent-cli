@@ -35,10 +35,13 @@ There are now two explicit install surfaces:
 
 Current status:
 
-- the package/release posture is now prepared in `packages/zk-agent-cli`
-- release validation is local and explicit through `pnpm validate:phase4a`
-- until an actual public publish is cut, the repo-local `pnpm zk-agent ...`
-  path remains the default way to run the CLI from this repository
+- the first public beta, `zk-agent-cli@0.1.0-beta.1`, was published on
+  `2026-07-31`
+- release validation remains local and explicit through
+  `pnpm validate:phase4a`
+- inside this repository, the repo-local `pnpm zk-agent ...` path remains the
+  default development/runtime surface; the npm install surface is now live for
+  external use
 
 ## Current Phase
 

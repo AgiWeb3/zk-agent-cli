@@ -1,96 +1,114 @@
-# zkSync AA 交易格式
+# zkSync AA Transaction Format
 
-## 为什么它是实现主轴
+## Why this is a primary implementation axis
 
-在 zkSync Era 里，AA 不是外接模块，而是协议内能力。对 `zk-agent-cli` 来说，这意味着：
+In zkSync Era, account abstraction is not an external module. It is part of the
+protocol itself. For `zk-agent-cli`, that means:
 
-- 钱包不是简单 EOA 包装。
-- 交易不是普通 EVM 交易做少量补丁。
-- session、paymaster、bridge、合约调用最终都要回到同一条 AA-aware 交易执行链路。
+- a wallet is not just a wrapped EOA
+- a transaction is not a normal EVM transaction with a few patches
+- sessions, paymasters, bridges, and contract calls all have to converge on the
+  same AA-aware execution path
 
-## 本地文档里最重要的交易特征
+## Most important transaction traits confirmed by the local docs
 
-根据 `transaction lifecycle` 相关文档，zkSync 交易需要关注这些点：
+Based on the local transaction lifecycle material, zkSync transactions require
+special handling for at least these areas:
 
-- 使用 EIP-712 风格交易类型，文档中对应 `0x71` / `113`。
-- 交易会出现 zkSync 特有字段：
+- the EIP-712-style transaction type used by zkSync, documented as `0x71` /
+  `113`
+- zkSync-specific fields such as:
   - `gasPerPubdata`
   - `customSignature`
   - `paymasterParams`
   - `factoryDeps`
-- `maxPriorityFeePerGas` 在文档描述中不作为常规 EIP-1559 那样的重要参数。
+- the fact that `maxPriorityFeePerGas` does not play the same central role it
+  typically does in a standard EIP-1559 mental model
 
-这些字段说明：我们不能把 zkSync 写路径当成“普通以太坊交易 + 一个 provider URL”。
+Those fields make one point clear: the zkSync write path cannot be modeled as
+"normal Ethereum transaction handling plus a provider URL".
 
-## 对 CLI 命令层的影响
+## Implications for the CLI command layer
 
 ### `send`
 
-- 需要支持 native AA 账户发送。
-- 需要在 JSON 输出中保留交易类型、paymaster 使用情况、链标识、请求 ID。
+- It needs to support native AA accounts.
+- JSON output needs to retain transaction type, paymaster usage, chain context,
+  and request identifiers.
 
 ### `send-token`
 
-- 不只是 ERC-20 `transfer` 调用。
-- 还要预留 approval-based paymaster 和 token fee 支付路径。
+- It is not only an ERC-20 `transfer` wrapper.
+- It also needs room for approval-based paymaster flows and token fee-payment
+  behavior.
 
 ### `call`
 
-- 只读 `eth_call` 和发交易 `send transaction` 必须分开。
-- 发交易版 `call` 应走统一 transaction executor，而不是命令内部自己拼数据并直接发。
+- Read-only `eth_call` and state-changing `send transaction` must remain
+  separate.
+- The write-mode `call` path should go through the shared transaction executor
+  rather than building and sending a raw transaction inside the command itself.
 
-### `swap / bridge / deposit / withdraw`
+### `swap`, `bridge`, `deposit`, and `withdraw`
 
-- 这些动作最终都是一类“受 zkSync 交易格式约束的高级交易”。
-- 因此应该依赖同一个底层 builder / executor，而不是每个模块各自管理 gas、paymaster、签名和 session。
+- These are all higher-level transactions constrained by the same zkSync
+  transaction format.
+- They should depend on one common builder/executor instead of each module
+  managing gas, paymaster state, signing, and session context independently.
 
-## 对 provider 边界的要求
+## Required provider boundaries
 
-建议在 provider 层拆成至少三个职责：
+At minimum, the provider layer should separate three responsibilities:
 
 ### Transaction Builder
 
-负责：
+Responsible for:
 
-- 把命令输入转成 zkSync 可发送交易
-- 注入 zkSync 特有字段
-- 处理 paymaster / factory deps / custom signature
+- turning command input into a sendable zkSync transaction
+- injecting zkSync-specific fields
+- handling paymaster data, factory deps, and custom signatures
 
 ### Transaction Executor
 
-负责：
+Responsible for:
 
-- 估算 gas
-- 发送交易
-- 获取回执
-- 归一化错误
+- gas estimation
+- broadcasting transactions
+- reading receipts
+- normalizing execution errors
 
 ### Account Context Resolver
 
-负责：
+Responsible for:
 
-- 恢复会话账户
-- 判断账户类型
-- 获取账户可用能力，例如是否支持 paymaster / session / module
+- restoring session-backed accounts
+- identifying account kind
+- describing available capabilities such as paymaster, session, or module
+  support
 
-## 对 session protocol 的要求
+## What this means for the session protocol
 
-当前项目里的 `agent-session-protocol` 还只是通用骨架。后续要补充的字段至少应考虑：
+`agent-session-protocol` is still a generic foundation. At minimum, future
+payload evolution should account for:
 
 - account kind
 - chain scope
 - session policy summary
-- signer / validator 标识
-- paymaster 使用约束
+- signer or validator identity
+- paymaster usage constraints
 
-这里不是说现在就把所有字段定死，而是协议层要允许这些信息演进，不然以后会频繁破坏兼容性。
+This does not mean every field must be frozen today. It means the protocol has
+to evolve without repeatedly breaking compatibility.
 
-## 当前实现策略
+## Current implementation strategy
 
-工程判断：
+Current engineering judgment:
 
-- `agent-core` 只定义交易执行所需的抽象接口。
-- `provider-zksync-wallet` 负责把抽象输入翻译成 zkSync AA 交易。
-- CLI 命令只处理输入输出，不直接持有 zkSync 交易细节。
+- `agent-core` defines the abstract transaction-execution interfaces
+- `provider-zksync-wallet` translates those abstractions into zkSync AA
+  transactions
+- CLI commands only handle input/output and do not own raw zkSync transaction
+  details
 
-这比直接在命令里硬编码 `zksync-ethers` 调用更稳。
+That is materially safer than hard-coding `zksync-ethers` calls directly inside
+command implementations.

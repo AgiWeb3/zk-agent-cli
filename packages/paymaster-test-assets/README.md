@@ -1,40 +1,45 @@
 # @zk-agent/paymaster-test-assets
 
-这个包现在不只是部署一个测试 ERC-20。
+This package is no longer only for deploying a test ERC-20.
 
-它还承载本仓库的本地 paymaster 测试资产：
+It also carries the repository's local paymaster test assets:
 
 - `StandardTestToken.sol`
-  既可以走普通 `solc` + EVM interpreter 路线，也可以走 `zksolc`
-  产出 EraVM 原生 token，用来对照 approval-based live validation
+  Can be compiled either through the standard `solc` + EVM Interpreter route
+  or through `zksolc`, producing a native EraVM token for comparison against
+  approval-based live validation.
 - `ManagedPaymaster.sol`
-  走 `hardhat-zksync` + `zksolc` 路线，产出 EraVM 原生 paymaster
+  Uses the `hardhat-zksync` + `zksolc` route to produce a native EraVM
+  paymaster.
 
-## 为什么这样拆
+## Why it is split this way
 
-- 测试 token 的目标是稳定、便宜、可重复部署
-- paymaster 的目标是贴近 zkSync EraVM 原生行为
-- 所以两者不应该强行共用一条编译路径
+- The test token should be stable, cheap, and repeatedly deployable.
+- The paymaster should match native zkSync EraVM behavior as closely as
+  possible.
+- Those two goals should not be forced through the same compilation path.
 
-## Paymaster 来源与升级
+## Paymaster origin and upgrades
 
-`ManagedPaymaster.sol` 不是凭空新写的。
+`ManagedPaymaster.sol` was not written from scratch.
 
-它基于 `community-code/code` 里的两类示例合并升级：
+It is an upgraded merge of two example families under `community-code/code`:
 
-- `GeneralPaymaster` 的 sponsored/general flow
-- `ApprovalPaymaster` 的 approval-based flow
+- the sponsored/general flow from `GeneralPaymaster`
+- the approval-based flow from `ApprovalPaymaster`
 
-在此基础上补了几个原示例里缺失的点：
+On top of those examples, the repository adds several missing pieces:
 
-- 同一个 paymaster 同时支持 `general` 和 `approval-based`
-- `approval-based` 不再盲信传入的 `minAllowance`
-- 对 `zks_estimateFee` 的 underquoted `minAllowance` 走 `magic=0` 的估算友好分支，避免估算阶段和 `gasLimit` 形成循环依赖
-- 按 `requiredETH` 和可配置费率计算真实 token 扣费
-- owner 可更新 token / rate / flow 开关
-- owner 可提取 ETH 和收进来的 fee token
+- one paymaster can support both `general` and `approval-based`
+- `approval-based` no longer blindly trusts the incoming `minAllowance`
+- underquoted `minAllowance` during `zks_estimateFee` follows a
+  `magic=0` estimation-friendly branch so estimation does not deadlock on a
+  circular dependency with `gasLimit`
+- real token charges are computed from `requiredETH` and the configured rate
+- the owner can update token, rate, and flow toggles
+- the owner can withdraw ETH and collected fee tokens
 
-## 命令
+## Commands
 
 ```bash
 pnpm --filter @zk-agent/paymaster-test-assets compile
@@ -47,7 +52,7 @@ pnpm --filter @zk-agent/paymaster-test-assets deploy:paymaster
 pnpm --filter @zk-agent/paymaster-test-assets deploy:pool:syncswap-classic
 ```
 
-## 生成物
+## Outputs
 
 - ERC-20 artifact:
   `packages/paymaster-test-assets/artifacts/StandardTestToken.json`
@@ -66,21 +71,21 @@ pnpm --filter @zk-agent/paymaster-test-assets deploy:pool:syncswap-classic
 - local token-directory export:
   `packages/paymaster-test-assets/token-directory`
 
-## 导出本地 token-directory
+## Exporting a local token-directory
 
-如果你希望 `zk-agent-cli` 在本地优先读 deployment 记录之外，再补一层
-symbol -> token address 的目录索引，可以直接把当前 deployment 记录导出成
-token-directory 结构：
+If you want `zk-agent-cli` to layer a local symbol-to-token-address directory
+on top of deployment records, export the current deployment set in
+token-directory format:
 
 ```bash
 pnpm --filter @zk-agent/paymaster-test-assets export:token-directory
 ```
 
-默认输出到：
+Default output path:
 
 - `packages/paymaster-test-assets/token-directory`
 
-也支持覆盖输入和输出目录：
+Input and output directories can also be overridden:
 
 ```bash
 node ./packages/paymaster-test-assets/scripts/export-token-directory.mjs \
@@ -88,19 +93,18 @@ node ./packages/paymaster-test-assets/scripts/export-token-directory.mjs \
   --out-dir ./packages/paymaster-test-assets/token-directory
 ```
 
-导出完成后，可以在根目录 `.env` 里设置：
+After export, you can set the following in the root `.env`:
 
 ```bash
 ZK_AGENT_TOKEN_DIRECTORY_ROOT=packages/paymaster-test-assets/token-directory
 ```
 
-这样 `fund`、`send-token`、`swap`、`workflow ...` 以及
-`zk-agent tokens` / `zk-agent resolve-token` 就都能复用同一份本地
-token-directory。
+That lets `fund`, `send-token`, `swap`, `workflow ...`, `zk-agent tokens`, and
+`zk-agent resolve-token` all reuse the same local token-directory.
 
-## `.env` 字段
+## `.env` fields
 
-已有字段：
+Existing fields:
 
 - `ZKSYNC_SEPOLIA_WALLET_PRIVATE_KEY`
 - `ZKSYNC_SEPOLIA_WALLET_ADDRESS`
@@ -111,7 +115,7 @@ token-directory。
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_DECIMALS`
 - `ZKSYNC_SEPOLIA_TEST_TOKEN_SUPPLY`
 
-新增 paymaster 字段：
+Additional paymaster fields:
 
 - `ZKSYNC_SEPOLIA_PAYMASTER_TOKEN`
 - `ZKSYNC_SEPOLIA_PAYMASTER_OWNER_ADDRESS`
@@ -121,7 +125,7 @@ token-directory。
 - `ZKSYNC_SEPOLIA_PAYMASTER_ENABLE_GENERAL`
 - `ZKSYNC_SEPOLIA_PAYMASTER_ENABLE_APPROVAL`
 
-新增 SyncSwap classic 字段：
+Additional SyncSwap classic fields:
 
 - `ZKSYNC_SYNCSWAP_ROUTER_ADDRESS`
 - `ZKSYNC_SYNCSWAP_CLASSIC_FACTORY_ADDRESS`
@@ -131,34 +135,39 @@ token-directory。
 - `ZKSYNC_SYNCSWAP_CLASSIC_AMOUNT_B`
 - `ZKSYNC_SYNCSWAP_CLASSIC_LP_RECIPIENT`
 
-默认行为：
+Default behavior:
 
-- `PAYMASTER_TOKEN` 未设置时，优先用 `ZKSYNC_SEPOLIA_TEST_TOKEN`
-- 如果 `TEST_TOKEN` 也没设置，就回退到最近一次 `deploy` 产出的 token 地址
-- 费率默认 `1 / 1`
-- `general` 和 `approval-based` 默认都开启
-- SyncSwap classic 建池脚本默认优先用：
-  - `TOKEN_A = ZKSYNC_SEPOLIA_TEST_TOKEN` 或最近一次 EraVM token 部署
-  - `TOKEN_B = 最近一次 EVM-interpreter token 部署`
-  - 两边默认注入量都是 `1000`
-  - LP 默认发给 `ZKSYNC_SEPOLIA_WALLET_ADDRESS`
+- if `PAYMASTER_TOKEN` is unset, prefer `ZKSYNC_SEPOLIA_TEST_TOKEN`
+- if `TEST_TOKEN` is also unset, fall back to the token address from the most
+  recent `deploy` result
+- the default rate is `1 / 1`
+- both `general` and `approval-based` are enabled by default
+- the SyncSwap classic pool script prefers:
+  - `TOKEN_A = ZKSYNC_SEPOLIA_TEST_TOKEN` or the most recent EraVM token
+    deployment
+  - `TOKEN_B = the most recent EVM-interpreter token deployment`
+  - default liquidity amounts of `1000` on both sides
+  - LP tokens sent to `ZKSYNC_SEPOLIA_WALLET_ADDRESS` by default
 
-## SyncSwap Classic 测试池
+## SyncSwap classic test pool
 
-`deploy:pool:syncswap-classic` 的目标不是部署新合约，而是为当前仓库自己的测试 token
-在 zkSync Sepolia 上准备一个可重复的 SyncSwap classic 环境：
+`deploy:pool:syncswap-classic` does not deploy a new contract. Its purpose is
+to prepare a repeatable SyncSwap classic environment on zkSync Sepolia for this
+repository's own test tokens:
 
-- 先查 `classic factory` 是否已有池子
-- 没有就调用 `createPool(bytes)` 建池
-- 检查两边 token 对 router 的 allowance，不足时自动补 `approve`
-- 调 `router.addLiquidity(...)` 注入双边流动性
-- 把最新池地址、注入交易、LP 余额和当前 reserves 记到
-  `zksync-sepolia.syncswap-classic.latest.json`
+- check whether the `classic factory` already has a pool
+- if not, call `createPool(bytes)` to create one
+- inspect router allowances for both tokens and auto-run `approve` if needed
+- call `router.addLiquidity(...)` to seed two-sided liquidity
+- record the latest pool address, liquidity transaction, LP balance, and
+  current reserves in `zksync-sepolia.syncswap-classic.latest.json`
 
-## 当前 Sepolia 结论
+## Current Sepolia conclusion
 
-- EVM-interpreter 版测试 token 可以让 approval-based preview 成功
-- 但它在 approval-based live broadcast 下仍可能触发 `SystemContext`
-  校验失败
-- 同样的 token 逻辑如果改为 EraVM 原生部署，再配合 EraVM 原生
-  `ManagedPaymaster`，approval-based live broadcast 已经实测成功
+- The EVM-interpreter version of the test token can make approval-based preview
+  succeed.
+- But it can still fail approval-based live broadcast because of
+  `SystemContext` validation.
+- When the same token logic is deployed as native EraVM bytecode and paired
+  with the native EraVM `ManagedPaymaster`, approval-based live broadcast has
+  already been confirmed to succeed in this repository.

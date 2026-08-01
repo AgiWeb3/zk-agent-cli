@@ -1,77 +1,88 @@
-# SDK 与工具链判断
+# SDK and Tooling Assessment
 
-## 先说结论
+## Start with the conclusion
 
-`zksync-ethers` 应该被认真研究，但不应该被提升成整个项目的中心抽象。
+`zksync-ethers` should be studied seriously, but it should not be elevated into
+the central abstraction for the whole repository.
 
-这是一个工程判断，不是说它不重要，而是说：
+This is an engineering judgment, not a claim that the SDK is unimportant. The
+actual point is:
 
-- 它适合放在 provider 实现层。
-- 不适合泄漏成 CLI 命令接口、session protocol、storage schema 的上层契约。
+- it fits naturally in the provider implementation layer
+- it should not leak into the CLI command contract, session protocol, or
+  storage schema
 
-## 本地文档给出的信号
+## Signals from the local source set
 
-本地资料中，一方面保留了 `zksync-ethers` 相关工具说明；另一方面也明确强调了随着 EVM Interpreter 的引入，标准 Ethereum 工具兼容性增强，部分“自定义 tooling”不再应被视为唯一入口。
+The local documentation keeps `zksync-ethers`-specific tooling references, but
+it also makes clear that the EVM Interpreter improves compatibility with more
+standard Ethereum tools. That means custom zkSync tooling should not be treated
+as the only valid entry point forever.
 
-这对我们有两个直接启发：
+That leads to two direct conclusions:
 
-### 读路径可以尽量标准化
+### Read paths should be standardized where possible
 
-- 余额查询
-- 链信息读取
-- 普通只读调用
+- balance reads
+- chain-information reads
+- ordinary read-only contract calls
 
-这些能力尽量通过通用 provider 风格建模，有利于后续替换底层实现。
+These should stay close to a generic provider shape so the low-level
+implementation can be swapped more easily later.
 
-### 写路径保留 zkSync 特化
+### Write paths should remain zkSync-specific
 
-- native AA 交易
-- paymaster
-- bridge
+- native AA transactions
+- paymaster support
+- bridges
 - factory deps
-- 自定义签名
+- custom signatures
 
-这些能力由 zkSync provider 负责实现，不要强行伪装成“所有链都一样”。
+Those features belong in the zkSync provider implementation and should not be
+forced into a fake "every chain works the same way" abstraction.
 
-## 对当前代码结构的含义
+## What this means for the current code structure
 
 ### `agent-core`
 
-只定义：
+It should define only:
 
-- provider interface
-- registry
+- provider interfaces
+- registries
 - storage
 - shared types
 
-不直接 import 某个 zkSync SDK 类型作为核心类型。
+It should not import a concrete zkSync SDK type as a core repository type.
 
 ### `provider-zksync-wallet`
 
-这里可以安全地使用：
+This package can safely use:
 
-- zkSync provider
-- zkSync wallet / signer
-- bridge helper
-- zkSync 特有交易序列化能力
+- the zkSync provider
+- zkSync wallets/signers
+- bridge helpers
+- zkSync-specific transaction serialization
 
 ### CLI
 
-CLI 只关心：
+The CLI should only care about:
 
-- 用户输入
-- TTY 文案
-- JSON 输出
-- 错误码与结构化结果
+- user input
+- TTY output
+- JSON output
+- error codes and structured results
 
-不应该知道底层到底是 `zksync-ethers` 还是别的 SDK 组合。
+It should not know whether the underlying implementation uses
+`zksync-ethers` or some other SDK combination.
 
-## 当前推荐姿势
+## Current recommended posture
 
-现阶段最稳的方式是：
+The safest current approach is:
 
-1. 继续把 `zksync-ethers` 当作重点参考对象。
-2. 但所有接口都围绕“能力”而不是“SDK 类型”来定义。
-3. 读能力尽量保持标准 EVM 风格，写能力通过 zkSync provider 特化。
+1. keep `zksync-ethers` as a primary reference implementation
+2. define interfaces around capabilities rather than SDK types
+3. keep read paths close to standard EVM behavior and specialize write paths in
+   the zkSync provider
 
-这样后面如果发现某部分要换实现，不会把整个仓库一起拖下水。
+That way, if one part of the implementation needs to change later, the entire
+repository does not have to move with it.

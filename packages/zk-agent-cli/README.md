@@ -34,7 +34,9 @@ zksync-agent --help
 
 ## Prerequisites
 
-- Node.js `>=24` if you install globally.
+- Node.js `>=24` for either `npx zk-agent-cli ...` or global install.
+  Older Node versions may still start the CLI, but the current package is not
+  supported there and npm will emit `EBADENGINE` warnings.
 - The default local approval path expects the connector UI to be reachable at
   `http://localhost:4444`. Override it with
   `zk-agent setup --connector-url <url>` when needed.

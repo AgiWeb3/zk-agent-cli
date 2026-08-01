@@ -1,69 +1,73 @@
-# 本地资料索引
+# Local Source Index
 
-下面这些是本轮判断直接参考的本地文档路径，后续继续实现时可以从这里回溯。
+The paths below are the local documentation references used directly for this
+round of architecture and product judgments. They provide the shortest route
+back to source material when implementation work resumes.
 
-## 账户抽象与交易
+## Account abstraction and transactions
 
 - `../zksync-docs/content/20.zksync-protocol/30.era-vm/20.transactions/10.transaction-lifecycle.md`
-  - 交易生命周期
-  - zkSync 特有交易字段
-  - EIP-712 风格交易类型
+  - transaction lifecycle
+  - zkSync-specific transaction fields
+  - EIP-712-style transaction type
 
 - `../zksync-docs/content/20.zksync-protocol/30.era-vm/70.differences/50.native-vs-eip4337.md`
-  - native AA 与 EIP-4337 的边界
+  - the boundary between native AA and EIP-4337
 
 - `../zksync-docs/content/00.zksync-network/68.zksync-era/02.unique-features.md`
   - native account abstraction
   - paymasters
   - session keys
-  - EVM Interpreter
+  - the EVM Interpreter
 
 ## Paymaster
 
 - `../zksync-docs/content/20.zksync-protocol/30.era-vm/80.account-abstraction/30.paymasters.md`
-  - paymaster 模式
-  - 估算注意事项
+  - paymaster modes
+  - estimation caveats
 
-## Sessions 与账户
+## Sessions and accounts
 
 - `../zksync-docs/content/00.zksync-network/30.unique-features/30.zksync-sso/23.sessions.md`
   - sessions
-  - 临时密钥与策略
+  - temporary keys and policy model
 
 - `../zksync-docs/content/00.zksync-network/30.unique-features/30.zksync-sso/27.accounts.md`
-  - 模块化账户
-  - ERC-7579 方向
+  - modular accounts
+  - ERC-7579 direction
 
-## Bridge 与网络
+## Bridge and network model
 
 - `../zksync-docs/content/20.zksync-protocol/00.rollup/40.bridging-assets.md`
-  - L1/L2 资产桥接
-  - 默认桥合约发现
-  - 资产映射
-  - withdraw 延迟
+  - L1/L2 asset bridging
+  - default bridge discovery
+  - asset mapping
+  - withdraw delay
 
 - `../zksync-docs/content/00.zksync-network/45.zksync-connect/20.crosschain-asset-transfers.md`
-  - Elastic Network 下的跨链资产流转
-  - ZKsync Connect / asset router 相关背景
+  - cross-chain asset flow in the Elastic Network
+  - background on ZKsync Connect and the asset router
 
-## 工具链
+## Tooling
 
 - `../zksync-docs/content/00.zksync-network/68.zksync-era/30.custom-tooling.md`
   - `zksync-ethers`
-  - zkSync 自定义 tooling 在当前阶段的定位
+  - the current role of zkSync-specific custom tooling
 
-## 已确认的基础链信息
+## Confirmed baseline chain information
 
-这些信息已经在之前的本地文档分析中核对过，可作为当前最小实现默认值：
+These values were checked during the earlier local-doc pass and can be treated
+as the current minimum default set:
 
 - zkSync Era Mainnet
   - chain id: `324`
-  - rpc: `https://mainnet.era.zksync.io/`
+  - RPC: `https://mainnet.era.zksync.io/`
   - explorer: `https://explorer.zksync.io`
 
 - zkSync Sepolia
   - chain id: `300`
-  - rpc: `https://sepolia.era.zksync.dev`
+  - RPC: `https://sepolia.era.zksync.dev`
   - explorer: `https://sepolia.explorer.zksync.io`
 
-后续如果文档源有变动，再从本地镜像重新核对，不要凭记忆扩写。
+If the underlying docs change later, re-check them from the local mirror rather
+than extending this list from memory.

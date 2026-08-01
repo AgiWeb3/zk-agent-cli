@@ -1,19 +1,27 @@
 # zk-agent-cli Docs
 
-这组文档的目标不是复述 zkSync 官方资料，而是把 `zk-agent-cli` 实现真正需要的背景知识压缩成一套可执行的工程判断。
+This document set does not try to restate the official zkSync documentation.
+Its purpose is to compress the background knowledge that `zk-agent-cli` actually
+needs into actionable engineering judgments.
 
-当前结论：
+Current conclusions:
 
-- 你说的三个核心点里，`AA 交易格式` 和 `Paymaster` 确实是 zkSync 相对 Polygon/Sequence 路线的核心差异。
-- `zksync-ethers SDK` 很重要，但它更像实现载体，不是最底层的协议核心；项目设计不能把它当成唯一真相源。
-- 如果要把 `zk-agent-cli` 做成面向 `zkSync + ZK Stack` 的 agent，还必须补上：
-  - session keys / session policies
-  - native AA 与 EIP-4337 的边界
-  - bridge / asset router / Elastic Network 跨链模型
-  - zkSync 特有交易字段、gas/pubdata 语义、paymaster 估算差异
-  - chain registry / token registry / bridge registry
+- Of the original three focus areas, `AA transaction format` and `paymaster`
+  are the real protocol-level differences between zkSync and the
+  Polygon/Sequence-oriented baseline.
+- The `zksync-ethers` SDK matters, but it is an implementation vehicle rather
+  than the deepest protocol abstraction. Project design should not treat it as
+  the only source of truth.
+- If `zk-agent-cli` is meant to serve `zkSync + ZK Stack` agents, it also needs
+  explicit treatment for:
+  - session keys and session policies
+  - the boundary between native AA and EIP-4337
+  - bridge, asset-router, and Elastic Network cross-chain models
+  - zkSync-specific transaction fields, gas/pubdata semantics, and paymaster
+    estimation differences
+  - chain, token, and bridge registries
 
-建议阅读顺序：
+Recommended reading order:
 
 1. [01-core-differences.md](./01-core-differences.md)
 2. [02-aa-transactions.md](./02-aa-transactions.md)
@@ -27,4 +35,6 @@
 10. [10-operator-json-contract.md](./10-operator-json-contract.md)
 11. [11-npm-release-gate.md](./11-npm-release-gate.md)
 
-这些文档默认基于本地 `../zksync-docs` 目录中的资料整理，方便我们离线推进实现。
+Unless stated otherwise, these notes are derived from the local
+`../zksync-docs` mirror so the repository can keep moving even when external
+network access is unavailable.

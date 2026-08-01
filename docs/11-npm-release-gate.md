@@ -1,30 +1,35 @@
 # npm Release Gate
 
-这份清单用于判断 `zk-agent-cli` 是否可以进入**第一次公开 npm 发布**。
+This checklist was originally created to decide whether `zk-agent-cli` was
+ready for its first public npm release. The first public beta was completed on
+`2026-07-31`, and the same gate now remains the release checklist for future
+beta or stable cuts.
 
-目标不是证明“功能很多”，而是证明：
+The goal is not to prove that the project has "many features". The goal is to
+prove that:
 
-1. 包可以被合法发布和使用
-2. 陌生用户只靠 npm 包和 README 就能完成最短成功路径
-3. 当前声明的公开能力已经被本地验证覆盖
+1. the package can be published and used legitimately
+2. a new user can complete the shortest success path using only the npm package
+   and the README
+3. the publicly claimed capability surface is covered by local validation
 
-## 使用方式
+## How to use this gate
 
-- 发布前按顺序执行
-- 每一项只接受两种状态：
+- Run it in order before each release.
+- Each item only accepts two states:
   - `PASS`
   - `BLOCKED`
-- 只要有任一 `BLOCKED`，本轮不发
+- If any item is `BLOCKED`, do not release.
 
-## Gate 0: 发布身份与权限
+## Gate 0: publishing identity and permissions
 
-发布前必须确认：
+Before release, confirm:
 
-- [ ] 已确认本次使用的 npm 账号和 scope 权限
-- [ ] `zk-agent-cli` 的包名与版本号可发布
-- [ ] 当前版本号已确认，不会覆盖错误版本
+- [ ] the current npm account has permission to publish `zk-agent-cli`
+- [ ] the `zk-agent-cli` name and current version are publishable
+- [ ] the version has been confirmed and will not overwrite the wrong release
 
-建议命令：
+Suggested commands:
 
 ```bash
 npm whoami
@@ -32,164 +37,178 @@ npm view zk-agent-cli version
 npm publish --dry-run
 ```
 
-通过标准：
+Pass criteria:
 
-- `npm whoami` 返回预期账号
-- 若包尚未发布，`npm view` 不应返回一个与当前计划冲突的已发布版本
-- `npm publish --dry-run` 不报权限或打包错误
+- `npm whoami` returns the expected account
+- if the package has not been published yet, `npm view` should not return an
+  already-published version that conflicts with the planned release
+- `npm publish --dry-run` does not fail with packaging or permission errors
 
-阻塞条件：
+Blockers:
 
-- scope 权限不明确
-- 包名/版本策略未确认
-- dry-run 已经报出 publish 级错误
+- publishing-account permissions are unclear
+- package-name or version policy is not confirmed
+- `dry-run` already returns publish-level errors
 
-## Gate 1: 许可证与法律分发面
+## Gate 1: license and legal distribution surface
 
-公开 npm 包发布前必须收口：
+Before public npm distribution, the following must be true:
 
-- [ ] 仓库根目录存在明确 `LICENSE`
-- [ ] `packages/zk-agent-cli/package.json` 的 `license` 不再是 `UNLICENSED`
-- [ ] 根 README 与包 README 的 license 叙述一致
+- [ ] a clear root `LICENSE` file exists
+- [ ] `packages/zk-agent-cli/package.json` no longer uses `UNLICENSED`
+- [ ] the root README and package README describe the license consistently
 
-检查文件：
+Files to inspect:
 
 - `LICENSE`
 - `packages/zk-agent-cli/package.json`
 - `README.md`
 - `packages/zk-agent-cli/README.md`
 
-通过标准：
+Pass criteria:
 
-- 用户安装公开包时，使用许可是明确的
+- the usage license is clear to anyone installing the public package
 
-阻塞条件：
+Blockers:
 
-- 仍然是 `UNLICENSED`
-- 根仓库没有 license 文件
+- the package is still `UNLICENSED`
+- the root repository has no license file
 
-## Gate 2: 包 README 自给自足
+## Gate 2: package README must stand on its own
 
-`packages/zk-agent-cli/README.md` 必须做到不依赖仓库上下文也能用。
+`packages/zk-agent-cli/README.md` must be usable without repository context.
 
-发布前必须覆盖：
+Before release, it must cover:
 
 - [ ] prerequisites
-- [ ] 安装方式：`npx` / `npm install -g`
-- [ ] 最短成功路径：`setup -> next -> wallet create/reapprove -> next -> workflow auto`
-- [ ] 本地存储路径 `~/.zk-agent/`
-- [ ] 最小必需环境变量或“哪些情况下需要 .env / RPC”
-- [ ] relay / remote approval 最短路径
-- [ ] 常见失败和最短修复动作
+- [ ] installation paths: `npx` and `npm install -g`
+- [ ] the shortest success path:
+      `setup -> next -> wallet create/reapprove -> next -> workflow auto`
+- [ ] the local storage path `~/.zk-agent/`
+- [ ] the minimum required environment variables, or when `.env` / RPC values
+      are actually needed
+- [ ] the shortest relay / remote-approval path
+- [ ] common failures and the shortest repair actions
 
-通过标准：
+Pass criteria:
 
-- 一个第一次接触项目的用户只看 npm 页面里的 README 就知道怎么跑通第一条路径
+- a first-time user can get through the first success path from the npm page
+  README alone
 
-阻塞条件：
+Blockers:
 
-- README 仍然主要把用户重定向回 monorepo 根文档
-- 缺少 first-run quickstart 或故障恢复说明
+- the README still mostly redirects users back to monorepo documentation
+- it is missing a first-run quickstart or failure-recovery guidance
 
-## Gate 3: 打包内容与元数据
+## Gate 3: package contents and metadata
 
-必须确认包本身是可分发的，而不是“本地 monorepo 才能跑”。
+The package itself must be distributable, not only runnable inside the local
+monorepo.
 
-- [ ] `release:check` 通过
-- [ ] tarball 只包含预期内容
-- [ ] runtime dependencies 不包含 `workspace:*`
-- [ ] `bin`、`repository`、`homepage`、`bugs`、`engines` 都正确
+- [ ] `release:check` passes
+- [ ] the tarball only contains expected contents
+- [ ] runtime dependencies do not include `workspace:*`
+- [ ] `bin`, `repository`, `homepage`, `bugs`, and `engines` are correct
 
-执行命令：
+Command:
 
 ```bash
 pnpm --filter zk-agent-cli release:check
 ```
 
-当前检查脚本位置：
+Current script location:
 
 - `packages/zk-agent-cli/scripts/release-check.mjs`
 
-通过标准：
+Pass criteria:
 
-- 能成功打出 tarball
-- 包内至少包含：
+- the tarball is built successfully
+- the package contains at least:
   - `dist/index.js`
   - `package.json`
   - `README.md`
-- 解包到系统临时目录后，至少以下命令能在隔离 cwd 正常启动：
+- after extraction into a system temp directory, these commands still start
+  correctly from an isolated cwd:
   - `zk-agent --help`
   - `zk-agent defaults --json`
   - `zk-agent wallet smart-account profiles --json`
 
-阻塞条件：
+Blockers:
 
-- 打包失败
-- tarball 结构不对
-- 运行时依赖仍依赖 workspace-only 解析
+- packaging fails
+- tarball structure is wrong
+- runtime startup still depends on workspace-only resolution
 
-## Gate 4: 本地验证总门禁
+## Gate 4: local validation gate
 
-发布前，最少必须重跑一次完整本地发布验证。
+Before release, rerun the full local release validation at least once.
 
-- [ ] `pnpm validate:phase4a` 通过
+- [ ] `pnpm validate:phase4a` passes
 
-执行命令：
+Command:
 
 ```bash
 pnpm validate:phase4a
 ```
 
-说明：
+Notes:
 
-- 这条命令当前串行覆盖：
+- this command currently covers:
   - `zk-agent-cli release:check`
   - `@zk-agent/agent-tools test`
   - `zk-agent-cli test`
 
-通过标准：
+Pass criteria:
 
-- 所有子检查全绿
+- all sub-checks are green
 
-阻塞条件：
+Blockers:
 
-- 任一子检查失败
+- any sub-check fails
 
-## Gate 5: 本地监听/relay 类测试环境
+## Gate 5: local listener / relay test environment
 
-这项不是额外测试，而是确认验证环境本身可信。
+This is not an extra test. It verifies that the validation environment itself
+is trustworthy.
 
-- [ ] 如果沙箱阻止 `127.0.0.1` 监听，已在可监听环境重跑相同检查
-- [ ] relay / await-local / workflow-await-local 相关测试不是靠跳过通过的
+- [ ] if the sandbox blocks `127.0.0.1` listeners, the same checks have been
+      rerun in an environment that allows them
+- [ ] relay / await-local / workflow-await-local tests are not passing only
+      because they were skipped
 
-检查重点：
+Files worth checking:
 
 - `packages/zk-agent-cli/tests/await-local.test.mjs`
 - `packages/zk-agent-cli/tests/relay-cli.test.mjs`
 - `packages/zk-agent-cli/tests/workflow-await-local-cli.test.mjs`
 - `packages/zk-agent-cli/tests/smoke-remote-approval-runtime.test.mjs`
 
-通过标准：
+Pass criteria:
 
-- 涉及本地监听的测试在真实可监听环境里通过
-- 当前基线补充事实：
-  - 受限沙箱里会因 `listen EPERM 127.0.0.1` 失败
-  - 同一套 `pnpm validate:phase4a` 已于 2026-07-31 在宿主环境重跑通过
+- listener-dependent tests pass in a real environment that allows local binds
+- current baseline facts:
+  - the managed sandbox can fail with `listen EPERM 127.0.0.1`
+  - the same `pnpm validate:phase4a` gate was rerun successfully on the host
+    environment on `2026-07-31`
 
-阻塞条件：
+Blockers:
 
-- 仅在受限沙箱里跑过，无法判断 relay / await-local 面是否真的可用
+- the checks were only run inside the restricted sandbox, so relay /
+  await-local behavior is still unproven
 
-## Gate 6: 命令面与文档面一致
+## Gate 6: command surface and documentation must agree
 
-对外发布前，README、skills、CLI help 不能互相打架。
+Before public release, README text, skills, and CLI help must not contradict
+each other.
 
-- [ ] 根 README 的安装/运行方式与包 README 一致
-- [ ] `skills/SKILL.md` 和 `skills/QUICKSTART.md` 的 canonical path 与 CLI help 一致
-- [ ] `zk-agent --help` 暴露的主命令与 README 中宣称的主能力一致
-- [ ] 文档里不再暗示尚未发布的外部安装状态为“已经上线”
+- [ ] the root README install/run paths match the package README
+- [ ] `skills/SKILL.md` and `skills/QUICKSTART.md` use the same canonical path
+      as CLI help
+- [ ] `zk-agent --help` exposes the same main capability surface claimed by the
+      README
+- [ ] docs no longer imply that an unpublished install surface is already live
 
-建议检查：
+Suggested checks:
 
 ```bash
 pnpm zk-agent --help
@@ -197,90 +216,113 @@ pnpm zk-agent wallet --help
 pnpm zk-agent workflow --help
 ```
 
-通过标准：
+Pass criteria:
 
-- 同一能力的入口、命令名、默认路径在三个面上保持一致：
-  - package README
-  - root README / skills
+- the same capability entrypoints, command names, and default path remain
+  aligned across:
+  - the package README
+  - the root README / skills
   - CLI help
 
-阻塞条件：
+Blockers:
 
-- README 说一个默认路径，CLI help 又说另一个
-- 已 deferred 的功能被写成已稳定可用
+- the README claims one default path while CLI help claims another
+- deferred capability is described as stable and shipped
 
-## Gate 7: 公开承诺边界清晰
+## Gate 7: public promise boundary must stay clear
 
-发布的是 zkSync / ZK Stack CLI，不是 Polygon 功能复刻。
+The package being released is a zkSync / ZK Stack CLI, not a direct Polygon
+feature clone.
 
-发布前必须确认：
+Before release, confirm:
 
-- [ ] 没有把 Polygon 专属能力写成 zk 版现成功能
-- [ ] 当前 README/skills 对缺失垂直能力的边界描述清楚
-- [ ] 发布文案主打的是当前真实强项：
+- [ ] no Polygon-only feature is described as a finished zkSync capability
+- [ ] README/skills describe missing verticals and boundaries clearly
+- [ ] release copy emphasizes the current real strengths:
   - workflow-first path
   - relay-backed approval
   - defaults/registry
   - bridge/deposit/withdraw lifecycle
 
-通过标准：
+Pass criteria:
 
-- 对外描述准确，既不缩水，也不夸张
+- public description is accurate without underselling or overclaiming
 
-阻塞条件：
+Blockers:
 
-- 为了“看起来像 Polygon 版”而过度承诺
+- release copy overpromises just to look like a "Polygon equivalent"
 
-## Gate 8: 最小人工冒烟
+## Gate 8: minimum manual smoke
 
-自动化通过后，仍要补一轮短路径人工确认。
+Even after automation passes, complete one short manual path.
 
-- [ ] `npx zk-agent-cli --help` 预期输出正常
-- [ ] `npm install -g zk-agent-cli` 后 `zk-agent --help` 正常
+- [ ] `npx zk-agent-cli --help` behaves as expected
+- [ ] `npm install -g zk-agent-cli` then `zk-agent --help` behaves correctly
 - [ ] `zk-agent setup`
 - [ ] `zk-agent next`
-- [ ] 一条 wallet create 或 reapprove 路径在目标环境可走通
-- [ ] 一条 `workflow auto` 预览路径可走通
+- [ ] at least one wallet create or reapprove path works in the target
+      environment
+- [ ] at least one `workflow auto` preview path works
 
-说明：
+Notes:
 
-- 如果当前阶段不打算在发布机上做真实链上广播，至少要完成 help + setup + next + preview 路径
+- if the release machine is not intended for live chain broadcast at this
+  stage, at minimum complete the help, setup, next, and preview path
 
-阻塞条件：
+Blockers:
 
-- npm 安装后入口不可用
-- 发布包与 repo-local 入口行为明显不一致
+- the npm-installed entrypoint does not work
+- the published package behaves materially differently from the repo-local
+  entrypoint
 
-## Gate 9: 发布执行
+## Gate 9: release execution
 
-只有 Gate 0-8 都通过，才进入真正发布。
+Only after Gate 0-8 all pass should the actual release happen.
 
-- [ ] 版本号最终确认
-- [ ] 工作区干净，只包含应发布改动
-- [ ] 已记录本次发布对应 commit
-- [ ] 执行真实 `npm publish`
-- [ ] 发布后回读 npm 页面与安装命令
+- [ ] final version number confirmed
+- [ ] working tree is clean and only contains intended release changes
+- [ ] the release commit is recorded
+- [ ] real `npm publish` executed
+- [ ] post-publish npm page and install commands read back successfully
 
-发布后最少回读：
+Minimum post-publish readback:
 
 ```bash
 npm view zk-agent-cli version
 npx zk-agent-cli --help
 ```
 
-## 当前已知阻塞
+## First beta release result
 
-按当前仓库状态，第一次公开 npm 发布前至少还有这些项需要收口：
+- first public beta completed on `2026-07-31`:
+  `zk-agent-cli@0.1.0-beta.1`
+- publishing-account readback:
+  `npm whoami -> jerrygod`
+- post-publish npm readback:
+  - `npm view zk-agent-cli version -> 0.1.0-beta.1`
+  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.1","latest":"0.1.0-beta.1"}`
+- post-publish clean-machine smoke:
+  - `npx --yes zk-agent-cli --help` ran successfully outside the repository
+  - but host Node `20.10.0` emitted `EBADENGINE` warnings because the package
+    currently declares `node >=24`; that environment is outside the supported
+    runtime floor
 
-- 真正发布账号与 scope 权限还没完成发布前核验
-- 实际 `npm publish --dry-run` 还没做
+## Post-release follow-up to keep
 
-## Go / No-Go 规则
+- rerun `npm install -g zk-agent-cli` then `zk-agent --help` from a directory
+  outside the repository
+- decide whether to keep `engines.node >=24` or lower the supported floor after
+  validation
+- confirm beta-vs-`latest` dist-tag policy before the next release
+- keep the root README, package README, and `skills/` aligned with the actual
+  published surface
 
-只有同时满足以下条件，才算 `GO`：
+## Go / No-Go rule
 
-1. Gate 0-9 全部 `PASS`
-2. 没有任何“靠环境绕过”的测试盲区
-3. 发布文案只覆盖当前真实能力边界
+It is only `GO` when all of the following are true:
 
-否则一律 `NO-GO`。
+1. Gate 0-9 are all `PASS`
+2. there are no validation blind spots caused by environment shortcuts
+3. public release copy only covers the real shipped capability boundary
+
+Otherwise the answer is `NO-GO`.
