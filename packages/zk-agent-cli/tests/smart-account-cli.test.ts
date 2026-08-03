@@ -79,6 +79,46 @@ async function runWalletCommandJson(args: string[]): Promise<unknown> {
   return JSON.parse(output);
 }
 
+test('wallet smart-account profiles resolves built-in artifacts without an explicit profiles root override', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-smart-account-profiles-cli-'));
+  const previousHome = process.env.HOME;
+  const previousOutput = process.env.ZK_AGENT_OUTPUT;
+  const previousProfilesRoot = process.env.ZK_AGENT_ACCOUNT_PROFILES_ROOT;
+  process.env.HOME = homeDir;
+  process.env.ZK_AGENT_OUTPUT = 'json';
+  delete process.env.ZK_AGENT_ACCOUNT_PROFILES_ROOT;
+
+  try {
+    const result = await runWalletCommandJson(['smart-account', 'profiles']);
+    assert.equal((result as any).ok, true);
+    assert.equal(Array.isArray((result as any).profiles), true);
+    assert.equal((result as any).profiles.length > 0, true);
+
+    for (const profile of (result as any).profiles) {
+      assert.equal(profile.artifactReady, true);
+      assert.equal(
+        profile.notes.some((note: unknown) =>
+          String(note).includes('Built-in profile assets are not available in this runtime.')
+        ),
+        false
+      );
+    }
+  } finally {
+    process.env.HOME = previousHome;
+    if (previousOutput === undefined) {
+      delete process.env.ZK_AGENT_OUTPUT;
+    } else {
+      process.env.ZK_AGENT_OUTPUT = previousOutput;
+    }
+    if (previousProfilesRoot === undefined) {
+      delete process.env.ZK_AGENT_ACCOUNT_PROFILES_ROOT;
+    } else {
+      process.env.ZK_AGENT_ACCOUNT_PROFILES_ROOT = previousProfilesRoot;
+    }
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('wallet smart-account predict/deploy emit follow-up commands and persist deployment metadata', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-smart-account-cli-'));
   const previousHome = process.env.HOME;

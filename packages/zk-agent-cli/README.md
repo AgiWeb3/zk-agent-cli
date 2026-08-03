@@ -126,18 +126,25 @@ Common files created by the default path:
 
 ## Smart-Account Profiles
 
-The published package can inspect built-in profiles:
+The published package ships built-in profile artifacts for the first-party
+smart-account presets:
 
 ```bash
 zk-agent wallet smart-account profiles --json
 ```
 
+That means the packaged CLI can use:
+
+- `zk-agent wallet smart-account predict --profile sed-lite`
+- `zk-agent wallet smart-account deploy --profile sed-lite`
+- the same built-in path for `daily-spend-limit`
+
 Current boundary:
 
-- profile inspection works from the packaged CLI
-- built-in profile deploys still require
-  `ZK_AGENT_ACCOUNT_PROFILES_ROOT=<checked-out account-profiles package dir>`
-  because the npm tarball does not ship the EraVM profile artifacts
+- built-in profiles work from the packaged CLI
+- custom profile artifacts still use `--artifact <json|@file>`
+- `ZK_AGENT_ACCOUNT_PROFILES_ROOT` is now only a source-checkout override for
+  development or custom runtime layouts
 
 ## Common Failures
 

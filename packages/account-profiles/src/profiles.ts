@@ -45,6 +45,7 @@ function resolvePackageRoot(): string {
   const cwd = process.cwd();
   const candidates = [
     process.env.ZK_AGENT_ACCOUNT_PROFILES_ROOT,
+    path.join(moduleRoot, 'dist', 'builtin-account-profiles'),
     moduleRoot,
     path.join(cwd, 'packages', 'account-profiles'),
     path.join(cwd, 'account-profiles'),
@@ -139,7 +140,7 @@ function parseArtifactFile(artifactPath: string): SmartAccountArtifactInput {
 
 function missingArtifactError(profileId: BuiltinSmartAccountProfileId, artifactPath: string): Error {
   return new Error(
-    `Built-in smart-account profile "${profileId}" is source-only right now. Expected compiled artifact at ${artifactPath}. Compile the profile with a zkSync EraVM toolchain before using --profile ${profileId}.`
+    `Built-in smart-account profile "${profileId}" is not available in this runtime. Expected a compiled artifact at ${artifactPath}. If you are running from source, compile the profile with a zkSync EraVM toolchain or point ZK_AGENT_ACCOUNT_PROFILES_ROOT at a checked-out ${PACKAGE_NAME} package directory.`
   );
 }
 
@@ -185,7 +186,7 @@ function createDailySpendLimitProfile(): BuiltinSmartAccountProfile {
       ...(packageRootResolved
         ? []
         : [
-            `Built-in profile assets are not available in this runtime. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to a checked-out ${PACKAGE_NAME} package directory to enable artifact-backed built-in profile deploys.`
+            `Built-in profile assets are not available in this runtime. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to a checked-out ${PACKAGE_NAME} package directory to enable artifact-backed built-in profile deploys when source checkout is required.`
           ])
     ],
     buildConstructorArgs(context) {
@@ -237,7 +238,7 @@ function createSedLiteProfile(): BuiltinSmartAccountProfile {
       ...(packageRootResolved
         ? []
         : [
-            `Built-in profile assets are not available in this runtime. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to a checked-out ${PACKAGE_NAME} package directory to enable artifact-backed built-in profile deploys.`
+            `Built-in profile assets are not available in this runtime. Set ZK_AGENT_ACCOUNT_PROFILES_ROOT to a checked-out ${PACKAGE_NAME} package directory to enable artifact-backed built-in profile deploys when source checkout is required.`
           ])
     ],
     buildConstructorArgs(context) {

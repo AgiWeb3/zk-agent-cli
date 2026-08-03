@@ -54,11 +54,11 @@ but it is not yet a complete "agent treasury policy engine".
   profile's native spend-limit state over the existing smart-account write path
 - the repository now includes a local EraVM compile path via
   `pnpm --filter @zk-agent/account-profiles compile:eravm`
-- the compiled artifact remains a local generated file and is not checked in
-
-Until `packages/account-profiles/artifacts/daily-spend-limit/Account.json`
-exists, the CLI will report this profile as `source-only` and refuse actual
-predict/deploy calls with a clear error.
+- the exported artifact now exists under
+  `packages/account-profiles/artifacts/daily-spend-limit/Account.json`
+- the packaged `zk-agent-cli` tarball now bundles that built-in profile
+  artifact, so `--profile daily-spend-limit` also works from the published CLI
+  without a repository checkout
 
 ## Operational Commands
 

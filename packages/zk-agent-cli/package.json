@@ -1,6 +1,6 @@
 {
   "name": "zk-agent-cli",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "Local-first zkSync Era and ZK Stack agent CLI with wallet session recovery, workflow orchestration, relay-backed approval, and SED smart-account support.",
   "license": "MIT",
   "type": "module",

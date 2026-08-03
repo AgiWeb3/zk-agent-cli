@@ -11,11 +11,14 @@ Current scope:
 Important boundary:
 
 - the Solidity source is checked in here
-- the zkSync EraVM artifact is generated locally and is git-ignored
-- until the local exported artifact for a profile exists, the CLI will expose
-  that profile as `source-only` and refuse deploy/predict with a clear error
+- the exported zkSync EraVM artifacts for the current first-party profiles are
+  checked in under `artifacts/`
+- the packaged `zk-agent-cli` release now bundles those exported artifacts so
+  built-in `--profile` predict/deploy flows work from the npm package too
+- `ZK_AGENT_ACCOUNT_PROFILES_ROOT` is only needed when you want to override the
+  artifact root during source development or in a custom runtime layout
 
-Compile the local EraVM artifact with:
+Rebuild the exported EraVM artifacts with:
 
 ```bash
 pnpm --filter @zk-agent/account-profiles compile:eravm

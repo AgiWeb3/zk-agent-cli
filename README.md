@@ -47,7 +47,7 @@ Current status:
 
 The project has moved past scaffolding and isolated chain experiments.
 
-Current stage: `Phase 4: product hardening and expansion`.
+Current stage: `Phase 5: productization to parity`.
 
 What that means:
 
@@ -58,8 +58,16 @@ What that means:
   - relay-capable remote approval is now covered by an explicit product-level smoke path
   - workflow-first operator entrypoints cover the common actions
   - registry-backed validated defaults are documented and machine-readable
-- the next work is no longer Phase 3 closeout; it is Phase 4 product hardening,
-  broader validated coverage and packaging/distribution polish
+- Phase 4 product hardening is also complete on the current baseline:
+  - the first public beta is published
+  - the defaults/discovery surface is productized
+  - one canonical Sepolia ERC-20 deposit baseline is live-validated
+  - relay-backed remote approval is a shipped path
+- the active work is now Phase 5:
+  - package-first installability and standalone usability
+  - a stronger hosted remote-approval baseline
+  - one clearer zk-native flagship workflow built around AA, paymaster, and
+    workflow orchestration
 - the vertical-workflow review is also complete on the current baseline:
   no zkSync-native first-class vertical has enough repeated operator evidence
   yet to justify a dedicated command family or skill slice

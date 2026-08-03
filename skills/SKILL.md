@@ -32,20 +32,26 @@ For detailed action-path reference, also read:
 ## Prerequisites
 
 - Node.js `>=24`
-- `pnpm`
-- repository dependencies installed with `pnpm install`
-- run commands from the repository root
-- entrypoint from source:
+- packaged CLI entrypoint:
+
+```bash
+zk-agent <command>
+```
+
+- one-shot packaged execution:
+
+```bash
+npx zk-agent-cli <command>
+```
+
+- source-checkout fallback:
 
 ```bash
 pnpm zk-agent <command>
 ```
 
-- packaged CLI release target:
-
-```bash
-npx zk-agent-cli <command>
-```
+- `pnpm` and a repository checkout are only required for source development or
+  when you intentionally run the repo-local wrapper
 
 Storage is local-first and encrypted at rest under:
 
@@ -70,7 +76,7 @@ Use this path unless a task explicitly requires a lower-level command.
 ### 1. Initialize local defaults
 
 ```bash
-pnpm zk-agent setup
+zk-agent setup
 ```
 
 This creates local config and records the default chain and connector URL.
@@ -78,21 +84,21 @@ This creates local config and records the default chain and connector URL.
 ### 2. Ask for the shortest valid next step
 
 ```bash
-pnpm zk-agent next
+zk-agent next
 ```
 
 When you need the wallet-scoped recommendation path to stay on a specific fee
 mode instead of inheriting the stored wallet default:
 
 ```bash
-pnpm zk-agent next --paymaster-mode sponsored
+zk-agent next --paymaster-mode sponsored
 ```
 
 If you want the local operator identity to be explicit and portable instead of
 anonymous local state, save it once:
 
 ```bash
-pnpm zk-agent agent set --name "<operator-name>" --wallet main
+zk-agent agent set --name "<operator-name>" --wallet main
 ```
 
 This is the default decision point across setup, wallet bootstrap/recovery, and
@@ -101,7 +107,7 @@ stored workflow continuation.
 ### 3. Create or refresh a writable local wallet session
 
 ```bash
-pnpm zk-agent wallet create --await-local
+zk-agent wallet create --await-local
 ```
 
 This is the preferred path in the current phase because the CLI waits for the
@@ -111,10 +117,10 @@ When the operator wants a tighter writable session, request the guardrails at
 creation time instead of approving an unrestricted session first:
 
 ```bash
-pnpm zk-agent wallet create --await-local --session-preset transfer-only
-pnpm zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
-pnpm zk-agent wallet reapprove --name main --session-preset full-access
-pnpm zk-agent wallet reapprove --name main --disallow-contract-calls
+zk-agent wallet create --await-local --session-preset transfer-only
+zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
+zk-agent wallet reapprove --name main --session-preset full-access
+zk-agent wallet reapprove --name main --disallow-contract-calls
 ```
 
 `wallet reapprove` preserves the current stored session permissions by default.
@@ -125,7 +131,7 @@ only when the workflow needs them.
 If the wallet already exists but no longer has a writable local session:
 
 ```bash
-pnpm zk-agent wallet reapprove --name main --await-local
+zk-agent wallet reapprove --name main --await-local
 ```
 
 If the connector cannot return directly to the waiting CLI process, create the
@@ -136,52 +142,52 @@ relay package plus its code.
 For the shortest relay-backed path in one terminal process:
 
 ```bash
-pnpm zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
-pnpm zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
+zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
+zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 ```
 
 The same path also works non-interactively when a wrapper already has the
 approval code:
 
 ```bash
-pnpm zk-agent wallet create --relay-url <url> --wait-relay --code <6-digit-code>
+zk-agent wallet create --relay-url <url> --wait-relay --code <6-digit-code>
 ```
 
 Start the relay:
 
 ```bash
-pnpm zk-agent relay serve
+zk-agent relay serve
 ```
 
 Plain payload path:
 
 ```bash
-pnpm zk-agent wallet request approve --request-id <id> --payload @approved-session.json
+zk-agent wallet request approve --request-id <id> --payload @approved-session.json
 ```
 
 Encrypted relay path:
 
 ```bash
-pnpm zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>
+zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>
 ```
 
 ### 4. Ask for the shortest next step again after wallet approval
 
 ```bash
-pnpm zk-agent next
+zk-agent next
 ```
 
 Use the wallet-scoped view only when the question is specifically about one
 stored wallet record:
 
 ```bash
-pnpm zk-agent wallet next --name main
+zk-agent wallet next --name main
 ```
 
 Use:
 
 ```bash
-pnpm zk-agent wallet status --name main
+zk-agent wallet status --name main
 ```
 
 when you need the same recommendation plus the underlying readiness details.
@@ -189,13 +195,13 @@ when you need the same recommendation plus the underlying readiness details.
 ### 5. Fund only when the CLI says funding is required
 
 ```bash
-pnpm zk-agent workflow fund --wallet main --amount <amount> --execute
+zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
 If you only want guidance:
 
 ```bash
-pnpm zk-agent workflow fund --wallet main
+zk-agent workflow fund --wallet main
 ```
 
 Do not hardcode a funding path. Use the CLI-provided route and `next` command.
@@ -205,13 +211,13 @@ Do not hardcode a funding path. Use the CLI-provided route and `next` command.
 Example preview:
 
 ```bash
-pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready
+zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready
 ```
 
 Example broadcast:
 
 ```bash
-pnpm zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready --broadcast
+zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready --broadcast
 ```
 
 `workflow auto` is the preferred action entrypoint because it can:
@@ -245,62 +251,62 @@ the lower-level `workflow run --intent ...` path.
 
 Use the help layer that matches the current question:
 
-- `pnpm zk-agent --help` for the top-level product path
-- `pnpm zk-agent wallet --help` for wallet/session recovery
-- `pnpm zk-agent workflow --help` for workflow execution and resume
+- `zk-agent --help` for the top-level product path
+- `zk-agent wallet --help` for wallet/session recovery
+- `zk-agent workflow --help` for workflow execution and resume
 
 ## Core commands
 
 ### Setup and wallet lifecycle
 
 ```bash
-pnpm zk-agent setup [--default-chain <chain>] [--connector-url <url>] [--force]
-pnpm zk-agent next [--wallet <name>] [--request-id <id>]
-pnpm zk-agent wallet create [--name <name>] [--chain <chain>] [--await-local] [--relay-url <url>]
-pnpm zk-agent wallet reapprove [--name <name>] [--await-local] [--relay-url <url>]
-pnpm zk-agent wallet status [--name <name>]
-pnpm zk-agent wallet next [--name <name>]
-pnpm zk-agent defaults
-pnpm zk-agent resolve-token [--wallet <name>|--chain <chain>] [--symbol <symbol>|--address <address>]
-pnpm zk-agent wallet sync [--name <name>] [--profile <id>]
-pnpm zk-agent wallet export [--name <name>] [--include-sensitive-data]
-pnpm zk-agent wallet restore --payload <json|@file> [--name <name>] [--profile <id>] [--sync]
-pnpm zk-agent wallet list
-pnpm zk-agent wallet address [--name <name>]
-pnpm zk-agent wallet rename --name <old> --new-name <new>
-pnpm zk-agent wallet remove [--name <name>]
+zk-agent setup [--default-chain <chain>] [--connector-url <url>] [--force]
+zk-agent next [--wallet <name>] [--request-id <id>]
+zk-agent wallet create [--name <name>] [--chain <chain>] [--await-local] [--relay-url <url>]
+zk-agent wallet reapprove [--name <name>] [--await-local] [--relay-url <url>]
+zk-agent wallet status [--name <name>]
+zk-agent wallet next [--name <name>]
+zk-agent defaults
+zk-agent resolve-token [--wallet <name>|--chain <chain>] [--symbol <symbol>|--address <address>]
+zk-agent wallet sync [--name <name>] [--profile <id>]
+zk-agent wallet export [--name <name>] [--include-sensitive-data]
+zk-agent wallet restore --payload <json|@file> [--name <name>] [--profile <id>] [--sync]
+zk-agent wallet list
+zk-agent wallet address [--name <name>]
+zk-agent wallet rename --name <old> --new-name <new>
+zk-agent wallet remove [--name <name>]
 ```
 
 ### Pending wallet requests
 
 ```bash
-pnpm zk-agent wallet request list
-pnpm zk-agent wallet request show --request-id <id>
-pnpm zk-agent wallet request await-local --request-id <id>
-pnpm zk-agent wallet request relay-publish --request-id <id> --relay-url <url>
-pnpm zk-agent wallet request relay-status --request-id <id> --relay-url <url> [--wait]
-pnpm zk-agent wallet request approve --request-id <id> --payload <json|@file>
-pnpm zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> [--wait]
-pnpm zk-agent wallet request approve-local --request-id <id> --wallet-address <address> ...
+zk-agent wallet request list
+zk-agent wallet request show --request-id <id>
+zk-agent wallet request await-local --request-id <id>
+zk-agent wallet request relay-publish --request-id <id> --relay-url <url>
+zk-agent wallet request relay-status --request-id <id> --relay-url <url> [--wait]
+zk-agent wallet request approve --request-id <id> --payload <json|@file>
+zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> [--wait]
+zk-agent wallet request approve-local --request-id <id> --wallet-address <address> ...
 ```
 
 ### Workflow-first operations
 
 ```bash
-pnpm zk-agent workflow plan --wallet <name> --intent <intent> ...
-pnpm zk-agent workflow fund --wallet <name> [--amount <amount>] [--execute]
-pnpm zk-agent workflow auto --wallet <name> --intent <intent> ... [--create-checkpoint] [--execute-when-ready]
-pnpm zk-agent workflow status --request-id <id>
-pnpm zk-agent workflow next --request-id <id>
-pnpm zk-agent workflow resume --request-id <id> [--broadcast]
-pnpm zk-agent workflow send-native --wallet <name> --to <address> --amount <amount> ...
-pnpm zk-agent workflow swap --wallet <name> [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] ...
-pnpm zk-agent workflow bridge --wallet <name> --amount <amount> [--to-chain <chain>] ...
-pnpm zk-agent workflow run --wallet <name> --intent <intent> ...
-pnpm zk-agent workflow list
-pnpm zk-agent workflow show --request-id <id>
-pnpm zk-agent workflow update --request-id <id> ...
-pnpm zk-agent workflow delete --request-id <id>
+zk-agent workflow plan --wallet <name> --intent <intent> ...
+zk-agent workflow fund --wallet <name> [--amount <amount>] [--execute]
+zk-agent workflow auto --wallet <name> --intent <intent> ... [--create-checkpoint] [--execute-when-ready]
+zk-agent workflow status --request-id <id>
+zk-agent workflow next --request-id <id>
+zk-agent workflow resume --request-id <id> [--broadcast]
+zk-agent workflow send-native --wallet <name> --to <address> --amount <amount> ...
+zk-agent workflow swap --wallet <name> [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] ...
+zk-agent workflow bridge --wallet <name> --amount <amount> [--to-chain <chain>] ...
+zk-agent workflow run --wallet <name> --intent <intent> ...
+zk-agent workflow list
+zk-agent workflow show --request-id <id>
+zk-agent workflow update --request-id <id> ...
+zk-agent workflow delete --request-id <id>
 ```
 
 `workflow plan` now fills the tracked default `swap` or `bridge` route when the
@@ -329,20 +335,20 @@ For funding, prefer `workflow fund`; the top-level `fund` command remains as the
 raw alias.
 
 ```bash
-pnpm zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>] [--owned-tokens]
-pnpm zk-agent assets [--wallet <name>] [--chain <chain>]
-pnpm zk-agent fund [--wallet <name>] [--amount <value>] [--execute] [--broadcast]
-pnpm zk-agent send --wallet <name> --to <address> --amount <value> [--broadcast]
-pnpm zk-agent send-token --wallet <name> [--token <address>|--symbol <symbol>] --to <address> --amount <value> [--broadcast]
-pnpm zk-agent call --wallet <name> --mode read|write --to <address> --data <hex> [--broadcast]
-pnpm zk-agent swap --wallet <name> --protocol <protocol> [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] ...
-pnpm zk-agent bridge --wallet <name> --amount <value> [--to-chain <chain>] [--broadcast]
-pnpm zk-agent bridge-status --wallet <name> --tx-hash <hash> --from-chain <chain> --to-chain <chain>
-pnpm zk-agent deposit --wallet <name> --amount <value> [--token <address>] [--broadcast]
-pnpm zk-agent deposit-status --tx-hash <hash> --chain <chain>
-pnpm zk-agent withdraw --wallet <name> --amount <value> [--token <address>] [--broadcast]
-pnpm zk-agent withdraw-status --wallet <name> --tx-hash <hash>
-pnpm zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
+zk-agent balances [--wallet <name>] [--chain <chain>] [--chains <csv>] [--owned-tokens]
+zk-agent assets [--wallet <name>] [--chain <chain>]
+zk-agent fund [--wallet <name>] [--amount <value>] [--execute] [--broadcast]
+zk-agent send --wallet <name> --to <address> --amount <value> [--broadcast]
+zk-agent send-token --wallet <name> [--token <address>|--symbol <symbol>] --to <address> --amount <value> [--broadcast]
+zk-agent call --wallet <name> --mode read|write --to <address> --data <hex> [--broadcast]
+zk-agent swap --wallet <name> --protocol <protocol> [--token-in <address>|--token-in-symbol <symbol>] [--token-out <address>|--token-out-symbol <symbol>] ...
+zk-agent bridge --wallet <name> --amount <value> [--to-chain <chain>] [--broadcast]
+zk-agent bridge-status --wallet <name> --tx-hash <hash> --from-chain <chain> --to-chain <chain>
+zk-agent deposit --wallet <name> --amount <value> [--token <address>] [--broadcast]
+zk-agent deposit-status --tx-hash <hash> --chain <chain>
+zk-agent withdraw --wallet <name> --amount <value> [--token <address>] [--broadcast]
+zk-agent withdraw-status --wallet <name> --tx-hash <hash>
+zk-agent withdraw-finalize --wallet <name> --tx-hash <hash> [--broadcast]
 ```
 
 Use `--owned-tokens` only on the single-chain path. It probes the current
@@ -372,18 +378,20 @@ directory after checking local deployment metadata first.
 To generate that local export from this repo's own deployment records, run
 `pnpm --filter @zk-agent/paymaster-test-assets export:token-directory` and set
 `ZK_AGENT_TOKEN_DIRECTORY_ROOT=packages/paymaster-test-assets/token-directory`.
+That export path is source-checkout-only; it is not part of the packaged npm
+surface by itself.
 
-Use `pnpm zk-agent defaults` when you need the current token-registry source
+Use `zk-agent defaults` when you need the current token-registry source
 order and token-directory chain coverage in machine-readable form.
 
-Use `pnpm zk-agent tokens --chain zksync-sepolia` to inspect the current
+Use `zk-agent tokens --chain zksync-sepolia` to inspect the current
 discoverable token set for one chain.
 
-Use `pnpm zk-agent tokens --chain zksync-sepolia --symbol USDC` when you want
+Use `zk-agent tokens --chain zksync-sepolia --symbol USDC` when you want
 to inspect all discoverable entries for one symbol before choosing an explicit
 token address.
 
-Use `pnpm zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`
+Use `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`
 when one symbol maps to multiple local entries and you only want the token that
 currently fills one tracked defaults-registry role.
 
@@ -391,14 +399,14 @@ Add `--source local-deployments|token-directory` when you want to stay inside
 one discovery source instead of the merged local-first view. The suggested
 follow-up commands now preserve that source filter too.
 
-Use `pnpm zk-agent tokens --wallet main --owned` when you want the stored
+Use `zk-agent tokens --wallet main --owned` when you want the stored
 wallet's currently held registry-backed ERC-20 assets on its active chain.
 That owned-token view now also includes shared-bridge mapping status plus a
 structured summary of source counts, bridge-mapping counts, and tracked
 registry-role counts. Treat this as the narrower ERC-20 subset view; for the
 default asset view, start with `assets`.
 
-Use `pnpm zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
+Use `zk-agent resolve-token --chain zksync-sepolia --symbol USDC` when you
 need a direct token-resolution check before running a tokenized command.
 
 Add `--role swap-token-a|swap-token-b|paymaster-fee-token` when you need that
@@ -412,15 +420,20 @@ source-specific resolution path only.
 List profiles:
 
 ```bash
-pnpm zk-agent wallet smart-account profiles
+zk-agent wallet smart-account profiles
 ```
 
 Generic predict/deploy:
 
 ```bash
-pnpm zk-agent wallet smart-account predict --name <name> --profile sed-lite
-pnpm zk-agent wallet smart-account deploy --name <name> --profile sed-lite
+zk-agent wallet smart-account predict --name <name> --profile sed-lite
+zk-agent wallet smart-account deploy --name <name> --profile sed-lite
 ```
+
+The packaged CLI now ships the built-in profile artifacts for the first-party
+profiles. `ZK_AGENT_ACCOUNT_PROFILES_ROOT` is only needed when the CLI runs
+from a source checkout or a custom runtime layout and you want to override the
+artifact root manually.
 
 The primary built-in account model is:
 
@@ -435,20 +448,20 @@ The narrower experimental profile is:
 Supported command families include:
 
 ```bash
-pnpm zk-agent wallet smart-account sed-lite owner --name <name>
-pnpm zk-agent wallet smart-account sed-lite owner-set --name <name> --address <address>
-pnpm zk-agent wallet smart-account sed-lite validator --name <name>
-pnpm zk-agent wallet smart-account sed-lite validator-set --name <name> --address <address>
-pnpm zk-agent wallet smart-account sed-lite module --name <name> --module <address>
-pnpm zk-agent wallet smart-account sed-lite module-add --name <name> --module <address>
-pnpm zk-agent wallet smart-account sed-lite module-remove --name <name> --module <address>
-pnpm zk-agent wallet smart-account sed-lite hook --name <name> --hook <address>
-pnpm zk-agent wallet smart-account sed-lite hooks --name <name>
-pnpm zk-agent wallet smart-account sed-lite hook-add --name <name> --hook <address> [--init-data <hex>]
-pnpm zk-agent wallet smart-account sed-lite hook-remove --name <name> --hook <address>
-pnpm zk-agent wallet smart-account sed-lite limit --name <name>
-pnpm zk-agent wallet smart-account sed-lite limit-set --name <name> --amount <value>
-pnpm zk-agent wallet smart-account sed-lite limit-remove --name <name>
+zk-agent wallet smart-account sed-lite owner --name <name>
+zk-agent wallet smart-account sed-lite owner-set --name <name> --address <address>
+zk-agent wallet smart-account sed-lite validator --name <name>
+zk-agent wallet smart-account sed-lite validator-set --name <name> --address <address>
+zk-agent wallet smart-account sed-lite module --name <name> --module <address>
+zk-agent wallet smart-account sed-lite module-add --name <name> --module <address>
+zk-agent wallet smart-account sed-lite module-remove --name <name> --module <address>
+zk-agent wallet smart-account sed-lite hook --name <name> --hook <address>
+zk-agent wallet smart-account sed-lite hooks --name <name>
+zk-agent wallet smart-account sed-lite hook-add --name <name> --hook <address> [--init-data <hex>]
+zk-agent wallet smart-account sed-lite hook-remove --name <name> --hook <address>
+zk-agent wallet smart-account sed-lite limit --name <name>
+zk-agent wallet smart-account sed-lite limit-set --name <name> --amount <value>
+zk-agent wallet smart-account sed-lite limit-remove --name <name>
 ```
 
 Validation-hook helpers are also implemented for:
@@ -475,11 +488,11 @@ When a swap or send path is failing under approval-based estimation, first
 separate the base transaction path from the fee-token path:
 
 ```bash
-pnpm zk-agent send --wallet main --to <address> --amount <amount> --paymaster-mode none
+zk-agent send --wallet main --to <address> --amount <amount> --paymaster-mode none
 ```
 
 ```bash
-pnpm zk-agent swap --wallet main --protocol <protocol> ... --paymaster-mode none
+zk-agent swap --wallet main --protocol <protocol> ... --paymaster-mode none
 ```
 
 ## Tool surface
@@ -542,9 +555,9 @@ sandbox:
 
 ## What not to assume
 
-- the packaged CLI target is `zk-agent-cli`, but this skill does not assume a
-  public npm release has already been cut; when operating inside this repo,
-  keep using `pnpm zk-agent ...`
+- the packaged CLI target is `zk-agent-cli`, and the default command path in
+  this skill is `zk-agent ...`; only switch back to `pnpm zk-agent ...` when
+  you are intentionally operating from a repository checkout
 - there is only a local hosted relay prototype; it is file-backed and suitable for development, not a production multi-tenant relay service
 - there is no broad identity or reputation product layer yet
 - there is no guarantee that custom local ERC-20 assets can bridge through the

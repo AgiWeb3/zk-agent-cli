@@ -103,6 +103,20 @@ function assertTarballContents(entries) {
   assert.equal(entries.includes('package/package.json'), true);
   assert.equal(entries.includes('package/README.md'), true);
   assert.equal(entries.includes('package/dist/index.js'), true);
+  assert.equal(
+    entries.includes('package/dist/builtin-account-profiles/package.json'),
+    true
+  );
+  assert.equal(
+    entries.includes('package/dist/builtin-account-profiles/artifacts/sed-lite/Account.json'),
+    true
+  );
+  assert.equal(
+    entries.includes(
+      'package/dist/builtin-account-profiles/artifacts/daily-spend-limit/Account.json'
+    ),
+    true
+  );
   assert.equal(entries.some((entry) => entry.startsWith('package/src/')), false);
 }
 
@@ -141,7 +155,9 @@ function linkRuntimeNodeModules(extractedPackageDir) {
 function createStandaloneEnv(homeDir) {
   const env = {
     ...process.env,
-    HOME: homeDir
+    HOME: homeDir,
+    ZKSYNC_SEPOLIA_RPC_URL: 'http://127.0.0.1:1',
+    ETHEREUM_SEPOLIA_RPC_URL: 'http://127.0.0.1:1'
   };
 
   for (const key of standaloneEnvKeys) {
@@ -157,6 +173,71 @@ function runPackedCli(extractedPackageDir, homeDir, args) {
     env: createStandaloneEnv(homeDir),
     encoding: 'utf8'
   }).trim();
+}
+
+function runPackedCliRecoveringJson(extractedPackageDir, homeDir, args) {
+  try {
+    return runPackedCli(extractedPackageDir, homeDir, args);
+  } catch (error) {
+    const stdout = typeof error?.stdout === 'string' ? error.stdout.trim() : '';
+    const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
+
+    if (stdout) {
+      try {
+        const payload = JSON.parse(stdout);
+        const recoverableRpcNoise =
+          payload?.ok === true &&
+          (stderr.includes('getaddrinfo ENOTFOUND') || stderr.includes('connect EPERM 127.0.0.1'));
+        if (recoverableRpcNoise) {
+          return stdout;
+        }
+      } catch {
+        // Fall through to the original error.
+      }
+    }
+
+    throw error;
+  }
+}
+
+function standaloneSessionPayload() {
+  return {
+    version: 1,
+    provider: 'zksync-sso',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    walletAddress: '0x1111111111111111111111111111111111111111',
+    account: {
+      kind: 'smart-account',
+      address: '0x1111111111111111111111111111111111111111',
+      ownerAddress: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266',
+      signerType: 'local'
+    },
+    sessionScope: {
+      chainKeys: ['zksync-sepolia'],
+      chainIds: [300]
+    },
+    capabilities: {
+      read: true,
+      write: true,
+      transfer: true,
+      contractCall: true,
+      paymaster: false
+    },
+    sessionExpiresAt: '2026-08-31T00:00:00.000Z',
+    paymaster: {
+      mode: 'none',
+      address: null
+    },
+    sessionPublicKey: '0x' + '11'.repeat(32),
+    sessionPrivateKey:
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+    permissions: {
+      expiresAt: '2026-08-31T00:00:00.000Z'
+    },
+    connectorUrl: 'http://localhost:4444',
+    paymasterAddress: null
+  };
 }
 
 function assertNoWorkspaceLeak(output) {
@@ -201,14 +282,47 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assert.equal(Array.isArray(profilesPayload.profiles), true);
     assert.equal(profilesPayload.profiles.length > 0, true);
     for (const profile of profilesPayload.profiles) {
-      assert.equal(profile.artifactReady, false);
+      assert.equal(profile.artifactReady, true);
       assert.equal(
         profile.notes.some((note) =>
           String(note).includes('Built-in profile assets are not available in this runtime.')
         ),
-        true
+        false
       );
     }
+
+    const importOutput = runPackedCli(extractedPackageDir, homeDir, [
+      'wallet',
+      'import',
+      '--name',
+      'main',
+      '--payload',
+      JSON.stringify(standaloneSessionPayload())
+    ]);
+    assertNoWorkspaceLeak(importOutput);
+    const importPayload = JSON.parse(importOutput);
+    assert.equal(importPayload.ok, true);
+    assert.equal(importPayload.wallet.walletName, 'main');
+
+    const predictOutput = runPackedCliRecoveringJson(extractedPackageDir, homeDir, [
+      'wallet',
+      'smart-account',
+      'predict',
+      '--name',
+      'main',
+      '--profile',
+      'sed-lite',
+      '--deployment-type',
+      'create2Account',
+      '--salt',
+      '0x00'
+    ]);
+    assertNoWorkspaceLeak(predictOutput);
+    const predictPayload = JSON.parse(predictOutput);
+    assert.equal(predictPayload.ok, true);
+    assert.equal(predictPayload.profile?.id, 'sed-lite');
+    assert.equal(typeof predictPayload.plan?.predictedAddress, 'string');
+    assert.equal(Boolean(predictPayload.plan?.artifactContractName), true);
   } finally {
     rmSync(homeDir, { recursive: true, force: true });
   }
