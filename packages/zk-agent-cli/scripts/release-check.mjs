@@ -187,7 +187,9 @@ function runPackedCliRecoveringJson(extractedPackageDir, homeDir, args) {
         const payload = JSON.parse(stdout);
         const recoverableRpcNoise =
           payload?.ok === true &&
-          (stderr.includes('getaddrinfo ENOTFOUND') || stderr.includes('connect EPERM 127.0.0.1'));
+          (stderr.includes('getaddrinfo ENOTFOUND') ||
+            stderr.includes('connect EPERM 127.0.0.1') ||
+            stderr.includes('connect ECONNREFUSED 127.0.0.1'));
         if (recoverableRpcNoise) {
           return stdout;
         }
