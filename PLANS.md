@@ -262,9 +262,10 @@ This stage is complete when all of the following are true:
    - keep agent-facing docs preferring `npx zk-agent-cli ...` /
      `npm install -g` unless source checkout is genuinely required
    - current baseline improvement:
-     the DeFi skill examples now default to the packaged `zk-agent` entrypoint
-     and only fall back to `pnpm zk-agent` when the operator is intentionally
-     running from a source checkout
+     the DeFi skill examples and the root README operator-path examples now
+     default to the packaged `zk-agent` entrypoint and only fall back to
+     `pnpm zk-agent` when the operator is intentionally running from a source
+     checkout
 
 ### Explicit non-goals
 

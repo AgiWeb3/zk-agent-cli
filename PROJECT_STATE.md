@@ -89,9 +89,9 @@ Current Phase 5 progress note:
   instead of forcing that guidance to stay embedded inside the repo-level
   skill only
 - the package-first doc follow-through now also covers the DeFi skill:
-  `skills/zk-defi/SKILL.md` defaults to the packaged `zk-agent` entrypoint and
-  only falls back to `pnpm zk-agent` when the operator is intentionally using
-  a source checkout
+  `skills/zk-defi/SKILL.md` and the root README operator-path examples now
+  default to the packaged `zk-agent` entrypoint and only fall back to
+  `pnpm zk-agent` when the operator is intentionally using a source checkout
 
 Phase 3 execution detail was intentionally removed from this state file after
 closeout. The remaining work now sits in Phase 5 execution or explicit
