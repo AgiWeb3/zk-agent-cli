@@ -6,7 +6,7 @@ import {
   runSmokeFlagshipWorkflow
 } from '../src/smoke-flagship-workflow.js';
 
-test('buildSmokeFlagshipWorkflowSteps wires relay reapproval before paymaster execution', () => {
+test('buildSmokeFlagshipWorkflowSteps prepends hosted relay validation before reapproval on external relay runs', () => {
   const steps = buildSmokeFlagshipWorkflowSteps({
     walletName: 'main',
     relayUrl: 'https://relay.example.test',
@@ -18,14 +18,18 @@ test('buildSmokeFlagshipWorkflowSteps wires relay reapproval before paymaster ex
 
   assert.deepEqual(
     steps.map((step) => step.id),
-    ['remote-reapproval', 'paymaster-success']
+    ['hosted-relay', 'remote-reapproval', 'paymaster-success']
   );
   assert.match(
     [steps[0]?.command, ...(steps[0]?.args || [])].join(' '),
-    /smoke-remote-approval\.ts --wallet main --reapprove --relay-url https:\/\/relay\.example\.test/
+    /smoke-hosted-relay\.ts --relay-url https:\/\/relay\.example\.test/
   );
   assert.match(
     [steps[1]?.command, ...(steps[1]?.args || [])].join(' '),
+    /smoke-remote-approval\.ts --wallet main --reapprove --relay-url https:\/\/relay\.example\.test/
+  );
+  assert.match(
+    [steps[2]?.command, ...(steps[2]?.args || [])].join(' '),
     /smoke-paymaster-success\.(ts|js) --wallet main --amount 0\.00002 --paymaster-mode approval-based --execute/
   );
 });
@@ -50,6 +54,26 @@ test('runSmokeFlagshipWorkflow returns a stable plan payload', async () => {
   assert.match(
     payload.steps[0]?.command || '',
     /smoke-remote-approval\.ts --wallet main --reapprove/
+  );
+});
+
+test('runSmokeFlagshipWorkflow plan includes hosted relay validation for external relay runs', async () => {
+  const payload = await runSmokeFlagshipWorkflow({
+    walletName: 'main',
+    relayUrl: 'https://relay.example.test',
+    amount: '0.00001',
+    paymasterMode: 'approval-based',
+    execute: false,
+    plan: true
+  });
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.planned, true);
+  assert.equal(payload.summary.relayMode, 'external');
+  assert.equal(payload.summary.totalSteps, 3);
+  assert.deepEqual(
+    payload.steps.map((step) => step.id),
+    ['hosted-relay', 'remote-reapproval', 'paymaster-success']
   );
 });
 
@@ -130,6 +154,86 @@ test('runSmokeFlagshipWorkflow aggregates successful follow-ups across remote ap
   assert.deepEqual(payload.summary.followups['paymaster-success']?.agentFollowup, {
     nextAction: 'zk-agent agent show'
   });
+});
+
+test('runSmokeFlagshipWorkflow aggregates hosted relay follow-up before the rest of the flagship path', async () => {
+  const invoked: string[] = [];
+  const payload = await runSmokeFlagshipWorkflow(
+    {
+      walletName: 'main',
+      relayUrl: 'https://relay.example.test',
+      amount: '0.00001',
+      paymasterMode: 'approval-based',
+      execute: false,
+      plan: false
+    },
+    {
+      runStep: async (step) => {
+        invoked.push(step.id);
+
+        if (step.id === 'hosted-relay') {
+          return {
+            id: step.id,
+            title: step.title,
+            ok: true,
+            exitCode: 0,
+            result: {
+              phase: 'hosted-relay-validated',
+              relayUrl: 'https://relay.example.test',
+              publicOrigin: 'https://relay.example.test',
+              requestId: 'hosted-1'
+            }
+          };
+        }
+
+        if (step.id === 'remote-reapproval') {
+          return {
+            id: step.id,
+            title: step.title,
+            ok: true,
+            exitCode: 0,
+            result: {
+              phase: 'approved',
+              operation: 'reapprove',
+              relayMode: 'external',
+              relayOrigin: 'https://relay.example.test',
+              requestId: 'req-1',
+              recommendedCommand: 'zk-agent next --paymaster-mode approval-based'
+            }
+          };
+        }
+
+        return {
+          id: step.id,
+          title: step.title,
+          ok: true,
+          exitCode: 0,
+          result: {
+            phase: 'preview',
+            result: {
+              stage: 'goal-executed',
+              nextCommand: 'zk-agent workflow next --request-id wf-1'
+            }
+          }
+        };
+      }
+    }
+  );
+
+  assert.deepEqual(invoked, ['hosted-relay', 'remote-reapproval', 'paymaster-success']);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.summary.totalSteps, 3);
+  assert.equal(payload.summary.successfulSteps, 3);
+  assert.equal(payload.summary.followups['hosted-relay']?.phase, 'hosted-relay-validated');
+  assert.equal(payload.summary.followups['hosted-relay']?.publicOrigin, 'https://relay.example.test');
+  assert.equal(
+    payload.summary.nextCommands['remote-reapproval'],
+    'zk-agent next --paymaster-mode approval-based'
+  );
+  assert.equal(
+    payload.summary.nextCommands['paymaster-success'],
+    'zk-agent workflow next --request-id wf-1'
+  );
 });
 
 test('runSmokeFlagshipWorkflow stops at the first failed step', async () => {

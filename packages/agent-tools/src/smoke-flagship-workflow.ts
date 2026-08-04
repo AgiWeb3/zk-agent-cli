@@ -15,7 +15,7 @@ export interface SmokeFlagshipWorkflowOptions {
 }
 
 export interface SmokeFlagshipStep {
-  id: 'remote-reapproval' | 'paymaster-success';
+  id: 'hosted-relay' | 'remote-reapproval' | 'paymaster-success';
   title: string;
   command: string;
   args: string[];
@@ -172,10 +172,13 @@ function localScriptInvocation(scriptName: string, stepArgs: string[]): { comman
       };
 }
 
-function zkAgentCliSmokeInvocation(stepArgs: string[]): { command: string; args: string[] } {
+function zkAgentCliSmokeInvocation(
+  scriptName: 'smoke-remote-approval' | 'smoke-hosted-relay',
+  stepArgs: string[]
+): { command: string; args: string[] } {
   const currentPath = fileURLToPath(import.meta.url);
   const packageDir = path.resolve(path.dirname(currentPath), '..');
-  const scriptPath = path.resolve(packageDir, '../zk-agent-cli/src/smoke-remote-approval.ts');
+  const scriptPath = path.resolve(packageDir, `../zk-agent-cli/src/${scriptName}.ts`);
 
   return {
     command: process.execPath,
@@ -186,7 +189,7 @@ function zkAgentCliSmokeInvocation(stepArgs: string[]): { command: string; args:
 export function buildSmokeFlagshipWorkflowSteps(
   options: SmokeFlagshipWorkflowOptions
 ): SmokeFlagshipStep[] {
-  const remote = zkAgentCliSmokeInvocation([
+  const remote = zkAgentCliSmokeInvocation('smoke-remote-approval', [
     '--wallet',
     options.walletName,
     '--reapprove',
@@ -203,7 +206,22 @@ export function buildSmokeFlagshipWorkflowSteps(
     ...(options.execute ? ['--execute'] : [])
   ]);
 
-  return [
+  const steps: SmokeFlagshipStep[] = [];
+
+  if (options.relayUrl) {
+    const hostedRelay = zkAgentCliSmokeInvocation('smoke-hosted-relay', [
+      '--relay-url',
+      options.relayUrl
+    ]);
+    steps.push({
+      id: 'hosted-relay',
+      title: 'Hosted relay compatibility and share-link entrypoint validation',
+      command: hostedRelay.command,
+      args: hostedRelay.args
+    });
+  }
+
+  steps.push(
     {
       id: 'remote-reapproval',
       title: 'Relay-backed wallet reapproval on the existing wallet',
@@ -216,7 +234,9 @@ export function buildSmokeFlagshipWorkflowSteps(
       command: paymaster.command,
       args: paymaster.args
     }
-  ];
+  );
+
+  return steps;
 }
 
 function buildPlanSummary(options: SmokeFlagshipWorkflowOptions, steps: SmokeFlagshipStep[]) {
@@ -293,6 +313,23 @@ function extractPaymasterFollowup(result: unknown): Record<string, unknown> | un
   };
 }
 
+function extractHostedRelayFollowup(result: unknown): Record<string, unknown> | undefined {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
+  const payload = result as {
+    phase?: string;
+    relayUrl?: string;
+    publicOrigin?: string;
+    requestId?: string;
+  };
+
+  return {
+    phase: payload.phase,
+    relayUrl: payload.relayUrl,
+    publicOrigin: payload.publicOrigin,
+    requestId: payload.requestId
+  };
+}
+
 function buildExecutionSummary(
   options: SmokeFlagshipWorkflowOptions,
   steps: SmokeFlagshipExecutionStepResult[],
@@ -300,9 +337,11 @@ function buildExecutionSummary(
 ) {
   const followups = steps.reduce<Record<string, Record<string, unknown>>>((acc, step) => {
     const followup =
-      step.id === 'remote-reapproval'
-        ? extractRemoteReapprovalFollowup(step.result)
-        : extractPaymasterFollowup(step.result);
+      step.id === 'hosted-relay'
+        ? extractHostedRelayFollowup(step.result)
+        : step.id === 'remote-reapproval'
+          ? extractRemoteReapprovalFollowup(step.result)
+          : extractPaymasterFollowup(step.result);
     if (followup) {
       acc[step.id] = followup;
     }

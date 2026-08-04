@@ -87,6 +87,10 @@ Current Phase 5 progress note:
 - the current flagship AA operator path now also has a dedicated smoke:
   relay-backed wallet reapproval on an existing wallet followed immediately by
   the paymaster-backed workflow-auto send-native path on that same wallet
+- that flagship smoke now also hardens the external-relay variant:
+  when `--relay-url` is supplied it first validates the hosted relay itself
+  before attempting reapproval, instead of assuming any externally supplied
+  URL is already safe to use as the flagship operator path
 - the release-discipline baseline is slightly stronger:
   `packages/zk-agent-cli/scripts/release-check.mjs` now enforces the minimum
   standalone package-README contract for install paths, shortest path, relay

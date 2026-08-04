@@ -235,7 +235,7 @@ What is already in place:
   - `pnpm smoke:hosted-relay -- --relay-url <url>` for bounded outside-in validation of an externally reachable hosted relay: the smoke runs the real `relay inspect`, publishes a synthetic request, confirms `/r/<id>` redirects into the connector UI, and confirms the bundled hashed frontend asset still serves from the relay
   - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
   - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present
-  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: relay-backed wallet reapproval followed immediately by the paymaster-backed workflow-auto send-native path on the same wallet
+  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed workflow-auto send-native path on the same wallet
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
@@ -744,7 +744,8 @@ Recommended root wrappers for the current stable product surface:
   `tokens --chain`, and `resolve-token`
 - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]`
   validates the current Phase 5 flagship AA operator story in one narrower
-  sequence: relay-backed wallet reapproval on the existing wallet, then the
+  sequence: with `--relay-url` it first validates the external hosted relay,
+  then runs relay-backed wallet reapproval on the existing wallet, then the
   paymaster-backed workflow-auto send-native path on that same wallet; it is
   the productized AA signature path, not a broad DeFi breadth harness
 - `pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]` validates the canonical
