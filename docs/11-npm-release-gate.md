@@ -338,6 +338,8 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 - current public beta completed on `2026-08-03`:
   `zk-agent-cli@0.1.0-beta.2`
+- next local release candidate now targets:
+  `zk-agent-cli@0.1.0-beta.3`
 - publishing-account readback:
   `npm whoami -> jerrygod`
 - post-publish npm readback:

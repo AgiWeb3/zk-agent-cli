@@ -3,10 +3,11 @@
 ## Snapshot
 
 - Last updated: 2026-08-04
-- Latest commit at write time: `392e248`
+- Latest commit at write time: `2a32464`
 - Current branch: `main`
-- Working tree status when this document was written: clean after the focused
-  `zk-aa` skill commit, before the current doc-alignment refresh
+- Working tree status when this document was written: clean after connector-UI
+  bundling for the packaged relay path, before the current beta.3 release-prep
+  version bump
 
 ## Current phase
 
