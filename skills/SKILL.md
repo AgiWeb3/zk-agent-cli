@@ -165,6 +165,7 @@ Current flagship AA smoke:
 
 ```bash
 pnpm smoke:flagship-workflow -- --wallet <name> [--paymaster-mode approval-based|sponsored]
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <relay-url> [--paymaster-mode approval-based|sponsored]
 ```
 
 Plain payload path:

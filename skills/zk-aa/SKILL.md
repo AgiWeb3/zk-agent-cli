@@ -76,6 +76,8 @@ pnpm smoke:flagship-workflow -- --wallet <name> --execute
 
 Interpretation:
 
+- when `--relay-url` is present, the smoke first validates that external relay
+  through the hosted share-link path before attempting reapproval
 - success means relay-backed reapproval and paymaster-aware workflow execution
   both remain coherent on the same stored wallet
 - failure means the current flagship AA product path is broken, even if some
