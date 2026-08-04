@@ -44,6 +44,15 @@ Important limitation:
 - not every locally deployed ERC-20 is bridge-compatible
 - not every ERC-20 is approval-based paymaster-compatible
 
+The examples below use the packaged CLI entrypoint:
+
+```bash
+zk-agent <command>
+```
+
+If you are intentionally operating from a source checkout, replace `zk-agent`
+with `pnpm zk-agent`.
+
 ## General rules
 
 - preview first, then add `--broadcast`
@@ -60,7 +69,7 @@ Important limitation:
 Preview:
 
 ```bash
-pnpm zk-agent swap \
+zk-agent swap \
   --wallet main \
   --protocol uniswap-v3-exact-input-single \
   --router <address> \
@@ -74,7 +83,7 @@ pnpm zk-agent swap \
 Broadcast:
 
 ```bash
-pnpm zk-agent swap \
+zk-agent swap \
   --wallet main \
   --protocol uniswap-v3-exact-input-single \
   --router <address> \
@@ -91,7 +100,7 @@ pnpm zk-agent swap \
 Preview:
 
 ```bash
-pnpm zk-agent swap \
+zk-agent swap \
   --wallet main \
   --protocol syncswap-classic \
   --token-in <address> \
@@ -103,7 +112,7 @@ pnpm zk-agent swap \
 Broadcast:
 
 ```bash
-pnpm zk-agent swap \
+zk-agent swap \
   --wallet main \
   --protocol syncswap-classic \
   --token-in <address> \
@@ -143,7 +152,7 @@ Current behavior worth relying on:
 Preview a supported route:
 
 ```bash
-pnpm zk-agent bridge \
+zk-agent bridge \
   --wallet main \
   --to-chain zksync-sepolia \
   --amount <amount>
@@ -152,7 +161,7 @@ pnpm zk-agent bridge \
 Broadcast:
 
 ```bash
-pnpm zk-agent bridge \
+zk-agent bridge \
   --wallet main \
   --to-chain zksync-sepolia \
   --amount <amount> \
@@ -173,7 +182,7 @@ Useful flags:
 Inspect a previously broadcast bridge:
 
 ```bash
-pnpm zk-agent bridge-status \
+zk-agent bridge-status \
   --wallet main \
   --tx-hash <hash> \
   --to-chain zksync-sepolia
@@ -182,7 +191,7 @@ pnpm zk-agent bridge-status \
 Optional polling:
 
 ```bash
-pnpm zk-agent bridge-status \
+zk-agent bridge-status \
   --wallet main \
   --tx-hash <hash> \
   --to-chain zksync-sepolia \
@@ -194,7 +203,7 @@ pnpm zk-agent bridge-status \
 Preview:
 
 ```bash
-pnpm zk-agent deposit \
+zk-agent deposit \
   --wallet main \
   --amount <amount>
 ```
@@ -202,7 +211,7 @@ pnpm zk-agent deposit \
 ERC-20 deposit preview:
 
 ```bash
-pnpm zk-agent deposit \
+zk-agent deposit \
   --wallet main \
   --amount <amount> \
   --token <address> \
@@ -212,7 +221,7 @@ pnpm zk-agent deposit \
 Broadcast:
 
 ```bash
-pnpm zk-agent deposit \
+zk-agent deposit \
   --wallet main \
   --amount <amount> \
   --broadcast
@@ -221,7 +230,7 @@ pnpm zk-agent deposit \
 Inspect lifecycle:
 
 ```bash
-pnpm zk-agent deposit-status --tx-hash <hash> --chain zksync-sepolia
+zk-agent deposit-status --tx-hash <hash> --chain zksync-sepolia
 ```
 
 ## Withdraws
@@ -229,7 +238,7 @@ pnpm zk-agent deposit-status --tx-hash <hash> --chain zksync-sepolia
 Preview:
 
 ```bash
-pnpm zk-agent withdraw \
+zk-agent withdraw \
   --wallet main \
   --amount <amount>
 ```
@@ -237,7 +246,7 @@ pnpm zk-agent withdraw \
 ERC-20 withdraw preview:
 
 ```bash
-pnpm zk-agent withdraw \
+zk-agent withdraw \
   --wallet main \
   --amount <amount> \
   --token <address> \
@@ -247,7 +256,7 @@ pnpm zk-agent withdraw \
 Broadcast:
 
 ```bash
-pnpm zk-agent withdraw \
+zk-agent withdraw \
   --wallet main \
   --amount <amount> \
   --broadcast
@@ -256,25 +265,25 @@ pnpm zk-agent withdraw \
 Inspect L2/batch lifecycle:
 
 ```bash
-pnpm zk-agent withdraw-status --wallet main --tx-hash <hash>
+zk-agent withdraw-status --wallet main --tx-hash <hash>
 ```
 
 Preview the L1 finalize transaction:
 
 ```bash
-pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash>
+zk-agent withdraw-finalize --wallet main --tx-hash <hash>
 ```
 
 Broadcast the L1 finalize transaction:
 
 ```bash
-pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash> --broadcast
+zk-agent withdraw-finalize --wallet main --tx-hash <hash> --broadcast
 ```
 
 If one L2 transaction emitted multiple withdraw records:
 
 ```bash
-pnpm zk-agent withdraw-finalize --wallet main --tx-hash <hash> --index <value>
+zk-agent withdraw-finalize --wallet main --tx-hash <hash> --index <value>
 ```
 
 ## Workflow-first equivalents
@@ -285,10 +294,10 @@ or local session recovery to be part of the same operator path.
 Examples:
 
 ```bash
-pnpm zk-agent workflow auto --wallet main --intent swap ... --create-checkpoint --execute-when-ready
-pnpm zk-agent workflow auto --wallet main --intent bridge ... --create-checkpoint --execute-when-ready
-pnpm zk-agent workflow auto --wallet main --intent deposit ... --create-checkpoint --execute-when-ready
-pnpm zk-agent workflow auto --wallet main --intent withdraw ... --create-checkpoint --execute-when-ready
+zk-agent workflow auto --wallet main --intent swap ... --create-checkpoint --execute-when-ready
+zk-agent workflow auto --wallet main --intent bridge ... --create-checkpoint --execute-when-ready
+zk-agent workflow auto --wallet main --intent deposit ... --create-checkpoint --execute-when-ready
+zk-agent workflow auto --wallet main --intent withdraw ... --create-checkpoint --execute-when-ready
 ```
 
 ## Paymaster caveats
@@ -306,8 +315,8 @@ Important operational rule:
 When in doubt, validate the action path without paymaster first:
 
 ```bash
-pnpm zk-agent swap ... --paymaster-mode none
-pnpm zk-agent send ... --paymaster-mode none
+zk-agent swap ... --paymaster-mode none
+zk-agent send ... --paymaster-mode none
 ```
 
 The current repo has already validated that:

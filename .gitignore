@@ -15,6 +15,4 @@ packages/account-profiles/artifacts-zk
 packages/account-profiles/cache-zk
 packages/account-profiles/deployments
 packages/zk-agent-cli/.release-pack
-PLANS.md
-PROJECT_STATE.md
 AGENTS.md
