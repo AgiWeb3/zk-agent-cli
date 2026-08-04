@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -166,6 +174,10 @@ function createStandaloneInstallRoot() {
   return mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-pack-'));
 }
 
+function createCleanMachineInstallRoot() {
+  return mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-install-'));
+}
+
 function extractTarball(tarballPath, installRoot) {
   execFileSync('tar', ['-xzf', tarballPath, '-C', installRoot], {
     cwd: packageDir,
@@ -227,10 +239,10 @@ function isRecoverableRpcNoise(stderr, stdout) {
   }
 }
 
-function runPackedCli(extractedPackageDir, homeDir, args) {
-  const result = spawnSync(process.execPath, ['dist/index.js', ...args], {
-    cwd: extractedPackageDir,
-    env: createStandaloneEnv(homeDir),
+function runCommand(command, args, options) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    env: options.env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -243,7 +255,9 @@ function runPackedCli(extractedPackageDir, homeDir, args) {
   const stderr = typeof result.stderr === 'string' ? result.stderr : '';
 
   if (result.status !== 0) {
-    const error = new Error(`Packed CLI exited with status ${result.status}: ${args.join(' ')}`);
+    const error = new Error(
+      `${options.description} exited with status ${result.status}: ${args.join(' ')}`
+    );
     Object.assign(error, {
       stdout,
       stderr,
@@ -253,6 +267,14 @@ function runPackedCli(extractedPackageDir, homeDir, args) {
   }
 
   return { stdout, stderr };
+}
+
+function runPackedCli(extractedPackageDir, homeDir, args) {
+  return runCommand(process.execPath, ['dist/index.js', ...args], {
+    cwd: extractedPackageDir,
+    env: createStandaloneEnv(homeDir),
+    description: 'Packed CLI'
+  });
 }
 
 function assertPackedCliStderr(stderr, stdout, description, { allowRecoverableRpcNoise = false } = {}) {
@@ -271,6 +293,108 @@ function runPackedCliJson(extractedPackageDir, homeDir, args, options) {
   try {
     const result = runPackedCli(extractedPackageDir, homeDir, args);
     assertPackedCliStderr(result.stderr, result.stdout, args.join(' '), options);
+    return result.stdout;
+  } catch (error) {
+    const stdout = typeof error?.stdout === 'string' ? error.stdout.trim() : '';
+    const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
+
+    if (options?.allowRecoverableRpcNoise && isRecoverableRpcNoise(stderr, stdout)) {
+      return stdout;
+    }
+
+    throw error;
+  }
+}
+
+function writeCleanMachinePackageJson(projectRoot) {
+  writeFileSync(
+    join(projectRoot, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'zk-agent-cli-clean-machine-check',
+        private: true,
+        version: '0.0.0'
+      },
+      null,
+      2
+    ) + '\n'
+  );
+}
+
+function installTarballInCleanMachineProject(projectRoot, tarballPath) {
+  writeCleanMachinePackageJson(projectRoot);
+  const installEnv = envWithoutDryRun();
+
+  try {
+    runCommand('pnpm', ['add', '--offline', tarballPath], {
+      cwd: projectRoot,
+      env: installEnv,
+      description: 'Offline clean-machine tarball install'
+    });
+    return;
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
+    const stdout = typeof error?.stdout === 'string' ? error.stdout : '';
+    const combinedOutput = `${stdout}\n${stderr}`;
+
+    if (!combinedOutput.includes('ERR_PNPM_NO_OFFLINE_TARBALL')) {
+      throw error;
+    }
+
+    process.stdout.write(
+      'Offline pnpm store was incomplete; retrying clean-machine install with prefer-offline.\n'
+    );
+    try {
+      runCommand('pnpm', ['add', '--prefer-offline', '--fetch-retries', '0', tarballPath], {
+        cwd: projectRoot,
+        env: installEnv,
+        description: 'Prefer-offline clean-machine tarball install'
+      });
+    } catch (retryError) {
+      const retryStdout = typeof retryError?.stdout === 'string' ? retryError.stdout : '';
+      const retryStderr = typeof retryError?.stderr === 'string' ? retryError.stderr : '';
+      const combinedRetryOutput = `${retryStdout}\n${retryStderr}`;
+
+      if (
+        combinedRetryOutput.includes('getaddrinfo ENOTFOUND') ||
+        combinedRetryOutput.includes('registry.npmjs.org') ||
+        combinedRetryOutput.includes('ERR_PNPM_FETCH')
+      ) {
+        const error = new Error(
+          'Clean-machine tarball install needs registry access when the local pnpm store is incomplete. This environment appears to block npm registry access.'
+        );
+        Object.assign(error, {
+          stdout: retryStdout,
+          stderr: retryStderr,
+          status: retryError?.status ?? 1
+        });
+        throw error;
+      }
+
+      throw retryError;
+    }
+  }
+}
+
+function runInstalledCli(projectRoot, homeDir, args, binaryName = 'zk-agent') {
+  const binaryPath = join(projectRoot, 'node_modules', '.bin', binaryName);
+  assert.equal(existsSync(binaryPath), true, `Expected installed binary not found: ${binaryPath}`);
+  return runCommand(binaryPath, args, {
+    cwd: projectRoot,
+    env: createStandaloneEnv(homeDir),
+    description: `Installed ${binaryName}`
+  });
+}
+
+function runInstalledCliJson(projectRoot, homeDir, args, options) {
+  try {
+    const result = runInstalledCli(projectRoot, homeDir, args, options?.binaryName);
+    assertPackedCliStderr(
+      result.stderr,
+      result.stdout,
+      `${options?.binaryName || 'zk-agent'} ${args.join(' ')}`,
+      options
+    );
     return result.stdout;
   } catch (error) {
     const stdout = typeof error?.stdout === 'string' ? error.stdout.trim() : '';
@@ -418,6 +542,54 @@ function assertStandaloneSmoke(extractedPackageDir) {
   }
 }
 
+function assertCleanMachineInstallSmoke(tarballPath) {
+  const projectRoot = createCleanMachineInstallRoot();
+  const homeDir = mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-install-home-'));
+
+  try {
+    installTarballInCleanMachineProject(projectRoot, tarballPath);
+
+    const helpResult = runInstalledCli(projectRoot, homeDir, ['--help']);
+    assertPackedCliStderr(helpResult.stderr, helpResult.stdout, 'installed zk-agent --help');
+    assert.match(helpResult.stdout, /Usage: zk-agent/);
+    assertNoWorkspaceLeak(helpResult.stdout);
+
+    const aliasHelpResult = runInstalledCli(projectRoot, homeDir, ['--help'], 'zksync-agent');
+    assertPackedCliStderr(
+      aliasHelpResult.stderr,
+      aliasHelpResult.stdout,
+      'installed zksync-agent --help'
+    );
+    assert.match(aliasHelpResult.stdout, /Usage: zk-agent/);
+    assertNoWorkspaceLeak(aliasHelpResult.stdout);
+
+    const defaultsOutput = runInstalledCliJson(projectRoot, homeDir, ['defaults', '--json']);
+    assertNoWorkspaceLeak(defaultsOutput);
+    const defaultsPayload = JSON.parse(defaultsOutput);
+    assert.equal(defaultsPayload.ok, true);
+    assert.equal(Array.isArray(defaultsPayload.defaults?.builtinChains), true);
+    assert.equal(Array.isArray(defaultsPayload.localTokenRegistry), true);
+
+    const profilesOutput = runInstalledCliJson(projectRoot, homeDir, [
+      'wallet',
+      'smart-account',
+      'profiles',
+      '--json'
+    ]);
+    assertNoWorkspaceLeak(profilesOutput);
+    const profilesPayload = JSON.parse(profilesOutput);
+    assert.equal(profilesPayload.ok, true);
+    assert.equal(Array.isArray(profilesPayload.profiles), true);
+    assert.equal(profilesPayload.profiles.length > 0, true);
+    for (const profile of profilesPayload.profiles) {
+      assert.equal(profile.artifactReady, true);
+    }
+  } finally {
+    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(homeDir, { recursive: true, force: true });
+  }
+}
+
 function main() {
   const pkg = readPackageJson();
   const readme = readPackageReadme();
@@ -444,6 +616,8 @@ function main() {
   } finally {
     rmSync(standaloneInstallRoot, { recursive: true, force: true });
   }
+
+  assertCleanMachineInstallSmoke(tarballPath);
 
   rmSync(packDir, { recursive: true, force: true });
   process.stdout.write(`Release check passed: ${tarballName}\n`);

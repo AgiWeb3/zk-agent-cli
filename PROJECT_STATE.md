@@ -84,6 +84,11 @@ Current Phase 5 progress note:
   `packages/zk-agent-cli/scripts/release-check.mjs` now enforces the minimum
   standalone package-README contract for install paths, shortest path, relay
   path, storage path, and common repair guidance
+- the release-discipline baseline now also covers a clean-machine-like
+  tarball install smoke:
+  `release:check` installs the packed tarball into a temporary project outside
+  the repository with `pnpm add --offline` and verifies the installed
+  `zk-agent` / `zksync-agent` binaries plus the basic JSON surfaces there
 - the product-slice skill work has started for real:
   `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
   instead of forcing that guidance to stay embedded inside the repo-level

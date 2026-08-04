@@ -225,6 +225,10 @@ This stage is complete when all of the following are true:
      `packages/zk-agent-cli/scripts/release-check.mjs` now also enforces the
      minimum standalone package-README contract instead of leaving that gate
      fully manual
+   - current baseline improvement:
+     `release:check` now also performs a tarball install smoke in a temporary
+     project outside the repository, so the clean-machine-like install path is
+     no longer documented-only
 
 2. hosted remote approval baseline
    - promote remote approval from a useful local prototype into a stable hosted

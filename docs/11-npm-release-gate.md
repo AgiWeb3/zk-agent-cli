@@ -135,12 +135,17 @@ Pass criteria:
   - `zk-agent --help`
   - `zk-agent defaults --json`
   - `zk-agent wallet smart-account profiles --json`
+- the same tarball can also be installed into a temporary project outside the
+  repository with `pnpm add --offline <tarball>` and the installed
+  `zk-agent` / `zksync-agent` binaries still start correctly
 
 Blockers:
 
 - packaging fails
 - tarball structure is wrong
 - runtime startup still depends on workspace-only resolution
+- tarball install smoke outside the repository fails even though direct unpack
+  smoke passes
 
 ## Gate 4: local validation gate
 
