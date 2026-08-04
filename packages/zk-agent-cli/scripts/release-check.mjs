@@ -153,6 +153,7 @@ function assertTarballContents(entries) {
   assert.equal(entries.includes('package/package.json'), true);
   assert.equal(entries.includes('package/README.md'), true);
   assert.equal(entries.includes('package/dist/index.js'), true);
+  assert.equal(entries.includes('package/dist/connector-ui/index.html'), true);
   assert.equal(
     entries.includes('package/dist/builtin-account-profiles/package.json'),
     true
@@ -548,6 +549,11 @@ function assertCleanMachineInstallSmoke(tarballPath) {
 
   try {
     installTarballInCleanMachineProject(projectRoot, tarballPath);
+    assert.equal(
+      existsSync(join(projectRoot, 'node_modules', 'zk-agent-cli', 'dist', 'connector-ui', 'index.html')),
+      true,
+      'Installed package must include the bundled connector UI build.'
+    );
 
     const helpResult = runInstalledCli(projectRoot, homeDir, ['--help']);
     assertPackedCliStderr(helpResult.stderr, helpResult.stdout, 'installed zk-agent --help');

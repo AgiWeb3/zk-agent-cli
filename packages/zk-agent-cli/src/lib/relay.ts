@@ -131,6 +131,8 @@ function resolveConnectorUiDistRoot(): string | null {
   const currentFile = fileURLToPath(import.meta.url);
   const currentDir = path.dirname(currentFile);
   const candidates = [
+    path.resolve(currentDir, '../connector-ui'),
+    path.resolve(currentDir, '../../dist/connector-ui'),
     path.resolve(currentDir, '../../../zk-connector-ui/dist'),
     path.resolve(currentDir, '../../zk-connector-ui/dist')
   ];

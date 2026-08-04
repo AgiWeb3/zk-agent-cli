@@ -79,6 +79,9 @@ Current Phase 5 progress note:
   advertised `publicOrigin` still looks local-only and whether hosted
   share-link approval is actually ready, so hosted deployment mistakes are not
   hidden behind a raw health payload
+- the published CLI package now also bundles the connector UI build used by
+  `relay serve`, so the hosted share-link path no longer depends on a source
+  checkout just to serve the approval UI
 - the remaining hosted gap is no longer "how does the CLI talk to a relay at
   all"; it is live validation and hardening of a real hosted deployment
 - the current flagship AA operator path now also has a dedicated smoke:

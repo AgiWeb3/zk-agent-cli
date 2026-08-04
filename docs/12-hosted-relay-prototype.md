@@ -32,34 +32,36 @@ same relay origin.
 
 Today that means:
 
-- the relay can serve the built connector UI when
-  `packages/zk-connector-ui/dist` exists in a source checkout
-- a plain npm package install of `zk-agent-cli` does not currently bundle that
-  UI build into the published CLI package
+- the published `zk-agent-cli` package now bundles the connector UI build used
+  by `relay serve`
+- a source checkout can still rebuild that UI explicitly through
+  `packages/zk-connector-ui`
 - if the UI is missing, `relay inspect` will still show compatibility, but
   `hostedShareRedirectReady` will stay `false`
 
 ## Recommended Prototype Path
 
-### 1. Build the connector UI from a source checkout
+### 1. Use the packaged relay directly, or rebuild the connector UI when you
+need a source checkout override
+
+Packaged path:
+
+```bash
+zk-agent relay serve --host 127.0.0.1 --port 4445 --public-origin https://relay.example.com
+```
+
+Source-checkout rebuild path when you intentionally want to refresh the hosted
+UI locally:
 
 ```bash
 pnpm --filter @zk-agent/connector-ui build
 ```
 
-You can also run the broader repo build if you already use that path.
+Then restart the relay from that same checkout.
 
-### 2. Start the relay with an externally reachable public origin
+Use the externally reachable URL, not the local bind origin, in both paths.
 
-Example behind a tunnel or reverse proxy:
-
-```bash
-pnpm zk-agent relay serve --host 127.0.0.1 --port 4445 --public-origin https://relay.example.com
-```
-
-Use the externally reachable URL, not the local bind origin.
-
-### 3. Inspect the hosted path from the outside-in
+### 2. Inspect the hosted path from the outside-in
 
 ```bash
 zk-agent relay inspect --relay-url https://relay.example.com
@@ -75,7 +77,7 @@ Current success signals:
 If `hostedShareRedirectReady` is `false`, read the returned notes before moving
 on.
 
-### 4. Create or refresh the approval request
+### 3. Create or refresh the approval request
 
 Fresh wallet:
 
@@ -89,7 +91,7 @@ Existing wallet:
 zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code
 ```
 
-### 5. Validate the approval loop
+### 4. Validate the approval loop
 
 The relay should now provide:
 
@@ -125,8 +127,9 @@ Meaning:
 
 Fix:
 
-- build `packages/zk-connector-ui`
-- run `relay serve` from that source checkout
+- if you are using the published package, reinstall or repack the current CLI
+- if you are using a source checkout, rebuild `packages/zk-connector-ui`
+- restart `relay serve`
 - re-run `relay inspect`
 
 ### `compatible = true` but `hostedShareRedirectReady = false`
@@ -157,7 +160,8 @@ Fix:
 
 For the current prototype, keep this sequence:
 
-1. build connector UI
+1. use the packaged relay directly, or rebuild the connector UI only when you
+   intentionally want a source-checkout override
 2. start `relay serve --public-origin ...`
 3. run `relay inspect --relay-url ...`
 4. only then run `wallet create|reapprove --relay-url ...`

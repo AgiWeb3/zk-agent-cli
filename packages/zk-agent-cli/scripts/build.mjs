@@ -1,11 +1,20 @@
 import * as esbuild from 'esbuild';
+import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const workspaceRoot = resolve(packageDir, '../..');
 const bundledProfilesRoot = join(packageDir, 'dist', 'builtin-account-profiles');
+const bundledConnectorUiRoot = join(packageDir, 'dist', 'connector-ui');
 const sourceProfilesRoot = resolve(packageDir, '../account-profiles');
+const sourceConnectorUiRoot = resolve(packageDir, '../zk-connector-ui');
+
+execFileSync('pnpm', ['--filter', '@zk-agent/connector-ui', 'build'], {
+  cwd: workspaceRoot,
+  stdio: 'inherit'
+});
 
 await esbuild.build({
   entryPoints: ['src/index.ts'],
@@ -47,5 +56,11 @@ writeFileSync(
     2
   ) + '\n'
 );
+
+rmSync(bundledConnectorUiRoot, { recursive: true, force: true });
+mkdirSync(bundledConnectorUiRoot, { recursive: true });
+cpSync(join(sourceConnectorUiRoot, 'dist'), bundledConnectorUiRoot, {
+  recursive: true
+});
 
 console.log('Build complete: dist/index.js');

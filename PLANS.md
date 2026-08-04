@@ -244,6 +244,10 @@ This stage is complete when all of the following are true:
      public origin still looks local-only and whether hosted share-link
      approval is actually ready, instead of leaving that inference to the
      operator
+   - current baseline improvement:
+     the published CLI package now also bundles the connector UI build used by
+     `relay serve`, so hosted share-link approval no longer requires a source
+     checkout just to serve the approval UI
 
 3. zk-native flagship workflow
    - productize one end-to-end AA path as the product signature:

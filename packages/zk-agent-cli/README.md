@@ -109,7 +109,10 @@ zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code
 The built-in relay is a local file-backed prototype. It is useful for operator
 testing, not a production hosted relay service. When it sits behind a tunnel or
 reverse proxy, pass `--public-origin` so the emitted share/status URLs point at
-the externally reachable hosted URL instead of the local bind address.
+the externally reachable hosted URL instead of the local bind address. The
+published package now also ships the bundled connector UI build used by
+`relay serve`, so hosted share-link approval no longer depends on a separate
+source checkout just to serve the UI.
 
 ## Local Storage
 
