@@ -3,11 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-04
-- Latest commit at write time: `2a32464`
+- Latest commit at write time: `73afb7c`
 - Current branch: `main`
-- Working tree status when this document was written: clean after connector-UI
-  bundling for the packaged relay path, before the current beta.3 release-prep
-  version bump
+- Working tree status when this document was written: clean after publishing
+  `0.1.0-beta.3`, before the current beta.4 hotfix-prep changes
 
 ## Current phase
 
@@ -45,7 +44,7 @@ Phase 4 is complete on the current baseline.
 Closed results:
 
 1. public beta publish is complete:
-   `zk-agent-cli@0.1.0-beta.2` is live, and both npm dist-tags `beta` and
+   `zk-agent-cli@0.1.0-beta.3` is live, and both npm dist-tags `beta` and
    `latest` currently point to that version
 2. discovery/default/token inspection is productized:
    operators no longer need deployment-file tribal knowledge for the normal

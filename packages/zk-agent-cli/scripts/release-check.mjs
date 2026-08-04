@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -409,6 +409,74 @@ function runInstalledCliJson(projectRoot, homeDir, args, options) {
   }
 }
 
+function waitForJsonOutput(stream, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    let output = '';
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for relay JSON output after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    const onData = (chunk) => {
+      output += chunk.toString('utf8');
+      try {
+        const parsed = JSON.parse(output);
+        cleanup();
+        resolve(parsed);
+      } catch {
+        // keep reading
+      }
+    };
+
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const onEnd = () => {
+      cleanup();
+      reject(new Error(`Relay process ended before emitting valid JSON: ${output}`));
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      stream.off('data', onData);
+      stream.off('error', onError);
+      stream.off('end', onEnd);
+    };
+
+    stream.on('data', onData);
+    stream.once('error', onError);
+    stream.once('end', onEnd);
+  });
+}
+
+async function waitForExit(child, timeoutMs = 10000) {
+  return await Promise.race([
+    new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (code) => resolve(code));
+    }),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Process did not exit within ${timeoutMs}ms`)), timeoutMs);
+    })
+  ]);
+}
+
+async function stopChild(child, timeoutMs = 10000) {
+  if (!child || child.exitCode !== null || child.killed) {
+    return;
+  }
+
+  child.kill('SIGTERM');
+  try {
+    await waitForExit(child, timeoutMs);
+  } catch {
+    child.kill('SIGKILL');
+    await waitForExit(child, timeoutMs).catch(() => {});
+  }
+}
+
 function standaloneSessionPayload() {
   return {
     version: 1,
@@ -543,7 +611,50 @@ function assertStandaloneSmoke(extractedPackageDir) {
   }
 }
 
-function assertCleanMachineInstallSmoke(tarballPath) {
+async function assertInstalledRelayServe(projectRoot, homeDir) {
+  const binaryPath = join(projectRoot, 'node_modules', '.bin', 'zk-agent');
+  const relayEnv = createStandaloneEnv(homeDir);
+  const child = spawn(
+    binaryPath,
+    ['--json', 'relay', 'serve', '--port', '0', '--public-origin', 'https://relay.example.test'],
+    {
+      cwd: projectRoot,
+      env: relayEnv,
+      stdio: ['ignore', 'pipe', 'pipe']
+    }
+  );
+
+  const stderrChunks = [];
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => {
+    stderrChunks.push(chunk);
+  });
+
+  try {
+    const payload = await waitForJsonOutput(child.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.status, 'relay-serving');
+    assert.equal(payload.publicOrigin, 'https://relay.example.test');
+    assert.equal(payload.publicOriginLooksLocal, false);
+    assert.equal(payload.connectorUiAvailable, true);
+    assert.equal(payload.hostedShareRedirectReady, true);
+    assert.equal(payload.capabilities.includes('connector-ui'), true);
+    assertNoWorkspaceLeak(JSON.stringify(payload));
+
+    const healthResponse = await fetch(payload.healthUrl);
+    assert.equal(healthResponse.status, 200);
+    const healthPayload = await healthResponse.json();
+    assert.equal(healthPayload.connector_ui_available, true);
+    assert.equal(healthPayload.capabilities.includes('connector-ui'), true);
+    assert.equal(healthPayload.public_origin, 'https://relay.example.test');
+  } finally {
+    await stopChild(child, 10000);
+    const stderr = stderrChunks.join('').trim();
+    assert.equal(child.exitCode, 0, stderr || `relay exited with code ${child.exitCode}`);
+  }
+}
+
+async function assertCleanMachineInstallSmoke(tarballPath) {
   const projectRoot = createCleanMachineInstallRoot();
   const homeDir = mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-install-home-'));
 
@@ -590,13 +701,15 @@ function assertCleanMachineInstallSmoke(tarballPath) {
     for (const profile of profilesPayload.profiles) {
       assert.equal(profile.artifactReady, true);
     }
+
+    await assertInstalledRelayServe(projectRoot, homeDir);
   } finally {
     rmSync(projectRoot, { recursive: true, force: true });
     rmSync(homeDir, { recursive: true, force: true });
   }
 }
 
-function main() {
+async function main() {
   const pkg = readPackageJson();
   const readme = readPackageReadme();
   assertReleaseMetadata(pkg);
@@ -623,10 +736,10 @@ function main() {
     rmSync(standaloneInstallRoot, { recursive: true, force: true });
   }
 
-  assertCleanMachineInstallSmoke(tarballPath);
+  await assertCleanMachineInstallSmoke(tarballPath);
 
   rmSync(packDir, { recursive: true, force: true });
   process.stdout.write(`Release check passed: ${tarballName}\n`);
 }
 
-main();
+await main();

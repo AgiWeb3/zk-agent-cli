@@ -336,22 +336,24 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current published baseline
 
-- current public beta completed on `2026-08-03`:
-  `zk-agent-cli@0.1.0-beta.2`
-- next local release candidate now targets:
+- current public beta completed on `2026-08-04`:
   `zk-agent-cli@0.1.0-beta.3`
+- next local release candidate now targets:
+  `zk-agent-cli@0.1.0-beta.4`
 - publishing-account readback:
   `npm whoami -> jerrygod`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.2`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.2","beta":"0.1.0-beta.2"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.3`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.3","beta":"0.1.0-beta.3"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - `npx --yes zk-agent-cli@latest defaults --json` ran successfully outside the repository
   - `npx --yes zk-agent-cli@latest wallet smart-account profiles --json` ran successfully outside the repository
-  - the packaged output resolved built-in smart-account artifacts from
-    `dist/builtin-account-profiles/...` instead of falling back to the source
-    checkout
+  - `npx --yes zk-agent-cli@latest --json relay serve --port 0 --public-origin https://relay.example.test`
+    exposed the public relay contract, but still reported `connectorUiAvailable: false`
+  - that published regression is now fixed locally in the beta.4 hotfix
+    candidate by correcting bundled connector-UI path resolution and tightening
+    `release:check`
 
 ## Post-release follow-up to keep
 
