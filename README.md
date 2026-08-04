@@ -10,6 +10,7 @@ Agent-facing entrypoint:
 
 - [skills/SKILL.md](./skills/SKILL.md)
 - [skills/QUICKSTART.md](./skills/QUICKSTART.md)
+- [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md)
 - [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
 
 The project is intentionally modeled after the real architecture of `polygon-agent-cli`, but it is not a direct fork. The goal is to preserve the reusable system shape:
