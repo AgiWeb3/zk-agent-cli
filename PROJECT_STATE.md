@@ -111,6 +111,10 @@ Current Phase 5 progress note:
   `pnpm smoke:hosted-relay -- --relay-url <url>` reuses the real CLI
   `relay inspect` contract, publishes a synthetic request, and validates the
   hosted share-link/UI path against a caller-supplied external relay URL
+- real hosted deployment validation is currently pending only on one external
+  prerequisite:
+  a publicly reachable relay URL is not available yet, so this last outside-in
+  proof is explicitly deferred instead of being overstated as already complete
 - the product-slice skill work has started for real:
   `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
   instead of forcing that guidance to stay embedded inside the repo-level
