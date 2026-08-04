@@ -34,6 +34,7 @@ Recommended reading order:
 9. [09-sed-lite-profile.md](./09-sed-lite-profile.md)
 10. [10-operator-json-contract.md](./10-operator-json-contract.md)
 11. [11-npm-release-gate.md](./11-npm-release-gate.md)
+12. [12-hosted-relay-prototype.md](./12-hosted-relay-prototype.md)
 
 Unless stated otherwise, these notes are derived from the local
 `../zksync-docs` mirror so the repository can keep moving even when external

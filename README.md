@@ -173,7 +173,7 @@ What is already in place:
   - auto-consume of approved local requests
   - `wallet request await-local`
   - `wallet request approve --payload ...` for non-colocated/manual connector return
-  - `relay serve --public-origin <https-url>` + `wallet create|reapprove --relay-url <url>` + `wallet request relay-status|approve` for the local file-backed hosted relay prototype when it sits behind a tunnel or reverse proxy
+  - `relay serve --public-origin <https-url>` + `wallet create|reapprove --relay-url <url>` + `wallet request relay-status|approve` for the local file-backed hosted relay prototype when it sits behind a tunnel or reverse proxy; detailed operator runbook: [docs/12-hosted-relay-prototype.md](./docs/12-hosted-relay-prototype.md)
   - relay-backed connector pages now show share/status URLs, auto-refresh pending approval state, and reflect encrypted submission immediately
   - `wallet request list` with expired-request pruning
   - connector callback handoff back into the waiting CLI process
