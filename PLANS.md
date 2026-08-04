@@ -229,6 +229,11 @@ This stage is complete when all of the following are true:
      `release:check` now also performs a tarball install smoke in a temporary
      project outside the repository, so the clean-machine-like install path is
      no longer documented-only
+   - current baseline improvement:
+     the same installed tarball gate now also proves the hosted share-link
+     entrypoint works end to end:
+     a created relay request must redirect through `/r/<id>` into the bundled
+     connector UI and still serve the hashed frontend asset from the relay
 
 2. hosted remote approval baseline
    - promote remote approval from a useful local prototype into a stable hosted
@@ -248,6 +253,10 @@ This stage is complete when all of the following are true:
      the published CLI package now also bundles the connector UI build used by
      `relay serve`, so hosted share-link approval no longer requires a source
      checkout just to serve the approval UI
+   - current baseline improvement:
+     relay CLI coverage now asserts that a hosted request can actually enter
+     the share-link route, land on the connector UI shell, and fetch the
+     bundled frontend asset instead of only checking `/health`
 
 3. zk-native flagship workflow
    - productize one end-to-end AA path as the product signature:

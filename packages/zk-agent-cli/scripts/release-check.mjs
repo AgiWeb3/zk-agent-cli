@@ -477,6 +477,74 @@ async function stopChild(child, timeoutMs = 10000) {
   }
 }
 
+function buildRelayCreateRequest(requestId) {
+  return {
+    approval_url: 'https://connector.example.test/approve',
+    request: {
+      requestId,
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      provider: 'zksync-sso',
+      createdAt: '2026-08-04T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:00:00.000Z',
+      connectorUrl: 'https://connector.example.test',
+      requestedAccountKind: 'smart-account',
+      requestedPaymasterMode: 'none',
+      requestedSessionScope: {
+        chainKeys: ['zksync-sepolia'],
+        chainIds: [300]
+      },
+      requestedCapabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: false
+      },
+      sessionPublicKey: '0x' + '11'.repeat(32)
+    }
+  };
+}
+
+async function assertHostedShareLink(projectOrigin, publicOrigin, requestId) {
+  const createResponse = await fetch(`${projectOrigin}/api/requests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(buildRelayCreateRequest(requestId))
+  });
+  assert.equal(createResponse.status, 201);
+  const createdPayload = await createResponse.json();
+  assert.equal(createdPayload.share_url, `${publicOrigin}/r/${requestId}`);
+  assert.equal(createdPayload.status_url, `${publicOrigin}/api/requests/${requestId}`);
+  assert.equal(createdPayload.approval_url, `${publicOrigin}/r/${requestId}`);
+
+  const shareResponse = await fetch(`${projectOrigin}/r/${requestId}`, {
+    redirect: 'manual'
+  });
+  assert.equal(shareResponse.status, 302);
+  const location = shareResponse.headers.get('location');
+  assert.equal(
+    location,
+    `/?relayRequestUrl=${encodeURIComponent(`${publicOrigin}/api/requests/${requestId}`)}`
+  );
+
+  const landingResponse = await fetch(`${projectOrigin}${location}`);
+  assert.equal(landingResponse.status, 200);
+  const landingHtml = await landingResponse.text();
+  assert.match(landingHtml, /<div id="root"><\/div>/);
+  const scriptMatch = landingHtml.match(/<script type="module" crossorigin src="([^"]+)"><\/script>/);
+  assert.notEqual(scriptMatch, null);
+  const scriptPath = scriptMatch?.[1];
+  assert.match(scriptPath, /^\/assets\/index-.*\.js$/);
+
+  const scriptResponse = await fetch(`${projectOrigin}${scriptPath}`);
+  assert.equal(scriptResponse.status, 200);
+  assert.match(scriptResponse.headers.get('content-type') || '', /text\/javascript/);
+}
+
 function standaloneSessionPayload() {
   return {
     version: 1,
@@ -647,6 +715,8 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
     assert.equal(healthPayload.connector_ui_available, true);
     assert.equal(healthPayload.capabilities.includes('connector-ui'), true);
     assert.equal(healthPayload.public_origin, 'https://relay.example.test');
+
+    await assertHostedShareLink(payload.origin, payload.publicOrigin, 'release-check-share-link');
   } finally {
     await stopChild(child, 10000);
     const stderr = stderrChunks.join('').trim();

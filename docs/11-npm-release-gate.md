@@ -138,6 +138,9 @@ Pass criteria:
 - the same tarball can also be installed into a temporary project outside the
   repository with `pnpm add --offline <tarball>` and the installed
   `zk-agent` / `zksync-agent` binaries still start correctly
+- that installed package can also start `relay serve --public-origin ...`,
+  create a real relay request, redirect `/r/<id>` into the connector UI
+  entrypoint, and still serve the bundled hashed frontend asset from the relay
 
 Blockers:
 
@@ -355,8 +358,8 @@ npm dist-tag add zk-agent-cli@<version> latest
     exposed the public relay contract, but still reported `connectorUiAvailable: false`
   - `zk-agent-cli@0.1.0-beta.4` fixes that published regression by correcting
     bundled connector-UI path resolution and tightening `release:check` so the
-    installed tarball must pass the same hosted-relay readiness check before
-    publish
+    installed tarball must pass the same hosted-relay readiness and share-link
+    entrypoint checks before publish
 
 ## Post-release follow-up to keep
 

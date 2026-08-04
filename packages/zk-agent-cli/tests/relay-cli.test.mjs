@@ -17,6 +17,62 @@ function createCliEnv(homeDir) {
   };
 }
 
+function buildRelayCreateRequest(requestId) {
+  return {
+    approval_url: 'https://connector.example.test/approve',
+    request: {
+      requestId,
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      provider: 'zksync-sso',
+      createdAt: '2026-08-04T00:00:00.000Z',
+      expiresAt: '2026-08-10T00:00:00.000Z',
+      connectorUrl: 'https://connector.example.test',
+      requestedAccountKind: 'smart-account',
+      requestedPaymasterMode: 'none',
+      requestedSessionScope: {
+        chainKeys: ['zksync-sepolia'],
+        chainIds: [300]
+      },
+      requestedCapabilities: {
+        read: true,
+        write: true,
+        transfer: true,
+        contractCall: true,
+        paymaster: false
+      },
+      sessionPublicKey: '0x' + '11'.repeat(32)
+    }
+  };
+}
+
+async function assertHostedShareLinkServesUi(origin, publicOrigin, requestId) {
+  const shareResponse = await fetch(`${origin}/r/${requestId}`, {
+    redirect: 'manual'
+  });
+  assert.equal(shareResponse.status, 302);
+  const location = shareResponse.headers.get('location');
+  assert.equal(
+    location,
+    `/?relayRequestUrl=${encodeURIComponent(`${publicOrigin}/api/requests/${requestId}`)}`
+  );
+
+  const landingResponse = await fetch(`${origin}${location}`);
+  assert.equal(landingResponse.status, 200);
+  const landingHtml = await landingResponse.text();
+  assert.match(landingHtml, /<div id="root"><\/div>/);
+
+  const scriptMatch = landingHtml.match(/<script type="module" crossorigin src="([^"]+)"><\/script>/);
+  assert.notEqual(scriptMatch, null);
+  const scriptPath = scriptMatch?.[1];
+  assert.match(scriptPath, /^\/assets\/index-.*\.js$/);
+
+  const scriptResponse = await fetch(`${origin}${scriptPath}`);
+  assert.equal(scriptResponse.status, 200);
+  assert.match(scriptResponse.headers.get('content-type') || '', /text\/javascript/);
+}
+
 async function runCliJson(args, env, timeoutMs = 5000) {
   const child = spawn(process.execPath, [distEntry, '--json', ...args], {
     cwd: packageRoot,
@@ -218,33 +274,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        approval_url: 'https://connector.example.test/approve',
-        request: {
-          requestId: 'relay-public-origin-test',
-          walletName: 'main',
-          chain: 'zksync-sepolia',
-          chainId: 300,
-          provider: 'zksync-sso',
-          createdAt: '2026-08-04T00:00:00.000Z',
-          expiresAt: '2026-08-10T00:00:00.000Z',
-          connectorUrl: 'https://connector.example.test',
-          requestedAccountKind: 'smart-account',
-          requestedPaymasterMode: 'none',
-          requestedSessionScope: {
-            chainKeys: ['zksync-sepolia'],
-            chainIds: [300]
-          },
-          requestedCapabilities: {
-            read: true,
-            write: true,
-            transfer: true,
-            contractCall: true,
-            paymaster: false
-          },
-          sessionPublicKey: '0x' + '11'.repeat(32)
-        }
-      })
+      body: JSON.stringify(buildRelayCreateRequest('relay-public-origin-test'))
     });
     assert.equal(createResponse.status, 201);
     assert.deepEqual(await createResponse.json(), {
@@ -254,6 +284,11 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       status_url: `${publicOrigin}/api/requests/relay-public-origin-test`,
       approval_url: `${publicOrigin}/r/relay-public-origin-test`
     });
+    await assertHostedShareLinkServesUi(
+      result.origin,
+      publicOrigin,
+      'relay-public-origin-test'
+    );
 
     const inspected = await runCliJson(['relay', 'inspect', '--relay-url', result.origin], env);
     assert.equal(inspected.ok, true);
