@@ -239,6 +239,11 @@ This stage is complete when all of the following are true:
      the CLI can now inspect relay compatibility explicitly and the local
      prototype can advertise a hosted public origin when deployed behind a
      tunnel or reverse proxy
+   - current baseline improvement:
+     `relay inspect` and `relay serve` now also report whether the advertised
+     public origin still looks local-only and whether hosted share-link
+     approval is actually ready, instead of leaving that inference to the
+     operator
 
 3. zk-native flagship workflow
    - productize one end-to-end AA path as the product signature:

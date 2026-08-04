@@ -111,7 +111,9 @@ zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code
 reapprove` follow-up commands directly, so the operator can copy the exact next
 step from the server output. Use `relay inspect --relay-url <url>` before the
 hosted path when you need to confirm that an external relay exposes the
-expected zk-agent compatibility contract.
+expected zk-agent compatibility contract, does not still advertise a
+localhost-only `publicOrigin`, and is actually ready for hosted share-link
+approval.
 
 The same remote path also works for an existing wallet that needs a fresh
 session:

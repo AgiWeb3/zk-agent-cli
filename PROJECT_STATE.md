@@ -75,6 +75,10 @@ Current Phase 5 progress note:
 - the local relay prototype now also accepts `--public-origin <https-url>` so
   share/status URLs can be emitted for a real hosted/tunneled address instead
   of only the local bind origin
+- `relay inspect` / `relay serve` now also tell the operator when the
+  advertised `publicOrigin` still looks local-only and whether hosted
+  share-link approval is actually ready, so hosted deployment mistakes are not
+  hidden behind a raw health payload
 - the remaining hosted gap is no longer "how does the CLI talk to a relay at
   all"; it is live validation and hardening of a real hosted deployment
 - the current flagship AA operator path now also has a dedicated smoke:

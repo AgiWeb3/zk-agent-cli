@@ -298,6 +298,7 @@ export interface RelayServerOptions {
 
 export async function startRelayServer(options: RelayServerOptions): Promise<{
   close(): Promise<void>;
+  connectorUiAvailable: boolean;
   origin: string;
   port: number;
 }> {
@@ -444,6 +445,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
   });
 
   return {
+    connectorUiAvailable: Boolean(uiDistRoot),
     origin: `http://${address.address}:${address.port}`,
     port: address.port,
     close: async () =>

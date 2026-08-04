@@ -169,7 +169,7 @@ What is already in place:
   - `wallet create --relay-url <url>` / `wallet reapprove --relay-url <url>` for one-step remote approval publishing
   - `wallet create --relay-url <url> --wait-relay --prompt-code` / `wallet reapprove --relay-url <url> --wait-relay --prompt-code` for a single CLI invocation that waits for relay readiness and then finishes after one approval-code entry
   - `wallet create|reapprove --relay-url <url> --wait-relay --code <code>` for the same relay-completion path in non-interactive automation
-  - `relay inspect --relay-url <url>` for checking whether an external relay advertises the expected zk-agent compatibility contract before using it as a hosted approval path
+  - `relay inspect --relay-url <url>` for checking whether an external relay advertises the expected zk-agent compatibility contract, whether its advertised `publicOrigin` still points at localhost, and whether hosted share-link approval is actually ready before using it as a hosted approval path
   - auto-consume of approved local requests
   - `wallet request await-local`
   - `wallet request approve --payload ...` for non-colocated/manual connector return

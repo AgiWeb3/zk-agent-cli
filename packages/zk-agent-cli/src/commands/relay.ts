@@ -58,6 +58,50 @@ function hasCoreRelayCapabilities(capabilities: RelayCapability[]): boolean {
   );
 }
 
+function relayPublicOriginLooksLocal(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname === '[::1]'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function relayHostedReadinessNotes(options: {
+  compatible: boolean;
+  publicOrigin: string;
+  connectorUiAvailable: boolean | null;
+}): string[] {
+  const notes: string[] = [];
+
+  if (!options.compatible) {
+    notes.push(
+      'Relay health responded, but it did not advertise the full zk-agent relay compatibility contract.'
+    );
+    return notes;
+  }
+
+  if (relayPublicOriginLooksLocal(options.publicOrigin)) {
+    notes.push(
+      'Relay compatibility is present, but the advertised public origin still points at a local-only address. Set --public-origin to the externally reachable URL before using this as a hosted approval path.'
+    );
+  }
+
+  if (options.connectorUiAvailable === false) {
+    notes.push(
+      'Relay compatibility is present, but the built connector UI is not available at this relay. Hosted share-link approval needs a connector UI build or another externally reachable approval UI.'
+    );
+  }
+
+  return notes;
+}
+
 interface RelayInspectPayload {
   ok: true;
   status: 'relay-inspected';
@@ -69,7 +113,9 @@ interface RelayInspectPayload {
   relayMode: RelayHealthResponse['relay_mode'] | null;
   origin: string | null;
   publicOrigin: string;
+  publicOriginLooksLocal: boolean;
   connectorUiAvailable: boolean | null;
+  hostedShareRedirectReady: boolean;
   capabilities: RelayCapability[];
   recommendedCommands: {
     createWallet?: string;
@@ -86,6 +132,15 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
       : relayUrl;
   const publicOrigin = health?.public_origin || fallbackPublicOrigin;
   const compatible = Boolean(health && hasCoreRelayCapabilities(health.capabilities));
+  const connectorUiAvailable = health?.connector_ui_available ?? null;
+  const publicOriginLooksLocal = relayPublicOriginLooksLocal(publicOrigin);
+  const hostedShareRedirectReady =
+    compatible && connectorUiAvailable === true && !publicOriginLooksLocal;
+  const notes = relayHostedReadinessNotes({
+    compatible,
+    publicOrigin,
+    connectorUiAvailable
+  });
 
   return {
     ok: true,
@@ -98,14 +153,12 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     relayMode: health?.relay_mode || null,
     origin: health?.origin || null,
     publicOrigin,
-    connectorUiAvailable: health?.connector_ui_available ?? null,
+    publicOriginLooksLocal,
+    connectorUiAvailable,
+    hostedShareRedirectReady,
     capabilities: health?.capabilities || [],
     recommendedCommands: compatible ? buildRelayServeRecommendedCommands(publicOrigin) : {},
-    notes: compatible
-      ? []
-      : [
-          'Relay health responded, but it did not advertise the full zk-agent relay compatibility contract.'
-        ]
+    notes
   };
 }
 
@@ -134,26 +187,38 @@ export function createRelayCommand(): Command {
         publicOrigin: options.publicOrigin?.trim()
       });
       const publicOrigin = options.publicOrigin?.trim() || server.origin;
+      const publicOriginLooksLocal = relayPublicOriginLooksLocal(publicOrigin);
+      const connectorUiAvailable = server.connectorUiAvailable;
+      const hostedShareRedirectReady = connectorUiAvailable && !publicOriginLooksLocal;
       const recommendedCommands = buildRelayServeRecommendedCommands(publicOrigin);
+      const notes = relayHostedReadinessNotes({
+        compatible: true,
+        publicOrigin,
+        connectorUiAvailable
+      });
 
       const payload = {
         ok: true,
         status: 'relay-serving',
         origin: server.origin,
         publicOrigin,
+        publicOriginLooksLocal,
         port: server.port,
         healthUrl: `${server.origin}/health`,
         publicHealthUrl: `${publicOrigin}/health`,
         relayMode: 'local-file',
-        connectorUiAvailable: null,
+        connectorUiAvailable,
+        hostedShareRedirectReady,
         capabilities: [
           'create-request',
           'read-status',
           'fetch-approval',
           'submit-approval',
-          'share-redirect'
+          'share-redirect',
+          ...(connectorUiAvailable ? (['connector-ui'] satisfies RelayCapability[]) : [])
         ],
-        recommendedCommands
+        recommendedCommands,
+        notes
       };
 
       if (shouldJsonOutput()) {
@@ -165,8 +230,15 @@ export function createRelayCommand(): Command {
           humanLine('public origin', publicOrigin);
         }
         humanLine('health', `${server.origin}/health`);
+        humanLine('hosted ready', hostedShareRedirectReady ? 'yes' : 'no');
+        if (connectorUiAvailable !== null) {
+          humanLine('connector ui', connectorUiAvailable ? 'available' : 'missing');
+        }
         humanLine('create wallet', recommendedCommands.createWallet);
         humanLine('reapprove wallet', recommendedCommands.reapproveWallet);
+        for (const note of notes) {
+          humanLine('note', note);
+        }
       }
 
       const shutdown = async () => {
@@ -216,9 +288,11 @@ export function createRelayCommand(): Command {
       if (payload.publicOrigin) {
         humanLine('public origin', payload.publicOrigin);
       }
+      humanLine('public origin local', payload.publicOriginLooksLocal ? 'yes' : 'no');
       if (payload.connectorUiAvailable !== null) {
         humanLine('connector ui', payload.connectorUiAvailable ? 'available' : 'missing');
       }
+      humanLine('hosted ready', payload.hostedShareRedirectReady ? 'yes' : 'no');
       if (payload.capabilities.length > 0) {
         humanLine('capabilities', payload.capabilities.join(', '));
       }

@@ -93,6 +93,9 @@ What to look for:
 
 - compatibility is `true`
 - `publicOrigin` is the externally reachable URL you intend to share
+- `publicOriginLooksLocal` is `false`
+- `hostedShareRedirectReady` is `true` when you want the relay's own share URL
+  to be usable as the hosted approval entrypoint
 - capabilities include:
   - `create-request`
   - `read-status`
