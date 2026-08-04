@@ -80,6 +80,10 @@ Current Phase 5 progress note:
 - the current flagship AA operator path now also has a dedicated smoke:
   relay-backed wallet reapproval on an existing wallet followed immediately by
   the paymaster-backed workflow-auto send-native path on that same wallet
+- the release-discipline baseline is slightly stronger:
+  `packages/zk-agent-cli/scripts/release-check.mjs` now enforces the minimum
+  standalone package-README contract for install paths, shortest path, relay
+  path, storage path, and common repair guidance
 - the product-slice skill work has started for real:
   `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
   instead of forcing that guidance to stay embedded inside the repo-level

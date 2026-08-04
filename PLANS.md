@@ -221,6 +221,10 @@ This stage is complete when all of the following are true:
    - keep README, skills, package metadata, and release scripts aligned with
      the actually published npm surface
    - reduce lingering Phase 4 naming and one-off publish knowledge
+   - current baseline improvement:
+     `packages/zk-agent-cli/scripts/release-check.mjs` now also enforces the
+     minimum standalone package-README contract instead of leaving that gate
+     fully manual
 
 2. hosted remote approval baseline
    - promote remote approval from a useful local prototype into a stable hosted

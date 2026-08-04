@@ -94,6 +94,9 @@ Pass criteria:
 
 - a first-time user can get through the first success path from the npm page
   README alone
+- the current `release:check` script also enforces the minimum README anchors
+  for install paths, shortest path, relay path, storage path, and common
+  repair guidance so this gate is not purely manual anymore
 
 Blockers:
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -22,6 +22,10 @@ const standaloneEnvKeys = [
 
 function readPackageJson() {
   return JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
+}
+
+function readPackageReadme() {
+  return readFileSync(join(packageDir, 'README.md'), 'utf8');
 }
 
 function assertReleaseMetadata(pkg) {
@@ -56,6 +60,44 @@ function assertReleaseMetadata(pkg) {
       .map(([name]) => name)
       .join(', ')}`
   );
+}
+
+function assertPackageReadme(readme) {
+  const requiredPatterns = [
+    [/## Install/, 'Package README must include an Install section.'],
+    [/npx zk-agent-cli --help/, 'Package README must document one-shot npx usage.'],
+    [/npm install -g zk-agent-cli/, 'Package README must document global install usage.'],
+    [
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/,
+      'Package README must document the shortest success path.'
+    ],
+    [
+      /zk-agent wallet reapprove --name main --await-local/,
+      'Package README must document the shortest stale-session recovery path.'
+    ],
+    [/~\/\.zk-agent\//, 'Package README must document the default local storage path.'],
+    [
+      /ZKSYNC_SEPOLIA_RPC_URL=[\s\S]*ETHEREUM_SEPOLIA_RPC_URL=/,
+      'Package README must document the relevant Sepolia RPC environment variables.'
+    ],
+    [
+      /zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code/,
+      'Package README must document the shortest relay-backed approval path.'
+    ],
+    [/## Common Failures/, 'Package README must include a Common Failures section.'],
+    [
+      /Connector callback never arrives:/,
+      'Package README must document connector callback repair guidance.'
+    ],
+    [
+      /Workflow stops on funding:/,
+      'Package README must document funding-stop repair guidance.'
+    ]
+  ];
+
+  for (const [pattern, message] of requiredPatterns) {
+    assert.match(readme, pattern, message);
+  }
 }
 
 function createPackDir() {
@@ -167,35 +209,75 @@ function createStandaloneEnv(homeDir) {
   return env;
 }
 
-function runPackedCli(extractedPackageDir, homeDir, args) {
-  return execFileSync(process.execPath, ['dist/index.js', ...args], {
-    cwd: extractedPackageDir,
-    env: createStandaloneEnv(homeDir),
-    encoding: 'utf8'
-  }).trim();
+function isRecoverableRpcNoise(stderr, stdout) {
+  if (!stderr.trim() || !stdout) {
+    return false;
+  }
+
+  try {
+    const payload = JSON.parse(stdout);
+    return (
+      payload?.ok === true &&
+      (stderr.includes('getaddrinfo ENOTFOUND') ||
+        stderr.includes('connect EPERM 127.0.0.1') ||
+        stderr.includes('connect ECONNREFUSED 127.0.0.1'))
+    );
+  } catch {
+    return false;
+  }
 }
 
-function runPackedCliRecoveringJson(extractedPackageDir, homeDir, args) {
+function runPackedCli(extractedPackageDir, homeDir, args) {
+  const result = spawnSync(process.execPath, ['dist/index.js', ...args], {
+    cwd: extractedPackageDir,
+    env: createStandaloneEnv(homeDir),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  const stdout = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+  const stderr = typeof result.stderr === 'string' ? result.stderr : '';
+
+  if (result.status !== 0) {
+    const error = new Error(`Packed CLI exited with status ${result.status}: ${args.join(' ')}`);
+    Object.assign(error, {
+      stdout,
+      stderr,
+      status: result.status
+    });
+    throw error;
+  }
+
+  return { stdout, stderr };
+}
+
+function assertPackedCliStderr(stderr, stdout, description, { allowRecoverableRpcNoise = false } = {}) {
+  if (!stderr.trim()) {
+    return;
+  }
+
+  if (allowRecoverableRpcNoise && isRecoverableRpcNoise(stderr, stdout)) {
+    return;
+  }
+
+  assert.fail(`Packed CLI emitted unexpected stderr during ${description}:\n${stderr}`);
+}
+
+function runPackedCliJson(extractedPackageDir, homeDir, args, options) {
   try {
-    return runPackedCli(extractedPackageDir, homeDir, args);
+    const result = runPackedCli(extractedPackageDir, homeDir, args);
+    assertPackedCliStderr(result.stderr, result.stdout, args.join(' '), options);
+    return result.stdout;
   } catch (error) {
     const stdout = typeof error?.stdout === 'string' ? error.stdout.trim() : '';
     const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
 
-    if (stdout) {
-      try {
-        const payload = JSON.parse(stdout);
-        const recoverableRpcNoise =
-          payload?.ok === true &&
-          (stderr.includes('getaddrinfo ENOTFOUND') ||
-            stderr.includes('connect EPERM 127.0.0.1') ||
-            stderr.includes('connect ECONNREFUSED 127.0.0.1'));
-        if (recoverableRpcNoise) {
-          return stdout;
-        }
-      } catch {
-        // Fall through to the original error.
-      }
+    if (options?.allowRecoverableRpcNoise && isRecoverableRpcNoise(stderr, stdout)) {
+      return stdout;
     }
 
     throw error;
@@ -259,11 +341,12 @@ function assertStandaloneSmoke(extractedPackageDir) {
   const homeDir = mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-home-'));
 
   try {
-    const helpOutput = runPackedCli(extractedPackageDir, homeDir, ['--help']);
-    assert.match(helpOutput, /Usage: zk-agent/);
-    assertNoWorkspaceLeak(helpOutput);
+    const helpResult = runPackedCli(extractedPackageDir, homeDir, ['--help']);
+    assertPackedCliStderr(helpResult.stderr, helpResult.stdout, '--help');
+    assert.match(helpResult.stdout, /Usage: zk-agent/);
+    assertNoWorkspaceLeak(helpResult.stdout);
 
-    const defaultsOutput = runPackedCli(extractedPackageDir, homeDir, ['defaults', '--json']);
+    const defaultsOutput = runPackedCliJson(extractedPackageDir, homeDir, ['defaults', '--json']);
     assertNoWorkspaceLeak(defaultsOutput);
     const defaultsPayload = JSON.parse(defaultsOutput);
     assert.equal(defaultsPayload.ok, true);
@@ -272,7 +355,7 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assert.deepEqual(defaultsPayload.defaults?.validated || {}, {});
     assert.deepEqual(defaultsPayload.localTokenRegistry || [], []);
 
-    const profilesOutput = runPackedCli(extractedPackageDir, homeDir, [
+    const profilesOutput = runPackedCliJson(extractedPackageDir, homeDir, [
       'wallet',
       'smart-account',
       'profiles',
@@ -293,7 +376,7 @@ function assertStandaloneSmoke(extractedPackageDir) {
       );
     }
 
-    const importOutput = runPackedCli(extractedPackageDir, homeDir, [
+    const importOutput = runPackedCliJson(extractedPackageDir, homeDir, [
       'wallet',
       'import',
       '--name',
@@ -306,19 +389,24 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assert.equal(importPayload.ok, true);
     assert.equal(importPayload.wallet.walletName, 'main');
 
-    const predictOutput = runPackedCliRecoveringJson(extractedPackageDir, homeDir, [
-      'wallet',
-      'smart-account',
-      'predict',
-      '--name',
-      'main',
-      '--profile',
-      'sed-lite',
-      '--deployment-type',
-      'create2Account',
-      '--salt',
-      '0x00'
-    ]);
+    const predictOutput = runPackedCliJson(
+      extractedPackageDir,
+      homeDir,
+      [
+        'wallet',
+        'smart-account',
+        'predict',
+        '--name',
+        'main',
+        '--profile',
+        'sed-lite',
+        '--deployment-type',
+        'create2Account',
+        '--salt',
+        '0x00'
+      ],
+      { allowRecoverableRpcNoise: true }
+    );
     assertNoWorkspaceLeak(predictOutput);
     const predictPayload = JSON.parse(predictOutput);
     assert.equal(predictPayload.ok, true);
@@ -332,7 +420,9 @@ function assertStandaloneSmoke(extractedPackageDir) {
 
 function main() {
   const pkg = readPackageJson();
+  const readme = readPackageReadme();
   assertReleaseMetadata(pkg);
+  assertPackageReadme(readme);
   createPackDir();
   const reportedTarballPath = packPackage();
 
