@@ -77,6 +77,18 @@ Current success signals:
 If `hostedShareRedirectReady` is `false`, read the returned notes before moving
 on.
 
+If you are running from a source checkout and want one bounded outside-in
+validation after `relay inspect`, use:
+
+```bash
+pnpm smoke:hosted-relay -- --relay-url https://relay.example.com
+```
+
+That smoke reuses the real CLI `relay inspect` path, publishes a synthetic
+relay request, verifies that `/r/<id>` redirects to the connector UI entrypoint
+with the advertised public origin embedded in `relayRequestUrl`, and confirms
+that the bundled hashed frontend asset still serves from the relay.
+
 ### 3. Create or refresh the approval request
 
 Fresh wallet:
@@ -164,4 +176,6 @@ For the current prototype, keep this sequence:
    intentionally want a source-checkout override
 2. start `relay serve --public-origin ...`
 3. run `relay inspect --relay-url ...`
-4. only then run `wallet create|reapprove --relay-url ...`
+4. if you still have a source checkout, run
+   `pnpm smoke:hosted-relay -- --relay-url ...`
+5. only then run `wallet create|reapprove --relay-url ...`

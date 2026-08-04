@@ -15,6 +15,7 @@
     "tool:run": "pnpm --filter @zk-agent/agent-tools tool:run --",
     "smoke:readonly": "pnpm --filter @zk-agent/agent-tools smoke:readonly --",
     "smoke:discovery": "pnpm --filter zk-agent-cli smoke:discovery --",
+    "smoke:hosted-relay": "pnpm --filter zk-agent-cli smoke:hosted-relay --",
     "smoke:remote-approval": "pnpm --filter zk-agent-cli smoke:remote-approval --",
     "smoke:flagship-workflow": "pnpm --filter @zk-agent/agent-tools smoke:flagship-workflow --",
     "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",

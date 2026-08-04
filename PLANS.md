@@ -257,6 +257,11 @@ This stage is complete when all of the following are true:
      relay CLI coverage now asserts that a hosted request can actually enter
      the share-link route, land on the connector UI shell, and fetch the
      bundled frontend asset instead of only checking `/health`
+   - current baseline improvement:
+     a repo-local hosted deployment smoke now exists for real external relays:
+     `pnpm smoke:hosted-relay -- --relay-url <url>` runs the real CLI
+     `relay inspect`, publishes a synthetic request, and proves the hosted
+     share-link/UI entrypoint against a caller-supplied relay URL
 
 3. zk-native flagship workflow
    - productize one end-to-end AA path as the product signature:

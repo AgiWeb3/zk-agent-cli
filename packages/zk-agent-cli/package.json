@@ -41,6 +41,7 @@
     "release:check": "pnpm run build && pnpm run typecheck && pnpm run pack:check",
     "prepublishOnly": "pnpm run release:check",
     "smoke:discovery": "node --import tsx ./src/smoke-discovery.ts",
+    "smoke:hosted-relay": "node --import tsx ./src/smoke-hosted-relay.ts",
     "smoke:remote-approval": "node --import tsx ./src/smoke-remote-approval.ts",
     "typecheck": "tsc --noEmit",
     "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/*.test.mjs ./tests/*.test.ts"
