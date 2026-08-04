@@ -3,10 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-04
-- Latest commit at write time: `f55ed7e`
+- Latest commit at write time: `d7ee24a`
 - Current branch: `main`
-- Working tree status when this document was written: clean after publishing
-  `0.1.0-beta.4` and repointing npm `latest` / `beta` to that release
+- Working tree status when this document was written: clean after adding the
+  hosted deployment smoke and its runtime validation coverage
 
 ## Current phase
 
