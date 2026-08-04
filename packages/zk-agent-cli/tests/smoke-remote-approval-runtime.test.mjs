@@ -70,6 +70,28 @@ test('smoke remote approval can print the canonical relay approval plan', async 
   }
 });
 
+test('smoke remote approval can print the relay-backed reapprove plan for an existing wallet', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-smoke-remote-reapprove-plan-'));
+
+  try {
+    const result = await runSmokeJson(
+      ['--wallet', 'remote-reapprove-plan', '--reapprove', '--plan'],
+      createCliEnv(homeDir)
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.plan, true);
+    assert.equal(result.operation, 'reapprove');
+    assert.equal(result.walletName, 'remote-reapprove-plan');
+    assert.equal(Array.isArray(result.steps), true);
+    assert.equal(result.steps.length, 7);
+    assert.match(result.steps[0].command, /zk-agent wallet reapprove --name remote-reapprove-plan/);
+    assert.match(result.steps[1].command, /wallet request relay-publish --request-id <request-id> --relay-url/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('smoke remote approval completes the local relay-backed create -> approve -> import path', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-smoke-remote-run-'));
 

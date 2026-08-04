@@ -1,7 +1,7 @@
 {
   "name": "zk-agent-cli-workspace",
   "private": true,
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.30.3",
@@ -16,6 +16,7 @@
     "smoke:readonly": "pnpm --filter @zk-agent/agent-tools smoke:readonly --",
     "smoke:discovery": "pnpm --filter zk-agent-cli smoke:discovery --",
     "smoke:remote-approval": "pnpm --filter zk-agent-cli smoke:remote-approval --",
+    "smoke:flagship-workflow": "pnpm --filter @zk-agent/agent-tools smoke:flagship-workflow --",
     "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",
     "smoke:product-path": "pnpm --filter @zk-agent/agent-tools smoke:product-path --",
     "smoke:lifecycle": "pnpm --filter @zk-agent/agent-tools smoke:lifecycle --",
@@ -24,8 +25,10 @@
     "smoke:swap-success": "pnpm --filter @zk-agent/agent-tools smoke:swap-success --",
     "smoke:withdraw-followup": "pnpm --filter @zk-agent/agent-tools smoke:withdraw-followup --",
     "smoke:broadcast": "pnpm --filter @zk-agent/agent-tools smoke:broadcast --",
+    "release:check": "pnpm --filter zk-agent-cli release:check",
+    "validate:release": "pnpm run release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
     "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
-    "validate:phase4a": "pnpm --filter zk-agent-cli release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test"
+    "validate:phase4a": "pnpm run validate:release"
   },
   "engines": {
     "node": ">=24"

@@ -142,6 +142,7 @@ relay package plus its code.
 For the shortest relay-backed path in one terminal process:
 
 ```bash
+zk-agent relay inspect --relay-url <url>
 zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 ```
@@ -156,7 +157,13 @@ zk-agent wallet create --relay-url <url> --wait-relay --code <6-digit-code>
 Start the relay:
 
 ```bash
-zk-agent relay serve
+zk-agent relay serve --public-origin https://relay.example.com
+```
+
+Current flagship AA smoke:
+
+```bash
+pnpm smoke:flagship-workflow -- --wallet <name> [--paymaster-mode approval-based|sponsored]
 ```
 
 Plain payload path:

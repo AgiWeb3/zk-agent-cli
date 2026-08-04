@@ -93,6 +93,7 @@ zk-agent workflow fund --wallet main --amount <amount> --execute
 Shortest relay-backed path in one command:
 
 ```bash
+zk-agent relay inspect --relay-url <relay-url>
 zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 ```
@@ -100,13 +101,15 @@ zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --pro
 Local relay prototype path:
 
 ```bash
-zk-agent relay serve
+zk-agent relay serve --public-origin https://relay.example.com
 zk-agent wallet create --relay-url <relay-url>
 zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait
 ```
 
 The built-in relay is a local file-backed prototype. It is useful for operator
-testing, not a production hosted relay service.
+testing, not a production hosted relay service. When it sits behind a tunnel or
+reverse proxy, pass `--public-origin` so the emitted share/status URLs point at
+the externally reachable hosted URL instead of the local bind address.
 
 ## Local Storage
 

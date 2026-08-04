@@ -158,6 +158,26 @@ export interface RelayCreateResponse {
   approval_url: string;
 }
 
+export type RelayCapability =
+  | 'create-request'
+  | 'read-status'
+  | 'fetch-approval'
+  | 'submit-approval'
+  | 'share-redirect'
+  | 'connector-ui';
+
+export interface RelayHealthResponse {
+  ok: true;
+  service: 'zk-agent-relay';
+  protocol: 'zk-agent-session-relay';
+  schema_version: 1;
+  relay_mode: 'local-file';
+  origin: string;
+  public_origin: string;
+  connector_ui_available: boolean;
+  capabilities: RelayCapability[];
+}
+
 export interface RelayStatusResponse {
   request_id: string;
   status: RelayRequestStatus;

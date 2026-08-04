@@ -16,6 +16,7 @@
     "smoke:lifecycle": "node --import tsx ./src/smoke-lifecycle.ts",
     "smoke:policy": "node --import tsx ./src/smoke-policy.ts",
     "smoke:product-path": "node --import tsx ./src/smoke-product-path.ts",
+    "smoke:flagship-workflow": "node --import tsx ./src/smoke-flagship-workflow.ts",
     "smoke:broadcast": "node --import tsx ./src/smoke-broadcast.ts",
     "smoke:paymaster-success": "node --import tsx ./src/smoke-paymaster-success.ts",
     "smoke:swap-success": "node --import tsx ./src/smoke-swap-success.ts",

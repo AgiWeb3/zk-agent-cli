@@ -1,7 +1,9 @@
 import { Command } from 'commander';
 
+import type { RelayCapability, RelayHealthResponse } from '@zk-agent/agent-session-protocol';
+
 import { humanLine, jsonOut, shouldJsonOutput } from '../lib/io.js';
-import { startRelayServer } from '../lib/relay.js';
+import { fetchRelayHealth, startRelayServer } from '../lib/relay.js';
 
 function buildRelayServeRecommendedCommands(relayUrl: string): {
   createWallet: string;
@@ -13,6 +15,100 @@ function buildRelayServeRecommendedCommands(relayUrl: string): {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isRelayCapability(value: unknown): value is RelayCapability {
+  return [
+    'create-request',
+    'read-status',
+    'fetch-approval',
+    'submit-approval',
+    'share-redirect',
+    'connector-ui'
+  ].includes(String(value));
+}
+
+function asRelayHealthResponse(value: unknown): RelayHealthResponse | null {
+  if (!isRecord(value)) return null;
+  if (value.ok !== true) return null;
+  if (value.service !== 'zk-agent-relay') return null;
+  if (value.protocol !== 'zk-agent-session-relay') return null;
+  if (value.schema_version !== 1) return null;
+  if (value.relay_mode !== 'local-file') return null;
+  if (typeof value.origin !== 'string') return null;
+  if (typeof value.public_origin !== 'string') return null;
+  if (typeof value.connector_ui_available !== 'boolean') return null;
+  if (!Array.isArray(value.capabilities) || !value.capabilities.every(isRelayCapability)) {
+    return null;
+  }
+
+  return value as unknown as RelayHealthResponse;
+}
+
+function hasCoreRelayCapabilities(capabilities: RelayCapability[]): boolean {
+  const capabilitySet = new Set(capabilities);
+  return (
+    capabilitySet.has('create-request') &&
+    capabilitySet.has('read-status') &&
+    capabilitySet.has('fetch-approval') &&
+    capabilitySet.has('submit-approval') &&
+    capabilitySet.has('share-redirect')
+  );
+}
+
+interface RelayInspectPayload {
+  ok: true;
+  status: 'relay-inspected';
+  relayUrl: string;
+  compatible: boolean;
+  service: RelayHealthResponse['service'] | null;
+  protocol: RelayHealthResponse['protocol'] | null;
+  schemaVersion: RelayHealthResponse['schema_version'] | null;
+  relayMode: RelayHealthResponse['relay_mode'] | null;
+  origin: string | null;
+  publicOrigin: string;
+  connectorUiAvailable: boolean | null;
+  capabilities: RelayCapability[];
+  recommendedCommands: {
+    createWallet?: string;
+    reapproveWallet?: string;
+  };
+  notes: string[];
+}
+
+function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayInspectPayload {
+  const health = asRelayHealthResponse(rawHealth);
+  const fallbackPublicOrigin =
+    isRecord(rawHealth) && typeof rawHealth.public_origin === 'string'
+      ? rawHealth.public_origin
+      : relayUrl;
+  const publicOrigin = health?.public_origin || fallbackPublicOrigin;
+  const compatible = Boolean(health && hasCoreRelayCapabilities(health.capabilities));
+
+  return {
+    ok: true,
+    status: 'relay-inspected',
+    relayUrl,
+    compatible,
+    service: health?.service || null,
+    protocol: health?.protocol || null,
+    schemaVersion: health?.schema_version || null,
+    relayMode: health?.relay_mode || null,
+    origin: health?.origin || null,
+    publicOrigin,
+    connectorUiAvailable: health?.connector_ui_available ?? null,
+    capabilities: health?.capabilities || [],
+    recommendedCommands: compatible ? buildRelayServeRecommendedCommands(publicOrigin) : {},
+    notes: compatible
+      ? []
+      : [
+          'Relay health responded, but it did not advertise the full zk-agent relay compatibility contract.'
+        ]
+  };
+}
+
 export function createRelayCommand(): Command {
   const relay = new Command('relay').description('Run the local connector relay prototype server');
 
@@ -21,7 +117,11 @@ export function createRelayCommand(): Command {
     .description('Serve the local relay API and, when available, the built connector UI')
     .option('--host <host>', 'Host to bind', '127.0.0.1')
     .option('--port <port>', 'Port to bind (0 = choose a free port)', '4445')
-    .action(async (options: { host?: string; port?: string }) => {
+    .option(
+      '--public-origin <url>',
+      'Public base URL to advertise in share/status links when the relay is behind a tunnel or reverse proxy'
+    )
+    .action(async (options: { host?: string; port?: string; publicOrigin?: string }) => {
       const host = options.host?.trim() || '127.0.0.1';
       const parsedPort = Number.parseInt(options.port || '4445', 10);
       if (!Number.isInteger(parsedPort) || parsedPort < 0 || parsedPort > 65535) {
@@ -30,16 +130,29 @@ export function createRelayCommand(): Command {
 
       const server = await startRelayServer({
         host,
-        port: parsedPort
+        port: parsedPort,
+        publicOrigin: options.publicOrigin?.trim()
       });
-      const recommendedCommands = buildRelayServeRecommendedCommands(server.origin);
+      const publicOrigin = options.publicOrigin?.trim() || server.origin;
+      const recommendedCommands = buildRelayServeRecommendedCommands(publicOrigin);
 
       const payload = {
         ok: true,
         status: 'relay-serving',
         origin: server.origin,
+        publicOrigin,
         port: server.port,
         healthUrl: `${server.origin}/health`,
+        publicHealthUrl: `${publicOrigin}/health`,
+        relayMode: 'local-file',
+        connectorUiAvailable: null,
+        capabilities: [
+          'create-request',
+          'read-status',
+          'fetch-approval',
+          'submit-approval',
+          'share-redirect'
+        ],
         recommendedCommands
       };
 
@@ -48,6 +161,9 @@ export function createRelayCommand(): Command {
       } else {
         humanLine('status', 'relay-serving');
         humanLine('origin', server.origin);
+        if (publicOrigin !== server.origin) {
+          humanLine('public origin', publicOrigin);
+        }
         humanLine('health', `${server.origin}/health`);
         humanLine('create wallet', recommendedCommands.createWallet);
         humanLine('reapprove wallet', recommendedCommands.reapproveWallet);
@@ -66,6 +182,58 @@ export function createRelayCommand(): Command {
       process.on('SIGINT', handleSignal);
       process.on('SIGTERM', handleSignal);
       await new Promise(() => {});
+    });
+
+  relay
+    .command('inspect')
+    .description('Inspect a relay URL for zk-agent compatibility and hosted remote-approval readiness')
+    .requiredOption('--relay-url <url>', 'Relay server base URL to inspect')
+    .action(async (options: { relayUrl: string }) => {
+      const relayUrl = options.relayUrl.trim();
+      const rawHealth = await fetchRelayHealth(relayUrl);
+      const payload = buildRelayInspectPayload(relayUrl, rawHealth);
+
+      if (shouldJsonOutput()) {
+        jsonOut(payload);
+        return;
+      }
+
+      humanLine('status', 'relay-inspected');
+      humanLine('relay url', relayUrl);
+      humanLine('compatible', payload.compatible ? 'yes' : 'no');
+      if (payload.service) {
+        humanLine('service', payload.service);
+      }
+      if (payload.protocol) {
+        humanLine('protocol', payload.protocol);
+      }
+      if (payload.relayMode) {
+        humanLine('mode', payload.relayMode);
+      }
+      if (payload.origin) {
+        humanLine('origin', payload.origin);
+      }
+      if (payload.publicOrigin) {
+        humanLine('public origin', payload.publicOrigin);
+      }
+      if (payload.connectorUiAvailable !== null) {
+        humanLine('connector ui', payload.connectorUiAvailable ? 'available' : 'missing');
+      }
+      if (payload.capabilities.length > 0) {
+        humanLine('capabilities', payload.capabilities.join(', '));
+      }
+      if (payload.compatible) {
+        if (payload.recommendedCommands.createWallet) {
+          humanLine('create wallet', payload.recommendedCommands.createWallet);
+        }
+        if (payload.recommendedCommands.reapproveWallet) {
+          humanLine('reapprove wallet', payload.recommendedCommands.reapproveWallet);
+        }
+      } else {
+        for (const note of payload.notes) {
+          humanLine('note', note);
+        }
+      }
     });
 
   return relay;

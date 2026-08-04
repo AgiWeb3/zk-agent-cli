@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { loadWalletSession, type WalletSessionRecord } from '@zk-agent/agent-core';
 import {
   encryptSession,
   type PaymasterMode,
@@ -17,6 +18,7 @@ export interface SmokeRemoteApprovalOptions {
   walletName: string;
   chain: string;
   relayUrl?: string;
+  reapprove: boolean;
   plan: boolean;
 }
 
@@ -44,7 +46,7 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter zk-agent-cli smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--plan]',
+      '  pnpm --filter zk-agent-cli smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--reapprove] [--plan]',
       '',
       'What it does:',
       '  1. Creates a wallet approval request through the real CLI.',
@@ -55,6 +57,7 @@ function printUsage(): void {
       'Defaults:',
       '  --chain defaults to zksync-sepolia',
       '  --relay-url is optional; when omitted, the smoke starts a local relay server automatically',
+      '  --reapprove switches the flow from wallet creation to wallet reapproval for an existing stored wallet',
       '  --plan prints the intended command sequence without executing the flow',
       '',
       'Environment:',
@@ -76,6 +79,7 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
   let walletName = process.env.ZK_AGENT_SMOKE_WALLET?.trim() || '';
   let chain = 'zksync-sepolia';
   let relayUrl: string | undefined;
+  let reapprove = false;
   let plan = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -106,6 +110,11 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
       continue;
     }
 
+    if (arg === '--reapprove') {
+      reapprove = true;
+      continue;
+    }
+
     if (arg === '--plan') {
       plan = true;
       continue;
@@ -122,6 +131,7 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
     walletName,
     chain,
     relayUrl,
+    reapprove,
     plan
   };
 }
@@ -181,10 +191,21 @@ async function runCliJson(args: string[]): Promise<JsonCommandResult> {
 
 function buildApprovedPayload(
   request: DecodedApprovalRequest,
-  relayOrigin: string
+  relayOrigin: string,
+  existingWallet?: WalletSessionRecord | null
 ): SessionPayload {
-  const executionAddress = '0x9999999999999999999999999999999999999999';
-  const ownerAddress = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const existingPaymaster = existingWallet?.sessionPayload?.paymaster;
+  const requestedPaymasterMode = request.requestedPaymasterMode || 'none';
+  const executionAddress =
+    existingWallet?.walletAddress || '0x9999999999999999999999999999999999999999';
+  const ownerAddress =
+    existingWallet?.ownerAddress ||
+    existingWallet?.sessionPayload?.account?.ownerAddress ||
+    '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const paymasterAddress =
+    requestedPaymasterMode === 'none' ? null : (existingPaymaster?.address ?? null);
+  const paymasterToken =
+    requestedPaymasterMode === 'approval-based' ? existingPaymaster?.token : undefined;
 
   return {
     version: 1,
@@ -209,29 +230,34 @@ function buildApprovedPayload(
     capabilities: request.requestedCapabilities,
     sessionExpiresAt: request.expiresAt,
     paymaster: {
-      mode: request.requestedPaymasterMode || 'none',
-      address: null
+      mode: requestedPaymasterMode,
+      address: paymasterAddress,
+      ...(paymasterToken ? { token: paymasterToken } : {})
     },
     sessionPublicKey: request.sessionPublicKey,
     permissions: request.policies || {},
     connectorUrl: request.connectorUrl,
     connectorOrigin: relayOrigin,
-    paymasterAddress: null
+    paymasterAddress
   };
 }
 
 function buildPlan(options: SmokeRemoteApprovalOptions) {
   const relayOrigin = options.relayUrl || '<local-relay-origin>';
+  const initialCommand = options.reapprove
+    ? `zk-agent wallet reapprove --name ${options.walletName}`
+    : `zk-agent wallet create --name ${options.walletName} --chain ${options.chain}`;
   return {
     ok: true,
     plan: true,
     walletName: options.walletName,
     chain: options.chain,
+    operation: options.reapprove ? 'reapprove' : 'create',
     relayOrigin,
     steps: [
       {
-        id: 'create-request',
-        command: `zk-agent wallet create --name ${options.walletName} --chain ${options.chain}`
+        id: options.reapprove ? 'reapprove-request' : 'create-request',
+        command: initialCommand
       },
       {
         id: 'publish-relay',
@@ -266,6 +292,15 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
     return buildPlan(options);
   }
 
+  const existingWallet = options.reapprove
+    ? await loadWalletSession(options.walletName)
+    : null;
+  if (options.reapprove && !existingWallet) {
+    throw new Error(
+      `Wallet not found for relay-backed reapproval smoke: ${options.walletName}. Create or restore it first.`
+    );
+  }
+
   const localRelay = options.relayUrl
     ? null
     : await startRelayServer({
@@ -279,14 +314,18 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
   }
 
   try {
-    const created = await runCliJson([
-      'wallet',
-      'create',
-      '--name',
-      options.walletName,
-      '--chain',
-      options.chain
-    ]);
+    const created = await runCliJson(
+      options.reapprove
+        ? ['wallet', 'reapprove', '--name', options.walletName]
+        : [
+            'wallet',
+            'create',
+            '--name',
+            options.walletName,
+            '--chain',
+            options.chain
+          ]
+    );
     const requestId = String(created.requestId);
     const approvalUrl = String(created.approvalUrl);
     const request = decodeApprovalRequest(approvalUrl);
@@ -310,7 +349,7 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       relayOrigin
     ]);
 
-    const payload = buildApprovedPayload(request, relayOrigin);
+    const payload = buildApprovedPayload(request, relayOrigin, existingWallet);
     const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);
     const response = await fetch(`${relayOrigin}/api/requests/${requestId}/approval`, {
       method: 'POST',
@@ -354,6 +393,7 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       phase: 'approved',
       walletName: options.walletName,
       chain: options.chain,
+      operation: options.reapprove ? 'reapprove' : 'create',
       relayOrigin,
       relayMode: options.relayUrl ? 'external' : 'local-auto',
       requestId,

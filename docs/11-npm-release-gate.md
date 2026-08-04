@@ -143,12 +143,12 @@ Blockers:
 
 Before release, rerun the full local release validation at least once.
 
-- [ ] `pnpm validate:phase4a` passes
+- [ ] `pnpm validate:release` passes
 
 Command:
 
 ```bash
-pnpm validate:phase4a
+pnpm validate:release
 ```
 
 Notes:
@@ -157,6 +157,8 @@ Notes:
   - `zk-agent-cli release:check`
   - `@zk-agent/agent-tools test`
   - `zk-agent-cli test`
+- `pnpm validate:phase4a` is currently kept as a legacy alias for the same
+  gate while older notes are being retired
 
 Pass criteria:
 
@@ -188,7 +190,7 @@ Pass criteria:
 - listener-dependent tests pass in a real environment that allows local binds
 - current baseline facts:
   - the managed sandbox can fail with `listen EPERM 127.0.0.1`
-  - the same `pnpm validate:phase4a` gate was rerun successfully on the host
+  - the same `pnpm validate:release` gate was rerun successfully on the host
     environment on `2026-07-31`
 
 Blockers:
@@ -282,15 +284,32 @@ Only after Gate 0-8 all pass should the actual release happen.
 - [ ] final version number confirmed
 - [ ] working tree is clean and only contains intended release changes
 - [ ] the release commit is recorded
+- [ ] prerelease publishes use `npm publish --tag beta`
+- [ ] `latest` is only promoted after post-publish readback succeeds
 - [ ] real `npm publish` executed
-- [ ] post-publish npm page and install commands read back successfully
+- [ ] post-publish npm page, dist-tags, and install commands read back successfully
 
 Minimum post-publish readback:
 
 ```bash
 npm view zk-agent-cli version
+npm view zk-agent-cli dist-tags --json
 npx zk-agent-cli --help
 ```
+
+Dist-tag policy:
+
+- publish prereleases with `npm publish --tag beta`
+- promote `latest` explicitly with:
+
+```bash
+npm dist-tag add zk-agent-cli@<version> latest
+```
+
+- only do that `latest` promotion after:
+  - version readback is correct
+  - `beta` points at the expected version
+  - at least one package-outside-the-repo smoke passes
 
 ## First beta release result
 
@@ -307,13 +326,29 @@ npx zk-agent-cli --help
     currently declares `node >=24`; that environment is outside the supported
     runtime floor
 
+## Current published baseline
+
+- current public beta completed on `2026-08-03`:
+  `zk-agent-cli@0.1.0-beta.2`
+- publishing-account readback:
+  `npm whoami -> jerrygod`
+- post-publish npm readback:
+  - `npm view zk-agent-cli version -> 0.1.0-beta.2`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.2","beta":"0.1.0-beta.2"}`
+- post-publish clean-machine smoke:
+  - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
+  - `npx --yes zk-agent-cli@latest defaults --json` ran successfully outside the repository
+  - `npx --yes zk-agent-cli@latest wallet smart-account profiles --json` ran successfully outside the repository
+  - the packaged output resolved built-in smart-account artifacts from
+    `dist/builtin-account-profiles/...` instead of falling back to the source
+    checkout
+
 ## Post-release follow-up to keep
 
 - rerun `npm install -g zk-agent-cli` then `zk-agent --help` from a directory
   outside the repository
 - decide whether to keep `engines.node >=24` or lower the supported floor after
   validation
-- confirm beta-vs-`latest` dist-tag policy before the next release
 - keep the root README, package README, and `skills/` aligned with the actual
   published surface
 

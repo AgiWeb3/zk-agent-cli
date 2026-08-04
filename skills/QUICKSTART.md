@@ -94,6 +94,7 @@ zk-agent wallet reapprove --name main --await-local
 Shortest relay-backed completion path in one terminal process:
 
 ```bash
+zk-agent relay inspect --relay-url <relay-url>
 zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 ```
@@ -101,20 +102,28 @@ zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --pro
 Manual fallback when the connector cannot call back into the waiting CLI:
 
 ```bash
-zk-agent relay serve
+zk-agent relay serve --public-origin https://relay.example.com
 zk-agent wallet create --relay-url <relay-url>
 zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait
 ```
 
 `relay serve` now also prints the relay-aware `wallet create` and `wallet
 reapprove` follow-up commands directly, so the operator can copy the exact next
-step from the server output.
+step from the server output. Use `relay inspect --relay-url <url>` before the
+hosted path when you need to confirm that an external relay exposes the
+expected zk-agent compatibility contract.
 
 The same remote path also works for an existing wallet that needs a fresh
 session:
 
 ```bash
 zk-agent wallet reapprove --name main --relay-url <relay-url>
+```
+
+Current flagship AA smoke:
+
+```bash
+pnpm smoke:flagship-workflow -- --wallet <name> [--paymaster-mode approval-based|sponsored]
 ```
 
 Encrypted relay fallback:

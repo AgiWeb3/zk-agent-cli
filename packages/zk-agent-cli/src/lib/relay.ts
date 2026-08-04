@@ -5,17 +5,22 @@ import { fileURLToPath } from 'node:url';
 
 import { storageDir } from '@zk-agent/agent-core';
 import type {
+  RelayCapability,
   EncryptedPayload,
   RelayApprovalResponse,
   RelayApprovalSubmitRequest,
   RelayCreateRequest,
   RelayCreateResponse,
+  RelayHealthResponse,
   RelayRequestRecord,
   RelayRequestStatus,
   RelayStatusResponse
 } from '@zk-agent/agent-session-protocol';
 
 const RELAY_BODY_LIMIT_BYTES = 1024 * 1024;
+const RELAY_SERVICE = 'zk-agent-relay';
+const RELAY_PROTOCOL = 'zk-agent-session-relay';
+const RELAY_SCHEMA_VERSION = 1;
 
 function relayDir(): string {
   const directory = path.join(storageDir(), 'relay');
@@ -151,6 +156,41 @@ function normalizeRelayBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
 
+function resolveRelayPublicBaseUrl(actualBaseUrl: string, publicOrigin?: string): string {
+  return publicOrigin?.trim()
+    ? normalizeRelayBaseUrl(new URL(publicOrigin.trim()).toString())
+    : normalizeRelayBaseUrl(actualBaseUrl);
+}
+
+function relayCapabilities(connectorUiAvailable: boolean): RelayCapability[] {
+  return [
+    'create-request',
+    'read-status',
+    'fetch-approval',
+    'submit-approval',
+    'share-redirect',
+    ...(connectorUiAvailable ? (['connector-ui'] satisfies RelayCapability[]) : [])
+  ];
+}
+
+function relayHealthResponse(
+  actualBaseUrl: string,
+  publicBaseUrl: string,
+  connectorUiAvailable: boolean
+): RelayHealthResponse {
+  return {
+    ok: true,
+    service: RELAY_SERVICE,
+    protocol: RELAY_PROTOCOL,
+    schema_version: RELAY_SCHEMA_VERSION,
+    relay_mode: 'local-file',
+    origin: normalizeRelayBaseUrl(actualBaseUrl),
+    public_origin: normalizeRelayBaseUrl(publicBaseUrl),
+    connector_ui_available: connectorUiAvailable,
+    capabilities: relayCapabilities(connectorUiAvailable)
+  };
+}
+
 export function relayShareUrl(baseUrl: string, requestId: string): string {
   return `${normalizeRelayBaseUrl(baseUrl)}/r/${requestId}`;
 }
@@ -192,6 +232,15 @@ export async function fetchRelayStatus(
   }
 
   return (await response.json()) as RelayStatusResponse;
+}
+
+export async function fetchRelayHealth(baseUrl: string): Promise<unknown> {
+  const response = await fetch(`${normalizeRelayBaseUrl(baseUrl)}/health`);
+  if (!response.ok) {
+    throw new Error(`Relay health fetch failed with status ${response.status}`);
+  }
+
+  return await response.json();
 }
 
 function sleep(ms: number): Promise<void> {
@@ -244,6 +293,7 @@ export async function fetchRelayApproval(
 export interface RelayServerOptions {
   host: string;
   port: number;
+  publicOrigin?: string;
 }
 
 export async function startRelayServer(options: RelayServerOptions): Promise<{
@@ -258,7 +308,8 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
       const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       const pathname = requestUrl.pathname;
       const method = request.method || 'GET';
-      const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+      const actualBaseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+      const publicBaseUrl = resolveRelayPublicBaseUrl(actualBaseUrl, options.publicOrigin);
 
       if (method === 'OPTIONS') {
         writeJson(response, 204, {});
@@ -266,7 +317,11 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
       }
 
       if (method === 'GET' && pathname === '/health') {
-        writeJson(response, 200, { ok: true });
+        writeJson(
+          response,
+          200,
+          relayHealthResponse(actualBaseUrl, publicBaseUrl, Boolean(uiDistRoot))
+        );
         return;
       }
 
@@ -286,9 +341,9 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
         writeJson(response, existing ? 200 : 201, {
           request_id: record.request_id,
           status: relayStatus(record),
-          share_url: relayShareUrl(baseUrl, record.request_id),
-          status_url: relayStatusUrl(baseUrl, record.request_id),
-          approval_url: relayShareUrl(baseUrl, record.request_id)
+          share_url: relayShareUrl(publicBaseUrl, record.request_id),
+          status_url: relayStatusUrl(publicBaseUrl, record.request_id),
+          approval_url: relayShareUrl(publicBaseUrl, record.request_id)
         } satisfies RelayCreateResponse);
         return;
       }
@@ -301,7 +356,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
           return;
         }
 
-        writeJson(response, 200, relayStatusResponse(baseUrl, record));
+        writeJson(response, 200, relayStatusResponse(publicBaseUrl, record));
         return;
       }
 
@@ -337,7 +392,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
         response.statusCode = 302;
         response.setHeader(
           'Location',
-          `/?relayRequestUrl=${encodeURIComponent(relayStatusUrl(baseUrl, shareMatch[1]))}`
+          `/?relayRequestUrl=${encodeURIComponent(relayStatusUrl(publicBaseUrl, shareMatch[1]))}`
         );
         response.end();
         return;
