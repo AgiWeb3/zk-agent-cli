@@ -337,23 +337,26 @@ npm dist-tag add zk-agent-cli@<version> latest
 ## Current published baseline
 
 - current public beta completed on `2026-08-04`:
-  `zk-agent-cli@0.1.0-beta.3`
-- next local release candidate now targets:
   `zk-agent-cli@0.1.0-beta.4`
+- no newer local release candidate is prepared yet
 - publishing-account readback:
   `npm whoami -> jerrygod`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.3`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.3","beta":"0.1.0-beta.3"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.4`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.4`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.4`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.4","beta":"0.1.0-beta.4"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - `npx --yes zk-agent-cli@latest defaults --json` ran successfully outside the repository
   - `npx --yes zk-agent-cli@latest wallet smart-account profiles --json` ran successfully outside the repository
-  - `npx --yes zk-agent-cli@latest --json relay serve --port 0 --public-origin https://relay.example.test`
+  - `zk-agent-cli@0.1.0-beta.3` had a published hosted-relay regression:
+    `npx --yes zk-agent-cli@latest --json relay serve --port 0 --public-origin https://relay.example.test`
     exposed the public relay contract, but still reported `connectorUiAvailable: false`
-  - that published regression is now fixed locally in the beta.4 hotfix
-    candidate by correcting bundled connector-UI path resolution and tightening
-    `release:check`
+  - `zk-agent-cli@0.1.0-beta.4` fixes that published regression by correcting
+    bundled connector-UI path resolution and tightening `release:check` so the
+    installed tarball must pass the same hosted-relay readiness check before
+    publish
 
 ## Post-release follow-up to keep
 

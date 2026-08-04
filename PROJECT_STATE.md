@@ -3,10 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-04
-- Latest commit at write time: `73afb7c`
+- Latest commit at write time: `f55ed7e`
 - Current branch: `main`
 - Working tree status when this document was written: clean after publishing
-  `0.1.0-beta.3`, before the current beta.4 hotfix-prep changes
+  `0.1.0-beta.4` and repointing npm `latest` / `beta` to that release
 
 ## Current phase
 
@@ -44,7 +44,7 @@ Phase 4 is complete on the current baseline.
 Closed results:
 
 1. public beta publish is complete:
-   `zk-agent-cli@0.1.0-beta.3` is live, and both npm dist-tags `beta` and
+   `zk-agent-cli@0.1.0-beta.4` is live, and both npm dist-tags `beta` and
    `latest` currently point to that version
 2. discovery/default/token inspection is productized:
    operators no longer need deployment-file tribal knowledge for the normal
@@ -96,6 +96,11 @@ Current Phase 5 progress note:
   `release:check` installs the packed tarball into a temporary project outside
   the repository with `pnpm add --offline` and verifies the installed
   `zk-agent` / `zksync-agent` binaries plus the basic JSON surfaces there
+- the release-discipline baseline now also verifies the installed hosted-relay
+  path:
+  the temporary tarball install must be able to run `relay serve` with a
+  hosted `--public-origin`, report `connectorUiAvailable: true`, and expose the
+  same readiness through the relay health payload
 - the product-slice skill work has started for real:
   `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
   instead of forcing that guidance to stay embedded inside the repo-level
