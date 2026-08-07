@@ -244,6 +244,11 @@ This stage is complete when all of the following are true:
      `release:check` now also enforces the documented Node runtime floor and
      the real `~/.zk-agent/workflows/*.json` storage path instead of letting
      those packaged-install details drift
+   - current baseline improvement:
+     the full release gate has now passed once on the supported host runtime:
+     `pnpm validate:release` completed on `2026-08-07` with Node `24.14.1`
+     and `pnpm@10.30.3`, so release discipline is no longer only documented
+     or partially exercised inside the restricted sandbox
 
 2. hosted remote approval baseline
    - promote remote approval from a useful local prototype into a stable hosted

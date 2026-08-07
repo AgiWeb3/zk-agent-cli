@@ -3,10 +3,11 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `5322065`
+- Latest commit at write time: `22efe96`
 - Current branch: `main`
 - Working tree status when this document was written: clean after tightening
-  the package-first operator docs and npm release gate wording
+  the package-first operator docs, wallet relay help/readme alignment, and the
+  full release validation gate
 
 ## Current phase
 
@@ -143,6 +144,16 @@ Current Phase 5 progress note:
   `skills/zk-defi/SKILL.md` and the root README operator-path examples now
   default to the packaged `zk-agent` entrypoint and only fall back to
   `pnpm zk-agent` when the operator is intentionally using a source checkout
+- the release-readiness baseline is now proven end to end on the supported
+  host runtime:
+  `pnpm validate:release` passed on `2026-08-07` under Node `24.14.1` and the
+  workspace-declared `pnpm@10.30.3`, including `release:check`,
+  `@zk-agent/agent-tools` tests, and `zk-agent-cli` tests
+- the only failed validation observed in this closeout was environmental, not
+  product-level:
+  the managed sandbox blocked registry DNS during the clean-machine tarball
+  install smoke, while the same gate passed when rerun outside that restricted
+  network environment
 
 Phase 3 execution detail was intentionally removed from this state file after
 closeout. The remaining work now sits in Phase 5 execution or explicit
