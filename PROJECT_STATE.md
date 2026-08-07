@@ -3,10 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `31f1a76`
+- Latest commit at write time: `5322065`
 - Current branch: `main`
 - Working tree status when this document was written: clean after tightening
-  the packaged README contract enforced by `release:check`
+  the package-first operator docs and npm release gate wording
 
 ## Current phase
 
@@ -113,6 +113,10 @@ Current Phase 5 progress note:
   `release:check` also enforces that the package README names the supported
   Node runtime floor and the real `~/.zk-agent/workflows/*.json` checkpoint
   path instead of letting those packaged-user details drift away from the code
+- the package-first follow-through now also reaches the CLI help layer:
+  `wallet --help` uses the same relay-backed shortest path as the packaged
+  README and quickstart, so the canonical hosted approval flow is no longer
+  split between help text and package docs
 - the hosted-relay baseline now also verifies the share-link entrypoint itself:
   relay CLI tests and `release:check` both create a real relay request,
   confirm `/r/<id>` redirects to `/?relayRequestUrl=...` with the advertised

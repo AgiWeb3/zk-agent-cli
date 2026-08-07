@@ -174,7 +174,15 @@ test('wallet help prints the default wallet path', async () => {
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent wallet next --name main/);
     assert.match(help, /Remote approval path:/);
-    assert.match(help, /zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait/);
+    assert.match(help, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(
+      help,
+      /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      help,
+      /zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code/
+    );
     assert.ok(help.indexOf('create [options]') < help.indexOf('reapprove [options]'));
     assert.ok(help.indexOf('reapprove [options]') < help.indexOf('status [options]'));
     assert.ok(help.indexOf('status [options]') < help.indexOf('next [options]'));

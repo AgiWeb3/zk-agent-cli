@@ -2725,8 +2725,9 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '    zk-agent wallet next --name main',
       '',
       '  Remote approval path:',
-      '    zk-agent wallet create --relay-url <url>',
-      '    zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+      '    zk-agent relay inspect --relay-url <url>',
+      '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+      '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code'
     ].join('\n')
   );
 
