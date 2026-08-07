@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `bb76b51`
+- Latest commit at write time: `4b0da85`
 - Current branch: `main`
 - Working tree status when this document was written: clean after tightening
   the packaged release gate, the hosted relay baseline, and the first-class
