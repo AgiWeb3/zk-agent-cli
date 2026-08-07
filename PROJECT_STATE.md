@@ -3,10 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `7596bd4`
+- Latest commit at write time: `31f1a76`
 - Current branch: `main`
-- Working tree status when this document was written: clean after enforcing the
-  release runtime floor in `release:check`
+- Working tree status when this document was written: clean after tightening
+  the packaged README contract enforced by `release:check`
 
 ## Current phase
 
