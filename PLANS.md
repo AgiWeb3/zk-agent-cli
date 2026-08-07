@@ -289,7 +289,7 @@ This stage is complete when all of the following are true:
    - keep this narrower and more reliable than a broad DeFi feature chase
    - current baseline improvement:
      `pnpm smoke:flagship-workflow -- --wallet <name> [...]` now binds the
-     relay-backed reapproval step and the paymaster-backed workflow-auto path
+     relay-backed reapproval step and the paymaster-backed flagship native-send path
      into one narrower product smoke instead of leaving them as unrelated
      separate checks
    - current baseline improvement:
@@ -300,6 +300,12 @@ This stage is complete when all of the following are true:
      ready, reopens a missing writable session through the intent-scoped
      approval path, and defaults to approval-based paymaster mode unless the
      operator overrides it
+   - current baseline improvement:
+     the same flagship path now also exists in the machine-facing tool layer:
+     `workflowPayTool` is part of `packages/agent-tools`, `tool:list` marks it
+     as the primary guided-execution entry, and the operator/path smokes now
+     point at `workflow pay` instead of the longer
+     `workflow auto --intent send-native` surface
 
 4. product-slice skills
    - evolve from one main repo skill plus `zk-defi` into stable slices such as

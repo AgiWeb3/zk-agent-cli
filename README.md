@@ -197,6 +197,9 @@ What is already in place:
   - workflow status inspection for resume-safe orchestration
   - workflow next-step guidance from fresh goal input or a stored checkpoint
   - structured workflow follow-up commands aligned with the CLI, including token-registry recovery fields such as `discoverAssets`, `discoverOwnedTokens`, `discoverTokens`, and `inspectToken` for tokenized intents
+  - `workflowPayTool` now mirrors the CLI flagship path for native-send:
+    checkpointed, execute-when-ready, intent-scoped session recovery, and
+    approval-based paymaster mode by default
   - `workflowAutoTool` / `workflowOrchestratorTool` now expose workflow follow-up commands separately from wallet-approval follow-up commands, so callers do not have to infer whether `recommendedCommands` refers to wallet session recovery or workflow continuation
   - create wallet request
   - create stored wallet approval request
@@ -230,14 +233,14 @@ What is already in place:
   - default `createZkSyncAgentTools()` / `createZkSyncAgentToolContext()` factories
   - `pnpm tool:list`
   - `pnpm tool:run -- --tool <toolName> --input <json|@file>`
-  - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowAutoTool` as the recommended guided workflow entry, and keeps `workflowOrchestratorTool` as its compatibility alias
+  - `tool:run -- --list` now surfaces high-frequency entries first, adds a `group` field for coarse functional area, returns the closest `cliCommand` equivalent for each tool, marks `workflowPayTool` as the recommended flagship native-pay entry, keeps `workflowAutoTool` as the broader guided workflow entry, and keeps `workflowOrchestratorTool` as the compatibility alias
   - agent-tools `tool:run` and `smoke:*` entrypoints now load the same local `.env` file as the main `zk-agent` CLI, so live RPC overrides do not diverge between the two surfaces
   - `pnpm smoke:readonly -- --wallet <name> [--call-to <address> --call-data <hex>]` for real provider read-only smoke, now returning both the preferred single-chain `assets` view and the raw `balances` view
   - `pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]` for focused CLI discovery/default inspection smoke, validating the real `defaults` / `assets` / `balances --owned-tokens` / `tokens --owned` / `tokens --chain` / `resolve-token` JSON path in one bounded read-only sequence
   - `pnpm smoke:hosted-relay -- --relay-url <url>` for bounded outside-in validation of an externally reachable hosted relay: the smoke runs the real `relay inspect`, publishes a synthetic request, confirms `/r/<id>` redirects into the connector UI, and confirms the bundled hashed frontend asset still serves from the relay
-  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow auto -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
+  - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow pay -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
   - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present
-  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed workflow-auto send-native path on the same wallet
+  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly

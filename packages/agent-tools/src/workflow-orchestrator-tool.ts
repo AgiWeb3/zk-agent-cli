@@ -15,6 +15,7 @@ import {
   type WorkflowIntent,
   type WorkflowRunFundInput,
   type WorkflowRunResult,
+  type SendNativeWorkflowGoalInput,
   type WorkflowStatusResult,
   type WorkflowSwapProtocol
 } from '@zk-agent/agent-core';
@@ -79,6 +80,25 @@ export interface WorkflowOrchestratorToolOutput {
   recommendedCommands?: WalletApprovalRecommendedCommands;
   walletApprovalRecommendedCommands?: WalletApprovalRecommendedCommands;
   workflowRecommendedCommands: WorkflowToolRecommendedCommands;
+}
+
+export interface WorkflowPayToolInput extends Partial<WalletNameInput> {
+  requestId?: string;
+  to: string;
+  amount: string;
+  paymaster?: SendNativeWorkflowGoalInput['paymaster'];
+  broadcast?: boolean;
+  autoSync?: boolean;
+  approvalConnectorUrl?: WorkflowOrchestratorToolInput['approvalConnectorUrl'];
+  approvalRelayUrl?: WorkflowOrchestratorToolInput['approvalRelayUrl'];
+  approvalPolicyPreset?: WorkflowOrchestratorToolInput['approvalPolicyPreset'];
+  approvalPolicies?: WorkflowOrchestratorToolInput['approvalPolicies'];
+  approvalPayload?: WorkflowOrchestratorToolInput['approvalPayload'];
+  approvalEncryptedPayload?: WorkflowOrchestratorToolInput['approvalEncryptedPayload'];
+  approvalCode?: WorkflowOrchestratorToolInput['approvalCode'];
+  approvalWaitForRelayApproval?: WorkflowOrchestratorToolInput['approvalWaitForRelayApproval'];
+  approvalRelayWaitTimeoutMs?: WorkflowOrchestratorToolInput['approvalRelayWaitTimeoutMs'];
+  approvalRelayWaitIntervalMs?: WorkflowOrchestratorToolInput['approvalRelayWaitIntervalMs'];
 }
 
 interface ResolvedWorkflowOrchestratorInput {
@@ -347,18 +367,87 @@ function overrideCheckpointRecommendedCommand(
   };
 }
 
-function createWorkflowOrchestratorToolWithName(
+function applyWorkflowPayDefaults(input: WorkflowPayToolInput): WorkflowOrchestratorToolInput {
+  return {
+    walletName: input.walletName,
+    requestId: input.requestId,
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: input.to,
+      amount: input.amount,
+      paymaster: input.paymaster || {
+        mode: 'approval-based'
+      }
+    },
+    broadcast: input.broadcast,
+    autoSync: input.autoSync,
+    createCheckpoint: true,
+    executeWhenReady: true,
+    ensureWalletSession: true,
+    approvalConnectorUrl: input.approvalConnectorUrl,
+    approvalRelayUrl: input.approvalRelayUrl,
+    approvalPolicyPreset: input.approvalPolicyPreset || 'intent',
+    approvalPolicies: input.approvalPolicies,
+    approvalPayload: input.approvalPayload,
+    approvalEncryptedPayload: input.approvalEncryptedPayload,
+    approvalCode: input.approvalCode,
+    approvalWaitForRelayApproval: input.approvalWaitForRelayApproval,
+    approvalRelayWaitTimeoutMs: input.approvalRelayWaitTimeoutMs,
+    approvalRelayWaitIntervalMs: input.approvalRelayWaitIntervalMs
+  };
+}
+
+export async function executeWorkflowOrchestratorTool(
   context: AgentToolContext,
-  name: 'workflowAutoTool' | 'workflowOrchestratorTool'
-) {
-  return createAgentTool<WorkflowOrchestratorToolInput, WorkflowOrchestratorToolOutput>({
-    name,
-    description:
-      'Resolve a workflow from fresh goal input or a stored checkpoint, persist checkpoint state when requested, inspect readiness, and optionally execute the next step when ready.',
-    execute: async (input) => {
-      const resolved = await resolveWorkflowOrchestratorInput(context, input, name);
-      let wallet = resolved.wallet;
-      let status = await inspectWorkflowStatus(
+  input: WorkflowOrchestratorToolInput,
+  name: 'workflowAutoTool' | 'workflowOrchestratorTool' | 'workflowPayTool'
+): Promise<WorkflowOrchestratorToolOutput> {
+  const resolved = await resolveWorkflowOrchestratorInput(context, input, name);
+  let wallet = resolved.wallet;
+  let status = await inspectWorkflowStatus(
+    {
+      wallet,
+      intent: resolved.intent,
+      goal: resolved.goal,
+      fundingCheck: resolved.fundingCheck
+    },
+    {
+      provider: context.provider,
+      defiProvider: context.defiProvider
+    }
+  );
+
+  let checkpoint = buildCheckpointFromResolvedInput(resolved, status);
+  if (checkpoint) {
+    await context.saveWorkflowCheckpoint(checkpoint);
+  }
+
+  let walletApproval: WalletApprovalOrchestratorToolOutput | undefined;
+  let recommendedCommand = status.recommendedCommand;
+
+  if (input.ensureWalletSession && status.status === 'blocked' && canResolveWalletSessionBlocker(status)) {
+    walletApproval = await runWalletApprovalOrchestration(context, {
+      mode: 'reapprove',
+      walletName: resolved.walletName,
+      connectorUrl: input.approvalConnectorUrl,
+      relayUrl: input.approvalRelayUrl,
+      policyPreset: input.approvalPolicyPreset,
+      policies: input.approvalPolicies,
+      goal: resolved.goal,
+      payload: input.approvalPayload,
+      encryptedPayload: input.approvalEncryptedPayload,
+      code: input.approvalCode,
+      waitForRelayApproval: input.approvalWaitForRelayApproval,
+      relayWaitTimeoutMs: input.approvalRelayWaitTimeoutMs,
+      relayWaitIntervalMs: input.approvalRelayWaitIntervalMs
+    });
+
+    recommendedCommand = walletApprovalNextCommand(walletApproval) || recommendedCommand;
+
+    if (walletApproval.stage === 'approved') {
+      wallet = await requireWalletRecord(context, resolved.walletName);
+      status = await inspectWorkflowStatus(
         {
           wallet,
           intent: resolved.intent,
@@ -370,136 +459,121 @@ function createWorkflowOrchestratorToolWithName(
           defiProvider: context.defiProvider
         }
       );
+      recommendedCommand = status.recommendedCommand;
+    }
 
-      let checkpoint = buildCheckpointFromResolvedInput(resolved, status);
-      if (checkpoint) {
-        await context.saveWorkflowCheckpoint(checkpoint);
-      }
+    checkpoint = checkpoint
+      ? applyWorkflowStatusToCheckpoint(checkpoint, status, {
+          fundingCheck: resolved.fundingCheck
+        })
+      : buildCheckpointFromResolvedInput(resolved, status);
+    checkpoint = overrideCheckpointRecommendedCommand(checkpoint, recommendedCommand);
 
-      let walletApproval: WalletApprovalOrchestratorToolOutput | undefined;
-      let recommendedCommand = status.recommendedCommand;
+    if (checkpoint) {
+      await context.saveWorkflowCheckpoint(checkpoint);
+    }
+  }
 
-      if (input.ensureWalletSession && status.status === 'blocked' && canResolveWalletSessionBlocker(status)) {
-        walletApproval = await runWalletApprovalOrchestration(context, {
-          mode: 'reapprove',
-          walletName: resolved.walletName,
-          connectorUrl: input.approvalConnectorUrl,
-          relayUrl: input.approvalRelayUrl,
-          policyPreset: input.approvalPolicyPreset,
-          policies: input.approvalPolicies,
-          goal: resolved.goal,
-          payload: input.approvalPayload,
-          encryptedPayload: input.approvalEncryptedPayload,
-          code: input.approvalCode,
-          waitForRelayApproval: input.approvalWaitForRelayApproval,
-          relayWaitTimeoutMs: input.approvalRelayWaitTimeoutMs,
-          relayWaitIntervalMs: input.approvalRelayWaitIntervalMs
-        });
-
-        recommendedCommand = walletApprovalNextCommand(walletApproval) || recommendedCommand;
-
-        if (walletApproval.stage === 'approved') {
-          wallet = await requireWalletRecord(context, resolved.walletName);
-          status = await inspectWorkflowStatus(
-            {
-              wallet,
-              intent: resolved.intent,
-              goal: resolved.goal,
-              fundingCheck: resolved.fundingCheck
-            },
-            {
-              provider: context.provider,
-              defiProvider: context.defiProvider
-            }
-          );
-          recommendedCommand = status.recommendedCommand;
+  let run: WorkflowRunResult | undefined;
+  if (input.executeWhenReady && status.readyForGoal) {
+    if (!context.defiProvider) {
+      throw new AgentError(
+        'DEFI_PROVIDER_UNAVAILABLE',
+        `${name} execution requires a zkSync DeFi provider.`,
+        {
+          toolName: name
         }
+      );
+    }
 
-        checkpoint = checkpoint
-          ? applyWorkflowStatusToCheckpoint(checkpoint, status, {
-              fundingCheck: resolved.fundingCheck
-            })
-          : buildCheckpointFromResolvedInput(resolved, status);
-        checkpoint = overrideCheckpointRecommendedCommand(checkpoint, recommendedCommand);
-
-        if (checkpoint) {
-          await context.saveWorkflowCheckpoint(checkpoint);
+    run = await runWorkflow(
+      {
+        wallet,
+        intent: resolved.intent,
+        broadcast: resolved.broadcast,
+        autoSync: resolved.autoSync,
+        fund: resolved.fund,
+        goal: resolved.goal
+      },
+      {
+        provider: context.provider,
+        defiProvider: context.defiProvider,
+        syncWallet: async (currentWallet) => {
+          const synced = await syncStoredWalletRecord(context, currentWallet);
+          await context.saveWallet(synced.wallet);
+          return {
+            wallet: synced.wallet,
+            notes: synced.notes
+          };
         }
       }
+    );
 
-      let run: WorkflowRunResult | undefined;
-      if (input.executeWhenReady && status.readyForGoal) {
-        if (!context.defiProvider) {
-          throw new AgentError(
-            'DEFI_PROVIDER_UNAVAILABLE',
-            `${name} execution requires a zkSync DeFi provider.`,
-            {
-              toolName: name
-            }
-          );
-        }
+    if (checkpoint) {
+      checkpoint = applyWorkflowRunToCheckpoint(checkpoint, run);
+      await context.saveWorkflowCheckpoint(checkpoint);
+    }
+  }
 
-        run = await runWorkflow(
-          {
-            wallet,
-            intent: resolved.intent,
-            broadcast: resolved.broadcast,
-            autoSync: resolved.autoSync,
-            fund: resolved.fund,
-            goal: resolved.goal
-          },
-          {
-            provider: context.provider,
-            defiProvider: context.defiProvider,
-            syncWallet: async (currentWallet) => {
-              const synced = await syncStoredWalletRecord(context, currentWallet);
-              await context.saveWallet(synced.wallet);
-              return {
-                wallet: synced.wallet,
-                notes: synced.notes
-              };
-            }
-          }
-        );
+  const workflowRecommendedCommands = buildWorkflowRuntimeToolRecommendedCommands({
+    requestId: checkpoint?.requestId || resolved.requestId,
+    walletName: resolved.walletName,
+    nextAction: run ? run.nextCommand : recommendedCommand,
+    chain: run?.plan.chain || status.plan.chain,
+    intent: status.intent
+  });
+  const agentProfile = await loadToolAgentProfileSummary(resolved.walletName);
+  const agentFollowup = buildAgentProfileFollowup(agentProfile, {
+    walletName: resolved.walletName,
+    walletExists: true
+  });
 
-        if (checkpoint) {
-          checkpoint = applyWorkflowRunToCheckpoint(checkpoint, run);
-          await context.saveWorkflowCheckpoint(checkpoint);
-        }
-      }
+  return {
+    source: resolved.source,
+    action: run ? run.stage : (walletApproval?.stage ?? status.status),
+    requestId: checkpoint?.requestId || resolved.requestId,
+    walletRequestId: walletApproval?.requestId,
+    checkpointPersisted: Boolean(checkpoint),
+    agentProfile,
+    agentFollowup,
+    checkpoint,
+    status,
+    run,
+    registry: run?.plan.registry || status.plan.registry,
+    walletApproval,
+    walletApprovalRelay: walletApproval?.relay,
+    recommendedCommand: run ? run.nextCommand : recommendedCommand,
+    recommendedCommands: walletApprovalRecommendedCommands(walletApproval),
+    walletApprovalRecommendedCommands: walletApprovalRecommendedCommands(walletApproval),
+    workflowRecommendedCommands
+  };
+}
 
-      const workflowRecommendedCommands = buildWorkflowRuntimeToolRecommendedCommands({
-        requestId: checkpoint?.requestId || resolved.requestId,
-        walletName: resolved.walletName,
-        nextAction: run ? run.nextCommand : recommendedCommand,
-        chain: run?.plan.chain || status.plan.chain,
-        intent: status.intent
-      });
-      const agentProfile = await loadToolAgentProfileSummary(resolved.walletName);
-      const agentFollowup = buildAgentProfileFollowup(agentProfile, {
-        walletName: resolved.walletName,
-        walletExists: true
-      });
+function createWorkflowOrchestratorToolWithName(
+  context: AgentToolContext,
+  name: 'workflowAutoTool' | 'workflowOrchestratorTool'
+) {
+  return createAgentTool<WorkflowOrchestratorToolInput, WorkflowOrchestratorToolOutput>({
+    name,
+    description:
+      'Resolve a workflow from fresh goal input or a stored checkpoint, persist checkpoint state when requested, inspect readiness, and optionally execute the next step when ready.',
+    execute: async (input) => {
+      return await executeWorkflowOrchestratorTool(context, input, name);
+    }
+  });
+}
 
-      return {
-        source: resolved.source,
-        action: run ? run.stage : (walletApproval?.stage ?? status.status),
-        requestId: checkpoint?.requestId || resolved.requestId,
-        walletRequestId: walletApproval?.requestId,
-        checkpointPersisted: Boolean(checkpoint),
-        agentProfile,
-        agentFollowup,
-        checkpoint,
-        status,
-        run,
-        registry: run?.plan.registry || status.plan.registry,
-        walletApproval,
-        walletApprovalRelay: walletApproval?.relay,
-        recommendedCommand: run ? run.nextCommand : recommendedCommand,
-        recommendedCommands: walletApprovalRecommendedCommands(walletApproval),
-        walletApprovalRecommendedCommands: walletApprovalRecommendedCommands(walletApproval),
-        workflowRecommendedCommands
-      };
+export function createWorkflowPayTool(context: AgentToolContext) {
+  return createAgentTool<WorkflowPayToolInput, WorkflowOrchestratorToolOutput>({
+    name: 'workflowPayTool',
+    description:
+      'Flagship workflow wrapper for the current zkSync AA native-send path with checkpointing, session recovery, and paymaster-aware execution defaults.',
+    execute: async (input) => {
+      return await executeWorkflowOrchestratorTool(
+        context,
+        applyWorkflowPayDefaults(input),
+        'workflowPayTool'
+      );
     }
   });
 }

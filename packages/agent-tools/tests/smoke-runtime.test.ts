@@ -66,7 +66,7 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
             }
           })
         },
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async (input) => {
             workflowInvocations.push(input as Record<string, unknown>);
             return {
@@ -133,16 +133,10 @@ test('runSmokeOperatorPath returns a goal-executed operator summary', async () =
   assert.deepEqual(workflowInvocations, [
     {
       walletName: 'main',
-      intent: 'send-native',
-      createCheckpoint: false,
-      executeWhenReady: true,
-      goal: {
-        intent: 'send-native',
-        to: '0xowner',
-        amount: '0.1',
-        paymaster: {
-          mode: 'sponsored'
-        }
+      to: '0xowner',
+      amount: '0.1',
+      paymaster: {
+        mode: 'sponsored'
       }
     }
   ]);
@@ -189,7 +183,7 @@ test('runSmokeOperatorPath follows the workflow fund branch when execution is bl
             }
           })
         },
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async () => ({
             ok: true,
             data: {
@@ -270,7 +264,7 @@ test('runSmokeOperatorPath surfaces a top-level blocked phase and remediation co
             }
           })
         },
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async () => ({
             ok: true,
             data: {
@@ -296,7 +290,7 @@ test('runSmokeOperatorPath surfaces a top-level blocked phase and remediation co
   assert.equal(payload.recommendedCommand, 'zk-agent wallet reapprove --name main --await-local');
   assert.equal(
     payload.message,
-    'Workflow auto is still blocked on wallet prerequisites before goal execution.'
+    'Workflow pay is still blocked on wallet prerequisites before goal execution.'
   );
 });
 
@@ -318,7 +312,7 @@ test('runSmokePaymasterSuccess returns the normalized preview payload', async ()
         })
       },
       tools: {
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async (input) => {
             capturedInput = input as Record<string, unknown>;
             return {
@@ -375,7 +369,7 @@ test('runSmokePaymasterSuccess returns the normalized preview payload', async ()
   assert.deepEqual(payload.result.recommendedCommands, {
     inspectDefaults: 'zk-agent defaults'
   });
-  assert.deepEqual((capturedInput?.goal as { paymaster?: { mode?: string } }).paymaster, {
+  assert.deepEqual((capturedInput?.paymaster as { mode?: string }), {
     mode: 'approval-based'
   });
 });
@@ -399,7 +393,7 @@ test('runSmokePaymasterSuccess supports sponsored preview without fee-token fall
         })
       },
       tools: {
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async (input) => {
             capturedInput = input as Record<string, unknown>;
             return {
@@ -439,13 +433,13 @@ test('runSmokePaymasterSuccess supports sponsored preview without fee-token fall
   assert.equal(payload.inputs.expectedDefaultPaymasterAddress, '0xpaymaster');
   assert.equal(payload.inputs.expectedDefaultPaymasterToken, undefined);
   assert.equal(tokenFallbackLookups, 0);
-  assert.deepEqual((capturedInput?.goal as { paymaster?: { mode?: string } }).paymaster, {
+  assert.deepEqual((capturedInput?.paymaster as { mode?: string }), {
     mode: 'sponsored'
   });
   assert.equal(payload.result.registry?.paymaster?.entryId, 'zksync-sepolia-sponsored');
 });
 
-test('runSmokePaymasterSuccess fails when workflow auto does not execute the goal directly', async () => {
+test('runSmokePaymasterSuccess fails when workflow pay does not execute the goal directly', async () => {
   const payload = await runSmokePaymasterSuccess(
     {
       walletName: 'main',
@@ -461,7 +455,7 @@ test('runSmokePaymasterSuccess fails when workflow auto does not execute the goa
         })
       },
       tools: {
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async () => ({
             ok: true,
             data: {
@@ -500,7 +494,7 @@ test('runSmokePaymasterSuccess falls back to walletAddress when ownerAddress is 
         })
       },
       tools: {
-        workflowAutoTool: {
+        workflowPayTool: {
           execute: async () => ({
             ok: true,
             data: {

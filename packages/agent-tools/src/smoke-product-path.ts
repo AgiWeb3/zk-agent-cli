@@ -41,7 +41,7 @@ function printUsage(): void {
       '',
       'What it does:',
       '  1. Runs the canonical operator-path preview validation.',
-      '  2. Runs the validated paymaster-backed workflow-auto send-native path.',
+      '  2. Runs the validated paymaster-backed workflow pay path.',
       '  3. Runs the validated default workflow-auto swap path.',
       '  4. Optionally runs withdraw follow-up validation when --tx-hash is supplied.',
       '',
@@ -226,7 +226,7 @@ export function buildSmokeProductPathSteps(options: SmokeProductPathOptions): Sm
     },
     {
       id: 'paymaster-success',
-      title: 'Validated paymaster-backed workflow-auto path',
+      title: 'Validated paymaster-backed workflow pay path',
       command: paymaster.command,
       args: paymaster.args
     },

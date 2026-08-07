@@ -22,7 +22,7 @@ export interface SmokePaymasterSuccessOptions {
 
 interface SmokePaymasterSuccessRuntime {
   context: Pick<AgentToolContext, 'loadWallet'>;
-  tools: Pick<StandardAgentTools, 'workflowAutoTool'>;
+  tools: Pick<StandardAgentTools, 'workflowPayTool'>;
   resolveDefaultPaymasterAddress?: () => Promise<string | undefined>;
   resolveDefaultPaymasterToken?: () => Promise<string | undefined>;
 }
@@ -50,13 +50,13 @@ function printUsage(): void {
       '  pnpm --filter @zk-agent/agent-tools smoke:paymaster-success -- --wallet <name> [--execute] [--to <address>] [--amount <native>] [--paymaster-mode <mode>] [--paymaster-address <address>] [--paymaster-token <address>]',
       '',
       'What it does:',
-      '  1. Validates the paymaster-backed workflow-auto send-native path.',
+      '  1. Validates the paymaster-backed workflow pay path.',
       '  2. By default, only requests paymaster mode and relies on tracked validated Sepolia defaults to fill the paymaster address.',
       '  3. Approval-based mode also expects the tracked validated fee token to resolve automatically.',
       '  4. Sponsored mode intentionally skips the fee-token fallback check.',
-      '  5. Runs a real guided workflow send-native preview by default.',
-      '  6. With --execute, broadcasts the real paymaster-backed send-native transaction.',
-      '  7. Asserts that guided workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
+      '  5. Runs a real flagship workflow pay preview by default.',
+      '  6. With --execute, broadcasts the real paymaster-backed native-send transaction.',
+      '  7. Asserts that flagship workflow execution reaches the goal action directly instead of dispatching a separate fund step.',
       '',
       'Safety:',
       '  Without --execute this command only performs a live preview.',
@@ -255,18 +255,12 @@ export async function runSmokePaymasterSuccess(
       : {})
   };
 
-  const result = await tools.workflowAutoTool.execute({
+  const result = await tools.workflowPayTool.execute({
     walletName: options.walletName,
-    intent: 'send-native',
+    to: resolvedTarget,
+    amount: options.amount,
     broadcast: options.execute,
-    createCheckpoint: false,
-    executeWhenReady: true,
-    goal: {
-      intent: 'send-native',
-      to: resolvedTarget,
-      amount: options.amount,
-      paymaster: requestedPaymaster
-    }
+    paymaster: requestedPaymaster
   });
 
   if (!result.ok) {
@@ -301,7 +295,7 @@ export async function runSmokePaymasterSuccess(
         expectedDefaultPaymasterToken
       },
       message:
-        'Expected the paymaster-backed workflow auto path to execute the goal action directly, but it remained blocked or dispatched a separate funding step instead.',
+        'Expected the paymaster-backed workflow pay path to execute the goal action directly, but it remained blocked or dispatched a separate funding step instead.',
       result: result.data
     };
   }

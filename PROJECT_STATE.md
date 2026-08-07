@@ -3,11 +3,11 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `47e895a`
+- Latest commit at write time: `bb76b51`
 - Current branch: `main`
 - Working tree status when this document was written: clean after tightening
-  the package-first operator docs, wallet relay help/readme alignment, the
-  full release validation gate, and the beta.5 version bump before publish
+  the packaged release gate, the hosted relay baseline, and the first-class
+  CLI `workflow pay` flagship entrypoint
 
 ## Current phase
 
@@ -87,12 +87,17 @@ Current Phase 5 progress note:
   all"; it is live validation and hardening of a real hosted deployment
 - the current flagship AA operator path now also has a dedicated smoke:
   relay-backed wallet reapproval on an existing wallet followed immediately by
-  the paymaster-backed workflow-auto send-native path on that same wallet
+  the paymaster-backed flagship native-send path on that same wallet
 - the flagship AA path is now also productized as a first-class CLI entrypoint:
   `zk-agent workflow pay --wallet <name> --to <address> --amount <amount>`
   wraps the current validated native-send story with checkpoint persistence,
   execute-when-ready orchestration, intent-scoped session recovery defaults,
   and approval-based paymaster mode by default
+- the same flagship path now also reaches the machine-facing tool surface:
+  `packages/agent-tools` exposes `workflowPayTool`, `tool:list` now marks it
+  as the recommended guided-execution entry, and the flagship operator/path
+  smokes now point at `workflow pay` instead of the older long
+  `workflow auto --intent send-native` command shape
 - that flagship smoke now also hardens the external-relay variant:
   when `--relay-url` is supplied it first validates the hosted relay itself
   before attempting reapproval, instead of assuming any externally supplied
@@ -238,6 +243,7 @@ Implemented command areas include:
 - wallet lifecycle and approval orchestration
 - wallet status and next-step guidance
 - workflow planning, execution, checkpointing, and resume
+- the flagship native-send tool preset through `workflowPayTool`
 - balances
 - contract reads and writes
 - send / send-token
@@ -252,10 +258,12 @@ Implemented command areas include:
   - grouped tool discovery
   - closest CLI equivalents
   - `operatorPathStage` for the canonical product path
-  - `recommendedSequence` for the default stage order
+  - `recommendedSequence` for the default stage order, now with
+    `workflowPayTool` as the primary guided-execution entry
   - `exampleInput` on the key operator-path tools, now covering the main
     wallet/workflow inspection and checkpoint entry surfaces such as
-    `wallet status|next`, `workflow plan|status|next|run|start`, and `assets`
+    `wallet status|next`, `workflow plan|pay|status|next|run|start`, and
+    `assets`
 - smoke scripts for:
   - canonical operator-path preview validation
   - readonly provider access

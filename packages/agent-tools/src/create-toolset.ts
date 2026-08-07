@@ -61,6 +61,7 @@ import { createWalletNextTool } from './wallet-next-tool.js';
 import { createWalletStatusTool } from './wallet-status-tool.js';
 import { createWorkflowPlanTool } from './workflow-plan-tool.js';
 import {
+  createWorkflowPayTool,
   createWorkflowAutoTool,
   createWorkflowOrchestratorTool
 } from './workflow-orchestrator-tool.js';
@@ -134,6 +135,7 @@ export function createStandardAgentTools(context: AgentToolContext) {
     walletStatusTool: createWalletStatusTool(context),
     walletNextTool: createWalletNextTool(context),
     workflowPlanTool: createWorkflowPlanTool(context),
+    workflowPayTool: createWorkflowPayTool(context),
     workflowAutoTool: createWorkflowAutoTool(context),
     workflowOrchestratorTool: createWorkflowOrchestratorTool(context),
     workflowStatusTool: createWorkflowStatusTool(context),
@@ -199,6 +201,7 @@ export function listStandardAgentToolNames(): StandardAgentToolName[] {
     'walletStatusTool',
     'walletNextTool',
     'workflowPlanTool',
+    'workflowPayTool',
     'workflowAutoTool',
     'workflowOrchestratorTool',
     'workflowStatusTool',

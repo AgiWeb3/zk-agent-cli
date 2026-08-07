@@ -43,7 +43,7 @@ function printUsage(): void {
       '',
       'What it does:',
       '  1. Runs relay-backed wallet reapproval on an existing stored wallet.',
-      '  2. Immediately runs the paymaster-backed workflow-auto send-native path on the same wallet.',
+      '  2. Immediately runs the paymaster-backed workflow pay path on the same wallet.',
       '  3. Treats that sequence as the current flagship AA operator path for Phase 5.',
       '',
       'Defaults:',
@@ -230,7 +230,7 @@ export function buildSmokeFlagshipWorkflowSteps(
     },
     {
       id: 'paymaster-success',
-      title: 'Paymaster-backed workflow-auto send-native path on the reapproved wallet',
+      title: 'Paymaster-backed workflow pay path on the reapproved wallet',
       command: paymaster.command,
       args: paymaster.args
     }

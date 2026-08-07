@@ -77,8 +77,9 @@ const OPERATOR_PATH_STAGE_METADATA: Record<
     primaryToolName: 'walletApprovalOrchestratorTool'
   },
   'guided-execution': {
-    summary: 'Use the guided workflow entry to inspect readiness, persist checkpoints, and execute when ready.',
-    primaryToolName: 'workflowAutoTool'
+    summary:
+      'Use the flagship native-pay entry by default; fall back to the broader guided workflow entry when the goal is not the native-send product path.',
+    primaryToolName: 'workflowPayTool'
   },
   'funding-fallback': {
     summary: 'Only use this stage when the guided path reports that a separate gas-funding step is required.',
@@ -214,10 +215,21 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
       intent: 'send-native'
     }
   },
-  workflowAutoTool: {
+  workflowPayTool: {
     group: 'workflow',
     recommended: true,
     priority: 1,
+    cliCommand: 'zk-agent workflow pay --wallet <name> --to <address> --amount <amount>',
+    exampleInput: {
+      walletName: EXAMPLE_WALLET_NAME,
+      to: EXAMPLE_RECIPIENT,
+      amount: '0.001'
+    },
+    operatorPathStage: 'guided-execution'
+  },
+  workflowAutoTool: {
+    group: 'workflow',
+    priority: 2,
     cliCommand:
       'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready',
     exampleInput: {

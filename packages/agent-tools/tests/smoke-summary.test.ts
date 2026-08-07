@@ -87,7 +87,7 @@ test('extractSmokeStepFollowupSummary reads operator-path agent follow-up fields
         topLevelAgentFollowup: {
           nextAction: 'zk-agent agent set --name <name>'
         },
-        workflowNextCommand: 'zk-agent workflow auto --wallet main --intent send-native --to 0x1 --amount 0.1',
+        workflowNextCommand: 'zk-agent workflow pay --wallet main --to 0x1 --amount 0.1',
         workflowAgentProfile: {
           profileExists: false
         },
@@ -113,7 +113,7 @@ test('extractSmokeStepFollowupSummary reads operator-path agent follow-up fields
   assert.deepEqual(followup, {
     phase: undefined,
     stage: undefined,
-    nextCommand: 'zk-agent workflow auto --wallet main --intent send-native --to 0x1 --amount 0.1',
+    nextCommand: 'zk-agent workflow pay --wallet main --to 0x1 --amount 0.1',
     recommendedCommands: {
       topLevel: {
         inspectDefaults: 'zk-agent defaults'
@@ -160,7 +160,7 @@ test('buildSmokeProductExecutionSummary aggregates next commands and agent follo
           topLevelAgentFollowup: {
             nextAction: 'zk-agent agent show'
           },
-          workflowNextCommand: 'zk-agent workflow auto --wallet main --intent send-native --to 0x1 --amount 0.1',
+          workflowNextCommand: 'zk-agent workflow pay --wallet main --to 0x1 --amount 0.1',
           workflowAgentFollowup: {
             nextAction: 'zk-agent agent show'
           }
@@ -169,7 +169,7 @@ test('buildSmokeProductExecutionSummary aggregates next commands and agent follo
     },
     {
       id: 'paymaster-success',
-      title: 'Validated paymaster-backed workflow-auto path',
+      title: 'Validated paymaster-backed workflow pay path',
       ok: true,
       exitCode: 0,
       result: {
@@ -191,7 +191,7 @@ test('buildSmokeProductExecutionSummary aggregates next commands and agent follo
   assert.equal(summary.successfulSteps, 2);
   assert.deepEqual(summary.executedStepIds, ['operator-path', 'paymaster-success']);
   assert.deepEqual(summary.nextCommands, {
-    'operator-path': 'zk-agent workflow auto --wallet main --intent send-native --to 0x1 --amount 0.1',
+    'operator-path': 'zk-agent workflow pay --wallet main --to 0x1 --amount 0.1',
     'paymaster-success': 'zk-agent workflow next --request-id wf123'
   });
   assert.deepEqual(summary.followups['operator-path']?.workflowAgentFollowup, {

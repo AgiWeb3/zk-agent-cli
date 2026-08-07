@@ -2983,6 +2983,7 @@ test('standard tool registry lists stable tool names and descriptions', async ()
     'walletStatusTool',
     'walletNextTool',
     'workflowPlanTool',
+    'workflowPayTool',
     'workflowAutoTool',
     'workflowOrchestratorTool',
     'workflowStatusTool',
@@ -3034,15 +3035,22 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   ]);
 
   const listed = listStandardAgentTools(context);
-  assert.equal(listed.length, 57);
+  assert.equal(listed.length, 58);
   assert.equal(listed[0]?.name, 'topLevelNextTool');
   assert.equal(listed[0]?.group, 'entrypoint');
-  assert.equal(listed[1]?.name, 'workflowAutoTool');
+  assert.equal(listed[1]?.name, 'workflowPayTool');
   assert.equal(listed[1]?.group, 'workflow');
   assert.equal(listed[2]?.name, 'walletStatusTool');
   assert.equal(listed[2]?.group, 'wallet');
+  const listedWorkflowPay = listed.find((entry) => entry.name === 'workflowPayTool');
+  assert.equal(listedWorkflowPay?.recommended, true);
+  assert.equal(listedWorkflowPay?.aliasOf, undefined);
+  assert.equal(
+    listedWorkflowPay?.cliCommand,
+    'zk-agent workflow pay --wallet <name> --to <address> --amount <amount>'
+  );
   const listedWorkflowAuto = listed.find((entry) => entry.name === 'workflowAutoTool');
-  assert.equal(listedWorkflowAuto?.recommended, true);
+  assert.equal(listedWorkflowAuto?.recommended, undefined);
   assert.equal(listedWorkflowAuto?.aliasOf, undefined);
   const listedWorkflowOrchestrator = listed.find(
     (entry) => entry.name === 'workflowOrchestratorTool'
@@ -3236,6 +3244,49 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
     assert.equal(
       (workflowRun.data as { recommendedCommands: { nextAction?: string } }).recommendedCommands.nextAction,
       'zk-agent workflow send-native --wallet main --to 0x3333333333333333333333333333333333333333 --amount 0.1 --broadcast'
+    );
+  }
+
+  const workflowPay = await runStandardAgentTool(runnableContext, 'workflowPayTool', {
+    walletName: 'main',
+    requestId: 'wf-tool-pay-001',
+    to: '0x3333333333333333333333333333333333333333',
+    amount: '0.1'
+  });
+  assert.equal(workflowPay.ok, true);
+  if (workflowPay.ok) {
+    assert.equal((workflowPay.data as { action: string }).action, 'goal-executed');
+    assert.equal(
+      (workflowPay.data as { run?: { stage?: string } }).run?.stage,
+      'goal-executed'
+    );
+    assert.equal(
+      (workflowPay.data as { status: { intent: string } }).status.intent,
+      'send-native'
+    );
+    assert.equal(
+      (
+        workflowPay.data as {
+          checkpoint?: { requestId: string; intent: string; goal: { intent: string } };
+        }
+      ).checkpoint?.requestId,
+      'wf-tool-pay-001'
+    );
+    assert.equal(
+      (
+        workflowPay.data as {
+          checkpoint?: { requestId: string; intent: string; goal: { intent: string } };
+        }
+      ).checkpoint?.intent,
+      'send-native'
+    );
+    assert.equal(
+      (
+        workflowPay.data as {
+          checkpoint?: { requestId: string; intent: string; goal: { intent: string } };
+        }
+      ).checkpoint?.goal.intent,
+      'send-native'
     );
   }
 

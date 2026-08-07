@@ -22,7 +22,7 @@ interface SmokeOperatorPathRuntime {
     | 'topLevelNextTool'
     | 'walletStatusTool'
     | 'walletNextTool'
-    | 'workflowAutoTool'
+    | 'workflowPayTool'
     | 'workflowFundTool'
   >;
 }
@@ -36,8 +36,8 @@ function printUsage(): void {
       'What it does:',
       '  1. Reads the current top-level operator next-step for the wallet.',
       '  2. Reads wallet status and wallet next-step guidance.',
-      '  3. Runs guided workflow orchestration for a preview-only send-native intent.',
-      '  4. If the guided workflow reports a separate funding step, reads workflow funding guidance for the same amount.',
+      '  3. Runs the flagship workflow pay path for a preview-only native send.',
+      '  4. If the flagship path reports a separate funding step, reads workflow funding guidance for the same amount.',
       '',
       'Interpretation:',
       '  - success means the canonical operator path is coherent enough to reach either',
@@ -173,23 +173,17 @@ export async function runSmokeOperatorPath(
   const walletNext = await tools.walletNextTool.execute({
     walletName: options.walletName
   });
-  const workflowAuto = await tools.workflowAutoTool.execute({
+  const workflowPay = await tools.workflowPayTool.execute({
     walletName: options.walletName,
-    intent: 'send-native',
-    createCheckpoint: false,
-    executeWhenReady: true,
-    goal: {
-      intent: 'send-native',
-      to: targetAddress,
-      amount: options.amount,
-      ...(options.paymasterMode ? { paymaster: { mode: options.paymasterMode } } : {})
-    }
+    to: targetAddress,
+    amount: options.amount,
+    ...(options.paymasterMode ? { paymaster: { mode: options.paymasterMode } } : {})
   });
 
   const workflowNeedsFunding =
-    workflowAuto.ok &&
-    workflowAuto.data.action === 'blocked' &&
-    workflowAuto.data.recommendedCommand?.startsWith(
+    workflowPay.ok &&
+    workflowPay.data.action === 'blocked' &&
+    workflowPay.data.recommendedCommand?.startsWith(
       `zk-agent workflow fund --wallet ${options.walletName}`
     );
   const workflowFund = workflowNeedsFunding
@@ -198,27 +192,27 @@ export async function runSmokeOperatorPath(
         amount: options.amount
       })
     : undefined;
-  const workflowStage = workflowAuto.ok ? workflowAuto.data.run?.stage : undefined;
+  const workflowStage = workflowPay.ok ? workflowPay.data.run?.stage : undefined;
   const phase = !walletStatus.ok
     ? 'wallet-status'
     : !walletNext.ok
       ? 'wallet-next'
-      : !workflowAuto.ok
-        ? 'workflow-auto'
+      : !workflowPay.ok
+        ? 'workflow-pay'
         : workflowStage === 'goal-executed'
           ? 'goal-executed'
           : workflowNeedsFunding && workflowFund?.ok
             ? 'workflow-fund'
             : 'workflow-blocked';
-  const recommendedCommand = workflowAuto.ok
-    ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
+  const recommendedCommand = workflowPay.ok
+    ? (workflowPay.data.run?.nextCommand || workflowPay.data.recommendedCommand)
     : walletNext.ok
       ? walletNext.data.summary.recommendedCommand
       : topLevelNext.data.nextCommand;
   const ok =
     walletStatus.ok &&
     walletNext.ok &&
-    workflowAuto.ok &&
+    workflowPay.ok &&
     (workflowStage === 'goal-executed' || Boolean(workflowNeedsFunding && workflowFund?.ok));
   const message = ok
     ? undefined
@@ -226,11 +220,11 @@ export async function runSmokeOperatorPath(
       ? 'Wallet status inspection failed before the canonical operator path could continue.'
       : !walletNext.ok
         ? 'Wallet next-step guidance failed before the canonical operator path could continue.'
-        : !workflowAuto.ok
-          ? 'Workflow auto inspection failed before the canonical operator path could continue.'
+        : !workflowPay.ok
+          ? 'Workflow pay inspection failed before the canonical operator path could continue.'
           : workflowNeedsFunding
-            ? 'Workflow auto reached a separate funding step instead of a direct goal preview.'
-            : 'Workflow auto is still blocked on wallet prerequisites before goal execution.';
+            ? 'Workflow pay reached a separate funding step instead of a direct goal preview.'
+            : 'Workflow pay is still blocked on wallet prerequisites before goal execution.';
 
   return {
     ok,
@@ -243,7 +237,7 @@ export async function runSmokeOperatorPath(
     topLevelNext,
     walletStatus,
     walletNext,
-    workflowAuto,
+    workflowPay,
     workflowFund,
     summary: buildOperatorPathSummary({
       topLevelScope: topLevelNext.data.scope,
@@ -253,20 +247,20 @@ export async function runSmokeOperatorPath(
       topLevelRecommendedCommands: topLevelNext.data.recommendedCommands,
       walletNextCommand:
         walletNext.ok ? walletNext.data.summary.recommendedCommand : undefined,
-      workflowAction: workflowAuto.ok ? workflowAuto.data.action : undefined,
+      workflowAction: workflowPay.ok ? workflowPay.data.action : undefined,
       workflowStage,
-      workflowRegistry: workflowAuto.ok ? workflowAuto.data.registry : undefined,
-      workflowNextCommand: workflowAuto.ok
-        ? (workflowAuto.data.run?.nextCommand || workflowAuto.data.recommendedCommand)
+      workflowRegistry: workflowPay.ok ? workflowPay.data.registry : undefined,
+      workflowNextCommand: workflowPay.ok
+        ? (workflowPay.data.run?.nextCommand || workflowPay.data.recommendedCommand)
         : undefined,
-      workflowAgentProfile: workflowAuto.ok ? workflowAuto.data.agentProfile : undefined,
-      workflowAgentFollowup: workflowAuto.ok ? workflowAuto.data.agentFollowup : undefined,
-      walletApprovalRelay: workflowAuto.ok ? workflowAuto.data.walletApproval?.relay : undefined,
-      walletApprovalRecommendedCommands: workflowAuto.ok
-        ? workflowAuto.data.recommendedCommands
+      workflowAgentProfile: workflowPay.ok ? workflowPay.data.agentProfile : undefined,
+      workflowAgentFollowup: workflowPay.ok ? workflowPay.data.agentFollowup : undefined,
+      walletApprovalRelay: workflowPay.ok ? workflowPay.data.walletApproval?.relay : undefined,
+      walletApprovalRecommendedCommands: workflowPay.ok
+        ? workflowPay.data.recommendedCommands
         : undefined,
-      workflowRecommendedCommands: workflowAuto.ok
-        ? workflowAuto.data.workflowRecommendedCommands
+      workflowRecommendedCommands: workflowPay.ok
+        ? workflowPay.data.workflowRecommendedCommands
         : undefined
     })
   };

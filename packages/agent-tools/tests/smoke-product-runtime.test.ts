@@ -121,7 +121,7 @@ test('runSmokeProductPath aggregates successful smoke step follow-ups', async ()
               summary: {
                 topLevelNextCommand: 'zk-agent next',
                 workflowNextCommand:
-                  'zk-agent workflow auto --wallet main --intent send-native --to 0x1 --amount 0.1',
+                  'zk-agent workflow pay --wallet main --to 0x1 --amount 0.1',
                 workflowStage: 'goal-executed',
                 workflowAgentFollowup: {
                   nextAction: 'zk-agent agent show'
@@ -252,7 +252,7 @@ test('runSmokeProductPath stops at the first failed step and reports partial sum
             exitCode: 0,
             result: {
               summary: {
-                workflowNextCommand: 'zk-agent workflow auto --wallet main --intent send-native'
+                workflowNextCommand: 'zk-agent workflow pay --wallet main --to 0x1 --amount 0.1'
               }
             }
           };

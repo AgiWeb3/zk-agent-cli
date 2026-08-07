@@ -58,6 +58,13 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     primaryToolName: 'topLevelNextTool',
     toolNames: ['topLevelNextTool']
   });
+  assert.deepEqual(result.recommendedSequence[2], {
+    stage: 'guided-execution',
+    summary:
+      'Use the flagship native-pay entry by default; fall back to the broader guided workflow entry when the goal is not the native-send product path.',
+    primaryToolName: 'workflowPayTool',
+    toolNames: ['workflowPayTool', 'workflowAutoTool', 'workflowOrchestratorTool']
+  });
   assert.equal(Array.isArray(result.tools), true);
   const toolByName = (name: string) =>
     result.tools.find((entry: { name: string }) => entry.name === name);
@@ -69,23 +76,16 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     walletName: 'main'
   });
   assert.equal(result.tools[0]?.operatorPathStage, 'decide-next');
-  assert.equal(result.tools[1]?.name, 'workflowAutoTool');
+  assert.equal(result.tools[1]?.name, 'workflowPayTool');
   assert.equal(result.tools[1]?.group, 'workflow');
   assert.equal(
     result.tools[1]?.cliCommand,
-    'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready'
+    'zk-agent workflow pay --wallet <name> --to <address> --amount <amount>'
   );
   assert.deepEqual(result.tools[1]?.exampleInput, {
     walletName: 'main',
-    intent: 'send-native',
-    goal: {
-      intent: 'send-native',
-      to: '0x1111111111111111111111111111111111111111',
-      amount: '0.001'
-    },
-    createCheckpoint: true,
-    ensureWalletSession: true,
-    approvalPolicyPreset: 'intent'
+    to: '0x1111111111111111111111111111111111111111',
+    amount: '0.001'
   });
   assert.equal(result.tools[1]?.operatorPathStage, 'guided-execution');
   assert.equal(result.tools[1]?.recommended, true);
@@ -135,6 +135,40 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
   assert.deepEqual(walletNextTool?.exampleInput, {
     walletName: 'main'
   });
+
+  const workflowPayTool = toolByName('workflowPayTool');
+  assert.equal(workflowPayTool?.group, 'workflow');
+  assert.equal(
+    workflowPayTool?.cliCommand,
+    'zk-agent workflow pay --wallet <name> --to <address> --amount <amount>'
+  );
+  assert.deepEqual(workflowPayTool?.exampleInput, {
+    walletName: 'main',
+    to: '0x1111111111111111111111111111111111111111',
+    amount: '0.001'
+  });
+  assert.equal(workflowPayTool?.recommended, true);
+
+  const listedWorkflowAuto = toolByName('workflowAutoTool');
+  assert.equal(listedWorkflowAuto?.group, 'workflow');
+  assert.equal(
+    listedWorkflowAuto?.cliCommand,
+    'zk-agent workflow auto --wallet <name> --intent <intent> ... --create-checkpoint --execute-when-ready'
+  );
+  assert.deepEqual(listedWorkflowAuto?.exampleInput, {
+    walletName: 'main',
+    intent: 'send-native',
+    goal: {
+      intent: 'send-native',
+      to: '0x1111111111111111111111111111111111111111',
+      amount: '0.001'
+    },
+    createCheckpoint: true,
+    ensureWalletSession: true,
+    approvalPolicyPreset: 'intent'
+  });
+  assert.equal(listedWorkflowAuto?.operatorPathStage, 'guided-execution');
+  assert.equal(listedWorkflowAuto?.recommended, undefined);
 
   const compatibilityAlias = toolByName('workflowOrchestratorTool');
   assert.equal(compatibilityAlias?.group, 'workflow');
