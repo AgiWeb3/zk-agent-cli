@@ -18,13 +18,32 @@ npx zk-agent-cli <command>
 If you are running from a checked-out repository instead of the published
 package, replace `zk-agent` with `pnpm zk-agent`.
 
+## Prerequisites
+
+- Node.js `>=24`
+- the default local approval path expects the connector UI at
+  `http://localhost:4444`; override it with
+  `zk-agent setup --connector-url <url>` when needed
+- the CLI auto-loads `.env` from the current working directory; `setup`,
+  `next`, and wallet-request creation usually work without custom RPC values,
+  but live chain reads or broadcasts usually need the relevant RPC variables
+
 ## 1. Install
+
+One-shot verification:
+
+```bash
+npx zk-agent-cli --help
+```
 
 Global install:
 
 ```bash
 npm install -g zk-agent-cli
 ```
+
+The global install exposes both `zk-agent` and `zksync-agent`. This quickstart
+uses `zk-agent` as the canonical form.
 
 ## 2. Initialize local config
 

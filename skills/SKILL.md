@@ -54,6 +54,12 @@ pnpm zk-agent <command>
 
 - `pnpm` and a repository checkout are only required for source development or
   when you intentionally run the repo-local wrapper
+- the default local approval path expects the connector UI at
+  `http://localhost:4444`; override it with
+  `zk-agent setup --connector-url <url>` when needed
+- the CLI auto-loads `.env` from the current working directory; `setup`,
+  `next`, and wallet-request creation usually work without custom RPC values,
+  but live chain reads or broadcasts usually need the relevant RPC variables
 
 Storage is local-first and encrypted at rest under:
 

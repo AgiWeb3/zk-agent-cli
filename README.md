@@ -27,13 +27,13 @@ The project is intentionally modeled after the real architecture of `polygon-age
 
 There are now two explicit install surfaces:
 
-- repo-local development and daily project use:
-  - `pnpm install`
-  - `pnpm zk-agent --help`
-- packaged CLI release target:
+- packaged CLI for public/operator use:
   - `npx zk-agent-cli --help`
   - `npm install -g zk-agent-cli`
   - binaries: `zk-agent`, `zksync-agent`
+- repo-local development and contributor smoke work:
+  - `pnpm install`
+  - `pnpm zk-agent --help`
 
 Current status:
 
@@ -45,9 +45,9 @@ Current status:
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
   `beta -> 0.1.0-beta.4`, `latest -> 0.1.0-beta.4`
-- inside this repository, the repo-local `pnpm zk-agent ...` path remains the
-  default development/runtime surface; the npm install surface is now live for
-  external use
+- public operator docs now default to the packaged `zk-agent ...` surface
+- inside this repository, `pnpm zk-agent ...` remains the development/runtime
+  wrapper for contributors and local smoke work
 
 ## Current Phase
 

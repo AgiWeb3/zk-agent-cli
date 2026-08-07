@@ -224,9 +224,11 @@ each other.
 Suggested checks:
 
 ```bash
-pnpm zk-agent --help
-pnpm zk-agent wallet --help
-pnpm zk-agent workflow --help
+npx zk-agent-cli --help
+npx zk-agent-cli wallet --help
+npx zk-agent-cli workflow --help
+zk-agent --help
+zksync-agent --help
 ```
 
 Pass criteria:
@@ -235,11 +237,14 @@ Pass criteria:
   aligned across:
   - the package README
   - the root README / skills
-  - CLI help
+  - packaged help entrypoints reached through `npx zk-agent-cli ...` or the
+    installed `zk-agent` / `zksync-agent` binaries
 
 Blockers:
 
 - the README claims one default path while CLI help claims another
+- the root docs still default to the repo-local wrapper while the packaged
+  install surface is already the public promise
 - deferred capability is described as stable and shipped
 
 ## Gate 7: public promise boundary must stay clear
@@ -271,6 +276,7 @@ Even after automation passes, complete one short manual path.
 
 - [ ] `npx zk-agent-cli --help` behaves as expected
 - [ ] `npm install -g zk-agent-cli` then `zk-agent --help` behaves correctly
+- [ ] `npm install -g zk-agent-cli` then `zksync-agent --help` behaves correctly
 - [ ] `zk-agent setup`
 - [ ] `zk-agent next`
 - [ ] at least one wallet create or reapprove path works in the target
