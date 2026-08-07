@@ -454,7 +454,9 @@ zk-agent next
 zk-agent wallet reapprove --name main --await-local
 zk-agent wallet reapprove --name main --session-preset full-access
 zk-agent wallet reapprove --name main --disallow-contract-calls
-zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait
+zk-agent relay inspect --relay-url <url>
+zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
+zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 zk-agent next
 zk-agent wallet status --name main
 zk-agent wallet next --name main
@@ -467,7 +469,9 @@ the common shapes (`full-access`, `transfer-only`, `contract-only`, `readonly`),
 use `--session-hours` to time-box the approval, `--allow-transfer-to` and
 `--allow-contract` to turn the session into an address allowlist, or
 `--disallow-transfers` / `--disallow-contract-calls` to remove those
-capabilities entirely.
+capabilities entirely. Keep `wallet request approve --request-id <id> --relay-url <url> --code <code> --wait`
+for the lower-level manual relay fallback after a request has already been
+created or published.
 
 ### 3. Workflow entrypoint
 
