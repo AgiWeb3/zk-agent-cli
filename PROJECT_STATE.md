@@ -3,11 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `4b0da85`
+- Latest commit at write time: `5809f55`
 - Current branch: `main`
-- Working tree status when this document was written: clean after tightening
-  the packaged release gate, the hosted relay baseline, and the first-class
-  CLI `workflow pay` flagship entrypoint
+- Working tree status when this document was written: clean before this
+  Phase 5 state refresh
 
 ## Current phase
 
@@ -64,7 +63,7 @@ Current ordered priorities:
 
 1. stronger release discipline for versioning, dist-tags, and clean-machine
    install checks on top of the public package baseline
-2. hosted remote approval baseline
+2. hosted remote approval hardening beyond the current file-backed prototype
 3. zk-native flagship workflow around AA + paymaster + workflow orchestration
 4. product-slice skill structure instead of one large repo-level guide
 5. package-first follow-through when new repo-only assumptions are discovered
@@ -142,10 +141,14 @@ Current Phase 5 progress note:
   `pnpm smoke:hosted-relay -- --relay-url <url>` reuses the real CLI
   `relay inspect` contract, publishes a synthetic request, and validates the
   hosted share-link/UI path against a caller-supplied external relay URL
-- real hosted deployment validation is currently pending only on one external
-  prerequisite:
-  a publicly reachable relay URL is not available yet, so this last outside-in
-  proof is explicitly deferred instead of being overstated as already complete
+- real hosted deployment validation is no longer blocked on public reachability:
+  on `2026-08-07`, a public frp-backed relay URL was validated end to end with
+  the real `relay inspect` contract and `pnpm smoke:hosted-relay`, including
+  `/health`, share-link redirect, and bundled connector UI asset delivery
+- the remaining hosted gap is now narrower and more honest:
+  the outside-in proof exists, but the validated deployment is still the
+  current file-backed hosted prototype rather than a more durable operated
+  relay baseline
 - the product-slice skill work has started for real:
   `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
   instead of forcing that guidance to stay embedded inside the repo-level

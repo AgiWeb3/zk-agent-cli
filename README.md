@@ -71,7 +71,8 @@ What that means:
   - relay-backed remote approval is a shipped path
 - the active work is now Phase 5:
   - release discipline and package-first standalone usability
-  - a stronger hosted remote-approval baseline
+  - hardening the hosted remote-approval baseline beyond the current
+    file-backed prototype
   - one clearer zk-native flagship workflow built around AA, paymaster, and
     workflow orchestration
 - the agent-facing skill surface is now split into stable product slices:

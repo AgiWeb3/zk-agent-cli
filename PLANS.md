@@ -278,9 +278,15 @@ This stage is complete when all of the following are true:
      `relay inspect`, publishes a synthetic request, and proves the hosted
      share-link/UI entrypoint against a caller-supplied relay URL
    - current execution note:
-     the only missing proof on this line is one real public relay URL to run
-     that smoke against; until then, external hosted validation stays
-     explicitly deferred instead of blocking the rest of Phase 5
+     real outside-in validation has now completed once on `2026-08-07`
+     against a public frp-backed relay URL: `relay inspect` and
+     `smoke:hosted-relay` both passed end to end, including `/health`,
+     share-link redirect, and bundled connector UI asset delivery
+   - remaining gap on this line:
+     the externally reachable proof now exists, but the validated path is
+     still the current file-backed hosted prototype rather than a more durable
+     operated relay baseline, so this thread is no longer blocked on public
+     reachability but it is not fully closed either
 
 3. zk-native flagship workflow
    - productize one end-to-end AA path as the product signature:
