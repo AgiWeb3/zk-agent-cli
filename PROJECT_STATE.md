@@ -3,10 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `2eec479`
+- Latest commit at write time: `a7e99fe`
 - Current branch: `main`
-- Working tree status when this document was written: dirty with the current
-  relay skill-slice documentation updates in progress
+- Working tree status when this document was written: clean after adding the
+  relay skill-slice documentation updates
 
 ## Current phase
 
