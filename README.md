@@ -382,8 +382,9 @@ Interpretation:
    preferred connector path for obtaining a writable local session.
 4. `wallet next` and `wallet status` are the wallet-layer detailed views when
    the question is specifically about one stored wallet.
-5. `workflow auto` is the default guided execution surface when you want one
-   command to inspect readiness, persist checkpoints, and continue the flow.
+5. `workflow pay` is the default guided execution surface for the flagship
+   native-send path. Use `workflow auto` when the workflow intent is broader
+   than that one productized path.
 6. `workflow start`, `workflow status`, `workflow next`, `workflow resume`, and
    `workflow fund` cover explicit checkpoint, resume, and funding-only cases.
 7. `workflow run` remains available as the lower-level one-shot path.
@@ -427,11 +428,13 @@ zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-che
 ```
 
 `zk-agent next` is the default decision point. It chooses between setup,
-wallet bootstrap/recovery, and workflow continuation. `workflow auto` is the
-default guided action entry once the wallet is writable; if gas is still
-missing, it points to `workflow fund` as the next step. The root help output
-now also prioritizes `next`, `wallet`, and `workflow` before the lower-level
-command families, so the product path is visible before the raw primitives.
+wallet bootstrap/recovery, and workflow continuation. `workflow pay` is the
+default guided action entry for the current flagship native-send path once the
+wallet is writable; keep `workflow auto` for the broader multi-intent guided
+surface. If gas is still missing, the guided path points to `workflow fund` as
+the next step. The root help output now also prioritizes `next`, `wallet`,
+and `workflow` before the lower-level command families, so the product path is
+visible before the raw primitives.
 
 When you want the wallet-scoped recommendation path to stay on a specific fee
 mode instead of inheriting the stored wallet default, use:
@@ -484,7 +487,7 @@ you want the execution path. This is the action-layer view:
 ```bash
 zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount>
 zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
-zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
+zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
 zk-agent workflow auto --wallet main --intent <intent> --ensure-wallet-session --session-hours 12 --allow-contract <contract-address>
 zk-agent workflow start --wallet main --intent <intent> [goal flags]
 zk-agent workflow status --request-id <id>
@@ -713,7 +716,7 @@ pnpm zksync-agent --help
 pnpm tool:list
 pnpm tool:run -- --tool getAssetsTool --input '{"walletName":"main"}'
 pnpm tool:run -- --tool walletStatusTool --input '{"walletName":"main"}'
-pnpm tool:run -- --tool workflowAutoTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"createCheckpoint":true}'
+pnpm tool:run -- --tool workflowPayTool --input '{"walletName":"main","to":"0x1111111111111111111111111111111111111111","amount":"0.001"}'
 pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","policyPreset":"full-access"}'
 pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
 pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]

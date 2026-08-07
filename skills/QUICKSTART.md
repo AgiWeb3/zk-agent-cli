@@ -228,7 +228,7 @@ path, and defaults to approval-based paymaster mode unless you override it.
 Preview a native send:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
 Equivalent shortcut:
@@ -240,7 +240,7 @@ zk-agent workflow send-native --wallet main --to <address> --amount <amount>
 Broadcast the same send:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready --broadcast
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
 ```
 
 The same workflow surface also supports:
@@ -270,8 +270,8 @@ That same recovery path also accepts the wallet-session guardrail flags, so the
 workflow can reopen a constrained session instead of a broad default one:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-hours 12 --allow-transfer-to <recipient-address>
-zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
+zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount> --ensure-wallet-session --session-hours 12 --allow-transfer-to <recipient-address>
+zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
 ```
 
 ## 7. Resume blocked or long-running flows
@@ -437,14 +437,15 @@ pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","
 When listing tools with `pnpm tool:run -- --list`, high-frequency entries now
 appear first and each item includes a `group` field plus the closest
 `cliCommand` equivalent. Key operator-path tools also include `exampleInput`.
-Treat `workflowAutoTool` as the default guided workflow entry.
+Treat `workflowPayTool` as the default flagship native-pay entry.
+Use `workflowAutoTool` when the workflow intent is broader than native send.
 `workflowOrchestratorTool` remains available as a compatibility alias.
 
 For the default product path, key tools also expose `operatorPathStage`:
 
 - `decide-next`: start from `topLevelNextTool`
 - `acquire-session`: wallet create/reapprove/orchestrated approval
-- `guided-execution`: `workflowAutoTool`
+- `guided-execution`: `workflowPayTool` by default, `workflowAutoTool` for broader intents
 - `funding-fallback`: `workflowFundTool`
 - `checkpoint-follow-up`: `workflowStatusByCheckpointTool`, `workflowNextByCheckpointTool`, `workflowRunByCheckpointTool`
 

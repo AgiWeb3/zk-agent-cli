@@ -227,22 +227,29 @@ Do not hardcode a funding path. Use the CLI-provided route and `next` command.
 Example preview:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
 Example broadcast:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --create-checkpoint --execute-when-ready --broadcast
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
 ```
 
-`workflow auto` is the preferred action entrypoint because it can:
+`workflow pay` is the preferred action entrypoint for the flagship native-send
+path because it can:
 
 - stop on missing prerequisites instead of failing late
 - dispatch a separate funding step first when needed
 - auto-sync metadata when requested
 - persist a checkpoint when requested
 - create or reuse a session approval request when `--ensure-wallet-session` is supplied, with `await-local`, manual `wallet request approve`, or auto-publish to relay plus relay-driven follow-up when `--relay-url <url>` is supplied
+
+Keep `workflow auto` for the broader multi-intent guided workflow surface:
+
+```bash
+zk-agent workflow auto --wallet <name> --intent <intent> ... [--create-checkpoint] [--execute-when-ready]
+```
 - pass `--session-preset`, `--session-hours`, `--allow-transfer-to`, `--allow-contract`, `--disallow-transfers`, or `--disallow-contract-calls` together with `--ensure-wallet-session` when the workflow recovery path should reopen a constrained session instead of the default broad write session; `--session-preset intent` derives the narrowest default from the goal
 
 Use `workflow run` only when you explicitly want the lower-level one-shot
@@ -524,14 +531,16 @@ pnpm tool:list
 In that list, high-frequency entries are surfaced first and each item includes a
 `group` field plus the closest `cliCommand` equivalent. Key operator-path tools
 also include `exampleInput`, including the session-policy preset fields used for
-guided reapproval. Prefer `workflowAutoTool` for guided workflow orchestration.
+guided reapproval. Prefer `workflowPayTool` for the flagship native-pay path
+and `workflowAutoTool` for broader guided workflow orchestration.
 `workflowOrchestratorTool` is kept as a compatibility alias for the same path.
 
 For the canonical operator path, key tools also expose `operatorPathStage`:
 
 - `decide-next` for the top-level routing step
 - `acquire-session` for wallet create/reapprove approval paths
-- `guided-execution` for `workflowAutoTool`
+- `guided-execution` for `workflowPayTool` by default, with `workflowAutoTool`
+  kept for broader intents
 - `funding-fallback` for `workflowFundTool`
 - `checkpoint-follow-up` for stored workflow status/next/resume tools
 
