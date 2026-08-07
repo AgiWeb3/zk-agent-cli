@@ -105,6 +105,10 @@ Current Phase 5 progress note:
   the temporary tarball install must be able to run `relay serve` with a
   hosted `--public-origin`, report `connectorUiAvailable: true`, and expose the
   same readiness through the relay health payload
+- the release-discipline baseline now also hard-fails on publish-runtime drift:
+  `packages/zk-agent-cli/scripts/assert-release-runtime.mjs` is now the first
+  step of `release:check`, so Node `<24` or a `pnpm` version mismatch fail
+  before build/package work even starts
 - the hosted-relay baseline now also verifies the share-link entrypoint itself:
   relay CLI tests and `release:check` both create a real relay request,
   confirm `/r/<id>` redirects to `/?relayRequestUrl=...` with the advertised

@@ -234,6 +234,11 @@ This stage is complete when all of the following are true:
      entrypoint works end to end:
      a created relay request must redirect through `/r/<id>` into the bundled
      connector UI and still serve the hashed frontend asset from the relay
+   - current baseline improvement:
+     `packages/zk-agent-cli/scripts/assert-release-runtime.mjs` now turns the
+     declared release floor into a hard gate:
+     `release:check` fails immediately if the active release runtime is below
+     Node 24 or if `pnpm` drifts away from the workspace-declared version
 
 2. hosted remote approval baseline
    - promote remote approval from a useful local prototype into a stable hosted

@@ -360,13 +360,17 @@ npm dist-tag add zk-agent-cli@<version> latest
     bundled connector-UI path resolution and tightening `release:check` so the
     installed tarball must pass the same hosted-relay readiness and share-link
     entrypoint checks before publish
+  - the next release gate will also fail fast when the active release runtime
+    drifts below the declared floor:
+    `release:check` now rejects Node `<24` and any `pnpm` version other than
+    the workspace-declared `pnpm@10.30.3`
 
 ## Post-release follow-up to keep
 
 - rerun `npm install -g zk-agent-cli` then `zk-agent --help` from a directory
   outside the repository
-- decide whether to keep `engines.node >=24` or lower the supported floor after
-  validation
+- keep the release runtime aligned with `node >=24` and `pnpm@10.30.3` unless
+  the declared support floor is intentionally changed first
 - keep the root README, package README, and `skills/` aligned with the actual
   published surface
 
