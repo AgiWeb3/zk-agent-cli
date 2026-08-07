@@ -2,11 +2,11 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-04
-- Latest commit at write time: `d7ee24a`
+- Last updated: 2026-08-07
+- Latest commit at write time: `2eec479`
 - Current branch: `main`
-- Working tree status when this document was written: clean after adding the
-  hosted deployment smoke and its runtime validation coverage
+- Working tree status when this document was written: dirty with the current
+  relay skill-slice documentation updates in progress
 
 ## Current phase
 
@@ -123,6 +123,10 @@ Current Phase 5 progress note:
   `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
   instead of forcing that guidance to stay embedded inside the repo-level
   skill only
+- the skill surface now also includes a focused relay slice:
+  `skills/zk-relay/SKILL.md` isolates hosted remote approval, relay readiness
+  checks, share-link validation, and manual relay fallback instead of leaving
+  that path diffused across the repo-level skill and hosted prototype runbook
 - the package-first doc follow-through now also covers the DeFi skill:
   `skills/zk-defi/SKILL.md` and the root README operator-path examples now
   default to the packaged `zk-agent` entrypoint and only fall back to

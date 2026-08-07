@@ -22,6 +22,11 @@ If the task is mainly about swaps, bridge routes, deposits, or withdraws, use:
 
 - [../zk-defi/SKILL.md](../zk-defi/SKILL.md)
 
+If the task is mainly about relay health, hosted share-link readiness, or
+manual relay approval fallback, use:
+
+- [../zk-relay/SKILL.md](../zk-relay/SKILL.md)
+
 If the task is broader than AA and needs the full operator path, start at:
 
 - [../SKILL.md](../SKILL.md)

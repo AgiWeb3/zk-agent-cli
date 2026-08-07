@@ -11,6 +11,7 @@ Agent-facing entrypoint:
 - [skills/SKILL.md](./skills/SKILL.md)
 - [skills/QUICKSTART.md](./skills/QUICKSTART.md)
 - [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md)
+- [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md)
 - [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
 
 The project is intentionally modeled after the real architecture of `polygon-agent-cli`, but it is not a direct fork. The goal is to preserve the reusable system shape:
@@ -74,8 +75,9 @@ What that means:
   - one clearer zk-native flagship workflow built around AA, paymaster, and
     workflow orchestration
 - the agent-facing skill surface is now split into stable product slices:
-  `zk-aa` for the current AA/operator path and `zk-defi` for the current DeFi
-  action reference
+  `zk-aa` for the current AA/operator path, `zk-relay` for hosted remote
+  approval and relay recovery, and `zk-defi` for the current DeFi action
+  reference
 - the vertical-workflow review is also complete on the current baseline:
   no zkSync-native first-class vertical has enough repeated operator evidence
   yet to justify a dedicated command family

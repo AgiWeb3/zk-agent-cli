@@ -286,6 +286,11 @@ This stage is complete when all of the following are true:
      the skill surface now includes a focused `zk-aa` guide for the flagship
      relay-backed approval + paymaster-aware workflow path, instead of forcing
      AA guidance to stay buried in the repo-level skill only
+   - current baseline improvement:
+     the skill surface now also includes a focused `zk-relay` guide for hosted
+     remote approval, relay readiness checks, share-link validation, and
+     manual relay fallback instead of leaving those paths diffused across the
+     repo-level skill and runbook prose
 
 5. package-first install surface follow-through
    - keep removing the remaining repo-only runtime assumptions from the

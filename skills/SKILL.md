@@ -28,6 +28,7 @@ x402 surfaces.
 For detailed action-path reference, also read:
 
 - [zk-aa/SKILL.md](./zk-aa/SKILL.md)
+- [zk-relay/SKILL.md](./zk-relay/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)
 
 ## Prerequisites
