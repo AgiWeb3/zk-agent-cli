@@ -3,11 +3,11 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `22efe96`
+- Latest commit at write time: `47e895a`
 - Current branch: `main`
 - Working tree status when this document was written: clean after tightening
-  the package-first operator docs, wallet relay help/readme alignment, and the
-  full release validation gate
+  the package-first operator docs, wallet relay help/readme alignment, the
+  full release validation gate, and the beta.5 version bump before publish
 
 ## Current phase
 
@@ -45,7 +45,7 @@ Phase 4 is complete on the current baseline.
 Closed results:
 
 1. public beta publish is complete:
-   `zk-agent-cli@0.1.0-beta.4` is live, and both npm dist-tags `beta` and
+   `zk-agent-cli@0.1.0-beta.5` is live, and both npm dist-tags `beta` and
    `latest` currently point to that version
 2. discovery/default/token inspection is productized:
    operators no longer need deployment-file tribal knowledge for the normal

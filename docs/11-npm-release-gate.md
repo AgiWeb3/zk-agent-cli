@@ -345,27 +345,35 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current published baseline
 
-- current public beta completed on `2026-08-04`:
-  `zk-agent-cli@0.1.0-beta.4`
+- current public beta completed on `2026-08-07`:
+  `zk-agent-cli@0.1.0-beta.5`
 - no newer local release candidate is prepared yet
 - publishing-account readback:
   `npm whoami -> jerrygod`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.4`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.4`
-  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.4`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.4","beta":"0.1.0-beta.4"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.5`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.5`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.5`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.5","beta":"0.1.0-beta.5"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
-  - `npx --yes zk-agent-cli@latest defaults --json` ran successfully outside the repository
-  - `npx --yes zk-agent-cli@latest wallet smart-account profiles --json` ran successfully outside the repository
+  - the same readback was run from a host on Node `20.10.0`, so npm emitted
+    the expected `EBADENGINE` warnings because the package support floor
+    remains `node >=24`
+  - the broader installed-package JSON smoke still came from the prepublish
+    `release:check` gate:
+    its clean-machine tarball install executed `zk-agent defaults --json` and
+    `zk-agent wallet smart-account profiles --json` outside the repository
   - `zk-agent-cli@0.1.0-beta.3` had a published hosted-relay regression:
     `npx --yes zk-agent-cli@latest --json relay serve --port 0 --public-origin https://relay.example.test`
     exposed the public relay contract, but still reported `connectorUiAvailable: false`
-  - `zk-agent-cli@0.1.0-beta.4` fixes that published regression by correcting
+  - `zk-agent-cli@0.1.0-beta.4` fixed that published regression by correcting
     bundled connector-UI path resolution and tightening `release:check` so the
     installed tarball must pass the same hosted-relay readiness and share-link
     entrypoint checks before publish
+  - `zk-agent-cli@0.1.0-beta.5` keeps that hosted-relay packaging baseline,
+    aligns the package-first docs/help surface, and completed a full
+    `pnpm validate:release` pass on the supported host runtime before publish
   - the next release gate will also fail fast when the active release runtime
     drifts below the declared floor:
     `release:check` now rejects Node `<24` and any `pnpm` version other than

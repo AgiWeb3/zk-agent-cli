@@ -171,7 +171,7 @@ Phase 4 is complete on the current baseline.
 
 Closed results:
 
-- 4A: the public beta line is live through `zk-agent-cli@0.1.0-beta.4`,
+- 4A: the public beta line is live through `zk-agent-cli@0.1.0-beta.5`,
   release checks exist, and the packaged CLI no longer depends on
   monorepo-only runtime coupling
 - 4B: discovery/default/token inspection is now a first-class product surface
