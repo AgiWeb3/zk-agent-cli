@@ -322,7 +322,7 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.equal(result.summary.status, 'ready');
     assert.equal(
       result.nextCommand,
-      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
@@ -331,10 +331,12 @@ test('top-level next recommends starting a workflow when the wallet is already r
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+      workflowPay:
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
       workflowAuto:
         'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
       nextAction:
-        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
       inspectDefaults: 'zk-agent defaults'
     });
     assert.equal(result.agentProfile.profileExists, true);
@@ -364,7 +366,7 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
     assert.equal(result.scope, 'wallet');
     assert.equal(
       result.nextCommand,
-      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored'
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored'
     );
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
@@ -373,10 +375,12 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+      workflowPay:
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored',
       workflowAuto:
         'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored',
       nextAction:
-        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored',
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored',
       inspectDefaults: 'zk-agent defaults'
     });
   } finally {

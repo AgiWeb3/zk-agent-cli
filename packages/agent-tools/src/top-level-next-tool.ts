@@ -63,6 +63,7 @@ export interface TopLevelNextToolOutputWallet {
     discoverOwnedTokens: string;
     discoverTokens: string;
     inspectToken: string;
+    workflowPay: string;
     workflowAuto: string;
     nextAction: string;
     inspectDefaults?: string;
@@ -148,7 +149,18 @@ function buildWorkflowAutoCommand(walletName: string, paymasterMode?: PaymasterM
     `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] ` +
     '--create-checkpoint --execute-when-ready';
 
-  if (paymasterMode) {
+  if (paymasterMode && paymasterMode !== 'none') {
+    command += ` --paymaster-mode ${paymasterMode}`;
+  }
+
+  return command;
+}
+
+function buildWorkflowPayCommand(walletName: string, paymasterMode?: PaymasterMode): string {
+  let command =
+    `zk-agent workflow pay --wallet ${walletName} --to <address> --amount <amount>`;
+
+  if (paymasterMode && paymasterMode !== 'none') {
     command += ` --paymaster-mode ${paymasterMode}`;
   }
 
@@ -273,8 +285,9 @@ export function createTopLevelNextTool(context: AgentToolContext) {
         nativeSymbol: nativeBalance?.symbol,
         funding
       });
+      const workflowPay = buildWorkflowPayCommand(wallet.walletName, input.paymasterMode);
       const workflowAuto = buildWorkflowAutoCommand(wallet.walletName, input.paymasterMode);
-      const nextCommand = summary.recommendedCommand || workflowAuto;
+      const nextCommand = summary.recommendedCommand || workflowPay;
 
       return {
         scope: 'wallet',
@@ -294,6 +307,7 @@ export function createTopLevelNextTool(context: AgentToolContext) {
           discoverOwnedTokens: buildOwnedTokensCommand(wallet.walletName),
           discoverTokens: buildTokensCommand(wallet.chain),
           inspectToken: buildResolveTokenCommand(wallet.chain),
+          workflowPay,
           workflowAuto,
           nextAction: nextCommand,
           inspectDefaults: buildDefaultsCommand()

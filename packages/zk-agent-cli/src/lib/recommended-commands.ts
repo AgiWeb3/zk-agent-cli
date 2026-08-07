@@ -159,6 +159,14 @@ export function buildWorkflowAutoRecommendedCommand(walletName: string): string 
   return `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] --create-checkpoint --execute-when-ready`;
 }
 
+export function buildWorkflowPayRecommendedCommand(
+  walletName: string,
+  paymasterMode?: PaymasterMode
+): string {
+  const command = `zk-agent workflow pay --wallet ${walletName} --to <address> --amount <amount>`;
+  return appendPaymasterMode(command, paymasterMode);
+}
+
 export function buildWorkflowShowRecommendedCommand(requestId: string): string {
   return `zk-agent workflow show --request-id ${requestId}`;
 }

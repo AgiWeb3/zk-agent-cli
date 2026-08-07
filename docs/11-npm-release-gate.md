@@ -83,7 +83,7 @@ Before release, it must cover:
 - [ ] prerequisites
 - [ ] installation paths: `npx` and `npm install -g`
 - [ ] the shortest success path:
-      `setup -> next -> wallet create/reapprove -> next -> workflow auto`
+      `setup -> next -> wallet create/reapprove -> next -> workflow pay`
 - [ ] the local storage path `~/.zk-agent/`
 - [ ] the minimum required environment variables, or when `.env` / RPC values
       are actually needed

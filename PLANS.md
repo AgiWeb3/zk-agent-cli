@@ -306,6 +306,10 @@ This stage is complete when all of the following are true:
      as the primary guided-execution entry, and the operator/path smokes now
      point at `workflow pay` instead of the longer
      `workflow auto --intent send-native` surface
+   - current baseline improvement:
+     wallet-ready `next` guidance now defaults to `workflow pay` in both the
+     CLI and top-level tool output, while preserving `workflowAuto` alongside
+     it for broader multi-intent execution
 
 4. product-slice skills
    - evolve from one main repo skill plus `zk-defi` into stable slices such as

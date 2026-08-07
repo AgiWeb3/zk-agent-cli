@@ -136,6 +136,10 @@ Key fields:
 This means a local wallet record already exists and the recommended next step
 is now at the wallet or workflow layer.
 
+When the wallet is writable and there is no narrower blocker, the default
+flagship next step now points to `workflow pay`, while `workflowAuto` remains
+available for broader multi-intent guided execution.
+
 Key fields:
 
 ```json
@@ -144,7 +148,7 @@ Key fields:
   "walletName": "main",
   "inspection": { "...": "wallet inspection payload" },
   "summary": { "...": "wallet next summary payload" },
-  "nextCommand": "zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready",
+  "nextCommand": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
   "recommendedCommands": {
     "walletNext": "zk-agent wallet next --name main",
     "walletStatus": "zk-agent wallet status --name main",
@@ -152,8 +156,9 @@ Key fields:
     "discoverOwnedTokens": "zk-agent tokens --wallet main --owned",
     "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
     "inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>",
+    "workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
     "workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready",
-    "nextAction": "zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready"
+    "nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
   }
 }
 ```

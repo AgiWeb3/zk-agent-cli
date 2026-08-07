@@ -98,6 +98,10 @@ Current Phase 5 progress note:
   as the recommended guided-execution entry, and the flagship operator/path
   smokes now point at `workflow pay` instead of the older long
   `workflow auto --intent send-native` command shape
+- wallet-ready `zk-agent next` and the matching top-level agent tool now also
+  default their fallback `nextCommand` / `recommendedCommands.nextAction` to
+  `workflow pay`, while keeping `workflowAuto` available as the broader
+  multi-intent guided path
 - that flagship smoke now also hardens the external-relay variant:
   when `--relay-url` is supplied it first validates the hosted relay itself
   before attempting reapproval, instead of assuming any externally supplied

@@ -29,6 +29,7 @@ import {
   buildWalletNextRecommendedCommand,
   buildWalletStatusRecommendedCommand,
   buildWorkflowAutoRecommendedCommand,
+  buildWorkflowPayRecommendedCommand,
   buildWorkflowDeleteRecommendedCommand,
   buildWorkflowListRecommendedCommand,
   buildWorkflowNextRecommendedCommand,
@@ -325,11 +326,15 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         funding
       });
 
+      const workflowPay = buildWorkflowPayRecommendedCommand(
+        wallet.walletName,
+        paymasterMode
+      );
       const workflowAuto = appendPaymasterMode(
         buildWorkflowAutoRecommendedCommand(wallet.walletName),
         paymasterMode
       );
-      const nextCommand = summary.recommendedCommand || workflowAuto;
+      const nextCommand = summary.recommendedCommand || workflowPay;
       const agentFollowup = buildAgentFollowup(agentProfile, {
         walletName: wallet.walletName,
         walletExists: true
@@ -341,6 +346,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         discoverOwnedTokens: buildOwnedTokensRecommendedCommand(wallet.walletName),
         discoverTokens: buildTokensRecommendedCommand(wallet.chain),
         inspectToken: buildResolveTokenRecommendedCommand(wallet.chain),
+        workflowPay,
         workflowAuto,
         nextAction: nextCommand,
         inspectDefaults: buildDefaultsRecommendedCommand()
@@ -351,7 +357,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           ...walletNextLines(summary),
           ...agentProfileLines(agentProfile),
           ...agentFollowupLines(agentFollowup),
-          ...(summary.recommendedCommand ? [] : [['next', workflowAuto] as [string, string]]),
+          ...(summary.recommendedCommand ? [] : [['next', workflowPay] as [string, string]]),
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
           ['discover tokens', recommendedCommands.discoverTokens],

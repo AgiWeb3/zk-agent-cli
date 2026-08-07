@@ -368,7 +368,7 @@ zk-agent setup
 zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
-zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
 # Only if the CLI reports that gas funding is still required:
 zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
@@ -424,7 +424,7 @@ zk-agent setup
 zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
-zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount>
 ```
 
 `zk-agent next` is the default decision point. It chooses between setup,
@@ -763,10 +763,10 @@ Recommended root wrappers for the current stable product surface:
   validates the current Phase 5 flagship AA operator story in one narrower
   sequence: with `--relay-url` it first validates the external hosted relay,
   then runs relay-backed wallet reapproval on the existing wallet, then the
-  paymaster-backed workflow-auto send-native path on that same wallet; it is
+  paymaster-backed `workflow pay` flagship path on that same wallet; it is
   the productized AA signature path, not a broad DeFi breadth harness
 - `pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]` validates the canonical
-  `next -> wallet -> workflow auto -> funding fallback or goal preview` path
+  `next -> wallet -> workflow pay -> funding fallback or goal preview` path
   and now accepts an optional `--paymaster-mode` override so the operator-path
   guidance can be previewed against a specific fee path instead of always
   inheriting the stored wallet default, and returns structured follow-up fields
@@ -775,7 +775,7 @@ Recommended root wrappers for the current stable product surface:
   `topLevelAgentFollowup`, and `workflowAgentFollowup`
 - `pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] [--execute-swap]`
   aggregates the current product-level live validation sequence:
-  canonical operator path, validated paymaster-backed workflow-auto path,
+  canonical operator path, validated paymaster-backed `workflow pay` flagship path,
   validated default workflow-auto swap path, and optional withdraw follow-up
   when a previous withdraw tx hash is supplied, with per-step `followups`
   alongside the legacy flat `nextCommands` summary; those `followups` now also

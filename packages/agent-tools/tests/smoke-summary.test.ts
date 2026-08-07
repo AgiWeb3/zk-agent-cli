@@ -10,7 +10,7 @@ import {
 test('buildOperatorPathSummary preserves agent and workflow follow-up fields', () => {
   const summary = buildOperatorPathSummary({
     topLevelScope: 'wallet',
-    topLevelNextCommand: 'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+    topLevelNextCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
     topLevelAgentProfile: {
       profileExists: true,
       agentId: 'sed-operator'
@@ -19,6 +19,7 @@ test('buildOperatorPathSummary preserves agent and workflow follow-up fields', (
       nextAction: 'zk-agent agent show'
     },
     topLevelRecommendedCommands: {
+      workflowPay: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
       workflowAuto: 'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
     },
     walletNextCommand: 'zk-agent wallet next --name main',
@@ -53,7 +54,7 @@ test('buildOperatorPathSummary preserves agent and workflow follow-up fields', (
   assert.equal(summary.topLevelScope, 'wallet');
   assert.equal(
     summary.topLevelNextCommand,
-    'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
+    'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
   );
   assert.deepEqual(summary.topLevelAgentFollowup, {
     nextAction: 'zk-agent agent show'

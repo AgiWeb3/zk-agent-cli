@@ -28,7 +28,11 @@ import {
   type WorkflowRunFundInput
 } from '@zk-agent/agent-core';
 import { loadAgentIdentitySummary, type AgentIdentitySummary } from '@zk-agent/plugin-identity';
-import type { RelayCreateResponse, SessionPayload } from '@zk-agent/agent-session-protocol';
+import type {
+  PaymasterMode,
+  RelayCreateResponse,
+  SessionPayload
+} from '@zk-agent/agent-session-protocol';
 import { ZkSyncDefiProvider } from '@zk-agent/provider-zksync-defi';
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
@@ -952,6 +956,9 @@ export async function ensureWorkflowWalletSession(
       | 'allowContract'
       | 'disallowTransfers'
       | 'disallowContractCalls'
+      | 'paymasterMode'
+      | 'paymasterAddress'
+      | 'paymasterToken'
     >;
   },
   deps: EnsureWorkflowWalletSessionDeps

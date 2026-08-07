@@ -77,7 +77,7 @@ function assertPackageReadme(readme) {
     [/npm install -g zk-agent-cli/, 'Package README must document global install usage.'],
     [/Node\.js `>=24`/, 'Package README must document the supported Node runtime floor.'],
     [
-      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Package README must document the shortest success path.'
     ],
     [

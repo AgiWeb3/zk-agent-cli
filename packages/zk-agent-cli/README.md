@@ -72,7 +72,7 @@ zk-agent setup
 zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
-zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
 If a wallet already exists and only the writable session is stale, use:

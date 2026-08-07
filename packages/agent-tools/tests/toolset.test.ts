@@ -1089,7 +1089,11 @@ test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow bra
     assert.equal(ready.data.summary.status, 'ready');
     assert.equal(
       ready.data.nextCommand,
-      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready'
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(
+      ready.data.recommendedCommands.workflowPay,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
     assert.equal(
       ready.data.recommendedCommands.workflowAuto,
@@ -1120,7 +1124,11 @@ test('topLevelNextTool mirrors setup, wallet-bootstrap, wallet, and workflow bra
   if (sponsoredReady.ok) {
     assert.equal(
       sponsoredReady.data.nextCommand,
-      'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode sponsored'
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored'
+    );
+    assert.equal(
+      sponsoredReady.data.recommendedCommands.workflowPay,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored'
     );
     assert.equal(
       sponsoredReady.data.recommendedCommands.workflowAuto,
