@@ -239,6 +239,11 @@ This stage is complete when all of the following are true:
      declared release floor into a hard gate:
      `release:check` fails immediately if the active release runtime is below
      Node 24 or if `pnpm` drifts away from the workspace-declared version
+   - current baseline improvement:
+     the package README contract is slightly tighter:
+     `release:check` now also enforces the documented Node runtime floor and
+     the real `~/.zk-agent/workflows/*.json` storage path instead of letting
+     those packaged-install details drift
 
 2. hosted remote approval baseline
    - promote remote approval from a useful local prototype into a stable hosted

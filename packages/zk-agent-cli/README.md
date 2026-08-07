@@ -90,11 +90,16 @@ zk-agent workflow fund --wallet main --amount <amount> --execute
 
 ## Remote Approval
 
-Shortest relay-backed path in one command:
+Shortest relay-backed path in one terminal process:
 
 ```bash
 zk-agent relay inspect --relay-url <relay-url>
 zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
+```
+
+If the wallet already exists and only the writable session is stale, use:
+
+```bash
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 ```
 
@@ -128,7 +133,7 @@ Common files created by the default path:
 - `config.json`
 - `wallets/*.json`
 - `requests/*.json`
-- `workflow-checkpoints/*.json`
+- `workflows/*.json`
 
 ## Smart-Account Profiles
 

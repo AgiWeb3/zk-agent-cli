@@ -75,6 +75,7 @@ function assertPackageReadme(readme) {
     [/## Install/, 'Package README must include an Install section.'],
     [/npx zk-agent-cli --help/, 'Package README must document one-shot npx usage.'],
     [/npm install -g zk-agent-cli/, 'Package README must document global install usage.'],
+    [/Node\.js `>=24`/, 'Package README must document the supported Node runtime floor.'],
     [
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/,
       'Package README must document the shortest success path.'
@@ -92,6 +93,7 @@ function assertPackageReadme(readme) {
       /zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code/,
       'Package README must document the shortest relay-backed approval path.'
     ],
+    [/workflows\/\*\.json/, 'Package README must document the workflows storage path correctly.'],
     [/## Common Failures/, 'Package README must include a Common Failures section.'],
     [
       /Connector callback never arrives:/,

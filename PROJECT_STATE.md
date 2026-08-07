@@ -109,6 +109,10 @@ Current Phase 5 progress note:
   `packages/zk-agent-cli/scripts/assert-release-runtime.mjs` is now the first
   step of `release:check`, so Node `<24` or a `pnpm` version mismatch fail
   before build/package work even starts
+- the packaged-install README contract is now slightly tighter too:
+  `release:check` also enforces that the package README names the supported
+  Node runtime floor and the real `~/.zk-agent/workflows/*.json` checkpoint
+  path instead of letting those packaged-user details drift away from the code
 - the hosted-relay baseline now also verifies the share-link entrypoint itself:
   relay CLI tests and `release:check` both create a real relay request,
   confirm `/r/<id>` redirects to `/?relayRequestUrl=...` with the advertised
