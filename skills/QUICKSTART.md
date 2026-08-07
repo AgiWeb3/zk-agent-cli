@@ -206,7 +206,7 @@ Dispatch the suggested funding route:
 zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
-## 6. Use workflow auto as the default guided write path
+## 6. Use workflow pay as the default flagship write path
 
 Current flagship AA native-pay path:
 
@@ -224,6 +224,9 @@ Use `workflow pay` when the goal is the current flagship AA native send. It
 fixes the workflow to `send-native`, persists a checkpoint, executes when
 ready, reopens a missing writable session through the intent-scoped approval
 path, and defaults to approval-based paymaster mode unless you override it.
+
+Keep `workflow auto` for broader multi-intent guided flows such as swap,
+bridge, deposit, and withdraw.
 
 Preview a native send:
 
@@ -492,7 +495,8 @@ Those smoke JSON responses now preserve structured workflow follow-ups:
   - `wallet reapprove --await-local`
   - `wallet next`
   - `wallet status`
-  - `workflow auto`
+  - `workflow pay` for the flagship native-send path
+  - `workflow auto` for broader multi-intent flows
 
 For detailed action-path examples, read:
 

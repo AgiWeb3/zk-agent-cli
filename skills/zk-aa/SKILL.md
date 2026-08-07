@@ -36,7 +36,8 @@ If the task is broader than AA and needs the full operator path, start at:
 The current AA product path is intentionally narrower than the full CLI:
 
 - relay-backed wallet approval and reapproval exist
-- `workflow auto` is the preferred guided execution surface
+- `workflow pay` is the preferred guided execution surface for the flagship
+  native-send path
 - paymaster-aware send-native execution is the strongest validated AA path
 - `sed-lite` is the main built-in AA base profile
 - `daily-spend-limit` exists, but it is a narrower experimental profile

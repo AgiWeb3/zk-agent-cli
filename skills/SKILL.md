@@ -1,6 +1,6 @@
 ---
 name: zk-agent-cli
-description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> next -> wallet create/reapprove -> next -> workflow auto -> workflow fund fallback or goal execution.
+description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> next -> wallet create/reapprove -> next -> workflow pay for the flagship native-send path, with workflow auto kept for broader multi-intent flows.
 ---
 
 # zk-agent-cli Skill
@@ -588,7 +588,8 @@ sandbox:
 - there is no guarantee that custom local ERC-20 assets can bridge through the
   shared bridge path
 - there is no guarantee that every direct action command is the preferred path;
-  prefer `wallet next` and `workflow auto`
+  prefer `wallet next`, `workflow pay` for the flagship native-send path, and
+  `workflow auto` for broader multi-intent flows
 
 ## Quickstart
 

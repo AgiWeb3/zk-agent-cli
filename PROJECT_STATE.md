@@ -3,22 +3,26 @@
 ## Snapshot
 
 - Last updated: 2026-08-07
-- Latest commit at write time: `5809f55`
+- Latest commit at write time: `a3d6d38`
 - Current branch: `main`
-- Working tree status when this document was written: clean before this
-  Phase 5 state refresh
+- Working tree status when this document was written: dirty only with the
+  Phase 5 closeout and skill-alignment edits that followed the hosted-relay
+  outside-in proof
 
 ## Current phase
 
-The project has entered Phase 5: productization to parity.
+Phase 5 is complete on the current baseline.
 
 This means:
 
 - the zkSync-native engineering baseline already exists
 - Phase 3 is complete
 - Phase 4 is also complete on the current baseline
-- the active work is now focused on package-first usability, hosted remote
-  approval, and one zk-native flagship operator path
+- the package-first install surface, hosted relay proof, zk-native flagship
+  path, release discipline, and product-slice skill split are now all part of
+  the closed baseline for this stage
+- the active work now sits in post-Phase-5 hardening and explicit backlog,
+  not in any still-open Phase 5 execution thread
 - broader DeFi breadth remains deferred unless explicitly resumed
 - the main reference point is still `../polygon-agent-cli`, but only for
   reusable product patterns
@@ -57,18 +61,16 @@ Closed results:
 5. no dedicated zkSync-native vertical is justified:
    that is an explicit product decision, not unfinished work
 
-### Active Phase 5 priorities
+### Post-Phase-5 follow-on priorities
 
 Current ordered priorities:
 
-1. stronger release discipline for versioning, dist-tags, and clean-machine
-   install checks on top of the public package baseline
-2. hosted remote approval hardening beyond the current file-backed prototype
-3. zk-native flagship workflow around AA + paymaster + workflow orchestration
-4. product-slice skill structure instead of one large repo-level guide
-5. package-first follow-through when new repo-only assumptions are discovered
+1. hosted remote approval hardening beyond the current file-backed prototype
+2. operator-informed polish on the packaged flagship workflow and relay UX
+3. broader DeFi breadth only when it is explicitly resumed
+4. optional connector/approval UX polish when live operator usage justifies it
 
-Current Phase 5 progress note:
+### Phase 5 closeout detail
 
 - the hosted remote-approval baseline now has an explicit relay compatibility
   probe through `zk-agent relay inspect --relay-url <url>`
@@ -173,7 +175,7 @@ Current Phase 5 progress note:
   network environment
 
 Phase 3 execution detail was intentionally removed from this state file after
-closeout. The remaining work now sits in Phase 5 execution or explicit
+closeout. The remaining work now sits in post-Phase-5 follow-on or explicit
 deferred backlog, not in any open Phase 3 thread.
 
 ## Project goal

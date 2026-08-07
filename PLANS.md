@@ -204,8 +204,10 @@ This stage is complete when all of the following are true:
   around repo-local workflows
 - agent-facing docs and skills default to the packaged install path whenever
   repository checkout is not actually required
-- remote approval has a stable hosted path beyond the local file-backed relay
-  prototype
+- remote approval has a hosted-ready path on the shipped relay surface,
+  including relay inspection, hosted share-link readiness, and at least one
+  real public outside-in proof, even if more durable operated-relay work
+  continues after this stage
 - at least one zk-native flagship workflow is clearly productized around AA,
   paymaster, and workflow orchestration rather than just low-level command
   coverage
@@ -214,7 +216,11 @@ This stage is complete when all of the following are true:
 - the skill surface is split by stable product slices, not only by one large
   repo-level guide
 
-### Current priorities
+### Phase 5 closeout summary
+
+Phase 5 is complete on the current baseline.
+
+Closed result areas:
 
 1. release discipline on the public package baseline
    - keep version, dist-tag, and clean-machine smoke policy explicit
@@ -282,11 +288,10 @@ This stage is complete when all of the following are true:
      against a public frp-backed relay URL: `relay inspect` and
      `smoke:hosted-relay` both passed end to end, including `/health`,
      share-link redirect, and bundled connector UI asset delivery
-   - remaining gap on this line:
-     the externally reachable proof now exists, but the validated path is
-     still the current file-backed hosted prototype rather than a more durable
-     operated relay baseline, so this thread is no longer blocked on public
-     reachability but it is not fully closed either
+   - post-Phase-5 follow-on on this line:
+     the externally reachable proof now exists, but a more durable operated
+     relay baseline can still continue after this stage beyond the current
+     file-backed hosted prototype
 
 3. zk-native flagship workflow
    - productize one end-to-end AA path as the product signature:
@@ -389,7 +394,10 @@ These items stay deferred unless the product direction changes explicitly:
 2. broader canonical ERC-20 breadth
    validate more mapped assets and at least one real L2 -> L1 ERC-20
    withdraw/finalize path when bridge breadth is resumed
-3. optional connector polish beyond the hosted path
+3. hosted relay hardening beyond the shipped file-backed prototype
+   resume only when the team wants a more durable operated relay baseline,
+   stronger queue semantics, or production-facing auth/rate-limit policy
+4. optional connector polish beyond the hosted path
    resume only if live operator usage shows concrete remote-approval friction
 
 ## Deferred until after Phase 3
