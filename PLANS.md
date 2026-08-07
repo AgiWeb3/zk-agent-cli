@@ -292,6 +292,14 @@ This stage is complete when all of the following are true:
      relay-backed reapproval step and the paymaster-backed workflow-auto path
      into one narrower product smoke instead of leaving them as unrelated
      separate checks
+   - current baseline improvement:
+     the flagship AA native-send story is now also exposed as a first-class
+     CLI entrypoint:
+     `zk-agent workflow pay --wallet <name> --to <address> --amount <amount>`
+     fixes the workflow to `send-native`, persists a checkpoint, executes when
+     ready, reopens a missing writable session through the intent-scoped
+     approval path, and defaults to approval-based paymaster mode unless the
+     operator overrides it
 
 4. product-slice skills
    - evolve from one main repo skill plus `zk-defi` into stable slices such as

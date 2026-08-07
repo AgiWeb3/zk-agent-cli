@@ -479,6 +479,7 @@ Use `zk-agent workflow --help` when the user intent is already known and
 you want the execution path. This is the action-layer view:
 
 ```bash
+zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount>
 zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready
 zk-agent workflow auto --wallet main --intent send-native --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
 zk-agent workflow auto --wallet main --intent <intent> --ensure-wallet-session --session-hours 12 --allow-contract <contract-address>
@@ -490,7 +491,11 @@ zk-agent workflow fund --wallet main --amount <amount> --execute
 zk-agent workflow run --wallet main --intent <intent> [goal flags]
 ```
 
-Use `workflow auto` for the guided default path. Use
+Use `workflow pay` when the goal is the current flagship AA native-send path:
+it fixes the workflow to `send-native`, persists a checkpoint, executes when
+ready, reopens a missing writable session through the intent-scoped approval
+path, and defaults to approval-based paymaster mode unless you override it.
+Use `workflow auto` for the broader guided default path. Use
 `workflow start/status/next/resume` for explicit checkpointed execution,
 `workflow fund` when you only want to dispatch the gas-funding step, and
 `workflow run` only when you explicitly want the lower-level one-shot path.

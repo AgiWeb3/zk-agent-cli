@@ -2016,6 +2016,7 @@ async function importApprovedWalletSession(
 export async function createWalletReapprovalRequest(options: {
   walletRecord: WalletSessionRecord;
   connectorUrl?: string;
+  paymasterMode?: PaymasterMode;
   sessionPreset?: string;
   sessionHours?: string;
   allowTransferTo?: string[];
@@ -2048,7 +2049,7 @@ export async function createWalletReapprovalRequest(options: {
     chain: options.walletRecord.chain,
     connectorUrl,
     accountKind: displayAccountKind(options.walletRecord) as AccountKind,
-    paymasterMode: displayPaymasterMode(options.walletRecord) as PaymasterMode,
+    paymasterMode: options.paymasterMode || (displayPaymasterMode(options.walletRecord) as PaymasterMode),
     policies
   });
 

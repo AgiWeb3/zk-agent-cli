@@ -146,13 +146,15 @@ test('workflow help prints the default workflow path', async () => {
 
     assert.match(help, /Default workflow path:/);
     assert.match(help, /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/);
+    assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent workflow start --wallet main --intent <intent> \[goal flags\]/);
     assert.match(help, /zk-agent workflow status --request-id <id>/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
     assert.match(help, /zk-agent workflow resume --request-id <id> \[--broadcast\]/);
     assert.match(help, /zk-agent workflow fund --wallet main --amount <amount> --execute/);
     assert.match(help, /zk-agent workflow run --wallet main --intent <intent> \[goal flags\]/);
-    assert.ok(help.indexOf('auto [options]') < help.indexOf('run [options]'));
+    assert.ok(help.indexOf('auto [options]') < help.indexOf('pay [options]'));
+    assert.ok(help.indexOf('pay [options]') < help.indexOf('run [options]'));
     assert.ok(help.indexOf('status [options]') < help.indexOf('list [options]'));
     assert.ok(help.indexOf('fund [options]') < help.indexOf('plan [options]'));
   } finally {

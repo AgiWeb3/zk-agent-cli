@@ -88,6 +88,18 @@ Only fund when the CLI says funding is actually required:
 zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
+Current flagship AA native-pay path:
+
+```bash
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored
+```
+
+`workflow pay` fixes the workflow intent to `send-native`, persists a
+checkpoint, executes immediately when ready, reopens a missing writable session
+through the intent-scoped approval path, and defaults to the validated
+approval-based paymaster mode unless you override it.
+
 ## Remote Approval
 
 Shortest relay-backed path in one terminal process:

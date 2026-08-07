@@ -898,6 +898,7 @@ interface EnsureWorkflowWalletSessionDeps {
   createWalletReapprovalRequest(options: {
     walletRecord: WalletSessionRecord;
     connectorUrl?: string;
+    paymasterMode?: PaymasterMode;
     sessionPreset?: string;
     sessionHours?: string;
     allowTransferTo?: string[];
@@ -967,12 +968,18 @@ export async function ensureWorkflowWalletSession(
     goal: input.goal,
     options: input.options
   });
+  const paymasterInput = resolveWorkflowPaymasterInput(input.options);
   const reusableRequest = await deps.findReusableWalletRequest(input.wallet.walletName);
   const walletRequest =
     reusableRequest ||
     (await deps.createWalletReapprovalRequest({
       walletRecord: input.wallet,
       connectorUrl: input.options.connectorUrl,
+      ...(paymasterInput?.mode
+        ? {
+            paymasterMode: paymasterInput.mode
+          }
+        : {}),
       sessionPreset: policyRequestOptions.sessionPreset,
       sessionHours: policyRequestOptions.sessionHours,
       allowTransferTo: policyRequestOptions.allowTransferTo,
@@ -1397,6 +1404,18 @@ interface WorkflowAutoCommandResult {
   status: WorkflowStatusResult;
   result?: WorkflowRunResult;
   walletApproval?: WorkflowWalletApprovalResult;
+}
+
+function applyWorkflowPayDefaults(options: WorkflowCommandOptions): WorkflowCommandOptions {
+  return {
+    ...options,
+    intent: 'send-native',
+    createCheckpoint: true,
+    executeWhenReady: true,
+    ensureWalletSession: true,
+    sessionPreset: options.sessionPreset?.trim() || 'intent',
+    paymasterMode: options.paymasterMode?.trim() || 'approval-based'
+  };
 }
 
 async function executeWorkflowAutoCommand(
@@ -2213,6 +2232,9 @@ function buildWorkflowHelpText(): string {
     '  Guided default:',
     '    zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
     '',
+    '  Flagship native pay path:',
+    '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    '',
     '  Checkpointed execution:',
     '    zk-agent workflow start --wallet main --intent <intent> [goal flags]',
     '    zk-agent workflow status --request-id <id>',
@@ -2229,6 +2251,7 @@ function buildWorkflowHelpText(): string {
 
 const WORKFLOW_HELP_COMMAND_ORDER = [
   'auto',
+  'pay',
   'start',
   'status',
   'next',
@@ -2533,6 +2556,29 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeLocalApproval: true
   }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const execution = await executeWorkflowAutoCommand(options, resolvedDeps);
+    await printWorkflowAutoCommandResult(execution);
+  }));
+
+  const pay = workflow
+    .command('pay')
+    .description(
+      'Guided flagship AA native-send path with checkpoint persistence, intent-scoped session recovery, and paymaster-aware defaults'
+    )
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option(
+      '--request-id <id>',
+      'Load the workflow definition from a stored checkpoint, or reserve this id for the flagship pay path'
+    );
+
+  addWorkflowGoalOptions(pay, {
+    includeExecutionFlags: true,
+    includeFundingDispatch: true,
+    includeLocalApproval: true
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
+    const execution = await executeWorkflowAutoCommand(
+      applyWorkflowPayDefaults(options),
+      resolvedDeps
+    );
     await printWorkflowAutoCommandResult(execution);
   }));
 

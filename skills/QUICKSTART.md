@@ -208,6 +208,23 @@ zk-agent workflow fund --wallet main --amount <amount> --execute
 
 ## 6. Use workflow auto as the default guided write path
 
+Current flagship AA native-pay path:
+
+```bash
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+```
+
+Broadcast the same flagship path:
+
+```bash
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
+```
+
+Use `workflow pay` when the goal is the current flagship AA native send. It
+fixes the workflow to `send-native`, persists a checkpoint, executes when
+ready, reopens a missing writable session through the intent-scoped approval
+path, and defaults to approval-based paymaster mode unless you override it.
+
 Preview a native send:
 
 ```bash

@@ -424,6 +424,156 @@ test('workflow auto can create a checkpoint from fresh goal input through comman
   }
 });
 
+test('workflow pay creates a flagship reapproval request with paymaster-aware defaults through commander', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-pay-create-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveWalletSession(sampleWallet());
+
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fixtureEntry,
+        'pay',
+        '--wallet',
+        'main',
+        '--request-id',
+        'wf-pay-001',
+        '--to',
+        '0x3333333333333333333333333333333333333333',
+        '--amount',
+        '0.1'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow pay JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.source, 'input');
+    assert.equal(result.action, 'request-created');
+    assert.equal(result.checkpointPersisted, true);
+    assert.equal(result.workflowRequestId, 'wf-pay-001');
+    assert.equal(result.requestId, 'wf-pay-001');
+    assert.equal(result.status.status, 'blocked');
+    assert.equal(result.walletApproval.stage, 'request-created');
+    assert.equal(result.walletApproval.request.requestedPaymasterMode, 'approval-based');
+    assert.equal(result.walletApproval.request.requestedCapabilities.transfer, true);
+    assert.equal(result.walletApproval.request.requestedCapabilities.contractCall, false);
+    assert.deepEqual(result.walletApproval.request.policies.transfers, [
+      {
+        to: '0x3333333333333333333333333333333333333333'
+      }
+    ]);
+    assert.deepEqual(result.walletApproval.request.policies.contractCalls, []);
+    assert.equal(
+      result.walletApproval.recommendedCommands.afterApproval,
+      'zk-agent next --paymaster-mode approval-based'
+    );
+
+    const walletRequestId = result.walletRequestId;
+    assert.equal(typeof walletRequestId, 'string');
+    assert.equal(
+      result.status.recommendedCommand,
+      `zk-agent wallet request await-local --request-id ${walletRequestId}`
+    );
+
+    const storedCheckpoint = await storage.loadWorkflowCheckpoint('wf-pay-001');
+    assert.equal(storedCheckpoint?.requestId, 'wf-pay-001');
+    assert.equal(storedCheckpoint?.intent, 'send-native');
+    assert.equal(storedCheckpoint?.lastKnownStatus, 'blocked');
+    assert.equal(storedCheckpoint?.walletRequestId, walletRequestId);
+
+    const storedRequest = await storage.loadWalletRequest(walletRequestId);
+    assert.equal(storedRequest?.requestedPaymasterMode, 'approval-based');
+    assert.deepEqual(storedRequest?.policies.transfers, [
+      {
+        to: '0x3333333333333333333333333333333333333333'
+      }
+    ]);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('workflow pay executes the flagship native-send preview immediately when the wallet is ready', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-pay-ready-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveWalletSession(sampleWritableWallet());
+
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fixtureEntry,
+        'pay',
+        '--wallet',
+        'main',
+        '--request-id',
+        'wf-pay-ready-001',
+        '--to',
+        '0x3333333333333333333333333333333333333333',
+        '--amount',
+        '0.1'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 0, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'workflow pay JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, true);
+    assert.equal(result.source, 'input');
+    assert.equal(result.action, 'goal-executed');
+    assert.equal(result.checkpointPersisted, true);
+    assert.equal(result.workflowRequestId, 'wf-pay-ready-001');
+    assert.equal(result.requestId, 'wf-pay-ready-001');
+    assert.equal(result.status.status, 'ready');
+    assert.equal(result.result.stage, 'goal-executed');
+    assert.equal(result.result.goal.mode, 'preview');
+    assert.equal(result.result.goal.to, '0x3333333333333333333333333333333333333333');
+    assert.equal(result.walletApproval, undefined);
+
+    const storedCheckpoint = await storage.loadWorkflowCheckpoint('wf-pay-ready-001');
+    assert.equal(storedCheckpoint?.intent, 'send-native');
+    assert.equal(storedCheckpoint?.lastRun?.stage, 'goal-executed');
+    assert.equal(storedCheckpoint?.walletRequestId, undefined);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('workflow status can await local approval through commander with injected provider deps', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-await-local-'));
 

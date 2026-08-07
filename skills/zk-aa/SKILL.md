@@ -55,14 +55,14 @@ preferred AA path is:
 ```bash
 zk-agent relay inspect --relay-url <url>
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --paymaster-mode approval-based --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
 This is the current flagship product story:
 
 1. recover or refresh the writable session through relay-backed approval
 2. keep the existing wallet record and smart-account metadata
-3. execute through `workflow auto` with the paymaster-aware path
+3. execute through `workflow pay` on the paymaster-aware path
 
 ## Flagship AA smoke
 
@@ -136,25 +136,28 @@ path.
 Preview:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --paymaster-mode approval-based --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
 Broadcast:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --paymaster-mode approval-based --create-checkpoint --execute-when-ready --broadcast
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
 ```
 
 Sponsored variant:
 
 ```bash
-zk-agent workflow auto --wallet main --intent send-native --to <address> --amount <amount> --paymaster-mode sponsored --create-checkpoint --execute-when-ready
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored
 ```
 
 Current rules worth relying on:
 
-- `workflow auto` is preferred over raw `send` because it can stop on missing
-  session or funding prerequisites instead of failing late
+- `workflow pay` is the current flagship shortcut because it fixes the workflow
+  to `send-native`, persists a checkpoint, executes when ready, and defaults
+  to approval-based paymaster mode plus intent-scoped session recovery
+- `workflow auto` remains the broader guided path when the goal is not this
+  flagship native-send story
 - on `zksync-sepolia`, approval-based mode can fall back to the tracked
   validated paymaster address and EraVM fee token when the wallet or goal only
   specifies the mode

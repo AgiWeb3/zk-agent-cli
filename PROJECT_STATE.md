@@ -88,6 +88,11 @@ Current Phase 5 progress note:
 - the current flagship AA operator path now also has a dedicated smoke:
   relay-backed wallet reapproval on an existing wallet followed immediately by
   the paymaster-backed workflow-auto send-native path on that same wallet
+- the flagship AA path is now also productized as a first-class CLI entrypoint:
+  `zk-agent workflow pay --wallet <name> --to <address> --amount <amount>`
+  wraps the current validated native-send story with checkpoint persistence,
+  execute-when-ready orchestration, intent-scoped session recovery defaults,
+  and approval-based paymaster mode by default
 - that flagship smoke now also hardens the external-relay variant:
   when `--relay-url` is supplied it first validates the hosted relay itself
   before attempting reapproval, instead of assuming any externally supplied

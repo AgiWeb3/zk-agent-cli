@@ -15,12 +15,13 @@ function normalizeHelp(help: string): string {
   return help.replace(/\s+/g, ' ').trim();
 }
 
-test('workflow command exposes fund and auto as first-class subcommands', () => {
+test('workflow command exposes fund, auto, and pay as first-class subcommands', () => {
   const workflow = createWorkflowCommand();
   const names = workflow.commands.map((command) => command.name());
 
   assert.ok(names.includes('fund'));
   assert.ok(names.includes('auto'));
+  assert.ok(names.includes('pay'));
 });
 
 test('bridge command help marks to-chain as optional when a tracked default route exists', () => {
