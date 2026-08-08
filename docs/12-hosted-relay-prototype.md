@@ -70,7 +70,9 @@ zk-agent relay inspect --relay-url https://relay.example.com
 Current success signals:
 
 - `compatible` is `true`
+- `origin` is the relay's local bind origin
 - `publicOriginLooksLocal` is `false`
+- `publicOrigin` is the externally reachable URL you intend to share
 - `hostedShareRedirectReady` is `true`
 - `connectorUiAvailable` is `true`
 

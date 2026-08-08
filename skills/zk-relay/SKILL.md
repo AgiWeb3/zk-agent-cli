@@ -78,7 +78,9 @@ zk-agent relay inspect --relay-url <url>
 What to rely on:
 
 - `compatible = true`
+- `origin` stays the relay's local bind origin
 - `publicOriginLooksLocal = false`
+- `publicOrigin` is the externally reachable share/status origin
 - `connectorUiAvailable = true`
 - `hostedShareRedirectReady = true`
 

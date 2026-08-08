@@ -157,10 +157,10 @@ function normalizeRelayBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
 
-function resolveRelayPublicBaseUrl(actualBaseUrl: string, publicOrigin?: string): string {
+function resolveRelayPublicBaseUrl(bindBaseUrl: string, publicOrigin?: string): string {
   return publicOrigin?.trim()
     ? normalizeRelayBaseUrl(new URL(publicOrigin.trim()).toString())
-    : normalizeRelayBaseUrl(actualBaseUrl);
+    : normalizeRelayBaseUrl(bindBaseUrl);
 }
 
 function relayCapabilities(connectorUiAvailable: boolean): RelayCapability[] {
@@ -175,7 +175,7 @@ function relayCapabilities(connectorUiAvailable: boolean): RelayCapability[] {
 }
 
 function relayHealthResponse(
-  actualBaseUrl: string,
+  bindBaseUrl: string,
   publicBaseUrl: string,
   connectorUiAvailable: boolean
 ): RelayHealthResponse {
@@ -185,7 +185,7 @@ function relayHealthResponse(
     protocol: RELAY_PROTOCOL,
     schema_version: RELAY_SCHEMA_VERSION,
     relay_mode: 'local-file',
-    origin: normalizeRelayBaseUrl(actualBaseUrl),
+    origin: normalizeRelayBaseUrl(bindBaseUrl),
     public_origin: normalizeRelayBaseUrl(publicBaseUrl),
     connector_ui_available: connectorUiAvailable,
     capabilities: relayCapabilities(connectorUiAvailable)
@@ -304,14 +304,14 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
   port: number;
 }> {
   const uiDistRoot = resolveConnectorUiDistRoot();
+  let bindBaseUrl = '';
 
   const server = createServer(async (request, response) => {
     try {
-      const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+      const requestUrl = new URL(request.url || '/', 'http://localhost');
       const pathname = requestUrl.pathname;
       const method = request.method || 'GET';
-      const actualBaseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
-      const publicBaseUrl = resolveRelayPublicBaseUrl(actualBaseUrl, options.publicOrigin);
+      const publicBaseUrl = resolveRelayPublicBaseUrl(bindBaseUrl, options.publicOrigin);
 
       if (method === 'OPTIONS') {
         writeJson(response, 204, {});
@@ -322,7 +322,7 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
         writeJson(
           response,
           200,
-          relayHealthResponse(actualBaseUrl, publicBaseUrl, Boolean(uiDistRoot))
+          relayHealthResponse(bindBaseUrl, publicBaseUrl, Boolean(uiDistRoot))
         );
         return;
       }
@@ -445,9 +445,11 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
     });
   });
 
+  bindBaseUrl = `http://${address.address}:${address.port}`;
+
   return {
     connectorUiAvailable: Boolean(uiDistRoot),
-    origin: `http://${address.address}:${address.port}`,
+    origin: bindBaseUrl,
     port: address.port,
     close: async () =>
       await new Promise<void>((resolve, reject) => {

@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from 'node:fs/promises';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +72,45 @@ async function assertHostedShareLinkServesUi(origin, publicOrigin, requestId) {
   const scriptResponse = await fetch(`${origin}${scriptPath}`);
   assert.equal(scriptResponse.status, 200);
   assert.match(scriptResponse.headers.get('content-type') || '', /text\/javascript/);
+}
+
+async function fetchRelayHealthWithHostHeader(origin, hostHeader) {
+  const url = new URL('/health', origin);
+
+  return await new Promise((resolve, reject) => {
+    const request = http.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        method: 'GET',
+        headers: {
+          Host: hostHeader
+        }
+      },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          try {
+            resolve({
+              statusCode: response.statusCode || 0,
+              body: JSON.parse(body)
+            });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+
+    request.on('error', reject);
+    request.end();
+  });
 }
 
 async function runCliJson(args, env, timeoutMs = 5000) {
@@ -289,6 +329,14 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       publicOrigin,
       'relay-public-origin-test'
     );
+
+    const proxiedHealth = await fetchRelayHealthWithHostHeader(
+      result.origin,
+      'relay.example.test'
+    );
+    assert.equal(proxiedHealth.statusCode, 200);
+    assert.equal(proxiedHealth.body.origin, result.origin);
+    assert.equal(proxiedHealth.body.public_origin, publicOrigin);
 
     const inspected = await runCliJson(['relay', 'inspect', '--relay-url', result.origin], env);
     assert.equal(inspected.ok, true);
