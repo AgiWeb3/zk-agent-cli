@@ -70,6 +70,24 @@ Current ordered priorities:
 3. broader DeFi breadth only when it is explicitly resumed
 4. optional connector/approval UX polish when live operator usage justifies it
 
+Current concrete interpretation of those priorities:
+
+1. hosted relay hardening
+   - reduce ambiguity around reported `origin` vs `publicOrigin` under
+     reverse-proxy or tunnel deployments
+   - tighten the deployment contract shared by `/health`, `relay inspect`,
+     and share-link generation
+2. flagship AA real-user proof on a public relay
+   - move beyond the synthetic hosted smoke and prove one real
+     browser-mediated `wallet create|reapprove --wait-relay --prompt-code`
+     path followed by `workflow pay`
+3. packaged flagship UX polish
+   - narrow the top-level operator surfaces that matter most in real usage:
+     `next`, `wallet create|reapprove`, `relay serve`, and `workflow pay`
+4. DeFi breadth only on explicit restart
+   - do not let broader swap/deposit/withdraw breadth silently reclaim the
+     default roadmap without a deliberate product decision
+
 ### Phase 5 closeout detail
 
 - the hosted remote-approval baseline now has an explicit relay compatibility

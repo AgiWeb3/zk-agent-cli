@@ -400,6 +400,39 @@ These items stay deferred unless the product direction changes explicitly:
 4. optional connector polish beyond the hosted path
    resume only if live operator usage shows concrete remote-approval friction
 
+## Post-Phase-5 next execution slices
+
+Unless priorities change, the next concrete slices should be:
+
+1. hosted relay hardening on the shipped prototype
+   - make relay deployment semantics less ambiguous under tunnels and reverse
+     proxies, especially around reported `origin` vs `publicOrigin`
+   - add one tighter operator/deployment contract for what must stay stable
+     across `/health`, `relay inspect`, and share-link generation
+   - expected observable result:
+     a hosted operator no longer has to infer whether the relay is reporting
+     the bind origin, the request origin, or the intended public origin
+2. flagship AA real-user path on a public relay
+   - validate one full operator story beyond the synthetic hosted smoke:
+     `wallet create|reapprove --relay-url ... --wait-relay --prompt-code`
+     followed by `workflow pay` on the same real public relay path
+   - expected observable result:
+     the current flagship story is proven not only by synthetic request
+     smokes but also by one real browser-mediated approval flow
+3. packaged operator UX polish from real usage
+   - tighten the highest-frequency outputs only where real operators still
+     hesitate: `next`, `wallet create|reapprove`, `relay serve`, and
+     `workflow pay`
+   - keep changes narrow and evidence-driven; do not reopen broad command
+     family redesign without repeated operator pain
+   - expected observable result:
+     the shortest path becomes easier to follow without reading long docs
+4. resume broader DeFi breadth only by explicit decision
+   - keep swap/deposit/withdraw breadth out of the default mainline until the
+     product direction reopens that work intentionally
+   - if resumed, start with one concrete next bar such as a real L2 -> L1
+     ERC-20 withdraw/finalize proof or broader canonical token coverage
+
 ## Deferred until after Phase 3
 
 - broad identity / reputation framework
