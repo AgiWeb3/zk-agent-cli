@@ -175,7 +175,7 @@ Phase 4 is complete on the current baseline.
 
 Closed results:
 
-- 4A: the public beta line is live through `zk-agent-cli@0.1.0-beta.5`,
+- 4A: the public beta line is live through `zk-agent-cli@0.1.0-beta.6`,
   release checks exist, and the packaged CLI no longer depends on
   monorepo-only runtime coupling
 - 4B: discovery/default/token inspection is now a first-class product surface
@@ -447,6 +447,10 @@ Unless priorities change, the next concrete slices should be:
      proxies, especially around reported `origin` vs `publicOrigin`
    - add one tighter operator/deployment contract for what must stay stable
      across `/health`, `relay inspect`, and share-link generation
+   - current baseline improvement:
+     `relay inspect` now exposes whether the inspected relay URL matches the
+     relay bind `origin` and the advertised `publicOrigin`, so proxy/tunnel
+     deployments are less ambiguous in both JSON and TTY guidance
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin

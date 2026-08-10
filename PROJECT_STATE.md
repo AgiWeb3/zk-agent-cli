@@ -48,7 +48,7 @@ Phase 4 is complete on the current baseline.
 Closed results:
 
 1. public beta publish is complete:
-   `zk-agent-cli@0.1.0-beta.5` is live, and both npm dist-tags `beta` and
+   `zk-agent-cli@0.1.0-beta.6` is live, and both npm dist-tags `beta` and
    `latest` currently point to that version
 2. discovery/default/token inspection is productized:
    operators no longer need deployment-file tribal knowledge for the normal
@@ -95,6 +95,11 @@ Completed architecture baseline to keep in mind:
      reverse-proxy or tunnel deployments
    - tighten the deployment contract shared by `/health`, `relay inspect`,
      and share-link generation
+   - current baseline improvement:
+     `relay inspect` now reports whether the inspected relay URL matches the
+     relay-reported bind `origin` and the advertised `publicOrigin`, and the
+     human-readable inspect output no longer suppresses hosted-readiness notes
+     on otherwise compatible relays
 2. flagship AA real-user proof on a public relay
    - move beyond the synthetic hosted smoke and prove one real
      browser-mediated `wallet create|reapprove --wait-relay --prompt-code`

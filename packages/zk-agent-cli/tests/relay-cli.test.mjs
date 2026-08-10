@@ -266,6 +266,23 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(health.capabilities.includes('share-redirect'), true);
     assert.equal(health.capabilities.includes('connector-ui'), health.connector_ui_available);
 
+    const inspected = await runCliJson(['relay', 'inspect', '--relay-url', result.origin], env);
+    assert.equal(inspected.ok, true);
+    assert.equal(inspected.status, 'relay-inspected');
+    assert.equal(inspected.compatible, true);
+    assert.equal(inspected.origin, result.origin);
+    assert.equal(inspected.publicOrigin, result.origin);
+    assert.equal(inspected.relayUrlMatchesOrigin, true);
+    assert.equal(inspected.relayUrlMatchesPublicOrigin, true);
+    assert.equal(inspected.publicOriginLooksLocal, true);
+    assert.equal(Array.isArray(inspected.notes), true);
+    assert.equal(
+      inspected.notes.some((note) =>
+        note.includes('advertised public origin still points at a local-only address')
+      ),
+      true
+    );
+
     await stopChild(child, 5000);
     const exitCode = child.exitCode;
     assert.equal(exitCode, 0, stderrChunks.join('').trim() || `relay exited with code ${exitCode}`);
@@ -348,7 +365,10 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(inspected.ok, true);
     assert.equal(inspected.status, 'relay-inspected');
     assert.equal(inspected.compatible, true);
+    assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, publicOrigin);
+    assert.equal(inspected.relayUrlMatchesOrigin, true);
+    assert.equal(inspected.relayUrlMatchesPublicOrigin, false);
     assert.equal(inspected.publicOriginLooksLocal, false);
     assert.equal(typeof inspected.connectorUiAvailable, 'boolean');
     assert.equal(
@@ -366,6 +386,12 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       inspected.connectorUiAvailable
     );
     assert.equal(Array.isArray(inspected.notes), true);
+    assert.equal(
+      inspected.notes.some((note) =>
+        note.includes('Share links and wallet approval commands will use the public origin')
+      ),
+      true
+    );
     assert.deepEqual(inspected.recommendedCommands, {
       createWallet: `zk-agent wallet create --relay-url ${publicOrigin}`,
       reapproveWallet: `zk-agent wallet reapprove --name main --relay-url ${publicOrigin}`

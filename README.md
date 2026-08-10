@@ -37,14 +37,14 @@ There are now two explicit install surfaces:
 
 Current status:
 
-- the current public beta, `zk-agent-cli@0.1.0-beta.5`, was published on
-  `2026-08-07`
-- the local workspace is now prepared for the next beta publish as
-  `zk-agent-cli@0.1.0-beta.6`
+- the current public beta, `zk-agent-cli@0.1.0-beta.6`, was published on
+  `2026-08-10`
+- the local workspace is now continuing post-publish iteration on top of the
+  `zk-agent-cli@0.1.0-beta.6` baseline
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
-  `beta -> 0.1.0-beta.5`, `latest -> 0.1.0-beta.5`
+  `beta -> 0.1.0-beta.6`, `latest -> 0.1.0-beta.6`
 - public operator docs now default to the packaged `zk-agent ...` surface
 - inside this repository, `pnpm zk-agent ...` remains the development/runtime
   wrapper for contributors and local smoke work

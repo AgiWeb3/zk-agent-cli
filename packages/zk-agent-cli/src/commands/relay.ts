@@ -73,6 +73,24 @@ function relayPublicOriginLooksLocal(origin: string): boolean {
   }
 }
 
+function normalizeComparableRelayUrl(value: string): string | null {
+  try {
+    return new URL(value).toString().replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function relayUrlMatches(left: string, right: string | null): boolean | null {
+  const normalizedLeft = normalizeComparableRelayUrl(left);
+  const normalizedRight = right ? normalizeComparableRelayUrl(right) : null;
+  if (normalizedLeft === null || normalizedRight === null) {
+    return null;
+  }
+
+  return normalizedLeft === normalizedRight;
+}
+
 function relayHostedReadinessNotes(options: {
   compatible: boolean;
   publicOrigin: string;
@@ -102,6 +120,30 @@ function relayHostedReadinessNotes(options: {
   return notes;
 }
 
+function relayOriginRelationshipNotes(options: {
+  relayUrl: string;
+  origin: string | null;
+  publicOrigin: string;
+}): string[] {
+  const notes: string[] = [];
+  const relayUrlMatchesOrigin = relayUrlMatches(options.relayUrl, options.origin);
+  const relayUrlMatchesPublicOrigin = relayUrlMatches(options.relayUrl, options.publicOrigin);
+
+  if (relayUrlMatchesOrigin === false) {
+    notes.push(
+      'The inspected relay URL differs from the bind origin reported by /health. That is expected when you inspect a relay through a reverse proxy or tunnel instead of the local bind address.'
+    );
+  }
+
+  if (relayUrlMatchesPublicOrigin === false) {
+    notes.push(
+      'The inspected relay URL differs from the advertised public origin. Share links and wallet approval commands will use the public origin, not the inspected relay URL.'
+    );
+  }
+
+  return notes;
+}
+
 interface RelayInspectPayload {
   ok: true;
   status: 'relay-inspected';
@@ -113,6 +155,8 @@ interface RelayInspectPayload {
   relayMode: RelayHealthResponse['relay_mode'] | null;
   origin: string | null;
   publicOrigin: string;
+  relayUrlMatchesOrigin: boolean | null;
+  relayUrlMatchesPublicOrigin: boolean | null;
   publicOriginLooksLocal: boolean;
   connectorUiAvailable: boolean | null;
   hostedShareRedirectReady: boolean;
@@ -133,14 +177,23 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
   const publicOrigin = health?.public_origin || fallbackPublicOrigin;
   const compatible = Boolean(health && hasCoreRelayCapabilities(health.capabilities));
   const connectorUiAvailable = health?.connector_ui_available ?? null;
+  const relayUrlMatchesOrigin = relayUrlMatches(relayUrl, health?.origin || null);
+  const relayUrlMatchesPublicOrigin = relayUrlMatches(relayUrl, publicOrigin);
   const publicOriginLooksLocal = relayPublicOriginLooksLocal(publicOrigin);
   const hostedShareRedirectReady =
     compatible && connectorUiAvailable === true && !publicOriginLooksLocal;
-  const notes = relayHostedReadinessNotes({
-    compatible,
-    publicOrigin,
-    connectorUiAvailable
-  });
+  const notes = [
+    ...relayHostedReadinessNotes({
+      compatible,
+      publicOrigin,
+      connectorUiAvailable
+    }),
+    ...relayOriginRelationshipNotes({
+      relayUrl,
+      origin: health?.origin || null,
+      publicOrigin
+    })
+  ];
 
   return {
     ok: true,
@@ -153,6 +206,8 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     relayMode: health?.relay_mode || null,
     origin: health?.origin || null,
     publicOrigin,
+    relayUrlMatchesOrigin,
+    relayUrlMatchesPublicOrigin,
     publicOriginLooksLocal,
     connectorUiAvailable,
     hostedShareRedirectReady,
@@ -288,6 +343,15 @@ export function createRelayCommand(): Command {
       if (payload.publicOrigin) {
         humanLine('public origin', payload.publicOrigin);
       }
+      if (payload.relayUrlMatchesOrigin !== null) {
+        humanLine('relay url matches origin', payload.relayUrlMatchesOrigin ? 'yes' : 'no');
+      }
+      if (payload.relayUrlMatchesPublicOrigin !== null) {
+        humanLine(
+          'relay url matches public origin',
+          payload.relayUrlMatchesPublicOrigin ? 'yes' : 'no'
+        );
+      }
       humanLine('public origin local', payload.publicOriginLooksLocal ? 'yes' : 'no');
       if (payload.connectorUiAvailable !== null) {
         humanLine('connector ui', payload.connectorUiAvailable ? 'available' : 'missing');
@@ -303,10 +367,9 @@ export function createRelayCommand(): Command {
         if (payload.recommendedCommands.reapproveWallet) {
           humanLine('reapprove wallet', payload.recommendedCommands.reapproveWallet);
         }
-      } else {
-        for (const note of payload.notes) {
-          humanLine('note', note);
-        }
+      }
+      for (const note of payload.notes) {
+        humanLine('note', note);
       }
     });
 

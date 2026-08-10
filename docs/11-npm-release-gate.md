@@ -345,16 +345,17 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current published baseline
 
-- current public beta completed on `2026-08-07`:
-  `zk-agent-cli@0.1.0-beta.5`
-- no newer local release candidate is prepared yet
+- current public beta completed on `2026-08-10`:
+  `zk-agent-cli@0.1.0-beta.6`
+- the local workspace has already resumed post-publish iteration on top of
+  that published baseline
 - publishing-account readback:
   `npm whoami -> jerrygod`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.5`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.5`
-  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.5`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.5","beta":"0.1.0-beta.5"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.6`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.6`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.6`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.6","beta":"0.1.0-beta.6"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted
@@ -371,9 +372,12 @@ npm dist-tag add zk-agent-cli@<version> latest
     bundled connector-UI path resolution and tightening `release:check` so the
     installed tarball must pass the same hosted-relay readiness and share-link
     entrypoint checks before publish
-  - `zk-agent-cli@0.1.0-beta.5` keeps that hosted-relay packaging baseline,
-    aligns the package-first docs/help surface, and completed a full
+  - `zk-agent-cli@0.1.0-beta.5` kept that hosted-relay packaging baseline,
+    aligned the package-first docs/help surface, and completed a full
     `pnpm validate:release` pass on the supported host runtime before publish
+  - `zk-agent-cli@0.1.0-beta.6` preserves that release baseline, fixes the
+    final release-validation regressions uncovered during the last publish
+    closeout, and is now live on both npm dist-tags `latest` and `beta`
   - the next release gate will also fail fast when the active release runtime
     drifts below the declared floor:
     `release:check` now rejects Node `<24` and any `pnpm` version other than
