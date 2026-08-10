@@ -3206,15 +3206,30 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
           paymasterMode: wallet.paymasterMode,
           deploymentStatus: 'deployed',
           codeLength: 123,
+          approvalReady: true,
+          localExecutionKeyStored: true,
           sessionPrivateKeyStored: true,
           writeReady: true,
+          signerMatchesStoredIdentity: true,
           blockers: [],
           notes: ['ready']
         };
       }
     },
     defiProvider: provider,
-    loadWallet: async () => sampleWallet,
+    loadWallet: async () => ({
+      ...sampleWallet,
+      localExecutionAuthority: {
+        privateKey: '0x' + '22'.repeat(32),
+        signerAddress: sampleWallet.ownerAddress,
+        signerType: 'local',
+        source: 'explicit-local-approval',
+        attachedAt: '2026-06-18T00:00:00.000Z'
+      },
+      sessionPayload: sampleSessionPayload({
+        sessionPrivateKey: undefined
+      })
+    }),
     saveWallet: async () => {}
   });
 
@@ -3626,15 +3641,30 @@ test('runStandardAgentTool dispatches by name and normalizes unknown tool errors
           paymasterMode: wallet.paymasterMode,
           deploymentStatus: 'deployed',
           codeLength: 123,
+          approvalReady: true,
+          localExecutionKeyStored: true,
           sessionPrivateKeyStored: true,
           writeReady: true,
+          signerMatchesStoredIdentity: true,
           blockers: [],
           notes: ['ready']
         };
       }
     },
     defiProvider: provider,
-    loadWallet: async () => sampleWallet,
+    loadWallet: async () => ({
+      ...sampleWallet,
+      localExecutionAuthority: {
+        privateKey: '0x' + '22'.repeat(32),
+        signerAddress: sampleWallet.ownerAddress,
+        signerType: 'local',
+        source: 'explicit-local-approval',
+        attachedAt: '2026-06-18T00:00:00.000Z'
+      },
+      sessionPayload: sampleSessionPayload({
+        sessionPrivateKey: undefined
+      })
+    }),
     saveWallet: async () => undefined,
     loadWorkflowCheckpoint: async (requestId) => workflowRunnableCheckpoints.get(requestId) || null,
     saveWorkflowCheckpoint: async (checkpoint) => {
@@ -4458,9 +4488,15 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
   const workflowProvider = {
     ...createProviderStub(),
     async inspectWallet(wallet: WalletSessionRecord) {
-      const sessionPrivateKeyStored = Boolean(
+      const localExecutionKeyStored = Boolean(
         wallet.localExecutionAuthority?.privateKey || wallet.sessionPayload?.sessionPrivateKey
       );
+      const approvalReady = Boolean(wallet.sessionPayload);
+      const blockers = !approvalReady
+        ? ['reapprove']
+        : !localExecutionKeyStored
+          ? ['attach-signer']
+          : [];
 
       return {
         walletName: wallet.walletName,
@@ -4472,29 +4508,28 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
         paymasterMode: wallet.paymasterMode,
         deploymentStatus: 'deployed',
         codeLength: 123,
-        approvalReady: Boolean(wallet.sessionPayload),
-        localExecutionKeyStored: sessionPrivateKeyStored,
-        sessionPrivateKeyStored,
-        writeReady: sessionPrivateKeyStored,
-        blockers: sessionPrivateKeyStored ? [] : ['reapprove'],
-        notes: sessionPrivateKeyStored ? ['ready'] : ['missing local session']
+        approvalReady,
+        localExecutionKeyStored,
+        sessionPrivateKeyStored: localExecutionKeyStored,
+        writeReady: approvalReady && localExecutionKeyStored,
+        blockers,
+        notes:
+          blockers.length === 0
+            ? ['ready']
+            : !approvalReady
+              ? ['missing approval']
+              : ['missing local signer']
       };
     }
   };
 
   wallets.set('workflow-needs-approval', {
     ...sampleWallet,
-    walletName: 'workflow-needs-approval',
-    sessionPayload: sampleSessionPayload({
-      sessionPrivateKey: undefined
-    })
+    walletName: 'workflow-needs-approval'
   });
   wallets.set('workflow-auto-approval', {
     ...sampleWallet,
-    walletName: 'workflow-auto-approval',
-    sessionPayload: sampleSessionPayload({
-      sessionPrivateKey: undefined
-    })
+    walletName: 'workflow-auto-approval'
   });
 
   const context = createAgentToolContext({
