@@ -4700,9 +4700,25 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
     status_url: `http://127.0.0.1:4445/api/requests/${relayRequestCreated.data.walletApproval?.requestId}`,
     approval_url: `http://127.0.0.1:4445/r/${relayRequestCreated.data.walletApproval?.requestId}`
   });
+  assert.equal(
+    relayRequestCreated.data.walletApproval?.relayShareLinkBaseUrl,
+    'http://127.0.0.1:4445/r'
+  );
+  assert.equal(
+    relayRequestCreated.data.walletApproval?.relayStatusApiBaseUrl,
+    'http://127.0.0.1:4445/api/requests'
+  );
   assert.deepEqual(
     relayRequestCreated.data.walletApprovalRelay,
     relayRequestCreated.data.walletApproval?.relay
+  );
+  assert.equal(
+    relayRequestCreated.data.walletApprovalRelayShareLinkBaseUrl,
+    'http://127.0.0.1:4445/r'
+  );
+  assert.equal(
+    relayRequestCreated.data.walletApprovalRelayStatusApiBaseUrl,
+    'http://127.0.0.1:4445/api/requests'
   );
   assert.deepEqual(relayRequestCreated.data.recommendedCommands, {
     awaitLocal: `zk-agent wallet request await-local --request-id ${relayRequestCreated.data.walletApproval?.requestId}`,

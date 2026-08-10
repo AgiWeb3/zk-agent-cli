@@ -256,6 +256,12 @@ export async function runSmokeOperatorPath(
       workflowAgentProfile: workflowPay.ok ? workflowPay.data.agentProfile : undefined,
       workflowAgentFollowup: workflowPay.ok ? workflowPay.data.agentFollowup : undefined,
       walletApprovalRelay: workflowPay.ok ? workflowPay.data.walletApproval?.relay : undefined,
+      walletApprovalRelayShareLinkBaseUrl: workflowPay.ok
+        ? workflowPay.data.walletApprovalRelayShareLinkBaseUrl
+        : undefined,
+      walletApprovalRelayStatusApiBaseUrl: workflowPay.ok
+        ? workflowPay.data.walletApprovalRelayStatusApiBaseUrl
+        : undefined,
       walletApprovalRecommendedCommands: workflowPay.ok
         ? workflowPay.data.recommendedCommands
         : undefined,

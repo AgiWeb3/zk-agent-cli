@@ -12,6 +12,8 @@ export interface OperatorPathSummary {
   workflowAgentProfile?: unknown;
   workflowAgentFollowup?: unknown;
   walletApprovalRelay?: unknown;
+  walletApprovalRelayShareLinkBaseUrl?: unknown;
+  walletApprovalRelayStatusApiBaseUrl?: unknown;
   walletApprovalRecommendedCommands?: unknown;
   workflowRecommendedCommands?: unknown;
 }
@@ -31,6 +33,8 @@ export function buildOperatorPathSummary(input: OperatorPathSummary): OperatorPa
     workflowAgentProfile: input.workflowAgentProfile,
     workflowAgentFollowup: input.workflowAgentFollowup,
     walletApprovalRelay: input.walletApprovalRelay,
+    walletApprovalRelayShareLinkBaseUrl: input.walletApprovalRelayShareLinkBaseUrl,
+    walletApprovalRelayStatusApiBaseUrl: input.walletApprovalRelayStatusApiBaseUrl,
     walletApprovalRecommendedCommands: input.walletApprovalRecommendedCommands,
     workflowRecommendedCommands: input.workflowRecommendedCommands
   };
@@ -49,6 +53,8 @@ export interface SmokeStepFollowupSummary {
   workflowAgentProfile?: unknown;
   workflowAgentFollowup?: unknown;
   walletApprovalRelay?: unknown;
+  walletApprovalRelayShareLinkBaseUrl?: unknown;
+  walletApprovalRelayStatusApiBaseUrl?: unknown;
 }
 
 export interface SmokeExecutionStepResult {
@@ -82,6 +88,8 @@ export function extractSmokeStepFollowupSummary(
           workflowAgentProfile?: unknown;
           workflowAgentFollowup?: unknown;
           walletApprovalRelay?: unknown;
+          walletApprovalRelayShareLinkBaseUrl?: unknown;
+          walletApprovalRelayStatusApiBaseUrl?: unknown;
           walletApprovalRecommendedCommands?: unknown;
           workflowRecommendedCommands?: unknown;
           workflowRegistry?: unknown;
@@ -102,6 +110,8 @@ export function extractSmokeStepFollowupSummary(
         workflow: summary.workflowRecommendedCommands
       },
       walletApprovalRelay: summary.walletApprovalRelay,
+      walletApprovalRelayShareLinkBaseUrl: summary.walletApprovalRelayShareLinkBaseUrl,
+      walletApprovalRelayStatusApiBaseUrl: summary.walletApprovalRelayStatusApiBaseUrl,
       agentProfile: summary.topLevelAgentProfile,
       agentFollowup: summary.topLevelAgentFollowup,
       workflowAgentProfile: summary.workflowAgentProfile,

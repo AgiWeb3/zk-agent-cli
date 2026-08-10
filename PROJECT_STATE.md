@@ -103,10 +103,11 @@ Completed architecture baseline to keep in mind:
      inspect output no longer suppresses hosted-readiness notes on otherwise
      compatible relays
    - current baseline improvement:
-     relay-backed wallet create/reapprove outputs and the manual
-     `smoke:remote-approval` path now also surface explicit
-     `shareLinkBaseUrl` and `statusApiBaseUrl` fields, so operators do not
-     have to reconstruct the final hosted link bases from one sample URL
+     relay-backed wallet create/reapprove outputs, workflow approval outputs,
+     agent-tool workflow wrappers, and the manual `smoke:remote-approval`
+     path now also surface explicit `shareLinkBaseUrl` and
+     `statusApiBaseUrl` fields, so operators do not have to reconstruct the
+     final hosted link bases from one sample URL
 2. flagship AA real-user proof on a public relay
    - move beyond the synthetic hosted smoke and prove one real
      browser-mediated `wallet create|reapprove --wait-relay --prompt-code`

@@ -76,6 +76,8 @@ export interface WorkflowOrchestratorToolOutput {
   registry?: WorkflowStatusResult['plan']['registry'];
   walletApproval?: WalletApprovalOrchestratorToolOutput;
   walletApprovalRelay?: WalletApprovalOrchestratorToolOutput['relay'];
+  walletApprovalRelayShareLinkBaseUrl?: WalletApprovalOrchestratorToolOutput['relayShareLinkBaseUrl'];
+  walletApprovalRelayStatusApiBaseUrl?: WalletApprovalOrchestratorToolOutput['relayStatusApiBaseUrl'];
   recommendedCommand?: string;
   recommendedCommands?: WalletApprovalRecommendedCommands;
   walletApprovalRecommendedCommands?: WalletApprovalRecommendedCommands;
@@ -540,6 +542,8 @@ export async function executeWorkflowOrchestratorTool(
     registry: run?.plan.registry || status.plan.registry,
     walletApproval,
     walletApprovalRelay: walletApproval?.relay,
+    walletApprovalRelayShareLinkBaseUrl: walletApproval?.relayShareLinkBaseUrl,
+    walletApprovalRelayStatusApiBaseUrl: walletApproval?.relayStatusApiBaseUrl,
     recommendedCommand: run ? run.nextCommand : recommendedCommand,
     recommendedCommands: walletApprovalRecommendedCommands(walletApproval),
     walletApprovalRecommendedCommands: walletApprovalRecommendedCommands(walletApproval),

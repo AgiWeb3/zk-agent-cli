@@ -141,6 +141,8 @@ export interface WalletApprovalOrchestratorToolOutput {
   requestId: string;
   request?: SanitizedWalletRequestRecord;
   relay?: RelayCreateResponse;
+  relayShareLinkBaseUrl?: string;
+  relayStatusApiBaseUrl?: string;
   wallet?: WalletSessionRecord;
   payload?: SanitizedSessionPayload;
   nextAction: 'submit-approved-payload' | 'wallet-ready';
@@ -409,6 +411,28 @@ function buildWalletApprovalRecommendedCommands(
 
 function normalizeRelayBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
+}
+
+function relayOutputAliases(relay: RelayCreateResponse | undefined): Pick<
+  WalletApprovalOrchestratorToolOutput,
+  'relayShareLinkBaseUrl' | 'relayStatusApiBaseUrl'
+> {
+  const shareUrl = relay?.share_url;
+  const statusUrl = relay?.status_url;
+  const approvalUrl = relay?.approval_url;
+
+  return {
+    relayShareLinkBaseUrl: shareUrl
+      ? shareUrl.replace(/\/[^/]+$/, '')
+      : approvalUrl
+        ? approvalUrl.replace(/\/[^/]+$/, '')
+        : undefined,
+    relayStatusApiBaseUrl: statusUrl
+      ? statusUrl.replace(/\/[^/]+$/, '')
+      : approvalUrl && relay?.request_id
+        ? `${approvalUrl.replace(/\/r\/[^/]+$/, '')}/api/requests`
+        : undefined
+  };
 }
 
 function buildRelayCreateRequest(walletRequest: WalletRequestRecord): RelayCreateRequest {
@@ -1272,6 +1296,7 @@ export async function runWalletApprovalOrchestration(
       requestId: request.requestId,
       request: sanitizeWalletRequestRecord(request),
       relay,
+      ...relayOutputAliases(relay),
       wallet: wallet ? stripSensitiveWalletRecord(wallet) : undefined,
       nextAction: 'submit-approved-payload',
       recommendedCommands: buildWalletApprovalRecommendedCommands(

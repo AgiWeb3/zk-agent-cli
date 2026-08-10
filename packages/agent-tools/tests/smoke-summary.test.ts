@@ -41,6 +41,8 @@ test('buildOperatorPathSummary preserves agent and workflow follow-up fields', (
     walletApprovalRelay: {
       share_url: 'http://127.0.0.1:4445/r/req123'
     },
+    walletApprovalRelayShareLinkBaseUrl: 'http://127.0.0.1:4445/r',
+    walletApprovalRelayStatusApiBaseUrl: 'http://127.0.0.1:4445/api/requests',
     walletApprovalRecommendedCommands: {
       awaitLocal: 'zk-agent wallet request await-local --request-id req123',
       afterApproval: 'zk-agent next',
@@ -68,6 +70,11 @@ test('buildOperatorPathSummary preserves agent and workflow follow-up fields', (
   assert.deepEqual(summary.walletApprovalRelay, {
     share_url: 'http://127.0.0.1:4445/r/req123'
   });
+  assert.equal(summary.walletApprovalRelayShareLinkBaseUrl, 'http://127.0.0.1:4445/r');
+  assert.equal(
+    summary.walletApprovalRelayStatusApiBaseUrl,
+    'http://127.0.0.1:4445/api/requests'
+  );
 });
 
 test('extractSmokeStepFollowupSummary reads operator-path agent follow-up fields', () => {
@@ -99,6 +106,8 @@ test('extractSmokeStepFollowupSummary reads operator-path agent follow-up fields
           share_url: 'http://127.0.0.1:4445/r/req123',
           status_url: 'http://127.0.0.1:4445/api/requests/req123'
         },
+        walletApprovalRelayShareLinkBaseUrl: 'http://127.0.0.1:4445/r',
+        walletApprovalRelayStatusApiBaseUrl: 'http://127.0.0.1:4445/api/requests',
         workflowRecommendedCommands: {
           inspectDefaults: 'zk-agent defaults'
         },
@@ -128,6 +137,8 @@ test('extractSmokeStepFollowupSummary reads operator-path agent follow-up fields
       share_url: 'http://127.0.0.1:4445/r/req123',
       status_url: 'http://127.0.0.1:4445/api/requests/req123'
     },
+    walletApprovalRelayShareLinkBaseUrl: 'http://127.0.0.1:4445/r',
+    walletApprovalRelayStatusApiBaseUrl: 'http://127.0.0.1:4445/api/requests',
     agentProfile: {
       profileExists: false
     },
