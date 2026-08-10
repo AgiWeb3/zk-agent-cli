@@ -112,6 +112,12 @@ Completed architecture baseline to keep in mind:
      `relay serve` / `relay inspect` recommended commands now point at the
      one-shot remote-approval path with `--wait-relay --prompt-code`, and the
      agent-tool registry metadata now matches that hosted reapproval path
+   - current baseline improvement:
+     root help, `next --help`, `wallet --help`, the root README, the packaged
+     CLI README, and the primary repo skills now all describe the same
+     local-first operator baseline, including the explicit `zk-agent next`
+     follow-up after local reapproval/signer repair and the hosted relay path
+     as the fallback instead of the default
 2. flagship AA real-user proof on a public relay
    - move beyond the synthetic hosted smoke and prove one real
      browser-mediated `wallet create|reapprove --wait-relay --prompt-code`

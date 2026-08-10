@@ -463,6 +463,12 @@ Unless priorities change, the next concrete slices should be:
      `relay serve` / `relay inspect` follow-up commands now prefer the
      one-shot remote-approval path with `--wait-relay --prompt-code`, and the
      agent-tool registry metadata now matches that hosted reapproval story
+   - current baseline improvement:
+     root help, `next --help`, `wallet --help`, the root README, the packaged
+     CLI README, and the primary repo skills now all describe the same
+     local-first operator baseline, including the explicit `zk-agent next`
+     follow-up after local reapproval/signer repair and the hosted relay path
+     as the fallback instead of the default
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin
