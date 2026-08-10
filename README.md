@@ -39,8 +39,8 @@ Current status:
 
 - the current public beta, `zk-agent-cli@0.1.0-beta.5`, was published on
   `2026-08-07`
-- the local workspace is aligned with the current published package version:
-  `zk-agent-cli@0.1.0-beta.5`
+- the local workspace is now prepared for the next beta publish as
+  `zk-agent-cli@0.1.0-beta.6`
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
