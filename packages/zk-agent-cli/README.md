@@ -13,6 +13,15 @@ Current strengths:
 
 ## Install
 
+If you are installing this repository into a compatible agent harness instead
+of using the CLI directly, prefer the repo skill surface:
+
+```bash
+npx skills add https://github.com/AgiWeb3/zk-agent-cli
+```
+
+For direct terminal use, install the packaged CLI:
+
 One-shot execution:
 
 ```bash

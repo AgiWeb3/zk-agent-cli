@@ -2,11 +2,12 @@
 
 `zk-agent-cli` is a local-first monorepo for building an agent-oriented CLI on top of `zkSync Era` and the wider `ZK Stack`.
 
-Current handoff snapshot:
+Core references:
 
 - [PROJECT_STATE.md](./PROJECT_STATE.md)
+- [PLANS.md](./PLANS.md)
 
-Agent-facing entrypoint:
+Agent-facing references:
 
 - [skills/SKILL.md](./skills/SKILL.md)
 - [skills/QUICKSTART.md](./skills/QUICKSTART.md)
@@ -25,8 +26,10 @@ The project is intentionally modeled after the real architecture of `polygon-age
 
 ## Install Surfaces
 
-There are now two explicit install surfaces:
+There are now three explicit install surfaces:
 
+- agent-harness skill install for compatible runtimes:
+  - `npx skills add https://github.com/AgiWeb3/zk-agent-cli`
 - packaged CLI for public/operator use:
   - `npx zk-agent-cli --help`
   - `npm install -g zk-agent-cli`
@@ -35,62 +38,48 @@ There are now two explicit install surfaces:
   - `pnpm install`
   - `pnpm zk-agent --help`
 
-Current status:
+Use the skill install when the operator is adding this repo to a compatible
+agent harness. Use the packaged CLI when the operator wants a direct terminal
+tool. Keep the repo-local wrapper for contributors and source-checkout smoke
+work only.
 
-- the current public beta, `zk-agent-cli@0.1.0-beta.6`, was published on
+Release snapshot:
+
+- the current public beta, `zk-agent-cli@0.1.0-beta.7`, was published on
   `2026-08-10`
 - the local workspace is now continuing post-publish iteration on top of the
-  `zk-agent-cli@0.1.0-beta.6` baseline
+  `zk-agent-cli@0.1.0-beta.7` baseline
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
-  `beta -> 0.1.0-beta.6`, `latest -> 0.1.0-beta.6`
+  `beta -> 0.1.0-beta.7`, `latest -> 0.1.0-beta.7`
+- public agent-harness docs now default to
+  `npx skills add https://github.com/AgiWeb3/zk-agent-cli`
 - public operator docs now default to the packaged `zk-agent ...` surface
 - inside this repository, `pnpm zk-agent ...` remains the development/runtime
   wrapper for contributors and local smoke work
 
-## Current Phase
+## Current Status
 
-The project has moved past scaffolding and isolated chain experiments.
+The product baseline is already in place:
 
-Current stage: `Post-Phase-5: hardening and expansion`.
+- the public npm package is live and installable
+- the local-first wallet/session lifecycle is implemented
+- hosted relay approval is proven end to end
+- the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
+- the agent-facing docs are split into stable skill slices:
+  `zk-aa`, `zk-relay`, and `zk-defi`
 
-What that means:
+The active work is now productization closeout rather than new protocol
+scaffolding:
 
-- the zkSync-native engineering baseline already exists
-- Phase 3 productization/parity exit is complete:
-  - default operator path is aligned across README, CLI, tools, and follow-up commands
-  - installable `skills/` surface exists
-  - relay-capable remote approval is now covered by an explicit product-level smoke path
-  - workflow-first operator entrypoints cover the common actions
-  - registry-backed validated defaults are documented and machine-readable
-- Phase 4 product hardening is also complete on the current baseline:
-  - the first public beta is published
-  - the defaults/discovery surface is productized
-  - one canonical Sepolia ERC-20 deposit baseline is live-validated
-  - relay-backed remote approval is a shipped path
-- Phase 5 productization to parity is also complete on the current baseline:
-  - release discipline and package-first standalone usability are part of the
-    closed baseline
-  - hosted remote approval is proven on the shipped relay surface, including
-    real public outside-in validation
-  - one clearer zk-native flagship workflow is productized around AA,
-    paymaster, and workflow orchestration
-  - future AA defaults, acceptance, and operator examples now stay on
-    `sed-lite`; `daily-spend-limit` is kept only for narrower policy
-    experiments and regression coverage
-- the agent-facing skill surface is now split into stable product slices:
-  `zk-aa` for the current AA/operator path, `zk-relay` for hosted remote
-  approval and relay recovery, and `zk-defi` for the current DeFi action
-  reference
-- the active work is now post-Phase-5:
-  - hosted relay hardening beyond the current file-backed prototype
-  - operator-informed polish and expansion only when real usage justifies it
-- the vertical-workflow review is also complete on the current baseline:
-  no zkSync-native first-class vertical has enough repeated operator evidence
-  yet to justify a dedicated command family
+- unify public install and onboarding entrypoints
+- harden the hosted relay from a validated prototype toward a clearer operated
+  contract
+- reduce release/version/doc drift after publish
+- improve token/asset discovery around the current validated Sepolia paths
 
-What is already in place:
+## Implemented Surface
 
 - workspace structure
 - provider boundaries
@@ -248,7 +237,7 @@ What is already in place:
   - `pnpm smoke:hosted-relay -- --relay-url <url>` for bounded outside-in validation of an externally reachable hosted relay: the smoke runs the real `relay inspect`, publishes a synthetic request, confirms `/r/<id>` redirects into the connector UI, and confirms the bundled hashed frontend asset still serves from the relay
   - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow pay -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
   - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--manual-approval] [--code <code>|--prompt-code]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present; `--manual-approval` switches from the synthetic encrypted-approval shortcut to the real browser/share-link path and can either stop after publish with follow-up commands or wait and finalize after you supply the 6-digit approval code
-  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute] [--manual-approval] [--code <code>|--prompt-code]` for the current Phase 5 flagship AA path: use a `sed-lite` wallet for the acceptance baseline; when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet; `--manual-approval` switches the reapproval step to the real browser/share-link flow and can either stop after publish with follow-up commands or continue after a real approval code
+  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute] [--manual-approval] [--code <code>|--prompt-code]` for the current flagship AA path: use a `sed-lite` wallet for the acceptance baseline; when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet; `--manual-approval` switches the reapproval step to the real browser/share-link flow and can either stop after publish with follow-up commands or continue after a real approval code
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
@@ -369,7 +358,7 @@ The active focus is:
 
 ## Recommended Operator Path
 
-For the current phase, the canonical path is:
+The canonical operator path is:
 
 ```bash
 zk-agent setup
@@ -780,7 +769,7 @@ Recommended root wrappers for the current stable product surface:
   `defaults`, `assets`, `balances --owned-tokens`, `tokens --owned`,
   `tokens --chain`, and `resolve-token`
 - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute] [--manual-approval] [--code <code>|--prompt-code]`
-  validates the current Phase 5 flagship AA operator story in one narrower
+  validates the current flagship AA operator story in one narrower
   sequence: use a `sed-lite` wallet for the acceptance baseline; with
   `--relay-url` it first validates the external hosted relay,
   then runs relay-backed wallet reapproval on the existing wallet, then the
@@ -830,7 +819,7 @@ Recommended root wrappers for the current stable product surface:
   automatically when `--relay-url` is omitted; `--manual-approval` uses the
   real browser/share-link approval path instead of auto-submitting a
   synthetic encrypted payload
-- `pnpm validate:phase3` runs the current Phase 3 regression set across
+- `pnpm validate:phase3` runs the legacy Phase 3 regression set across
   `agent-core`, `agent-tools`, and `zk-agent-cli`, including the remote
   approval smoke runtime regression
 

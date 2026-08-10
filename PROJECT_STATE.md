@@ -3,76 +3,37 @@
 ## Snapshot
 
 - Last updated: 2026-08-10
-- Latest commit at write time: `febca3f`
+- Latest commit at write time: `23d17a1`
 - Current branch: `main`
-- Working tree status when this document was written: dirty with the completed
-  relay/manual-approval hardening, connector submitted-payload freeze fix,
-  flagship paymaster proof refresh, and the matching state-document update
+- Working tree status when this document was written: dirty with the
+  productization-gap planning refresh after `0.1.0-beta.7` publish and
+  dist-tag alignment
 
-## Current phase
+## Current status
 
-Phase 5 is complete on the current baseline.
+The product baseline is already closed for the core zkSync-native path:
 
-This means:
-
-- the zkSync-native engineering baseline already exists
-- Phase 3 is complete
-- Phase 4 is also complete on the current baseline
-- the package-first install surface, hosted relay proof, zk-native flagship
-  path, release discipline, and product-slice skill split are now all part of
-  the closed baseline for this stage
-- the active work now sits in post-Phase-5 hardening and explicit backlog,
-  not in any still-open Phase 5 execution thread
+- `zk-agent-cli@0.1.0-beta.7` is live and both npm dist-tags `beta` and
+  `latest` point there
+- the public package, local-first wallet/session lifecycle, hosted relay path,
+  and flagship `workflow pay` AA flow all exist and have real validation proof
+- the current work is productization closeout and public-surface hardening, not
+  missing chain mechanics
 - broader DeFi breadth remains deferred unless explicitly resumed
-- the main reference point is still `../polygon-agent-cli`, but only for
-  reusable product patterns
 
-### Phase 3 closeout summary
-
-Phase 3 is complete.
-
-Closed results:
-
-1. the default operator path is explicit and aligned across docs, CLI, and
-   workflow guidance
-2. the repository ships an installable agent-facing `skills/` surface
-3. relay-capable remote approval is part of the shipped baseline
-4. workflow-first operator entrypoints are in place for the common actions
-5. defaults and registries are machine-readable and wired through CLI/tool
-   follow-up contracts
-
-### Phase 4 closeout summary
-
-Phase 4 is complete on the current baseline.
-
-Closed results:
-
-1. public beta publish is complete:
-   `zk-agent-cli@0.1.0-beta.6` is live, and both npm dist-tags `beta` and
-   `latest` currently point to that version
-2. discovery/default/token inspection is productized:
-   operators no longer need deployment-file tribal knowledge for the normal
-   inspection path
-3. the current non-deferred defaults breadth bar is met:
-   one real canonical Sepolia ERC-20 deposit baseline exists and L1 allowance
-   handling no longer blocks deposit broadcast
-4. relay-backed remote approval is a shipped path:
-   dedicated smoke coverage and stable top-level follow-up contracts exist
-5. no dedicated zkSync-native vertical is justified:
-   that is an explicit product decision, not unfinished work
-
-### Post-Phase-5 follow-on priorities
+### Current priorities
 
 Current ordered priorities:
 
-1. hosted remote approval hardening beyond the current file-backed prototype
-2. operator-informed polish on the packaged flagship workflow and relay UX
-3. broader DeFi breadth only when it is explicitly resumed
-4. optional connector/approval UX polish when live operator usage justifies it
+1. public install and zero-setup onboarding unification
+2. hosted remote approval hardening beyond the current file-backed prototype
+3. release/version/doc alignment automation
+4. operator-informed discovery and flagship UX polish
+5. broader DeFi breadth only when it is explicitly resumed
 
-Current concrete interpretation of those priorities:
+Current concrete interpretation and constraints:
 
-Completed architecture baseline to keep in mind:
+Architecture baseline to keep in mind:
 
 - signer/session separation is now landed end to end for the current product
   path:
@@ -89,7 +50,22 @@ Completed architecture baseline to keep in mind:
   for compatibility; removing it entirely is optional cleanup, not the active
   product priority
 
-1. hosted relay hardening
+1. public install and onboarding closeout
+   - the remaining gap versus `polygon-agent-cli` is no longer missing chain
+     capability; it is the first-run product shell
+   - the reference repo is still clearer about public entrypoints:
+     skill install, direct npm execution, and the shortest first-run path are
+     all more obvious there than they are here today
+   - the current closeout target is one coherent public story across the root
+     README, packaged README, skills, and CLI help:
+     when to use `skills add`, when to use `npx zk-agent-cli`, when the global
+     `zk-agent` binary is expected, and when source-checkout-only guidance is
+     actually relevant
+   - current gap exposed by the `0.1.0-beta.7` release:
+     repo docs can still drift after publish, so a packaged user may see
+     already-stale version/tag references in stable docs even though the live
+     npm package is newer
+2. hosted relay hardening
    - reduce ambiguity around reported `origin` vs `publicOrigin` under
      reverse-proxy or tunnel deployments
    - tighten the deployment contract shared by `/health`, `relay inspect`,
@@ -117,7 +93,16 @@ Completed architecture baseline to keep in mind:
      local-first operator baseline, including the explicit `zk-agent next`
      follow-up after local reapproval/signer repair and the hosted relay path
      as the fallback instead of the default
-2. packaged flagship UX polish
+3. release/version/doc discipline
+   - the product now has the public package, public beta line, hosted relay
+     proof, and flagship AA proof; the remaining release risk is operational
+     drift rather than missing package code
+   - version bumps, npm publish, dist-tag alignment, and repo-doc refresh are
+     still too manual compared with the reference repo
+   - the next closeout target is a tighter release contract that makes the
+     live npm version, dist-tags, help text, package README, root README,
+     skills, `PLANS.md`, and `PROJECT_STATE.md` harder to let drift apart
+4. packaged flagship and discovery UX polish
    - the real-user proof is no longer pending on the current baseline:
      on `2026-08-10`, a real browser-mediated hosted reapproval completed for
      `sed-lite-sa-v2` on a public frp-backed relay request
@@ -128,151 +113,33 @@ Completed architecture baseline to keep in mind:
      `d5181c7e`, which now reports `lastRun.stage = goal-executed`,
      `lastRun.mode = broadcast`, and `status = ready`
    - narrow the top-level operator surfaces that matter most in real usage:
-     `next`, `wallet create|reapprove`, `relay serve`, and `workflow pay`
-3. DeFi breadth only on explicit restart
+     `next`, `wallet create|reapprove`, `relay serve`, `workflow pay`, and the
+     surrounding token/asset discovery path
+   - the structure is now good enough; the remaining gap is making those
+     surfaces require less local knowledge about tokens, validated defaults,
+     and which discovery command should come next
+5. DeFi breadth only on explicit restart
    - do not let broader swap/deposit/withdraw breadth silently reclaim the
      default roadmap without a deliberate product decision
 
-### Phase 5 closeout detail
+### Current validated product baseline
 
-- the hosted remote-approval baseline now has an explicit relay compatibility
-  probe through `zk-agent relay inspect --relay-url <url>`
-- the local relay prototype now also accepts `--public-origin <https-url>` so
-  share/status URLs can be emitted for a real hosted/tunneled address instead
-  of only the local bind origin
-- `relay inspect` / `relay serve` now also tell the operator when the
-  advertised `publicOrigin` still looks local-only and whether hosted
-  share-link approval is actually ready, so hosted deployment mistakes are not
-  hidden behind a raw health payload
-- the published CLI package now also bundles the connector UI build used by
-  `relay serve`, so the hosted share-link path no longer depends on a source
-  checkout just to serve the approval UI
-- the remaining hosted gap is no longer "how does the CLI talk to a relay at
-  all"; it is live validation and hardening of a real hosted deployment
-- the current flagship AA operator path now also has a dedicated smoke:
-  relay-backed wallet reapproval on an existing wallet followed immediately by
-  the paymaster-backed flagship native-send path on that same wallet
-- the flagship AA path is now also productized as a first-class CLI entrypoint:
-  `zk-agent workflow pay --wallet <name> --to <address> --amount <amount>`
-  wraps the current validated native-send story with checkpoint persistence,
-  execute-when-ready orchestration, intent-scoped session recovery defaults,
-  and approval-based paymaster mode by default
-- the same flagship path now also reaches the machine-facing tool surface:
-  `packages/agent-tools` exposes `workflowPayTool`, `tool:list` now marks it
-  as the recommended guided-execution entry, and the flagship operator/path
-  smokes now point at `workflow pay` instead of the older long
-  `workflow auto --intent send-native` command shape
-- wallet-ready `zk-agent next` and the matching top-level agent tool now also
-  default their fallback `nextCommand` / `recommendedCommands.nextAction` to
-  `workflow pay`, while keeping `workflowAuto` available as the broader
-  multi-intent guided path
-- that flagship smoke now also hardens the external-relay variant:
-  when `--relay-url` is supplied it first validates the hosted relay itself
-  before attempting reapproval, instead of assuming any externally supplied
-  URL is already safe to use as the flagship operator path
-- the release-discipline baseline is slightly stronger:
-  `packages/zk-agent-cli/scripts/release-check.mjs` now enforces the minimum
-  standalone package-README contract for install paths, shortest path, relay
-  path, storage path, and common repair guidance
-- the release-discipline baseline now also covers a clean-machine-like
-  tarball install smoke:
-  `release:check` installs the packed tarball into a temporary project outside
-  the repository with `pnpm add --offline` and verifies the installed
-  `zk-agent` / `zksync-agent` binaries plus the basic JSON surfaces there
-- the release-discipline baseline now also verifies the installed hosted-relay
-  path:
-  the temporary tarball install must be able to run `relay serve` with a
-  hosted `--public-origin`, report `connectorUiAvailable: true`, and expose the
-  same readiness through the relay health payload
-- the release-discipline baseline now also hard-fails on publish-runtime drift:
-  `packages/zk-agent-cli/scripts/assert-release-runtime.mjs` is now the first
-  step of `release:check`, so Node `<24` or a `pnpm` version mismatch fail
-  before build/package work even starts
-- the packaged-install README contract is now slightly tighter too:
-  `release:check` also enforces that the package README names the supported
-  Node runtime floor and the real `~/.zk-agent/workflows/*.json` checkpoint
-  path instead of letting those packaged-user details drift away from the code
-- the package-first follow-through now also reaches the CLI help layer:
-  `wallet --help` uses the same relay-backed shortest path as the packaged
-  README and quickstart, so the canonical hosted approval flow is no longer
-  split between help text and package docs
-- the hosted-relay baseline now also verifies the share-link entrypoint itself:
-  relay CLI tests and `release:check` both create a real relay request,
-  confirm `/r/<id>` redirects to `/?relayRequestUrl=...` with the advertised
-  public origin embedded in the query, and confirm the bundled connector UI
-  landing page plus its hashed JS asset still serve correctly from the relay
-- the hosted-relay baseline now also has a dedicated repo-local smoke for real
-  external deployments:
-  `pnpm smoke:hosted-relay -- --relay-url <url>` reuses the real CLI
-  `relay inspect` contract, publishes a synthetic request, and validates the
-  hosted share-link/UI path against a caller-supplied external relay URL
-- the relay-backed approval smoke now also has a real browser/share-link mode:
-  `pnpm smoke:remote-approval -- --wallet <name> [--relay-url <url>] --manual-approval`
-  no longer posts a synthetic encrypted approval itself, and can either stop
-  after publish with machine-readable `shareUrl`, `statusUrl`, and explicit
-  relay follow-up commands or wait for readiness and finalize after a real
-  6-digit approval code is supplied
-- relay/manual-approval execution is now more observable in the shipped smoke
-  layer:
-  `smoke:flagship-workflow` forwards child stderr/prompt output again, so the
-  hosted reapproval step no longer hides share-link instructions or
-  `--prompt-code` input when the flagship path is run end to end
-- relay HTTP callers now also tolerate Codex sandbox DNS failures more
-  honestly:
-  hosted-relay validation and relay-backed approval paths use a curl fallback
-  on `ENOTFOUND` / `EAI_AGAIN` style failures instead of falsely presenting a
-  restricted sandbox resolver problem as a relay-product regression
-- the connector UI now freezes the last submitted encrypted relay package for a
-  given request:
-  relay polling/manual refresh can no longer silently regenerate a different
-  encrypted payload and 6-digit code after the operator has already clicked
-  `Submit To Relay`, which removes the observed `Invalid code: hash mismatch`
-  failure mode from the hosted manual-approval path
-- real hosted deployment validation is no longer blocked on public reachability:
-  on `2026-08-07`, a public frp-backed relay URL was validated end to end with
-  the real `relay inspect` contract and `pnpm smoke:hosted-relay`, including
-  `/health`, share-link redirect, and bundled connector UI asset delivery
-- the real browser-mediated hosted approval proof is now also complete:
-  on `2026-08-10`, `smoke:remote-approval --manual-approval` succeeded against
-  the public frp-backed relay on wallet `sed-lite-sa-v2`, finalizing request
-  `53328a56` through the encrypted relay payload path instead of the old
-  synthetic self-post shortcut
-- the flagship pay path is now also proven on that same real public-relay
-  baseline:
-  `smoke:paymaster-success -- --wallet sed-lite-sa-v2 --amount 0.00001 --paymaster-mode approval-based --execute`
-  succeeded on `2026-08-10` with tx hash
-  `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`,
-  and the matching workflow record `d5181c7e` resolved back to `ready`
-- the remaining hosted gap is now narrower and more honest:
-  the outside-in proof exists, but the validated deployment is still the
-  current file-backed hosted prototype rather than a more durable operated
-  relay baseline
-- the product-slice skill work has started for real:
-  `skills/zk-aa/SKILL.md` now isolates the current flagship AA/operator path
-  instead of forcing that guidance to stay embedded inside the repo-level
-  skill only
-- the skill surface now also includes a focused relay slice:
-  `skills/zk-relay/SKILL.md` isolates hosted remote approval, relay readiness
-  checks, share-link validation, and manual relay fallback instead of leaving
-  that path diffused across the repo-level skill and hosted prototype runbook
-- the package-first doc follow-through now also covers the DeFi skill:
-  `skills/zk-defi/SKILL.md` and the root README operator-path examples now
-  default to the packaged `zk-agent` entrypoint and only fall back to
-  `pnpm zk-agent` when the operator is intentionally using a source checkout
-- the release-readiness baseline is now proven end to end on the supported
-  host runtime:
-  `pnpm validate:release` passed on `2026-08-07` under Node `24.14.1` and the
-  workspace-declared `pnpm@10.30.3`, including `release:check`,
-  `@zk-agent/agent-tools` tests, and `zk-agent-cli` tests
-- the only failed validation observed in this closeout was environmental, not
-  product-level:
-  the managed sandbox blocked registry DNS during the clean-machine tarball
-  install smoke, while the same gate passed when rerun outside that restricted
-  network environment
-
-Phase 3 execution detail was intentionally removed from this state file after
-closeout. The remaining work now sits in post-Phase-5 follow-on or explicit
-deferred backlog, not in any open Phase 3 thread.
+- hosted relay approval is proven end to end:
+  - public hosted relay inspection and hosted share-link/UI validation passed
+  - real browser-mediated hosted approval completed for `sed-lite-sa-v2`
+    through request `53328a56`
+- the flagship AA pay path is proven:
+  - `workflow pay` is the canonical zkSync-native flagship path
+  - approval-based broadcast succeeded on `sed-lite-sa-v2` with tx hash
+    `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`
+  - workflow request `d5181c7e` resolved back to `ready`
+- release discipline is real:
+  - `release:check` covers packaged install, hosted relay entrypoint, runtime
+    floor, and package README contract
+  - `pnpm validate:release` has passed on the supported host runtime
+- the managed sandbox can still produce false negatives for local relay listen
+  or DNS, so real release/runtime checks should continue to be verified from
+  the host shell when needed
 
 ## Project goal
 
@@ -645,13 +512,19 @@ Important rule:
 The remaining gap versus the local `../polygon-agent-cli` reference is no
 longer raw chain mechanics. The shortfalls that still matter are:
 
-1. release discipline after the first public beta:
-   clean-machine install smoke, dist-tag policy, and runtime-floor policy
-2. broader asset / defaults breadth:
-   the baseline is real, but breadth beyond the current canonical paths is
-   still deferred work
-3. optional product-layer polish:
-   only if real operator usage shows gaps
+1. public install and onboarding clarity:
+   the product still asks the operator to understand more about package vs
+   repo vs skill entrypoints, connector assumptions, and when `.env` matters
+   than the reference repo asks of its users
+2. hosted relay productization:
+   the path is proven, but the current relay remains a file-backed prototype
+   instead of a clearly operated service baseline
+3. release/version/doc discipline:
+   package publishing works, but the release path is still manual enough to
+   let version/tag/document drift slip through after publish
+4. discovery and asset abstraction polish:
+   the defaults/token-registry structure is real, but the product still needs
+   easier token/asset/position discovery around the canonical validated paths
 
 Important counterpoint:
 
@@ -660,16 +533,22 @@ Important counterpoint:
 - zkSync-native AA/paymaster/policy handling is richer than the Polygon
   reference
 
-So the remaining work is follow-up breadth and product polish, not missing core
+So the remaining work is the public-facing product shell, not missing core
 execution capability.
 
-## Post-Phase-5 deferred backlog
+## Deferred product areas
 
 Active order:
 
 1. broader DeFi / ERC-20 breadth, only when explicitly resumed
-2. extra connector polish beyond the hosted baseline, only if live usage shows
-   friction
+2. ecosystem-specific vertical workflows, only if real zkSync-native demand
+   justifies them
+3. broader identity / reputation framework, only if the current local-first
+   profile model stops being enough
+4. passkey / multisig / broader AA module expansion, only after the default
+   single-operator path is settled
+5. broader ZK Stack chain expansion, only after the zkSync Era baseline is
+   materially more mature
 
 ## Most important files to read first
 

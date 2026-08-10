@@ -1,7 +1,7 @@
 # zk-agent-cli Quickstart
 
 This quickstart is intentionally narrow. It describes the shortest verified
-operator path for the current phase of the project.
+operator path for the current product baseline.
 
 The commands below use the packaged CLI path:
 
@@ -29,6 +29,16 @@ package, replace `zk-agent` with `pnpm zk-agent`.
   but live chain reads or broadcasts usually need the relevant RPC variables
 
 ## 1. Install
+
+If you are adding this project to a compatible agent harness, use the repo
+skill install:
+
+```bash
+npx skills add https://github.com/AgiWeb3/zk-agent-cli
+```
+
+If you want the CLI directly in a terminal, use one of the packaged paths
+below.
 
 One-shot verification:
 
@@ -506,7 +516,7 @@ Those smoke JSON responses now preserve structured workflow follow-ups:
 - on `zksync-sepolia`, approval-based mode can auto-fill the tracked validated paymaster + EraVM fee-token defaults when only the mode is supplied
 - direct remote approval is available through `relay serve` + `wallet create|reapprove --relay-url` + `wallet request approve`, including an encrypted relay-package path, but `--await-local` remains the default path
 - sandbox DNS can fail even when the public RPC endpoint is healthy
-- for current phase work, prefer:
+- for the current product baseline, prefer:
   - `wallet create --await-local`
   - `wallet reapprove --await-local`
   - `wallet next`

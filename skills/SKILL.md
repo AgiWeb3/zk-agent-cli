@@ -39,6 +39,13 @@ For detailed action-path reference, also read:
 
 ## Prerequisites
 
+If this repository has not been installed into a compatible agent harness yet,
+add it with:
+
+```bash
+npx skills add https://github.com/AgiWeb3/zk-agent-cli
+```
+
 - Node.js `>=24`
 - packaged CLI entrypoint:
 
@@ -124,7 +131,7 @@ stored workflow continuation.
 zk-agent wallet create --await-local
 ```
 
-This is the preferred path in the current phase because the CLI waits for the
+This is the preferred path on the current product baseline because the CLI waits for the
 local connector callback and can immediately persist the approved session.
 
 When the operator wants a tighter writable session, request the guardrails at
