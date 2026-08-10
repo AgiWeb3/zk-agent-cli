@@ -14,6 +14,7 @@ import {
   type SessionPolicies
 } from '@zk-agent/agent-session-protocol';
 
+import { fetchTextWithFallback } from './lib/http.js';
 import { startRelayServer } from './lib/relay.js';
 
 export interface SmokeRemoteApprovalOptions {
@@ -261,6 +262,47 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
 
 function writeJson(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function writeProgressLine(label: string, value: string): void {
+  process.stderr.write(`[smoke-remote-approval] ${label}: ${value}\n`);
+}
+
+export function buildManualApprovalProgressLines(details: {
+  requestId: string;
+  shareUrl?: string;
+  statusUrl?: string;
+  relayWaitCommand: string;
+  relayApproveCommand: string;
+  expiresAt?: string;
+}): Array<[string, string]> {
+  const lines: Array<[string, string]> = [['requestId', details.requestId]];
+  if (details.shareUrl) {
+    lines.push(['shareUrl', details.shareUrl]);
+  }
+  if (details.statusUrl) {
+    lines.push(['statusUrl', details.statusUrl]);
+  }
+  if (details.expiresAt) {
+    lines.push(['expiresAt', details.expiresAt]);
+  }
+  lines.push(['next', 'Open the shareUrl in a browser and submit the approval payload.']);
+  lines.push(['wait', details.relayWaitCommand]);
+  lines.push(['approve', details.relayApproveCommand]);
+  return lines;
+}
+
+function emitManualApprovalProgress(details: {
+  requestId: string;
+  shareUrl?: string;
+  statusUrl?: string;
+  relayWaitCommand: string;
+  relayApproveCommand: string;
+  expiresAt?: string;
+}): void {
+  for (const [label, value] of buildManualApprovalProgressLines(details)) {
+    writeProgressLine(label, value);
+  }
 }
 
 function decodeApprovalRequest(approvalUrl: string): DecodedApprovalRequest {
@@ -519,6 +561,14 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       const relayApproveCommand =
         `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayOrigin} ` +
         `${options.code ? `--code ${options.code}` : '--code <code>'} --wait`;
+      emitManualApprovalProgress({
+        requestId,
+        shareUrl,
+        statusUrl,
+        relayWaitCommand,
+        relayApproveCommand,
+        expiresAt: request.expiresAt
+      });
 
       if (!options.code && !options.promptCode) {
         return {
@@ -545,6 +595,7 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
         };
       }
 
+      writeProgressLine('status', 'Waiting for relay approval readiness.');
       const relayReady = await runCliJson([
         'wallet',
         'request',
@@ -559,6 +610,7 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
         '--interval-ms',
         options.intervalMs
       ]);
+      writeProgressLine('status', 'Relay approval is ready.');
       const approvalCode = options.code || (options.promptCode ? await promptForApprovalCode() : '');
       const approved = await runCliJson([
         'wallet',
@@ -601,7 +653,7 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
 
     const payload = buildApprovedPayload(request, relayOrigin, existingWallet);
     const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);
-    const response = await fetch(`${relayOrigin}/api/requests/${requestId}/approval`, {
+    const response = await fetchTextWithFallback(`${relayOrigin}/api/requests/${requestId}/approval`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

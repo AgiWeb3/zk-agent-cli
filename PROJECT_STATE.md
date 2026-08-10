@@ -3,11 +3,11 @@
 ## Snapshot
 
 - Last updated: 2026-08-10
-- Latest commit at write time: `c5b2006`
+- Latest commit at write time: `febca3f`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with the completed
-  session/signer separation closeout, matching docs/help alignment, and the
-  final state-document refresh
+  relay/manual-approval hardening, connector submitted-payload freeze fix,
+  flagship paymaster proof refresh, and the matching state-document update
 
 ## Current phase
 
@@ -66,10 +66,9 @@ Closed results:
 Current ordered priorities:
 
 1. hosted remote approval hardening beyond the current file-backed prototype
-2. flagship AA real-user proof on a public relay
-3. operator-informed polish on the packaged flagship workflow and relay UX
-4. broader DeFi breadth only when it is explicitly resumed
-5. optional connector/approval UX polish when live operator usage justifies it
+2. operator-informed polish on the packaged flagship workflow and relay UX
+3. broader DeFi breadth only when it is explicitly resumed
+4. optional connector/approval UX polish when live operator usage justifies it
 
 Current concrete interpretation of those priorities:
 
@@ -118,23 +117,19 @@ Completed architecture baseline to keep in mind:
      local-first operator baseline, including the explicit `zk-agent next`
      follow-up after local reapproval/signer repair and the hosted relay path
      as the fallback instead of the default
-2. flagship AA real-user proof on a public relay
-   - move beyond the synthetic hosted smoke and prove one real
-     browser-mediated `wallet create|reapprove --wait-relay --prompt-code`
-     path followed by `workflow pay`
-   - current groundwork now exists in the smoke layer itself:
-     `smoke:remote-approval --manual-approval` can stop after relay publish
-     with `shareUrl` / `statusUrl` / `recommendedCommands` for a real browser
-     operator, or wait and finalize after a supplied 6-digit approval code
-   - current baseline improvement:
-     `smoke:flagship-workflow` now also supports that same real browser mode
-     on the relay-backed reapproval step, so the flagship AA smoke can either
-     stop after publish with real share-link follow-up data or continue into
-     `workflow pay` after a supplied approval code
-3. packaged flagship UX polish
+2. packaged flagship UX polish
+   - the real-user proof is no longer pending on the current baseline:
+     on `2026-08-10`, a real browser-mediated hosted reapproval completed for
+     `sed-lite-sa-v2` on a public frp-backed relay request
+     `53328a56`, and the same wallet then completed an approval-based flagship
+     native-send broadcast with tx hash
+     `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`
+   - the persisted workflow record for that execution is request
+     `d5181c7e`, which now reports `lastRun.stage = goal-executed`,
+     `lastRun.mode = broadcast`, and `status = ready`
    - narrow the top-level operator surfaces that matter most in real usage:
      `next`, `wallet create|reapprove`, `relay serve`, and `workflow pay`
-4. DeFi breadth only on explicit restart
+3. DeFi breadth only on explicit restart
    - do not let broader swap/deposit/withdraw breadth silently reclaim the
      default roadmap without a deliberate product decision
 
@@ -217,10 +212,37 @@ Completed architecture baseline to keep in mind:
   after publish with machine-readable `shareUrl`, `statusUrl`, and explicit
   relay follow-up commands or wait for readiness and finalize after a real
   6-digit approval code is supplied
+- relay/manual-approval execution is now more observable in the shipped smoke
+  layer:
+  `smoke:flagship-workflow` forwards child stderr/prompt output again, so the
+  hosted reapproval step no longer hides share-link instructions or
+  `--prompt-code` input when the flagship path is run end to end
+- relay HTTP callers now also tolerate Codex sandbox DNS failures more
+  honestly:
+  hosted-relay validation and relay-backed approval paths use a curl fallback
+  on `ENOTFOUND` / `EAI_AGAIN` style failures instead of falsely presenting a
+  restricted sandbox resolver problem as a relay-product regression
+- the connector UI now freezes the last submitted encrypted relay package for a
+  given request:
+  relay polling/manual refresh can no longer silently regenerate a different
+  encrypted payload and 6-digit code after the operator has already clicked
+  `Submit To Relay`, which removes the observed `Invalid code: hash mismatch`
+  failure mode from the hosted manual-approval path
 - real hosted deployment validation is no longer blocked on public reachability:
   on `2026-08-07`, a public frp-backed relay URL was validated end to end with
   the real `relay inspect` contract and `pnpm smoke:hosted-relay`, including
   `/health`, share-link redirect, and bundled connector UI asset delivery
+- the real browser-mediated hosted approval proof is now also complete:
+  on `2026-08-10`, `smoke:remote-approval --manual-approval` succeeded against
+  the public frp-backed relay on wallet `sed-lite-sa-v2`, finalizing request
+  `53328a56` through the encrypted relay payload path instead of the old
+  synthetic self-post shortcut
+- the flagship pay path is now also proven on that same real public-relay
+  baseline:
+  `smoke:paymaster-success -- --wallet sed-lite-sa-v2 --amount 0.00001 --paymaster-mode approval-based --execute`
+  succeeded on `2026-08-10` with tx hash
+  `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`,
+  and the matching workflow record `d5181c7e` resolved back to `ready`
 - the remaining hosted gap is now narrower and more honest:
   the outside-in proof exists, but the validated deployment is still the
   current file-backed hosted prototype rather than a more durable operated
@@ -454,11 +476,13 @@ What has been validated:
 - smart-account approval-based live broadcast is validated on `sed-lite-sa-v2`
   with tx hash:
   `0x2783de9185bcd6af21822c9c0ffa35e5329e96c8137ff41598d3cd001344ce8c`
-- hosted relay reapprove now also preserves the locally writable session on a
-  previously healthy control wallet (`daily-spend-limit-sa-v2`), while the
-  final post-fix native-send write-path acceptance remains on `sed-lite-sa-v1`
+- real hosted relay reapprove is now validated on `sed-lite-sa-v2` through the
+  encrypted relay payload/browser path with request:
+  `53328a56`
+- the latest flagship post-fix native-send write-path acceptance now also sits
+  on `sed-lite-sa-v2`
   with tx hash:
-  `0x06f83d60bb858eb96c64cf6e9f2b55ba3e90838dabb8b09a1dc61d3a97bc5b1d`
+  `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`
 
 What remains constrained:
 
@@ -595,8 +619,14 @@ Current state:
 - waiting CLI process can consume approved local payloads
 - `--await-local` flows are covered
 - relay/manual approval is implemented end-to-end
-- the remaining gap is product-level remote-operator validation and UX polish,
-  not the absence of a relay path
+- real public-relay remote-operator validation now exists on the current
+  baseline, including browser-mediated encrypted-payload approval on
+  `sed-lite-sa-v2`
+- the connector now preserves the submitted encrypted payload/code pair for the
+  active request, so relay polling/manual refresh does not drift the visible
+  approval code away from the payload already posted to the relay
+- the remaining gap is polish/hardening on the hosted path, not missing
+  protocol coverage or missing real-user proof
 
 ## Known environment constraint
 

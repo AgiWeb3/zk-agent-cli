@@ -18,6 +18,8 @@ import type {
   RelayStatusResponse
 } from '@zk-agent/agent-session-protocol';
 
+import { fetchJsonWithFallback } from './http.js';
+
 const RELAY_BODY_LIMIT_BYTES = 1024 * 1024;
 const RELAY_SERVICE = 'zk-agent-relay';
 const RELAY_PROTOCOL = 'zk-agent-session-relay';
@@ -220,40 +222,42 @@ export async function publishRelayRequest(
   baseUrl: string,
   body: RelayCreateRequest
 ): Promise<RelayCreateResponse> {
-  const response = await fetch(`${normalizeRelayBaseUrl(baseUrl)}/api/requests`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-
+  const response = await fetchJsonWithFallback<RelayCreateResponse>(
+    `${normalizeRelayBaseUrl(baseUrl)}/api/requests`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    }
+  );
   if (!response.ok) {
     throw new Error(`Relay publish failed with status ${response.status}`);
   }
 
-  return (await response.json()) as RelayCreateResponse;
+  return response.json;
 }
 
 export async function fetchRelayStatus(
   baseUrl: string,
   requestId: string
 ): Promise<RelayStatusResponse> {
-  const response = await fetch(relayStatusUrl(baseUrl, requestId));
+  const response = await fetchJsonWithFallback<RelayStatusResponse>(relayStatusUrl(baseUrl, requestId));
   if (!response.ok) {
     throw new Error(`Relay status fetch failed with status ${response.status}`);
   }
 
-  return (await response.json()) as RelayStatusResponse;
+  return response.json;
 }
 
 export async function fetchRelayHealth(baseUrl: string): Promise<unknown> {
-  const response = await fetch(`${normalizeRelayBaseUrl(baseUrl)}/health`);
+  const response = await fetchJsonWithFallback<unknown>(`${normalizeRelayBaseUrl(baseUrl)}/health`);
   if (!response.ok) {
     throw new Error(`Relay health fetch failed with status ${response.status}`);
   }
 
-  return await response.json();
+  return response.json;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -295,12 +299,12 @@ export async function fetchRelayApproval(
   baseUrl: string,
   requestId: string
 ): Promise<RelayApprovalResponse> {
-  const response = await fetch(relayApprovalUrl(baseUrl, requestId));
+  const response = await fetchJsonWithFallback<RelayApprovalResponse>(relayApprovalUrl(baseUrl, requestId));
   if (!response.ok) {
     throw new Error(`Relay approval fetch failed with status ${response.status}`);
   }
 
-  return (await response.json()) as RelayApprovalResponse;
+  return response.json;
 }
 
 export interface RelayServerOptions {

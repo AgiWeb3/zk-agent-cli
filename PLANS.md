@@ -292,6 +292,22 @@ Closed result areas:
      against a public frp-backed relay URL: `relay inspect` and
      `smoke:hosted-relay` both passed end to end, including `/health`,
      share-link redirect, and bundled connector UI asset delivery
+   - current baseline improvement:
+     relay/manual-approval callers now also tolerate managed-sandbox DNS
+     failures more honestly through an HTTP curl fallback on
+     `ENOTFOUND` / `EAI_AGAIN` style errors, so hosted-path validation does
+     not incorrectly fail as a product issue when only the restricted
+     resolver is broken
+   - current baseline improvement:
+     the connector UI now freezes the last submitted encrypted relay package
+     for a request, so relay polling/manual refresh can no longer regenerate a
+     different payload/code pair after `Submit To Relay` and trigger
+     `Invalid code: hash mismatch`
+   - current execution note:
+     the real browser-mediated hosted approval proof also completed on
+     `2026-08-10`:
+     `smoke:remote-approval -- --wallet sed-lite-sa-v2 --relay-url <public-url> --manual-approval --prompt-code`
+     finalized request `53328a56` through the encrypted relay payload path
    - post-Phase-5 follow-on on this line:
      the externally reachable proof now exists, but a more durable operated
      relay baseline can still continue after this stage beyond the current
@@ -325,6 +341,17 @@ Closed result areas:
      wallet-ready `next` guidance now defaults to `workflow pay` in both the
      CLI and top-level tool output, while preserving `workflowAuto` alongside
      it for broader multi-intent execution
+   - current baseline improvement:
+     `smoke:flagship-workflow` now forwards child stderr/prompt output again,
+     so the hosted reapproval step no longer hides share-link instructions or
+     `--prompt-code` input while waiting on real browser approval
+   - current execution note:
+     the full real-user proof is now closed on the current baseline:
+     after the `2026-08-10` hosted reapproval on `sed-lite-sa-v2`, the same
+     wallet completed an approval-based flagship native-send broadcast with tx
+     hash `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`,
+     and the persisted workflow request `d5181c7e` reports
+     `lastRun.stage = goal-executed` and `status = ready`
 
 4. product-slice skills
    - evolve from one main repo skill plus `zk-defi` into stable slices such as
@@ -472,24 +499,7 @@ Unless priorities change, the next concrete slices should be:
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin
-2. flagship AA real-user path on a public relay
-   - validate one full operator story beyond the synthetic hosted smoke:
-     `wallet create|reapprove --relay-url ... --wait-relay --prompt-code`
-     followed by `workflow pay` on the same real public relay path
-   - groundwork now exists in the shipped smoke layer:
-     `pnpm smoke:remote-approval -- --wallet <name> --relay-url <url> --manual-approval`
-     can publish a real browser/share-link request and either stop with
-     machine-readable `shareUrl` / `statusUrl` / `recommendedCommands` or wait
-     and finalize after a real 6-digit approval code is supplied
-   - current baseline improvement:
-     `pnpm smoke:flagship-workflow` now also accepts the same
-     `--manual-approval` plus `--code|--prompt-code` relay path, so the
-     flagship AA smoke can stop at the real browser approval boundary or run
-     the full hosted reapproval -> `workflow pay` sequence after approval
-   - expected observable result:
-     the current flagship story is proven not only by synthetic request
-     smokes but also by one real browser-mediated approval flow
-3. packaged operator UX polish from real usage
+2. packaged operator UX polish from real usage
    - tighten the highest-frequency outputs only where real operators still
      hesitate: `next`, `wallet create|reapprove`, `relay serve`, and
      `workflow pay`
@@ -497,6 +507,16 @@ Unless priorities change, the next concrete slices should be:
      family redesign without repeated operator pain
    - expected observable result:
      the shortest path becomes easier to follow without reading long docs
+3. connector/approval hardening from live-usage findings
+   - keep the hosted approval path stable under repeated relay polling,
+     browser refresh, and manual operator retries
+   - preserve observability in the end-to-end smoke path, especially for
+     share-link instructions, approval-code prompts, and relay status waits
+   - keep restricted-environment networking failures clearly distinguishable
+     from relay or connector regressions
+   - expected observable result:
+     a real hosted manual-approval run no longer surprises the operator with
+     hidden prompts, drifting approval codes, or false-negative DNS failures
 4. resume broader DeFi breadth only by explicit decision
    - keep swap/deposit/withdraw breadth out of the default mainline until the
      product direction reopens that work intentionally

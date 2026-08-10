@@ -128,6 +128,16 @@ function isApprovalBasedRequest(request: SessionApprovalRequest | null): boolean
   return request?.requestedPaymasterMode === 'approval-based';
 }
 
+function preserveLoadedRequest(
+  current: SessionApprovalRequest | null,
+  next: SessionApprovalRequest | null
+): SessionApprovalRequest | null {
+  if (!next) return current;
+  if (!current) return next;
+
+  return current.requestId === next.requestId ? current : next;
+}
+
 export function App() {
   const fallback = readFallbackParams();
   const encodedRequest = useMemo(() => readEncodedRequest(), []);
@@ -151,8 +161,13 @@ export function App() {
   const [copyStatus, setCopyStatus] = useState('');
   const [submitStatus, setSubmitStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedRelayPackage, setSubmittedRelayPackage] = useState<ReturnType<typeof encryptSession> | null>(null);
   const smartAccountRequest = isSmartAccountRequest(request);
   const approvalBasedRequest = isApprovalBasedRequest(request);
+
+  useEffect(() => {
+    setSubmittedRelayPackage(null);
+  }, [request?.requestId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,7 +192,7 @@ export function App() {
 
         if (!cancelled && hasRelayRequest(body)) {
           setRelayStatus(body);
-          setRequest(body.request || null);
+          setRequest((current) => preserveLoadedRequest(current, body.request || null));
           setRelayStatusError('');
           setRequestLoadError(body.request ? '' : 'Relay request did not include an approval payload request.');
         }
@@ -290,10 +305,12 @@ export function App() {
     }
   }, [approvedPayload, request]);
 
+  const activeEncryptedRelayPackage = submittedRelayPackage || encryptedRelayPackage;
+
   const generatedEncryptedPayload = useMemo(() => {
-    if (!encryptedRelayPackage) return '';
-    return JSON.stringify(encryptedRelayPackage.encrypted, null, 2);
-  }, [encryptedRelayPackage]);
+    if (!activeEncryptedRelayPackage) return '';
+    return JSON.stringify(activeEncryptedRelayPackage.encrypted, null, 2);
+  }, [activeEncryptedRelayPackage]);
 
   const finalizeCommand = useMemo(() => {
     if (!request) return '';
@@ -317,8 +334,8 @@ export function App() {
       return 'zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>';
     }
 
-    return `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${encryptedRelayPackage?.code || '<code>'}`;
-  }, [encryptedRelayPackage?.code, request]);
+    return `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${activeEncryptedRelayPackage?.code || '<code>'}`;
+  }, [activeEncryptedRelayPackage?.code, request]);
   const continueCommand = useMemo(() => operatorContinueCommand(request), [request]);
   const relayShareUrl = useMemo(() => relayShareUrlFromStatus(relayStatus), [relayStatus]);
   const relayStatusLabel = relayStatus
@@ -443,7 +460,7 @@ export function App() {
                         if (hasRelayRequest(body)) {
                           setRelayStatus(body);
                           setRelayStatusError('');
-                          setRequest(body.request || request);
+                          setRequest((current) => preserveLoadedRequest(current, body.request || current));
                         }
                       } catch (error) {
                         setRelayStatusError(
@@ -695,6 +712,8 @@ export function App() {
                           );
                         }
 
+                        setSubmittedRelayPackage(encryptedRelayPackage);
+
                         const refreshed = await fetch(relayRequestUrl);
                         const refreshedBody = (await refreshed.json().catch(() => null)) as
                           | RelayStatusResponse
@@ -743,10 +762,10 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  disabled={!encryptedRelayPackage?.code}
+                  disabled={!activeEncryptedRelayPackage?.code}
                   onClick={async () => {
-                    const ok = encryptedRelayPackage?.code
-                      ? await copyText(encryptedRelayPackage.code)
+                    const ok = activeEncryptedRelayPackage?.code
+                      ? await copyText(activeEncryptedRelayPackage.code)
                       : false;
                     setCopyStatus(ok ? 'Relay approval code copied to clipboard.' : 'Clipboard copy failed.');
                   }}
@@ -763,11 +782,20 @@ export function App() {
               <p className="helper">
                 This package can be sent through an untrusted relay because the CLI still needs the
                 approval code to decrypt it. Finalize it with
-                {` \`${relayRequestUrl ? finalizeRelayCommand : request ? `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${encryptedRelayPackage?.code || '<code>'}` : 'zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>'}\`.`}
+                {` \`${relayRequestUrl ? finalizeRelayCommand : request ? `zk-agent wallet request approve --request-id ${request.requestId} --encrypted-payload @encrypted-session.json --code ${activeEncryptedRelayPackage?.code || '<code>'}` : 'zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>'}\`.`}
               </p>
+              {submittedRelayPackage ? (
+                <p className="helper">
+                  The encrypted payload and approval code shown here are frozen to the last package submitted to the relay for this request.
+                </p>
+              ) : null}
               <label>
                 <span>Approval code</span>
-                <input readOnly value={encryptedRelayPackage?.code || ''} placeholder="Generated after valid approval data exists" />
+                <input
+                  readOnly
+                  value={activeEncryptedRelayPackage?.code || ''}
+                  placeholder="Generated after valid approval data exists"
+                />
               </label>
               <textarea
                 className="payload"
@@ -859,7 +887,7 @@ export function App() {
                         <span>Approval code</span>
                         <input
                           readOnly
-                          value={encryptedRelayPackage?.code || ''}
+                          value={activeEncryptedRelayPackage?.code || ''}
                           placeholder="Generated after valid approval data exists"
                         />
                       </label>
@@ -895,10 +923,10 @@ export function App() {
                         </button>
                         <button
                           type="button"
-                          disabled={!encryptedRelayPackage?.code}
+                          disabled={!activeEncryptedRelayPackage?.code}
                           onClick={async () => {
-                            const ok = encryptedRelayPackage?.code
-                              ? await copyText(encryptedRelayPackage.code)
+                            const ok = activeEncryptedRelayPackage?.code
+                              ? await copyText(activeEncryptedRelayPackage.code)
                               : false;
                             setCopyStatus(ok ? 'Relay approval code copied to clipboard.' : 'Clipboard copy failed.');
                           }}

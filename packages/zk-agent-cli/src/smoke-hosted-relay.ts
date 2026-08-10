@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { fetchJsonWithFallback, fetchTextWithFallback } from './lib/http.js';
+
 export interface SmokeHostedRelayOptions {
   relayUrl: string;
   plan: boolean;
@@ -262,7 +264,7 @@ export async function runSmokeHostedRelay(options: SmokeHostedRelayOptions) {
 
   const publicOrigin = normalizeBaseUrl(String(inspected.publicOrigin));
   const requestId = `hosted-smoke-${randomUUID()}`;
-  const createResponse = await fetch(`${relayUrl}/api/requests`, {
+  const createResponse = await fetchJsonWithFallback<RelayCreateResponseLike>(`${relayUrl}/api/requests`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -273,7 +275,7 @@ export async function runSmokeHostedRelay(options: SmokeHostedRelayOptions) {
     throw new Error(`Synthetic relay request publish failed with status ${createResponse.status}.`);
   }
 
-  const created = (await createResponse.json()) as RelayCreateResponseLike;
+  const created = createResponse.json;
   if (created.request_id !== requestId) {
     throw new Error('Relay create response returned the wrong request id.');
   }
@@ -290,12 +292,14 @@ export async function runSmokeHostedRelay(options: SmokeHostedRelayOptions) {
     throw new Error('Relay create response returned an unexpected approval_url.');
   }
 
-  const statusResponse = await fetch(`${relayUrl}/api/requests/${requestId}`);
+  const statusResponse = await fetchJsonWithFallback<RelayStatusResponseLike>(
+    `${relayUrl}/api/requests/${requestId}`
+  );
   if (!statusResponse.ok) {
     throw new Error(`Relay status fetch failed with status ${statusResponse.status}.`);
   }
 
-  const status = (await statusResponse.json()) as RelayStatusResponseLike;
+  const status = statusResponse.json;
   if (status.request_id !== requestId) {
     throw new Error('Relay status response returned the wrong request id.');
   }
@@ -309,7 +313,7 @@ export async function runSmokeHostedRelay(options: SmokeHostedRelayOptions) {
     throw new Error('Relay status response returned an unexpected approval_url.');
   }
 
-  const shareResponse = await fetch(`${relayUrl}/r/${requestId}`, {
+  const shareResponse = await fetchTextWithFallback(`${relayUrl}/r/${requestId}`, {
     redirect: 'manual'
   });
   if (shareResponse.status !== 302) {
@@ -323,11 +327,11 @@ export async function runSmokeHostedRelay(options: SmokeHostedRelayOptions) {
   }
 
   const landingUrl = new URL(location, `${relayUrl}/`).toString();
-  const landingResponse = await fetch(landingUrl);
+  const landingResponse = await fetchTextWithFallback(landingUrl);
   if (!landingResponse.ok) {
     throw new Error(`Connector landing page fetch failed with status ${landingResponse.status}.`);
   }
-  const landingHtml = await landingResponse.text();
+  const landingHtml = landingResponse.body;
   if (!landingHtml.includes('<div id="root"></div>')) {
     throw new Error('Connector landing page is missing the expected root container.');
   }
@@ -339,7 +343,7 @@ export async function runSmokeHostedRelay(options: SmokeHostedRelayOptions) {
 
   const entryAssetPath = scriptMatch[1];
   const entryAssetUrl = new URL(entryAssetPath, landingUrl).toString();
-  const assetResponse = await fetch(entryAssetUrl);
+  const assetResponse = await fetchTextWithFallback(entryAssetUrl);
   if (!assetResponse.ok) {
     throw new Error(`Connector entry asset fetch failed with status ${assetResponse.status}.`);
   }

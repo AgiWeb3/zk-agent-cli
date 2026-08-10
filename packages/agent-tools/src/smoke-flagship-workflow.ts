@@ -445,7 +445,7 @@ async function runStep(step: SmokeFlagshipStep): Promise<SmokeFlagshipExecutionS
     const child = spawn(step.command, step.args, {
       cwd: process.cwd(),
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['inherit', 'pipe', 'pipe']
     });
 
     let stdout = '';
@@ -457,6 +457,7 @@ async function runStep(step: SmokeFlagshipStep): Promise<SmokeFlagshipExecutionS
     });
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
+      process.stderr.write(chunk);
     });
 
     child.once('error', reject);
