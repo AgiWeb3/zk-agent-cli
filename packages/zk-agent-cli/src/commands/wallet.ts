@@ -243,11 +243,24 @@ export function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string
 function relayOutputAliases(relay: RelayCreateResponse | RelayStatusResponse | undefined) {
   const shareUrl = relay && 'share_url' in relay ? relay.share_url : undefined;
   const statusUrl = relay && 'status_url' in relay ? relay.status_url : undefined;
+  const approvalUrl = relay?.approval_url;
+  const shareLinkBaseUrl = shareUrl
+    ? shareUrl.replace(/\/[^/]+$/, '')
+    : approvalUrl
+      ? approvalUrl.replace(/\/[^/]+$/, '')
+      : undefined;
+  const statusApiBaseUrl = statusUrl
+    ? statusUrl.replace(/\/[^/]+$/, '')
+    : approvalUrl && relay?.request_id
+      ? `${approvalUrl.replace(/\/r\/[^/]+$/, '')}/api/requests`
+      : undefined;
   return {
     relayRequestId: relay?.request_id,
     relayShareUrl: shareUrl,
     relayStatusUrl: statusUrl,
-    relayApprovalUrl: relay?.approval_url
+    relayApprovalUrl: approvalUrl,
+    relayShareLinkBaseUrl: shareLinkBaseUrl,
+    relayStatusApiBaseUrl: statusApiBaseUrl
   };
 }
 
@@ -3150,7 +3163,9 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ...(relay
             ? [
                 ['share url', relay.share_url] as [string, string],
-                ['status url', relay.status_url] as [string, string]
+                ['status url', relay.status_url] as [string, string],
+                ['share-link base', relay.share_url.replace(/\/[^/]+$/, '')] as [string, string],
+                ['status api base', relay.status_url.replace(/\/[^/]+$/, '')] as [string, string]
               ]
             : []),
           ['expires', request.expiresAt],
@@ -3354,7 +3369,9 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ...(relay
             ? [
                 ['share url', relay.share_url] as [string, string],
-                ['status url', relay.status_url] as [string, string]
+                ['status url', relay.status_url] as [string, string],
+                ['share-link base', relay.share_url.replace(/\/[^/]+$/, '')] as [string, string],
+                ['status api base', relay.status_url.replace(/\/[^/]+$/, '')] as [string, string]
               ]
             : []),
           ['expires', request.expiresAt],
@@ -3864,6 +3881,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
             ['request', relay.request_id],
             ['share url', relay.share_url],
             ['status url', relay.status_url],
+            ['share-link base', relay.share_url.replace(/\/[^/]+$/, '')],
+            ['status api base', relay.status_url.replace(/\/[^/]+$/, '')],
             ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
             ['next approve', buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)]
           ],
@@ -3904,6 +3923,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ['request', relay.request_id],
           ['approval ready', relay.approval_ready ? 'yes' : 'no'],
           ['share url', relay.approval_url],
+          ['share-link base', relay.approval_url.replace(/\/[^/]+$/, '')],
+          ['status api base', `${relay.approval_url.replace(/\/r\/[^/]+$/, '')}/api/requests`],
           ['expires', relay.expires_at],
           ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
           ...(relay.approval_ready

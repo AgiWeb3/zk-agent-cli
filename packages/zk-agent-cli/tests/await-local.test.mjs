@@ -968,6 +968,8 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(published.relayShareUrl, published.relay.share_url);
     assert.equal(published.relayStatusUrl, published.relay.status_url);
     assert.equal(published.relayApprovalUrl, published.relay.approval_url);
+    assert.equal(published.relayShareLinkBaseUrl, `${relayBaseUrl}/r`);
+    assert.equal(published.relayStatusApiBaseUrl, `${relayBaseUrl}/api/requests`);
     assert.deepEqual(published.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
@@ -1430,6 +1432,8 @@ test('wallet create --relay-url publishes the request immediately for remote app
     assert.equal(created.relayShareUrl, created.relay.share_url);
     assert.equal(created.relayStatusUrl, created.relay.status_url);
     assert.equal(created.relayApprovalUrl, created.relay.approval_url);
+    assert.equal(created.relayShareLinkBaseUrl, `${relayBaseUrl}/r`);
+    assert.equal(created.relayStatusApiBaseUrl, `${relayBaseUrl}/api/requests`);
     assert.deepEqual(created.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
@@ -1649,6 +1653,8 @@ test('wallet reapprove --relay-url publishes the request immediately for remote 
     assert.equal(created.relayShareUrl, created.relay.share_url);
     assert.equal(created.relayStatusUrl, created.relay.status_url);
     assert.equal(created.relayApprovalUrl, created.relay.approval_url);
+    assert.equal(created.relayShareLinkBaseUrl, `${relayBaseUrl}/r`);
+    assert.equal(created.relayStatusApiBaseUrl, `${relayBaseUrl}/api/requests`);
     assert.deepEqual(created.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.request.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,

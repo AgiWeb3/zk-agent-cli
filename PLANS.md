@@ -453,6 +453,11 @@ Unless priorities change, the next concrete slices should be:
      `publicOrigin` is explicitly configured or only a bind-origin default,
      so proxy/tunnel deployments are less ambiguous in both JSON and TTY
      guidance
+   - current baseline improvement:
+     relay-backed wallet create/reapprove outputs and manual remote-approval
+     smoke results now also expose explicit `shareLinkBaseUrl` and
+     `statusApiBaseUrl` fields, so operators can read the final hosted link
+     bases directly instead of inferring them from one sample request URL
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin

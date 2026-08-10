@@ -37,6 +37,8 @@ interface JsonCommandResult {
 function relayShareAndStatusUrls(result: JsonCommandResult): {
   shareUrl?: string;
   statusUrl?: string;
+  shareLinkBaseUrl?: string;
+  statusApiBaseUrl?: string;
 } {
   const relay = result.relay;
   if (!relay || typeof relay !== 'object') {
@@ -47,10 +49,24 @@ function relayShareAndStatusUrls(result: JsonCommandResult): {
     'share_url' in relay && typeof relay.share_url === 'string' ? relay.share_url : undefined;
   const statusUrl =
     'status_url' in relay && typeof relay.status_url === 'string' ? relay.status_url : undefined;
+  const shareLinkBaseUrl =
+    typeof result.relayShareLinkBaseUrl === 'string'
+      ? result.relayShareLinkBaseUrl
+      : shareUrl
+        ? shareUrl.replace(/\/[^/]+$/, '')
+        : undefined;
+  const statusApiBaseUrl =
+    typeof result.relayStatusApiBaseUrl === 'string'
+      ? result.relayStatusApiBaseUrl
+      : statusUrl
+        ? statusUrl.replace(/\/[^/]+$/, '')
+        : undefined;
 
   return {
     shareUrl,
-    statusUrl
+    statusUrl,
+    shareLinkBaseUrl,
+    statusApiBaseUrl
   };
 }
 
@@ -493,7 +509,8 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       '--relay-url',
       relayOrigin
     ]);
-    const { shareUrl, statusUrl } = relayShareAndStatusUrls(published);
+    const { shareUrl, statusUrl, shareLinkBaseUrl, statusApiBaseUrl } =
+      relayShareAndStatusUrls(published);
 
     if (options.manualApproval) {
       const relayWaitCommand =
@@ -515,6 +532,8 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
           requestId,
           shareUrl,
           statusUrl,
+          shareLinkBaseUrl,
+          statusApiBaseUrl,
           nextAction: relayWaitCommand,
           recommendedCommands: {
             waitReady: relayWaitCommand,
@@ -565,6 +584,10 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
         relayMode: options.relayUrl ? 'external' : 'local-auto',
         approvalMode: 'browser-manual',
         requestId,
+        shareUrl,
+        statusUrl,
+        shareLinkBaseUrl,
+        statusApiBaseUrl,
         recommendedCommand: String(approved.nextAction),
         nextAction: approved.nextAction,
         create: created,
@@ -624,6 +647,10 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       relayOrigin,
       relayMode: options.relayUrl ? 'external' : 'local-auto',
       requestId,
+      shareUrl,
+      statusUrl,
+      shareLinkBaseUrl,
+      statusApiBaseUrl,
       recommendedCommand: String(approved.nextAction),
       nextAction: approved.nextAction,
       create: created,

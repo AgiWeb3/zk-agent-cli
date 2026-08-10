@@ -264,6 +264,8 @@ test('smoke remote approval manual mode stops after relay publish and returns br
     assert.equal(result.relayStatusPending.relay.status, 'pending');
     assert.equal(result.shareUrl, result.relayPublish.relay.share_url);
     assert.equal(result.statusUrl, result.relayPublish.relay.status_url);
+    assert.equal(result.shareLinkBaseUrl, `${result.relayOrigin}/r`);
+    assert.equal(result.statusApiBaseUrl, `${result.relayOrigin}/api/requests`);
     assert.equal(
       result.nextAction,
       `zk-agent wallet request relay-status --request-id ${result.requestId} --relay-url ${result.relayOrigin} --wait --timeout-seconds 600 --interval-ms 2000`
@@ -302,6 +304,8 @@ test('smoke remote approval manual reapprove mode reads request fields from the 
     assert.equal(result.requestId, result.create.request.requestId);
     assert.equal(result.shareUrl, result.relayPublish.relay.share_url);
     assert.equal(result.statusUrl, result.relayPublish.relay.status_url);
+    assert.equal(result.shareLinkBaseUrl, `${result.relayOrigin}/r`);
+    assert.equal(result.statusApiBaseUrl, `${result.relayOrigin}/api/requests`);
     assert.match(
       result.recommendedCommands.approve,
       /wallet request approve --request-id .* --relay-url .* --code <code> --wait/
