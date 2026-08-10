@@ -228,6 +228,7 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(result.status, 'relay-serving');
     assert.match(result.origin, /^http:\/\/127\.0\.0\.1:\d+$/);
     assert.equal(result.publicOrigin, result.origin);
+    assert.equal(result.publicOriginSource, 'bind-origin-default');
     assert.equal(result.publicOriginLooksLocal, true);
     assert.match(result.healthUrl, /^http:\/\/127\.0\.0\.1:\d+\/health$/);
     assert.equal(result.publicHealthUrl, `${result.origin}/health`);
@@ -239,7 +240,9 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     });
     assert.equal(Array.isArray(result.notes), true);
     assert.equal(
-      result.notes.some((note) => note.includes('advertised public origin still points at a local-only address')),
+      result.notes.some((note) =>
+        note.includes('still advertising its bind origin as the public origin')
+      ),
       true
     );
     assert.equal(
@@ -257,6 +260,7 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(health.relay_mode, 'local-file');
     assert.equal(health.origin, result.origin);
     assert.equal(health.public_origin, result.origin);
+    assert.equal(health.public_origin_source, 'bind-origin-default');
     assert.equal(typeof health.connector_ui_available, 'boolean');
     assert.equal(Array.isArray(health.capabilities), true);
     assert.equal(health.capabilities.includes('create-request'), true);
@@ -272,13 +276,14 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(inspected.compatible, true);
     assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, result.origin);
+    assert.equal(inspected.publicOriginSource, 'bind-origin-default');
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, true);
     assert.equal(inspected.publicOriginLooksLocal, true);
     assert.equal(Array.isArray(inspected.notes), true);
     assert.equal(
       inspected.notes.some((note) =>
-        note.includes('advertised public origin still points at a local-only address')
+        note.includes('still advertising its bind origin as the public origin')
       ),
       true
     );
@@ -319,6 +324,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
 
     assert.equal(result.ok, true);
     assert.equal(result.publicOrigin, publicOrigin);
+    assert.equal(result.publicOriginSource, 'configured');
     assert.equal(result.publicOriginLooksLocal, false);
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, result.connectorUiAvailable === true);
@@ -360,6 +366,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(proxiedHealth.statusCode, 200);
     assert.equal(proxiedHealth.body.origin, result.origin);
     assert.equal(proxiedHealth.body.public_origin, publicOrigin);
+    assert.equal(proxiedHealth.body.public_origin_source, 'configured');
 
     const inspected = await runCliJson(['relay', 'inspect', '--relay-url', result.origin], env);
     assert.equal(inspected.ok, true);
@@ -367,6 +374,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(inspected.compatible, true);
     assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, publicOrigin);
+    assert.equal(inspected.publicOriginSource, 'configured');
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, false);
     assert.equal(inspected.publicOriginLooksLocal, false);

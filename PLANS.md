@@ -449,8 +449,10 @@ Unless priorities change, the next concrete slices should be:
      across `/health`, `relay inspect`, and share-link generation
    - current baseline improvement:
      `relay inspect` now exposes whether the inspected relay URL matches the
-     relay bind `origin` and the advertised `publicOrigin`, so proxy/tunnel
-     deployments are less ambiguous in both JSON and TTY guidance
+     relay bind `origin` and the advertised `publicOrigin`, and whether that
+     `publicOrigin` is explicitly configured or only a bind-origin default,
+     so proxy/tunnel deployments are less ambiguous in both JSON and TTY
+     guidance
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin

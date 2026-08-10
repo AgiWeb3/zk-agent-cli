@@ -97,9 +97,11 @@ Completed architecture baseline to keep in mind:
      and share-link generation
    - current baseline improvement:
      `relay inspect` now reports whether the inspected relay URL matches the
-     relay-reported bind `origin` and the advertised `publicOrigin`, and the
-     human-readable inspect output no longer suppresses hosted-readiness notes
-     on otherwise compatible relays
+     relay-reported bind `origin` and the advertised `publicOrigin`, now also
+     surfaces whether that `publicOrigin` came from explicit relay
+     configuration or only the bind-origin default, and the human-readable
+     inspect output no longer suppresses hosted-readiness notes on otherwise
+     compatible relays
 2. flagship AA real-user proof on a public relay
    - move beyond the synthetic hosted smoke and prove one real
      browser-mediated `wallet create|reapprove --wait-relay --prompt-code`

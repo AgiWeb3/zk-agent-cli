@@ -1,6 +1,10 @@
 import { Command } from 'commander';
 
-import type { RelayCapability, RelayHealthResponse } from '@zk-agent/agent-session-protocol';
+import type {
+  RelayCapability,
+  RelayHealthResponse,
+  RelayPublicOriginSource
+} from '@zk-agent/agent-session-protocol';
 
 import { humanLine, jsonOut, shouldJsonOutput } from '../lib/io.js';
 import { fetchRelayHealth, startRelayServer } from '../lib/relay.js';
@@ -30,6 +34,10 @@ function isRelayCapability(value: unknown): value is RelayCapability {
   ].includes(String(value));
 }
 
+function isRelayPublicOriginSource(value: unknown): value is RelayPublicOriginSource {
+  return value === 'configured' || value === 'bind-origin-default';
+}
+
 function asRelayHealthResponse(value: unknown): RelayHealthResponse | null {
   if (!isRecord(value)) return null;
   if (value.ok !== true) return null;
@@ -39,6 +47,12 @@ function asRelayHealthResponse(value: unknown): RelayHealthResponse | null {
   if (value.relay_mode !== 'local-file') return null;
   if (typeof value.origin !== 'string') return null;
   if (typeof value.public_origin !== 'string') return null;
+  if (
+    typeof value.public_origin_source !== 'undefined' &&
+    !isRelayPublicOriginSource(value.public_origin_source)
+  ) {
+    return null;
+  }
   if (typeof value.connector_ui_available !== 'boolean') return null;
   if (!Array.isArray(value.capabilities) || !value.capabilities.every(isRelayCapability)) {
     return null;
@@ -91,9 +105,23 @@ function relayUrlMatches(left: string, right: string | null): boolean | null {
   return normalizedLeft === normalizedRight;
 }
 
+function inferRelayPublicOriginSource(options: {
+  origin: string | null;
+  publicOrigin: string;
+}): RelayPublicOriginSource | null {
+  const normalizedOrigin = options.origin ? normalizeComparableRelayUrl(options.origin) : null;
+  const normalizedPublicOrigin = normalizeComparableRelayUrl(options.publicOrigin);
+  if (!normalizedOrigin || !normalizedPublicOrigin) {
+    return null;
+  }
+
+  return normalizedOrigin === normalizedPublicOrigin ? 'bind-origin-default' : 'configured';
+}
+
 function relayHostedReadinessNotes(options: {
   compatible: boolean;
   publicOrigin: string;
+  publicOriginSource: RelayPublicOriginSource | null;
   connectorUiAvailable: boolean | null;
 }): string[] {
   const notes: string[] = [];
@@ -107,7 +135,9 @@ function relayHostedReadinessNotes(options: {
 
   if (relayPublicOriginLooksLocal(options.publicOrigin)) {
     notes.push(
-      'Relay compatibility is present, but the advertised public origin still points at a local-only address. Set --public-origin to the externally reachable URL before using this as a hosted approval path.'
+      options.publicOriginSource === 'bind-origin-default'
+        ? 'Relay compatibility is present, but the relay is still advertising its bind origin as the public origin. Set --public-origin to the externally reachable URL before using this as a hosted approval path.'
+        : 'Relay compatibility is present, but the advertised public origin still points at a local-only address. Set --public-origin to the externally reachable URL before using this as a hosted approval path.'
     );
   }
 
@@ -155,6 +185,7 @@ interface RelayInspectPayload {
   relayMode: RelayHealthResponse['relay_mode'] | null;
   origin: string | null;
   publicOrigin: string;
+  publicOriginSource: RelayPublicOriginSource | null;
   relayUrlMatchesOrigin: boolean | null;
   relayUrlMatchesPublicOrigin: boolean | null;
   publicOriginLooksLocal: boolean;
@@ -175,6 +206,12 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
       ? rawHealth.public_origin
       : relayUrl;
   const publicOrigin = health?.public_origin || fallbackPublicOrigin;
+  const publicOriginSource =
+    health?.public_origin_source ||
+    inferRelayPublicOriginSource({
+      origin: health?.origin || null,
+      publicOrigin
+    });
   const compatible = Boolean(health && hasCoreRelayCapabilities(health.capabilities));
   const connectorUiAvailable = health?.connector_ui_available ?? null;
   const relayUrlMatchesOrigin = relayUrlMatches(relayUrl, health?.origin || null);
@@ -186,6 +223,7 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     ...relayHostedReadinessNotes({
       compatible,
       publicOrigin,
+      publicOriginSource,
       connectorUiAvailable
     }),
     ...relayOriginRelationshipNotes({
@@ -206,6 +244,7 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     relayMode: health?.relay_mode || null,
     origin: health?.origin || null,
     publicOrigin,
+    publicOriginSource,
     relayUrlMatchesOrigin,
     relayUrlMatchesPublicOrigin,
     publicOriginLooksLocal,
@@ -242,6 +281,9 @@ export function createRelayCommand(): Command {
         publicOrigin: options.publicOrigin?.trim()
       });
       const publicOrigin = options.publicOrigin?.trim() || server.origin;
+      const publicOriginSource: RelayPublicOriginSource = options.publicOrigin?.trim()
+        ? 'configured'
+        : 'bind-origin-default';
       const publicOriginLooksLocal = relayPublicOriginLooksLocal(publicOrigin);
       const connectorUiAvailable = server.connectorUiAvailable;
       const hostedShareRedirectReady = connectorUiAvailable && !publicOriginLooksLocal;
@@ -249,6 +291,7 @@ export function createRelayCommand(): Command {
       const notes = relayHostedReadinessNotes({
         compatible: true,
         publicOrigin,
+        publicOriginSource,
         connectorUiAvailable
       });
 
@@ -257,6 +300,7 @@ export function createRelayCommand(): Command {
         status: 'relay-serving',
         origin: server.origin,
         publicOrigin,
+        publicOriginSource,
         publicOriginLooksLocal,
         port: server.port,
         healthUrl: `${server.origin}/health`,
@@ -284,6 +328,7 @@ export function createRelayCommand(): Command {
         if (publicOrigin !== server.origin) {
           humanLine('public origin', publicOrigin);
         }
+        humanLine('public origin source', publicOriginSource);
         humanLine('health', `${server.origin}/health`);
         humanLine('hosted ready', hostedShareRedirectReady ? 'yes' : 'no');
         if (connectorUiAvailable !== null) {
@@ -342,6 +387,9 @@ export function createRelayCommand(): Command {
       }
       if (payload.publicOrigin) {
         humanLine('public origin', payload.publicOrigin);
+      }
+      if (payload.publicOriginSource) {
+        humanLine('public origin source', payload.publicOriginSource);
       }
       if (payload.relayUrlMatchesOrigin !== null) {
         humanLine('relay url matches origin', payload.relayUrlMatchesOrigin ? 'yes' : 'no');

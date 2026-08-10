@@ -166,6 +166,8 @@ export type RelayCapability =
   | 'share-redirect'
   | 'connector-ui';
 
+export type RelayPublicOriginSource = 'configured' | 'bind-origin-default';
+
 export interface RelayHealthResponse {
   ok: true;
   service: 'zk-agent-relay';
@@ -174,6 +176,7 @@ export interface RelayHealthResponse {
   relay_mode: 'local-file';
   origin: string;
   public_origin: string;
+  public_origin_source?: RelayPublicOriginSource;
   connector_ui_available: boolean;
   capabilities: RelayCapability[];
 }

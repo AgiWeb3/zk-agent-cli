@@ -12,6 +12,7 @@ import type {
   RelayCreateRequest,
   RelayCreateResponse,
   RelayHealthResponse,
+  RelayPublicOriginSource,
   RelayRequestRecord,
   RelayRequestStatus,
   RelayStatusResponse
@@ -186,7 +187,8 @@ function relayCapabilities(connectorUiAvailable: boolean): RelayCapability[] {
 function relayHealthResponse(
   bindBaseUrl: string,
   publicBaseUrl: string,
-  connectorUiAvailable: boolean
+  connectorUiAvailable: boolean,
+  publicOriginSource: RelayPublicOriginSource
 ): RelayHealthResponse {
   return {
     ok: true,
@@ -196,6 +198,7 @@ function relayHealthResponse(
     relay_mode: 'local-file',
     origin: normalizeRelayBaseUrl(bindBaseUrl),
     public_origin: normalizeRelayBaseUrl(publicBaseUrl),
+    public_origin_source: publicOriginSource,
     connector_ui_available: connectorUiAvailable,
     capabilities: relayCapabilities(connectorUiAvailable)
   };
@@ -314,6 +317,9 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
 }> {
   const uiDistRoot = resolveConnectorUiDistRoot();
   let bindBaseUrl = '';
+  const publicOriginSource: RelayPublicOriginSource = options.publicOrigin?.trim()
+    ? 'configured'
+    : 'bind-origin-default';
 
   const server = createServer(async (request, response) => {
     try {
@@ -331,7 +337,12 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
         writeJson(
           response,
           200,
-          relayHealthResponse(bindBaseUrl, publicBaseUrl, Boolean(uiDistRoot))
+          relayHealthResponse(
+            bindBaseUrl,
+            publicBaseUrl,
+            Boolean(uiDistRoot),
+            publicOriginSource
+          )
         );
         return;
       }

@@ -717,6 +717,7 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
     assert.equal(healthPayload.connector_ui_available, true);
     assert.equal(healthPayload.capabilities.includes('connector-ui'), true);
     assert.equal(healthPayload.public_origin, 'https://relay.example.test');
+    assert.equal(healthPayload.public_origin_source, 'configured');
 
     await assertHostedShareLink(payload.origin, payload.publicOrigin, 'release-check-share-link');
   } finally {
