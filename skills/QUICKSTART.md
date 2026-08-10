@@ -108,15 +108,20 @@ If a wallet already exists and approval metadata is missing or expired:
 
 ```bash
 zk-agent wallet reapprove --name main --await-local
+zk-agent next
 ```
 
 If approval is still present but the local execution signer is missing:
 
 ```bash
 zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent next
 ```
 
-Shortest relay-backed completion path in one terminal process:
+Keep that local-first path as the default baseline whenever the browser and
+terminal can be colocated.
+
+Shortest hosted relay-backed completion path in one terminal process:
 
 ```bash
 zk-agent relay inspect --relay-url <relay-url>

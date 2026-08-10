@@ -76,11 +76,13 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
 If a wallet already exists, inspect the blocker first. Use `wallet reapprove`
-when approval is missing or expired. Use `wallet signer attach` when approval
-is still present but the local execution signer is missing:
+when approval is missing or expired, then return to `zk-agent next`. Use
+`wallet signer attach` when approval is still present but the local execution
+signer is missing:
 
 ```bash
 zk-agent wallet reapprove --name main --await-local
+zk-agent next
 zk-agent wallet signer attach --name main --private-key <hex>
 zk-agent next
 ```
@@ -122,11 +124,15 @@ If the wallet already exists and approval metadata needs to be refreshed, use:
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 ```
 
+Treat that hosted path as the fallback when the browser is not colocated with
+the terminal; keep the local `--await-local` path as the default baseline.
+
 If approval is still present and only the local execution signer is missing,
 repair that locally instead of forcing a new approval round-trip:
 
 ```bash
 zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent next
 ```
 
 Local relay prototype path:

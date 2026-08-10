@@ -146,12 +146,14 @@ If the wallet already exists and approval metadata is missing or expired:
 
 ```bash
 zk-agent wallet reapprove --name main --await-local
+zk-agent next
 ```
 
 If approval is still present but the local execution signer is missing:
 
 ```bash
 zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent next
 ```
 
 If the connector cannot return directly to the waiting CLI process, create the
@@ -159,7 +161,10 @@ request with `--relay-url <url>`, start the relay prototype, approve in the
 connector, and then either save the generated payload or save the encrypted
 relay package plus its code.
 
-For the shortest relay-backed path in one terminal process:
+Keep that local-first path as the default baseline whenever the browser and
+terminal can be colocated.
+
+For the shortest hosted relay-backed path in one terminal process:
 
 ```bash
 zk-agent relay inspect --relay-url <url>

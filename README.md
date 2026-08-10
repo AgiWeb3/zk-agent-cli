@@ -387,7 +387,8 @@ Interpretation:
 2. `next` is the default decision point. Use it whenever you want the shortest
    valid next step across setup, wallet recovery, and stored workflows.
 3. `wallet create --await-local` or `wallet reapprove --await-local` is the
-   preferred connector path for obtaining a writable local session.
+   preferred local-first connector path for obtaining a writable local
+   session; run `zk-agent next` again after the approval round-trip finishes.
 4. `wallet next` and `wallet status` are the wallet-layer detailed views when
    the question is specifically about one stored wallet.
 5. `workflow pay` is the default guided execution surface for the flagship
@@ -465,8 +466,10 @@ zk-agent wallet create --await-local
 zk-agent wallet create --await-local --session-preset transfer-only
 zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
 zk-agent next
-zk-agent wallet signer attach --name main --private-key <hex>
 zk-agent wallet reapprove --name main --await-local
+zk-agent next
+zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent next
 zk-agent wallet reapprove --name main --session-preset full-access
 zk-agent wallet reapprove --name main --disallow-contract-calls
 zk-agent relay inspect --relay-url <url>
@@ -487,7 +490,9 @@ use `--session-hours` to time-box the approval, `--allow-transfer-to` and
 capabilities entirely. Use `wallet reapprove` when approval metadata is
 missing or expired. Use `wallet signer attach --name <wallet> --private-key
 <hex>` when approval is still present but the local execution signer is
-missing. Keep
+missing. The local-first path stays preferred when the browser and terminal
+can live on the same machine; switch to the hosted relay path only when they
+cannot. Keep
 `wallet request approve --request-id <id> --relay-url <url> --code <code> --wait`
 for the lower-level manual relay fallback after a request has already been
 created or published.
