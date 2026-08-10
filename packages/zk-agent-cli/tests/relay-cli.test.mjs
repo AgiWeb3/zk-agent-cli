@@ -229,6 +229,8 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.match(result.origin, /^http:\/\/127\.0\.0\.1:\d+$/);
     assert.equal(result.publicOrigin, result.origin);
     assert.equal(result.publicOriginSource, 'bind-origin-default');
+    assert.equal(result.shareLinkBaseUrl, `${result.origin}/r`);
+    assert.equal(result.statusApiBaseUrl, `${result.origin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, true);
     assert.match(result.healthUrl, /^http:\/\/127\.0\.0\.1:\d+\/health$/);
     assert.equal(result.publicHealthUrl, `${result.origin}/health`);
@@ -277,6 +279,8 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, result.origin);
     assert.equal(inspected.publicOriginSource, 'bind-origin-default');
+    assert.equal(inspected.shareLinkBaseUrl, `${result.origin}/r`);
+    assert.equal(inspected.statusApiBaseUrl, `${result.origin}/api/requests`);
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, true);
     assert.equal(inspected.publicOriginLooksLocal, true);
@@ -325,6 +329,8 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(result.ok, true);
     assert.equal(result.publicOrigin, publicOrigin);
     assert.equal(result.publicOriginSource, 'configured');
+    assert.equal(result.shareLinkBaseUrl, `${publicOrigin}/r`);
+    assert.equal(result.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, false);
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, result.connectorUiAvailable === true);
@@ -375,6 +381,8 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, publicOrigin);
     assert.equal(inspected.publicOriginSource, 'configured');
+    assert.equal(inspected.shareLinkBaseUrl, `${publicOrigin}/r`);
+    assert.equal(inspected.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, false);
     assert.equal(inspected.publicOriginLooksLocal, false);

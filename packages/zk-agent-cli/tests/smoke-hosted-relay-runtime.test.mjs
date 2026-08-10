@@ -152,6 +152,8 @@ test('smoke hosted relay validates the hosted share-link path from inspect to bu
     assert.equal(result.inspect.compatible, true);
     assert.equal(result.inspect.publicOrigin, publicOrigin);
     assert.equal(result.inspect.publicOriginSource, 'configured');
+    assert.equal(result.inspect.shareLinkBaseUrl, `${publicOrigin}/r`);
+    assert.equal(result.inspect.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(result.inspect.publicOriginLooksLocal, false);
     assert.equal(result.inspect.connectorUiAvailable, true);
     assert.equal(result.inspect.hostedShareRedirectReady, true);

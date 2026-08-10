@@ -19,6 +19,16 @@ function buildRelayServeRecommendedCommands(relayUrl: string): {
   };
 }
 
+function buildAdvertisedRelayBases(publicOrigin: string): {
+  shareLinkBaseUrl: string;
+  statusApiBaseUrl: string;
+} {
+  return {
+    shareLinkBaseUrl: `${publicOrigin}/r`,
+    statusApiBaseUrl: `${publicOrigin}/api/requests`
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -186,6 +196,8 @@ interface RelayInspectPayload {
   origin: string | null;
   publicOrigin: string;
   publicOriginSource: RelayPublicOriginSource | null;
+  shareLinkBaseUrl: string;
+  statusApiBaseUrl: string;
   relayUrlMatchesOrigin: boolean | null;
   relayUrlMatchesPublicOrigin: boolean | null;
   publicOriginLooksLocal: boolean;
@@ -219,6 +231,7 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
   const publicOriginLooksLocal = relayPublicOriginLooksLocal(publicOrigin);
   const hostedShareRedirectReady =
     compatible && connectorUiAvailable === true && !publicOriginLooksLocal;
+  const { shareLinkBaseUrl, statusApiBaseUrl } = buildAdvertisedRelayBases(publicOrigin);
   const notes = [
     ...relayHostedReadinessNotes({
       compatible,
@@ -245,6 +258,8 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     origin: health?.origin || null,
     publicOrigin,
     publicOriginSource,
+    shareLinkBaseUrl,
+    statusApiBaseUrl,
     relayUrlMatchesOrigin,
     relayUrlMatchesPublicOrigin,
     publicOriginLooksLocal,
@@ -287,6 +302,7 @@ export function createRelayCommand(): Command {
       const publicOriginLooksLocal = relayPublicOriginLooksLocal(publicOrigin);
       const connectorUiAvailable = server.connectorUiAvailable;
       const hostedShareRedirectReady = connectorUiAvailable && !publicOriginLooksLocal;
+      const { shareLinkBaseUrl, statusApiBaseUrl } = buildAdvertisedRelayBases(publicOrigin);
       const recommendedCommands = buildRelayServeRecommendedCommands(publicOrigin);
       const notes = relayHostedReadinessNotes({
         compatible: true,
@@ -301,6 +317,8 @@ export function createRelayCommand(): Command {
         origin: server.origin,
         publicOrigin,
         publicOriginSource,
+        shareLinkBaseUrl,
+        statusApiBaseUrl,
         publicOriginLooksLocal,
         port: server.port,
         healthUrl: `${server.origin}/health`,
@@ -329,6 +347,8 @@ export function createRelayCommand(): Command {
           humanLine('public origin', publicOrigin);
         }
         humanLine('public origin source', publicOriginSource);
+        humanLine('share-link base', shareLinkBaseUrl);
+        humanLine('status api base', statusApiBaseUrl);
         humanLine('health', `${server.origin}/health`);
         humanLine('hosted ready', hostedShareRedirectReady ? 'yes' : 'no');
         if (connectorUiAvailable !== null) {
@@ -391,6 +411,8 @@ export function createRelayCommand(): Command {
       if (payload.publicOriginSource) {
         humanLine('public origin source', payload.publicOriginSource);
       }
+      humanLine('share-link base', payload.shareLinkBaseUrl);
+      humanLine('status api base', payload.statusApiBaseUrl);
       if (payload.relayUrlMatchesOrigin !== null) {
         humanLine('relay url matches origin', payload.relayUrlMatchesOrigin ? 'yes' : 'no');
       }

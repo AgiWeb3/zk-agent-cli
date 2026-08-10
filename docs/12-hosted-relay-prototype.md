@@ -73,6 +73,8 @@ Current success signals:
 - `origin` is the relay's local bind origin
 - `publicOriginLooksLocal` is `false`
 - `publicOrigin` is the externally reachable URL you intend to share
+- `shareLinkBaseUrl` is the `/r` base that generated approval/share links will use
+- `statusApiBaseUrl` is the `/api/requests` base that generated status URLs will use
 - `hostedShareRedirectReady` is `true`
 - `connectorUiAvailable` is `true`
 

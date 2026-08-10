@@ -181,7 +181,7 @@ What is already in place:
   - `wallet create --relay-url <url>` / `wallet reapprove --relay-url <url>` for one-step remote approval publishing
   - `wallet create --relay-url <url> --wait-relay --prompt-code` / `wallet reapprove --relay-url <url> --wait-relay --prompt-code` for a single CLI invocation that waits for relay readiness and then finishes after one approval-code entry
   - `wallet create|reapprove --relay-url <url> --wait-relay --code <code>` for the same relay-completion path in non-interactive automation
-  - `relay inspect --relay-url <url>` for checking whether an external relay advertises the expected zk-agent compatibility contract, whether its advertised `publicOrigin` still points at localhost, and whether hosted share-link approval is actually ready before using it as a hosted approval path
+  - `relay inspect --relay-url <url>` for checking whether an external relay advertises the expected zk-agent compatibility contract, whether its advertised `publicOrigin` still points at localhost, which explicit share/status URL bases generated links will use, and whether hosted share-link approval is actually ready before using it as a hosted approval path
   - `pnpm smoke:hosted-relay -- --relay-url <url>` from a source checkout when you want one bounded external hosted-relay proof that reuses the real CLI `relay inspect` surface, creates a synthetic relay request, and verifies the share-link redirect plus bundled connector UI asset path end to end
   - auto-consume of approved local requests
   - `wallet request await-local`
