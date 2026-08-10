@@ -103,14 +103,15 @@ test('top-level help prints the default operator path around zk-agent next', asy
     const env = createCliEnv(homeDir);
     const help = await runCliText(['--help'], env);
 
-    assert.match(help, /Default operator path:/);
+    assert.match(help, /Default local-first operator path:/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(
       help,
-      /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/
+      /zk-agent workflow pay --wallet main --to <address> --amount <amount>/
     );
     assert.match(help, /zk-agent next --request-id <id>/);
+    assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent workflow --help/);
     assert.ok(help.indexOf('\n  next') < help.indexOf('\n  wallet'));
@@ -129,7 +130,11 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     const help = await runCliText(['next', '--help'], env);
 
     assert.match(help, /Use `next` as the product entrypoint:/);
+    assert.match(help, /Fresh local-first routing:/);
+    assert.match(help, /zk-agent setup/);
+    assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(help, /zk-agent next --request-id <id>/);
+    assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent wallet next --name main/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
   } finally {
@@ -169,14 +174,15 @@ test('wallet help prints the default wallet path', async () => {
     const env = createCliEnv(homeDir);
     const help = await runCliText(['wallet', '--help'], env);
 
-    assert.match(help, /Default wallet path:/);
+    assert.match(help, /Local-first wallet path:/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(help, /zk-agent wallet reapprove --name main --await-local/);
+    assert.match(help, /zk-agent wallet reapprove --name main --await-local\s+zk-agent next/);
     assert.match(help, /zk-agent wallet signer attach --name main --private-key <hex>/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent wallet next --name main/);
-    assert.match(help, /Remote approval path:/);
+    assert.match(help, /Hosted remote approval path:/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(
       help,

@@ -125,7 +125,10 @@ function buildNextHelpText(): string {
   return [
     '',
     'Use `next` as the product entrypoint:',
-    '  Fresh operator routing:',
+    '  Fresh local-first routing:',
+    '    zk-agent setup',
+    '    zk-agent next',
+    '    zk-agent wallet create --await-local',
     '    zk-agent next',
     '',
     '  Continue a stored workflow checkpoint:',
@@ -133,6 +136,9 @@ function buildNextHelpText(): string {
     '',
     '  Stay on the wallet layer only when you need wallet-specific remediation:',
     '    zk-agent wallet next --name main',
+    '',
+    '  Switch to the hosted remote-approval path only when the browser is not colocated:',
+    '    zk-agent wallet --help',
     '',
     '  Stay on the workflow layer only when you already have an explicit workflow or checkpoint:',
     '    zk-agent workflow next --request-id <id>'

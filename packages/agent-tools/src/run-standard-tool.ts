@@ -173,7 +173,7 @@ const STANDARD_AGENT_TOOL_LIST_METADATA: Record<
   },
   walletApprovalOrchestratorTool: {
     group: 'wallet',
-    cliCommand: 'zk-agent wallet create --await-local',
+    cliCommand: 'zk-agent wallet reapprove --name <name> --relay-url <url> --wait-relay --prompt-code',
     exampleInput: {
       mode: 'reapprove',
       walletName: EXAMPLE_WALLET_NAME,

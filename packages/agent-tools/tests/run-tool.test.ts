@@ -197,6 +197,17 @@ test('run-tool --list returns grouped tools with high-frequency entries first', 
     policyPreset: 'full-access'
   });
 
+  const walletApprovalOrchestratorTool = toolByName('walletApprovalOrchestratorTool');
+  assert.equal(
+    walletApprovalOrchestratorTool?.cliCommand,
+    'zk-agent wallet reapprove --name <name> --relay-url <url> --wait-relay --prompt-code'
+  );
+  assert.deepEqual(walletApprovalOrchestratorTool?.exampleInput, {
+    mode: 'reapprove',
+    walletName: 'main',
+    policyPreset: 'full-access'
+  });
+
   const workflowFundTool = toolByName('workflowFundTool');
   assert.equal(workflowFundTool?.operatorPathStage, 'funding-fallback');
   assert.deepEqual(workflowFundTool?.exampleInput, {

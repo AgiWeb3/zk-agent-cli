@@ -459,6 +459,10 @@ Unless priorities change, the next concrete slices should be:
      now also expose explicit `shareLinkBaseUrl` and `statusApiBaseUrl`
      fields, so operators can read the final hosted link bases directly
      instead of inferring them from one sample request URL
+   - current baseline improvement:
+     `relay serve` / `relay inspect` follow-up commands now prefer the
+     one-shot remote-approval path with `--wait-relay --prompt-code`, and the
+     agent-tool registry metadata now matches that hosted reapproval story
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin

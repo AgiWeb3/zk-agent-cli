@@ -108,6 +108,10 @@ Completed architecture baseline to keep in mind:
      path now also surface explicit `shareLinkBaseUrl` and
      `statusApiBaseUrl` fields, so operators do not have to reconstruct the
      final hosted link bases from one sample URL
+   - current baseline improvement:
+     `relay serve` / `relay inspect` recommended commands now point at the
+     one-shot remote-approval path with `--wait-relay --prompt-code`, and the
+     agent-tool registry metadata now matches that hosted reapproval path
 2. flagship AA real-user proof on a public relay
    - move beyond the synthetic hosted smoke and prove one real
      browser-mediated `wallet create|reapprove --wait-relay --prompt-code`

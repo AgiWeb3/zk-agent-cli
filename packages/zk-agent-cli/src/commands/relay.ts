@@ -14,8 +14,9 @@ function buildRelayServeRecommendedCommands(relayUrl: string): {
   reapproveWallet: string;
 } {
   return {
-    createWallet: `zk-agent wallet create --relay-url ${relayUrl}`,
-    reapproveWallet: `zk-agent wallet reapprove --name main --relay-url ${relayUrl}`
+    createWallet: `zk-agent wallet create --relay-url ${relayUrl} --wait-relay --prompt-code`,
+    reapproveWallet:
+      `zk-agent wallet reapprove --name main --relay-url ${relayUrl} --wait-relay --prompt-code`
   };
 }
 

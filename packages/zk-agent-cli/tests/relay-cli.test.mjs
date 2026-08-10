@@ -237,8 +237,9 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, false);
     assert.deepEqual(result.recommendedCommands, {
-      createWallet: `zk-agent wallet create --relay-url ${result.origin}`,
-      reapproveWallet: `zk-agent wallet reapprove --name main --relay-url ${result.origin}`
+      createWallet: `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
+      reapproveWallet:
+        `zk-agent wallet reapprove --name main --relay-url ${result.origin} --wait-relay --prompt-code`
     });
     assert.equal(Array.isArray(result.notes), true);
     assert.equal(
@@ -335,8 +336,10 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, result.connectorUiAvailable === true);
     assert.deepEqual(result.recommendedCommands, {
-      createWallet: `zk-agent wallet create --relay-url ${publicOrigin}`,
-      reapproveWallet: `zk-agent wallet reapprove --name main --relay-url ${publicOrigin}`
+      createWallet:
+        `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      reapproveWallet:
+        `zk-agent wallet reapprove --name main --relay-url ${publicOrigin} --wait-relay --prompt-code`
     });
     assert.equal(
       result.capabilities.includes('connector-ui'),
@@ -409,8 +412,10 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       true
     );
     assert.deepEqual(inspected.recommendedCommands, {
-      createWallet: `zk-agent wallet create --relay-url ${publicOrigin}`,
-      reapproveWallet: `zk-agent wallet reapprove --name main --relay-url ${publicOrigin}`
+      createWallet:
+        `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      reapproveWallet:
+        `zk-agent wallet reapprove --name main --relay-url ${publicOrigin} --wait-relay --prompt-code`
     });
 
     await stopChild(child, 5000);

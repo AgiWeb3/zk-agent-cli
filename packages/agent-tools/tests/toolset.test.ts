@@ -3066,6 +3066,14 @@ test('standard tool registry lists stable tool names and descriptions', async ()
   assert.equal(listedWorkflowOrchestrator?.group, 'workflow');
   assert.equal(listedWorkflowOrchestrator?.recommended, undefined);
   assert.equal(listedWorkflowOrchestrator?.aliasOf, 'workflowAutoTool');
+  const listedWalletApprovalOrchestrator = listed.find(
+    (entry) => entry.name === 'walletApprovalOrchestratorTool'
+  );
+  assert.equal(listedWalletApprovalOrchestrator?.group, 'wallet');
+  assert.equal(
+    listedWalletApprovalOrchestrator?.cliCommand,
+    'zk-agent wallet reapprove --name <name> --relay-url <url> --wait-relay --prompt-code'
+  );
   const listedCreateWallet = listed.find((entry) => entry.name === 'createWalletTool');
   assert.equal(listedCreateWallet?.group, 'wallet');
   assert.match(listedCreateWallet?.description || '', /Create a zkSync smart-account session request/);

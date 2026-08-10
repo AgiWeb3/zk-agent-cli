@@ -33,19 +33,20 @@ import {
   jsonOut,
   shouldJsonOutput
 } from './lib/io.js';
-import { buildWorkflowAutoRecommendedCommand } from './lib/recommended-commands.js';
+import { buildWorkflowPayRecommendedCommand } from './lib/recommended-commands.js';
 
 function buildDefaultOperatorPathHelpText(): string {
   return [
     '',
-    'Default operator path:',
+    'Default local-first operator path:',
     '  zk-agent setup',
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
-    `  ${buildWorkflowAutoRecommendedCommand('main')}`,
+    `  ${buildWorkflowPayRecommendedCommand('main')}`,
     '',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
+    'Use `zk-agent relay inspect --relay-url <url>` and `zk-agent wallet --help` for the hosted remote-approval path.',
     'Use `zk-agent wallet --help` for bootstrap/reapproval details and `zk-agent workflow --help` once the intent is known.'
   ].join('\n');
 }
