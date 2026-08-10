@@ -157,6 +157,8 @@ Current flagship AA smoke:
 ```bash
 pnpm smoke:flagship-workflow -- --wallet <name> [--paymaster-mode approval-based|sponsored]
 pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <relay-url> [--paymaster-mode approval-based|sponsored]
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <relay-url> --manual-approval
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <relay-url> --manual-approval --prompt-code
 ```
 
 Encrypted relay fallback:

@@ -13,7 +13,11 @@ test('buildSmokeFlagshipWorkflowSteps prepends hosted relay validation before re
     amount: '0.00002',
     paymasterMode: 'approval-based',
     execute: true,
-    plan: false
+    plan: false,
+    manualApproval: false,
+    promptCode: false,
+    timeoutSeconds: '600',
+    intervalMs: '2000'
   });
 
   assert.deepEqual(
@@ -40,7 +44,11 @@ test('runSmokeFlagshipWorkflow returns a stable plan payload', async () => {
     amount: '0.00001',
     paymasterMode: 'sponsored',
     execute: false,
-    plan: true
+    plan: true,
+    manualApproval: false,
+    promptCode: false,
+    timeoutSeconds: '600',
+    intervalMs: '2000'
   });
 
   assert.equal(payload.ok, true);
@@ -48,6 +56,7 @@ test('runSmokeFlagshipWorkflow returns a stable plan payload', async () => {
   assert.equal(payload.summary.walletName, 'main');
   assert.equal(payload.summary.paymasterMode, 'sponsored');
   assert.equal(payload.summary.relayMode, 'local-auto');
+  assert.equal(payload.summary.approvalMode, 'synthetic-auto');
   assert.equal(payload.summary.totalSteps, 2);
   assert.equal(payload.steps.length, 2);
   assert.equal(payload.steps[0]?.id, 'remote-reapproval');
@@ -64,7 +73,11 @@ test('runSmokeFlagshipWorkflow plan includes hosted relay validation for externa
     amount: '0.00001',
     paymasterMode: 'approval-based',
     execute: false,
-    plan: true
+    plan: true,
+    manualApproval: false,
+    promptCode: false,
+    timeoutSeconds: '600',
+    intervalMs: '2000'
   });
 
   assert.equal(payload.ok, true);
@@ -85,7 +98,11 @@ test('runSmokeFlagshipWorkflow aggregates successful follow-ups across remote ap
       amount: '0.00001',
       paymasterMode: 'approval-based',
       execute: false,
-      plan: false
+      plan: false,
+      manualApproval: false,
+      promptCode: false,
+      timeoutSeconds: '600',
+      intervalMs: '2000'
     },
     {
       runStep: async (step) => {
@@ -165,7 +182,11 @@ test('runSmokeFlagshipWorkflow aggregates hosted relay follow-up before the rest
       amount: '0.00001',
       paymasterMode: 'approval-based',
       execute: false,
-      plan: false
+      plan: false,
+      manualApproval: false,
+      promptCode: false,
+      timeoutSeconds: '600',
+      intervalMs: '2000'
     },
     {
       runStep: async (step) => {
@@ -244,7 +265,11 @@ test('runSmokeFlagshipWorkflow stops at the first failed step', async () => {
       amount: '0.00001',
       paymasterMode: 'approval-based',
       execute: false,
-      plan: false
+      plan: false,
+      manualApproval: false,
+      promptCode: false,
+      timeoutSeconds: '600',
+      intervalMs: '2000'
     },
     {
       runStep: async (step) => {
@@ -278,4 +303,102 @@ test('runSmokeFlagshipWorkflow stops at the first failed step', async () => {
   assert.equal(payload.failedStep, 'remote-reapproval');
   assert.equal(payload.summary.failedStep, 'remote-reapproval');
   assert.equal(payload.summary.totalSteps, 1);
+});
+
+test('buildSmokeFlagshipWorkflowSteps passes manual browser approval flags through to remote reapproval smoke', () => {
+  const steps = buildSmokeFlagshipWorkflowSteps({
+    walletName: 'main',
+    relayUrl: 'https://relay.example.test',
+    amount: '0.00002',
+    paymasterMode: 'approval-based',
+    execute: false,
+    plan: false,
+    manualApproval: true,
+    promptCode: true,
+    timeoutSeconds: '120',
+    intervalMs: '750'
+  });
+
+  assert.match(
+    [steps[1]?.command, ...(steps[1]?.args || [])].join(' '),
+    /smoke-remote-approval\.ts --wallet main --reapprove --relay-url https:\/\/relay\.example\.test --manual-approval --prompt-code --timeout-seconds 120 --interval-ms 750/
+  );
+});
+
+test('runSmokeFlagshipWorkflow returns awaiting-browser-approval and stops before workflow pay', async () => {
+  const invoked: string[] = [];
+  const payload = await runSmokeFlagshipWorkflow(
+    {
+      walletName: 'main',
+      relayUrl: 'https://relay.example.test',
+      amount: '0.00001',
+      paymasterMode: 'approval-based',
+      execute: false,
+      plan: false,
+      manualApproval: true,
+      promptCode: false,
+      timeoutSeconds: '600',
+      intervalMs: '2000'
+    },
+    {
+      runStep: async (step) => {
+        invoked.push(step.id);
+
+        if (step.id === 'hosted-relay') {
+          return {
+            id: step.id,
+            title: step.title,
+            ok: true,
+            exitCode: 0,
+            result: {
+              phase: 'hosted-relay-validated',
+              relayUrl: 'https://relay.example.test',
+              publicOrigin: 'https://relay.example.test',
+              requestId: 'hosted-1'
+            }
+          };
+        }
+
+        return {
+          id: step.id,
+          title: step.title,
+          ok: true,
+          exitCode: 0,
+          result: {
+            phase: 'awaiting-browser-approval',
+            operation: 'reapprove',
+            relayMode: 'external',
+            relayOrigin: 'https://relay.example.test',
+            requestId: 'req-1',
+            shareUrl: 'https://relay.example.test/r/req-1',
+            statusUrl: 'https://relay.example.test/api/requests/req-1',
+            shareLinkBaseUrl: 'https://relay.example.test/r',
+            statusApiBaseUrl: 'https://relay.example.test/api/requests',
+            recommendedCommands: {
+              waitReady:
+                'zk-agent wallet request relay-status --request-id req-1 --relay-url https://relay.example.test --wait --timeout-seconds 600 --interval-ms 2000',
+              approve:
+                'zk-agent wallet request approve --request-id req-1 --relay-url https://relay.example.test --code <code> --wait'
+            },
+            nextAction:
+              'zk-agent wallet request relay-status --request-id req-1 --relay-url https://relay.example.test --wait --timeout-seconds 600 --interval-ms 2000'
+          }
+        };
+      }
+    }
+  );
+
+  assert.deepEqual(invoked, ['hosted-relay', 'remote-reapproval']);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'awaiting-browser-approval');
+  assert.equal(payload.summary.approvalMode, 'browser-manual');
+  assert.equal(
+    payload.summary.followups['remote-reapproval']?.shareLinkBaseUrl,
+    'https://relay.example.test/r'
+  );
+  assert.equal(
+    payload.summary.nextCommands['remote-reapproval'],
+    'zk-agent wallet request relay-status --request-id req-1 --relay-url https://relay.example.test --wait --timeout-seconds 600 --interval-ms 2000'
+  );
+  assert.equal(payload.summary.followups['paymaster-success'], undefined);
 });

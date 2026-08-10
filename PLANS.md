@@ -481,6 +481,11 @@ Unless priorities change, the next concrete slices should be:
      can publish a real browser/share-link request and either stop with
      machine-readable `shareUrl` / `statusUrl` / `recommendedCommands` or wait
      and finalize after a real 6-digit approval code is supplied
+   - current baseline improvement:
+     `pnpm smoke:flagship-workflow` now also accepts the same
+     `--manual-approval` plus `--code|--prompt-code` relay path, so the
+     flagship AA smoke can stop at the real browser approval boundary or run
+     the full hosted reapproval -> `workflow pay` sequence after approval
    - expected observable result:
      the current flagship story is proven not only by synthetic request
      smokes but also by one real browser-mediated approval flow

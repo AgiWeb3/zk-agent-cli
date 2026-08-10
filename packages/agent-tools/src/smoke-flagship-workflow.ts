@@ -12,6 +12,11 @@ export interface SmokeFlagshipWorkflowOptions {
   paymasterMode: SmokeFlagshipPaymasterMode;
   execute: boolean;
   plan: boolean;
+  manualApproval: boolean;
+  code?: string;
+  promptCode: boolean;
+  timeoutSeconds: string;
+  intervalMs: string;
 }
 
 export interface SmokeFlagshipStep {
@@ -39,7 +44,7 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter @zk-agent/agent-tools smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--to <address>] [--amount <native>] [--paymaster-mode <mode>] [--execute] [--plan]',
+      '  pnpm --filter @zk-agent/agent-tools smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--to <address>] [--amount <native>] [--paymaster-mode <mode>] [--execute] [--manual-approval] [--code <code>|--prompt-code] [--plan]',
       '',
       'What it does:',
       '  1. Runs relay-backed wallet reapproval on an existing stored wallet.',
@@ -51,6 +56,8 @@ function printUsage(): void {
       '  --paymaster-mode defaults to approval-based',
       '  --relay-url is optional; when omitted, the remote-approval smoke starts a local relay automatically',
       '  paymaster success runs in preview mode unless --execute is supplied',
+      '  --manual-approval switches the reapproval step from synthetic encrypted approval to a real browser/share-link approval path',
+      '  --code / --prompt-code only apply together with --manual-approval',
       '  use a sed-lite wallet for the flagship AA acceptance path; daily-spend-limit is only a constrained control/policy sample',
       '  --plan prints the intended command sequence without executing any live commands',
       '',
@@ -77,6 +84,11 @@ function parseArgs(argv: string[]): SmokeFlagshipWorkflowOptions {
   let paymasterMode: SmokeFlagshipPaymasterMode = 'approval-based';
   let execute = false;
   let plan = false;
+  let manualApproval = false;
+  let code: string | undefined;
+  let promptCode = false;
+  let timeoutSeconds = '600';
+  let intervalMs = '2000';
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -129,6 +141,34 @@ function parseArgs(argv: string[]): SmokeFlagshipWorkflowOptions {
       continue;
     }
 
+    if (arg === '--manual-approval') {
+      manualApproval = true;
+      continue;
+    }
+
+    if (arg === '--code') {
+      code = requireOptionValue(argv, index, arg).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--prompt-code') {
+      promptCode = true;
+      continue;
+    }
+
+    if (arg === '--timeout-seconds') {
+      timeoutSeconds = requireOptionValue(argv, index, arg).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--interval-ms') {
+      intervalMs = requireOptionValue(argv, index, arg).trim();
+      index += 1;
+      continue;
+    }
+
     if (arg === '--plan') {
       plan = true;
       continue;
@@ -141,6 +181,14 @@ function parseArgs(argv: string[]): SmokeFlagshipWorkflowOptions {
     throw new Error('A wallet name is required. Pass --wallet <name> or set ZK_AGENT_SMOKE_WALLET.');
   }
 
+  if (!manualApproval && (code || promptCode)) {
+    throw new Error('--code and --prompt-code are only supported together with --manual-approval.');
+  }
+
+  if (code && promptCode) {
+    throw new Error('--code and --prompt-code cannot be used together.');
+  }
+
   return {
     walletName,
     relayUrl,
@@ -148,7 +196,12 @@ function parseArgs(argv: string[]): SmokeFlagshipWorkflowOptions {
     amount,
     paymasterMode,
     execute,
-    plan
+    plan,
+    manualApproval,
+    code,
+    promptCode,
+    timeoutSeconds,
+    intervalMs
   };
 }
 
@@ -194,7 +247,12 @@ export function buildSmokeFlagshipWorkflowSteps(
     '--wallet',
     options.walletName,
     '--reapprove',
-    ...(options.relayUrl ? ['--relay-url', options.relayUrl] : [])
+    ...(options.relayUrl ? ['--relay-url', options.relayUrl] : []),
+    ...(options.manualApproval ? ['--manual-approval'] : []),
+    ...(options.code ? ['--code', options.code] : []),
+    ...(options.promptCode ? ['--prompt-code'] : []),
+    ...(options.manualApproval ? ['--timeout-seconds', options.timeoutSeconds] : []),
+    ...(options.manualApproval ? ['--interval-ms', options.intervalMs] : [])
   ]);
   const paymaster = localScriptInvocation('smoke-paymaster-success', [
     '--wallet',
@@ -245,6 +303,7 @@ function buildPlanSummary(options: SmokeFlagshipWorkflowOptions, steps: SmokeFla
     walletName: options.walletName,
     paymasterMode: options.paymasterMode,
     relayMode: options.relayUrl ? 'external' : 'local-auto',
+    approvalMode: options.manualApproval ? 'browser-manual' : 'synthetic-auto',
     execute: options.execute,
     totalSteps: steps.length
   };
@@ -260,6 +319,11 @@ function extractRemoteReapprovalFollowup(
     relayMode?: string;
     relayOrigin?: string;
     requestId?: string;
+    shareUrl?: string;
+    statusUrl?: string;
+    shareLinkBaseUrl?: string;
+    statusApiBaseUrl?: string;
+    recommendedCommands?: unknown;
     recommendedCommand?: string;
     nextAction?: string;
     walletStatus?: unknown;
@@ -271,6 +335,11 @@ function extractRemoteReapprovalFollowup(
     relayMode: payload.relayMode,
     relayOrigin: payload.relayOrigin,
     requestId: payload.requestId,
+    shareUrl: payload.shareUrl,
+    statusUrl: payload.statusUrl,
+    shareLinkBaseUrl: payload.shareLinkBaseUrl,
+    statusApiBaseUrl: payload.statusApiBaseUrl,
+    recommendedCommands: payload.recommendedCommands,
     nextCommand:
       typeof payload.recommendedCommand === 'string'
         ? payload.recommendedCommand
@@ -360,6 +429,7 @@ function buildExecutionSummary(
     walletName: options.walletName,
     paymasterMode: options.paymasterMode,
     relayMode: options.relayUrl ? 'external' : 'local-auto',
+    approvalMode: options.manualApproval ? 'browser-manual' : 'synthetic-auto',
     execute: options.execute,
     totalSteps: steps.length,
     successfulSteps: steps.filter((step) => step.ok).length,
@@ -437,6 +507,24 @@ export async function runSmokeFlagshipWorkflow(
   for (const step of steps) {
     const result = await executeStep(step);
     results.push(result);
+
+    if (
+      step.id === 'remote-reapproval' &&
+      result.ok &&
+      result.result &&
+      typeof result.result === 'object' &&
+      !Array.isArray(result.result) &&
+      (result.result as { phase?: string }).phase === 'awaiting-browser-approval'
+    ) {
+      return {
+        ok: true,
+        phase: 'awaiting-browser-approval',
+        walletName: options.walletName,
+        summary: buildExecutionSummary(options, results),
+        steps: results
+      };
+    }
+
     if (!result.ok) {
       return {
         ok: false,

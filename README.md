@@ -248,7 +248,7 @@ What is already in place:
   - `pnpm smoke:hosted-relay -- --relay-url <url>` for bounded outside-in validation of an externally reachable hosted relay: the smoke runs the real `relay inspect`, publishes a synthetic request, confirms `/r/<id>` redirects into the connector UI, and confirms the bundled hashed frontend asset still serves from the relay
   - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow pay -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
   - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--manual-approval] [--code <code>|--prompt-code]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present; `--manual-approval` switches from the synthetic encrypted-approval shortcut to the real browser/share-link path and can either stop after publish with follow-up commands or wait and finalize after you supply the 6-digit approval code
-  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: use a `sed-lite` wallet for the acceptance baseline; when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet
+  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute] [--manual-approval] [--code <code>|--prompt-code]` for the current Phase 5 flagship AA path: use a `sed-lite` wallet for the acceptance baseline; when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet; `--manual-approval` switches the reapproval step to the real browser/share-link flow and can either stop after publish with follow-up commands or continue after a real approval code
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
@@ -739,6 +739,8 @@ pnpm tool:run -- --tool walletReapproveTool --input '{"walletName":"main","polic
 pnpm tool:run -- --tool workflowOrchestratorTool --input '{"walletName":"main","intent":"send-native","goal":{"intent":"send-native","to":"0x1111111111111111111111111111111111111111","amount":"0.001"},"ensureWalletSession":true,"approvalPolicyPreset":"intent","createCheckpoint":true}'
 pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]
 pnpm smoke:flagship-workflow -- --wallet <name> [--paymaster-mode approval-based|sponsored]
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <relay-url> --manual-approval
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <relay-url> --manual-approval --prompt-code
 pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]
 pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] [--execute-swap]
 pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored] --execute-all
@@ -777,13 +779,15 @@ Recommended root wrappers for the current stable product surface:
   surface:
   `defaults`, `assets`, `balances --owned-tokens`, `tokens --owned`,
   `tokens --chain`, and `resolve-token`
-- `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]`
+- `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute] [--manual-approval] [--code <code>|--prompt-code]`
   validates the current Phase 5 flagship AA operator story in one narrower
   sequence: use a `sed-lite` wallet for the acceptance baseline; with
   `--relay-url` it first validates the external hosted relay,
   then runs relay-backed wallet reapproval on the existing wallet, then the
-  paymaster-backed `workflow pay` flagship path on that same wallet; it is
-  the productized AA signature path, not a broad DeFi breadth harness
+  paymaster-backed `workflow pay` flagship path on that same wallet; with
+  `--manual-approval` it can stop after publish for a real browser operator or
+  continue after a supplied approval code; it is the productized AA signature
+  path, not a broad DeFi breadth harness
 - `pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]` validates the canonical
   `next -> wallet -> workflow pay -> funding fallback or goal preview` path
   and now accepts an optional `--paymaster-mode` override so the operator-path

@@ -90,6 +90,8 @@ Optional variants:
 
 ```bash
 pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --paymaster-mode sponsored
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --manual-approval
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --manual-approval --prompt-code
 pnpm smoke:flagship-workflow -- --wallet <name> --execute
 ```
 

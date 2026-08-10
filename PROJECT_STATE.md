@@ -126,6 +126,11 @@ Completed architecture baseline to keep in mind:
      `smoke:remote-approval --manual-approval` can stop after relay publish
      with `shareUrl` / `statusUrl` / `recommendedCommands` for a real browser
      operator, or wait and finalize after a supplied 6-digit approval code
+   - current baseline improvement:
+     `smoke:flagship-workflow` now also supports that same real browser mode
+     on the relay-backed reapproval step, so the flagship AA smoke can either
+     stop after publish with real share-link follow-up data or continue into
+     `workflow pay` after a supplied approval code
 3. packaged flagship UX polish
    - narrow the top-level operator surfaces that matter most in real usage:
      `next`, `wallet create|reapprove`, `relay serve`, and `workflow pay`

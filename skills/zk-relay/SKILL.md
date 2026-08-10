@@ -194,6 +194,8 @@ Flagship AA path with hosted relay preflight:
 
 ```bash
 pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> [--paymaster-mode approval-based|sponsored]
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --manual-approval
+pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --manual-approval --prompt-code
 ```
 
 When `--relay-url` is present, that flagship smoke now validates the hosted
