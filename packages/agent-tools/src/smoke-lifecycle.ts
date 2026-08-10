@@ -2,6 +2,9 @@ import type {
   WalletSessionRecord
 } from '@zk-agent/agent-core';
 import {
+  resolveLocalExecutionPrivateKey
+} from '@zk-agent/agent-core';
+import {
   buildApprovedSessionPayload,
   type SessionApprovalRequest
 } from '@zk-agent/agent-session-protocol';
@@ -23,7 +26,7 @@ function printUsage(): void {
       '  1. Export a source wallet from local storage twice (public + sensitive).',
       '  2. Restore the public export into an isolated in-memory tool context with sync.',
       '  3. Confirm the restored wallet is read-only.',
-      '  4. Reapprove it using the source wallet sessionPrivateKey.',
+      '  4. Reapprove it using the source wallet local execution signer.',
       '  5. Confirm the restored wallet becomes write-ready again.',
       '',
       'Environment:',
@@ -171,10 +174,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  const sourceSessionPayload = sourceSensitiveExport.data.wallet.sessionPayload;
-  if (!sourceSessionPayload?.sessionPrivateKey) {
+  const sourceWallet = sourceSensitiveExport.data.wallet;
+  const sourceSessionPayload = sourceWallet.sessionPayload;
+  const sourceExecutionPrivateKey = resolveLocalExecutionPrivateKey(sourceWallet);
+  if (!sourceExecutionPrivateKey) {
     throw new Error(
-      `Source wallet "${options.walletName}" does not have a stored sessionPrivateKey. lifecycle smoke requires a locally writable source wallet.`
+      `Source wallet "${options.walletName}" does not have a stored local execution key. lifecycle smoke requires a locally writable source wallet.`
     );
   }
 
@@ -202,16 +207,16 @@ async function main(): Promise<void> {
   if (reapprove.ok) {
     const payload = buildApprovedSessionPayload({
       request: reapprove.data.request,
-      walletAddress: sourceSensitiveExport.data.wallet.walletAddress,
-      ownerAddress: sourceSensitiveExport.data.wallet.ownerAddress,
-      sessionPrivateKey: sourceSessionPayload.sessionPrivateKey,
-      sessionAddress: sourceSessionPayload.sessionAddress,
-      validatorAddress: sourceSessionPayload.account?.validatorAddress,
-      paymasterAddress: sourceSessionPayload.paymaster?.address ?? undefined,
-      paymasterToken: sourceSessionPayload.paymaster?.token,
-      signerType: sourceSessionPayload.account?.signerType ?? 'local',
-      connectorOrigin: sourceSessionPayload.connectorOrigin,
-      connectorUrl: sourceSessionPayload.connectorUrl || options.connectorUrl
+      walletAddress: sourceWallet.walletAddress,
+      ownerAddress: sourceWallet.ownerAddress,
+      sessionPrivateKey: sourceExecutionPrivateKey,
+      sessionAddress: sourceSessionPayload?.sessionAddress,
+      validatorAddress: sourceSessionPayload?.account?.validatorAddress,
+      paymasterAddress: sourceSessionPayload?.paymaster?.address ?? undefined,
+      paymasterToken: sourceSessionPayload?.paymaster?.token,
+      signerType: sourceSessionPayload?.account?.signerType ?? 'local',
+      connectorOrigin: sourceSessionPayload?.connectorOrigin,
+      connectorUrl: sourceSessionPayload?.connectorUrl || options.connectorUrl
     });
 
     approve = await tempTools.approveWalletRequestTool.execute({
@@ -240,15 +245,15 @@ async function main(): Promise<void> {
     statusAfterReapprove.data.writeReady === true &&
     statusAfterReapprove.data.sessionPrivateKeyStored === true &&
     tempSensitiveExport.ok &&
-    Boolean(tempSensitiveExport.data.wallet.sessionPayload?.sessionPrivateKey) &&
+    Boolean(resolveLocalExecutionPrivateKey(tempSensitiveExport.data.wallet)) &&
     tempStorage.snapshot().requestIds.length === 0;
 
   writeJson({
     ok,
     walletName: options.walletName,
     source: {
-      wallet: summarizeWallet(sourceSensitiveExport.data.wallet),
-      sourceSessionPrivateKeyStored: true
+      wallet: summarizeWallet(sourceWallet),
+      sourceLocalExecutionKeyStored: true
     },
     restore:
       restore.ok
@@ -269,9 +274,9 @@ async function main(): Promise<void> {
     statusAfterReapprove,
     tempStorage: {
       ...tempStorage.snapshot(),
-      tempSessionPrivateKeyStored:
+      tempLocalExecutionKeyStored:
         tempSensitiveExport.ok &&
-        Boolean(tempSensitiveExport.data.wallet.sessionPayload?.sessionPrivateKey)
+        Boolean(resolveLocalExecutionPrivateKey(tempSensitiveExport.data.wallet))
     }
   });
 

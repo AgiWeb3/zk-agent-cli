@@ -47,6 +47,7 @@ function printUsage(): void {
       '',
       'Defaults:',
       '  --paymaster-mode defaults to approval-based',
+      '  use a sed-lite wallet when you want the flagship AA/paymaster path to be the acceptance baseline inside this aggregate smoke',
       '  --execute-all enables every broadcast/finalize-capable step in one flag',
       '  paymaster success runs in preview mode unless --execute-paymaster is supplied',
       '  swap success runs in preview mode unless --execute-swap is supplied',

@@ -35,6 +35,8 @@ function sampleInspection(
     accountKind: 'smart-account',
     deploymentStatus: 'deployed',
     codeLength: 123,
+    approvalReady: true,
+    localExecutionKeyStored: true,
     sessionPrivateKeyStored: true,
     writeReady: true,
     blockers: [],

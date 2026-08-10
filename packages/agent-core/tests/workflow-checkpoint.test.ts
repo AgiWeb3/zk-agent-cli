@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { deriveEthereumAddressFromPrivateKey } from '@zk-agent/agent-session-protocol';
+
 import type { WalletSessionRecord } from '../src/providers.ts';
 import * as storage from '../src/storage.ts';
 import {
@@ -22,6 +24,43 @@ const sampleWallet: WalletSessionRecord = {
   provider: 'zksync-sso',
   accountKind: 'smart-account',
   createdAt: '2026-06-23T00:00:00.000Z'
+};
+
+const writableSampleWallet: WalletSessionRecord = {
+  ...sampleWallet,
+  sessionPayload: {
+    version: 1,
+    provider: 'zksync-sso',
+    chain: sampleWallet.chain,
+    chainId: sampleWallet.chainId,
+    walletAddress: sampleWallet.walletAddress,
+    account: {
+      kind: 'smart-account',
+      address: sampleWallet.walletAddress,
+      ownerAddress: sampleWallet.ownerAddress,
+      signerType: 'local'
+    },
+    permissions: {},
+    sessionScope: {
+      chainKeys: [sampleWallet.chain],
+      chainIds: [sampleWallet.chainId]
+    },
+    capabilities: {
+      read: true,
+      write: true,
+      transfer: true,
+      contractCall: true,
+      paymaster: true
+    },
+    sessionPublicKey: '0x' + '11'.repeat(32),
+    sessionPrivateKey: '0x' + '22'.repeat(32),
+    paymaster: {
+      mode: 'approval-based',
+      address: '0x' + '33'.repeat(20),
+      token: '0x' + '44'.repeat(20)
+    },
+    paymasterAddress: '0x' + '33'.repeat(20)
+  }
 };
 
 async function withHome<T>(homeDir: string, fn: () => Promise<T>): Promise<T> {
@@ -144,6 +183,36 @@ test('storage resolves the active home directory at call time instead of module-
   } finally {
     await rm(homeDirA, { recursive: true, force: true });
     await rm(homeDirB, { recursive: true, force: true });
+  }
+});
+
+test('wallet storage migrates legacy sessionPrivateKey data into local execution authority on load', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-wallet-migrate-'));
+
+  try {
+    await withHome(homeDir, async () => {
+      await storage.saveWalletSession(writableSampleWallet);
+
+      const loaded = await storage.loadWalletSession('main');
+      assert.ok(loaded);
+      assert.equal(
+        loaded.localExecutionAuthority?.privateKey,
+        writableSampleWallet.sessionPayload?.sessionPrivateKey
+      );
+      assert.equal(
+        loaded.localExecutionAuthority?.signerAddress,
+        deriveEthereumAddressFromPrivateKey(
+          writableSampleWallet.sessionPayload?.sessionPrivateKey as string
+        )
+      );
+      assert.equal(loaded.localExecutionAuthority?.signerType, 'local');
+      assert.equal(
+        loaded.sessionPayload?.sessionPrivateKey,
+        writableSampleWallet.sessionPayload?.sessionPrivateKey
+      );
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
   }
 });
 

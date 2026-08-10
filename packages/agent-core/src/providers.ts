@@ -39,7 +39,16 @@ export interface WalletSessionRecord {
   capabilities?: SessionCapabilities;
   paymasterMode?: PaymasterMode;
   createdAt: string;
+  localExecutionAuthority?: LocalExecutionAuthorityRecord;
   sessionPayload?: SessionPayload;
+}
+
+export interface LocalExecutionAuthorityRecord {
+  privateKey?: string;
+  signerAddress?: string;
+  signerType?: 'local' | 'connector' | 'external';
+  source?: 'legacy-session-payload' | 'approved-payload' | 'explicit-local-approval';
+  attachedAt?: string;
 }
 
 export interface WalletExportRecord {
@@ -657,6 +666,8 @@ export interface WalletInspectionResult {
   paymasterMode?: PaymasterMode;
   deploymentStatus: 'not-applicable' | 'deployed' | 'not-deployed';
   codeLength: number;
+  approvalReady?: boolean;
+  localExecutionKeyStored?: boolean;
   sessionPrivateKeyStored: boolean;
   derivedSignerAddress?: string;
   signerMatchesStoredIdentity?: boolean;

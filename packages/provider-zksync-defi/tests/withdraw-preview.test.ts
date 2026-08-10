@@ -37,6 +37,8 @@ function sampleWallet(overrides: Partial<WalletSessionRecord> = {}): WalletSessi
 }
 
 function writableEoaWallet(overrides: Partial<WalletSessionRecord> = {}): WalletSessionRecord {
+  const privateKey =
+    '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
   return {
     walletName: 'paymaster-eoa',
     walletAddress: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
@@ -45,6 +47,13 @@ function writableEoaWallet(overrides: Partial<WalletSessionRecord> = {}): Wallet
     provider: 'manual',
     accountKind: 'eoa',
     createdAt: '2026-06-21T00:00:00.000Z',
+    localExecutionAuthority: {
+      privateKey,
+      signerAddress: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      signerType: 'local',
+      source: 'explicit-local-approval',
+      attachedAt: '2026-06-21T00:00:00.000Z'
+    },
     sessionPayload: {
       version: 1,
       provider: 'zksync-sso',
@@ -58,8 +67,7 @@ function writableEoaWallet(overrides: Partial<WalletSessionRecord> = {}): Wallet
       },
       permissions: {},
       sessionPublicKey: '22'.repeat(32),
-      sessionPrivateKey:
-        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+      sessionPrivateKey: privateKey
     },
     ...overrides
   };
@@ -1625,6 +1633,76 @@ test('withdraw broadcasts through a writable local EOA session', async () => {
       result.notes.some((note) => /Monitor the L2 transaction first/.test(note)),
       true
     );
+  } finally {
+    Wallet.prototype.withdraw = originalWithdraw;
+  }
+});
+
+test('withdraw broadcasts through localExecutionAuthority even when the legacy sessionPrivateKey mirror is absent', async () => {
+  const provider = new ZkSyncDefiProvider({
+    providerFactory: () => ({
+      async getCode() {
+        return '0x';
+      },
+      async getNetwork() {
+        return {
+          chainId: 300,
+          name: 'zksync-sepolia'
+        };
+      },
+      async getDefaultBridgeAddresses() {
+        return {
+          erc20L1: '0x1000000000000000000000000000000000000001',
+          erc20L2: '0x2000000000000000000000000000000000000002',
+          wethL1: '0x3000000000000000000000000000000000000003',
+          wethL2: '0x4000000000000000000000000000000000000004',
+          sharedL1: '0x5000000000000000000000000000000000000005',
+          sharedL2: '0x6000000000000000000000000000000000000006'
+        };
+      },
+      async l1ChainId() {
+        return 11155111;
+      },
+      async getWithdrawTx() {
+        return {
+          from: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          to: '0x6000000000000000000000000000000000000006',
+          data: '0xdeadbeef',
+          value: 0n,
+          gasLimit: 123456n,
+          maxFeePerGas: 999n,
+          maxPriorityFeePerGas: 111n,
+          type: 113
+        };
+      },
+      async estimateGasWithdraw() {
+        return 123456n;
+      }
+    })
+  });
+
+  const originalWithdraw = Wallet.prototype.withdraw;
+  Wallet.prototype.withdraw = async function mockWithdraw() {
+    return {
+      hash: '0x' + 'ac'.repeat(32)
+    } as Awaited<ReturnType<Wallet['withdraw']>>;
+  };
+
+  try {
+    const wallet = writableEoaWallet({
+      sessionPayload: {
+        ...writableEoaWallet().sessionPayload!,
+        sessionPrivateKey: undefined
+      }
+    });
+    const result = await provider.withdraw({
+      wallet,
+      amount: '0.05',
+      broadcast: true
+    });
+
+    assert.equal(result.mode, 'broadcast');
+    assert.equal(result.txHash, '0x' + 'ac'.repeat(32));
   } finally {
     Wallet.prototype.withdraw = originalWithdraw;
   }

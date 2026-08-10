@@ -29,6 +29,8 @@ function sampleInspection(
     accountKind: 'smart-account',
     deploymentStatus: 'deployed',
     codeLength: 123,
+    approvalReady: true,
+    localExecutionKeyStored: true,
     sessionPrivateKeyStored: true,
     writeReady: true,
     blockers: [],
@@ -63,6 +65,8 @@ test('workflow plan blocks swap until write prerequisites and gas funding are sa
       syncedAt: undefined
     },
     inspection: sampleInspection({
+      approvalReady: false,
+      localExecutionKeyStored: false,
       sessionPrivateKeyStored: false,
       writeReady: false,
       deploymentStatus: 'not-deployed'

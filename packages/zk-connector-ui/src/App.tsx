@@ -499,12 +499,12 @@ export function App() {
                   Required now:
                   {' '}
                   wallet address
-                  {smartAccountRequest ? ', plus owner address or session private key' : ''}.
+                  {smartAccountRequest ? ', plus owner address or a local execution key' : ''}.
                   {approvalBasedRequest ? ' Approval-based paymaster mode also expects the fee token address.' : ''}
                 </p>
                 {derivedOwnerAddress ? (
                   <p className="status">
-                    Derived owner from session private key:
+                    Derived owner from local execution key:
                     {' '}
                     <code>{derivedOwnerAddress}</code>
                   </p>
@@ -527,7 +527,7 @@ export function App() {
                     onChange={(event) => setOwnerAddress(event.target.value.trim())}
                     placeholder={
                       smartAccountRequest
-                        ? '0x... or leave empty if session private key can derive it'
+                        ? '0x... or leave empty if the local execution key can derive it'
                         : 'Optional 0x...'
                     }
                   />
@@ -543,11 +543,11 @@ export function App() {
                 {smartAccountRequest ? (
                   <>
                     <label>
-                      <span>Session private key</span>
+                      <span>Local execution key</span>
                       <input
                         value={sessionPrivateKey}
                         onChange={(event) => setSessionPrivateKey(event.target.value.trim())}
-                        placeholder="Optional 0x... for writable testnet sessions"
+                        placeholder="Optional 0x... for writable local execution"
                       />
                     </label>
                     <label>
@@ -595,7 +595,7 @@ export function App() {
                 readOnly
                 value={
                   generatedPayload ||
-                  'Enter a valid wallet address and, for smart-account approval, either an owner address or a session private key.'
+                  'Enter a valid wallet address and, for smart-account approval, either an owner address or a local execution key.'
                 }
               />
               <div className="actions">

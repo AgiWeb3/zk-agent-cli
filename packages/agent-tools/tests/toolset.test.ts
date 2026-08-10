@@ -4458,7 +4458,9 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
   const workflowProvider = {
     ...createProviderStub(),
     async inspectWallet(wallet: WalletSessionRecord) {
-      const sessionPrivateKeyStored = Boolean(wallet.sessionPayload?.sessionPrivateKey);
+      const sessionPrivateKeyStored = Boolean(
+        wallet.localExecutionAuthority?.privateKey || wallet.sessionPayload?.sessionPrivateKey
+      );
 
       return {
         walletName: wallet.walletName,
@@ -4470,6 +4472,8 @@ test('workflow orchestrator can create or auto-complete wallet reapproval when s
         paymasterMode: wallet.paymasterMode,
         deploymentStatus: 'deployed',
         codeLength: 123,
+        approvalReady: Boolean(wallet.sessionPayload),
+        localExecutionKeyStored: sessionPrivateKeyStored,
         sessionPrivateKeyStored,
         writeReady: sessionPrivateKeyStored,
         blockers: sessionPrivateKeyStored ? [] : ['reapprove'],

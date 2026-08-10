@@ -420,3 +420,97 @@ test('ensureWorkflowWalletSession can await local approval, reuse an existing re
   assert.equal(result.wallet.sessionPayload?.sessionPrivateKey, '0x' + '77'.repeat(32));
   assert.equal(approval?.callbackUrl, 'http://127.0.0.1:9999/approve');
 });
+
+test('ensureWorkflowWalletSession does not create a reapproval request when the blocker is attach-signer', async () => {
+  let created = 0;
+
+  const result = await ensureWorkflowWalletSession(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      status: sampleStatus({
+        plan: {
+          ...sampleStatus().plan,
+          recommendedCommand: 'zk-agent wallet signer attach --name main --private-key <hex>'
+        },
+        blockingActionIds: ['attach-signer'],
+        recommendedCommand: 'zk-agent wallet signer attach --name main --private-key <hex>'
+      }),
+      options: {
+        ensureWalletSession: true
+      }
+    },
+    {
+      findReusableWalletRequest: async () => undefined,
+      createWalletReapprovalRequest: async () => {
+        created += 1;
+        return sampleRequest();
+      },
+      publishWalletRequestToRelay: async () => {
+        throw new Error('publishWalletRequestToRelay should not run in this test');
+      },
+      awaitLocalWalletApproval: async () => {
+        throw new Error('awaitLocalWalletApproval should not run in this test');
+      },
+      inspectWorkflowStatus: async () => {
+        throw new Error('inspectWorkflowStatus should not run in this test');
+      }
+    }
+  );
+
+  assert.equal(created, 0);
+  assert.equal(result.walletApproval, undefined);
+  assert.equal(result.recommendedCommand, 'zk-agent wallet signer attach --name main --private-key <hex>');
+});
+
+test('ensureWorkflowWalletSession does not create a reapproval request when the blocker is signer-mismatch', async () => {
+  let created = 0;
+
+  const result = await ensureWorkflowWalletSession(
+    {
+      wallet: sampleWallet,
+      intent: 'send-native',
+      goal: {
+        intent: 'send-native',
+        to: '0x3333333333333333333333333333333333333333',
+        amount: '0.1'
+      },
+      status: sampleStatus({
+        plan: {
+          ...sampleStatus().plan,
+          recommendedCommand: 'zk-agent wallet signer attach --name main --private-key <hex>'
+        },
+        blockingActionIds: ['signer-mismatch'],
+        recommendedCommand: 'zk-agent wallet signer attach --name main --private-key <hex>'
+      }),
+      options: {
+        ensureWalletSession: true
+      }
+    },
+    {
+      findReusableWalletRequest: async () => undefined,
+      createWalletReapprovalRequest: async () => {
+        created += 1;
+        return sampleRequest();
+      },
+      publishWalletRequestToRelay: async () => {
+        throw new Error('publishWalletRequestToRelay should not run in this test');
+      },
+      awaitLocalWalletApproval: async () => {
+        throw new Error('awaitLocalWalletApproval should not run in this test');
+      },
+      inspectWorkflowStatus: async () => {
+        throw new Error('inspectWorkflowStatus should not run in this test');
+      }
+    }
+  );
+
+  assert.equal(created, 0);
+  assert.equal(result.walletApproval, undefined);
+  assert.equal(result.recommendedCommand, 'zk-agent wallet signer attach --name main --private-key <hex>');
+});

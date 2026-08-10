@@ -49,6 +49,8 @@ export function buildApprovedSessionPayload(input: SessionApprovalInput): Sessio
     );
   }
 
+  const signerType = input.signerType || (input.sessionPrivateKey ? 'local' : 'connector');
+
   return {
     version: 1,
     provider: input.request.provider,
@@ -61,7 +63,7 @@ export function buildApprovedSessionPayload(input: SessionApprovalInput): Sessio
       ownerAddress,
       sessionAddress: input.sessionAddress,
       validatorAddress: input.validatorAddress,
-      signerType: input.signerType || 'connector'
+      signerType
     },
     sessionScope: input.request.requestedSessionScope,
     capabilities: input.request.requestedCapabilities,

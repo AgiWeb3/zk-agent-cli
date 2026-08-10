@@ -76,6 +76,9 @@ What that means:
     real public outside-in validation
   - one clearer zk-native flagship workflow is productized around AA,
     paymaster, and workflow orchestration
+  - future AA defaults, acceptance, and operator examples now stay on
+    `sed-lite`; `daily-spend-limit` is kept only for narrower policy
+    experiments and regression coverage
 - the agent-facing skill surface is now split into stable product slices:
   `zk-aa` for the current AA/operator path, `zk-relay` for hosted remote
   approval and relay recovery, and `zk-defi` for the current DeFi action
@@ -244,8 +247,8 @@ What is already in place:
   - `pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]` for focused CLI discovery/default inspection smoke, validating the real `defaults` / `assets` / `balances --owned-tokens` / `tokens --owned` / `tokens --chain` / `resolve-token` JSON path in one bounded read-only sequence
   - `pnpm smoke:hosted-relay -- --relay-url <url>` for bounded outside-in validation of an externally reachable hosted relay: the smoke runs the real `relay inspect`, publishes a synthetic request, confirms `/r/<id>` redirects into the connector UI, and confirms the bundled hashed frontend asset still serves from the relay
   - `pnpm smoke:operator-path -- --wallet <name> [--to <address>] [--amount <native>] [--paymaster-mode none|approval-based|sponsored]` for preview-only validation of the canonical `next -> wallet -> workflow pay -> funding fallback or goal preview` operator path on one stored wallet, now also surfacing a top-level `phase` / `recommendedCommand` plus the resolved workflow registry/default-path summary and relay approval metadata in its JSON payload
-  - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present
-  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet
+  - `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--manual-approval] [--code <code>|--prompt-code]` for the explicit create -> relay-publish -> relay-status -> relay-approve -> wallet-import product path, using a local in-process relay by default and a caller-supplied relay when `--relay-url` is present; `--manual-approval` switches from the synthetic encrypted-approval shortcut to the real browser/share-link path and can either stop after publish with follow-up commands or wait and finalize after you supply the 6-digit approval code
+  - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]` for the current Phase 5 flagship AA path: use a `sed-lite` wallet for the acceptance baseline; when `--relay-url` is supplied it first validates the external hosted relay, then runs relay-backed wallet reapproval, then the paymaster-backed `workflow pay` path on the same wallet
   - `pnpm smoke:lifecycle -- --wallet <name>` for export -> restore -> reapprove -> write-ready recovery smoke
   - `pnpm smoke:policy -- --wallet <name>` for live preview validation of SED policy rejections and normalized tool-error remediation hints
   - `pnpm smoke:paymaster-success -- --wallet <name> [--execute]` for the validated EraVM approval-based workflow-backed send-native preview / broadcast path, now defaulting to mode-only paymaster input so the tracked validated fallback address/token are exercised directly
@@ -462,6 +465,7 @@ zk-agent wallet create --await-local
 zk-agent wallet create --await-local --session-preset transfer-only
 zk-agent wallet create --await-local --session-hours 12 --allow-contract <contract-address> --allow-transfer-to <recipient-address>
 zk-agent next
+zk-agent wallet signer attach --name main --private-key <hex>
 zk-agent wallet reapprove --name main --await-local
 zk-agent wallet reapprove --name main --session-preset full-access
 zk-agent wallet reapprove --name main --disallow-contract-calls
@@ -480,7 +484,11 @@ the common shapes (`full-access`, `transfer-only`, `contract-only`, `readonly`),
 use `--session-hours` to time-box the approval, `--allow-transfer-to` and
 `--allow-contract` to turn the session into an address allowlist, or
 `--disallow-transfers` / `--disallow-contract-calls` to remove those
-capabilities entirely. Keep `wallet request approve --request-id <id> --relay-url <url> --code <code> --wait`
+capabilities entirely. Use `wallet reapprove` when approval metadata is
+missing or expired. Use `wallet signer attach --name <wallet> --private-key
+<hex>` when approval is still present but the local execution signer is
+missing. Keep
+`wallet request approve --request-id <id> --relay-url <url> --code <code> --wait`
 for the lower-level manual relay fallback after a request has already been
 created or published.
 
@@ -766,7 +774,8 @@ Recommended root wrappers for the current stable product surface:
   `tokens --chain`, and `resolve-token`
 - `pnpm smoke:flagship-workflow -- --wallet <name> [--relay-url <url>] [--paymaster-mode approval-based|sponsored] [--execute]`
   validates the current Phase 5 flagship AA operator story in one narrower
-  sequence: with `--relay-url` it first validates the external hosted relay,
+  sequence: use a `sed-lite` wallet for the acceptance baseline; with
+  `--relay-url` it first validates the external hosted relay,
   then runs relay-backed wallet reapproval on the existing wallet, then the
   paymaster-backed `workflow pay` flagship path on that same wallet; it is
   the productized AA signature path, not a broad DeFi breadth harness
@@ -806,10 +815,12 @@ Recommended root wrappers for the current stable product surface:
 - the tracked Sepolia `no-paymaster` path is now promoted into the validated
   defaults surface as the current `--paymaster-mode none` default for both EOA
   and smart-account
-- `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>]`
+- `pnpm smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--manual-approval] [--code <code>|--prompt-code]`
   validates the relay-backed create -> publish -> pending -> ready -> approve
   -> import lifecycle through the real CLI JSON surface, using a local relay
-  automatically when `--relay-url` is omitted
+  automatically when `--relay-url` is omitted; `--manual-approval` uses the
+  real browser/share-link approval path instead of auto-submitting a
+  synthetic encrypted payload
 - `pnpm validate:phase3` runs the current Phase 3 regression set across
   `agent-core`, `agent-tools`, and `zk-agent-cli`, including the remote
   approval smoke runtime regression
@@ -926,6 +937,8 @@ Current CLI surface:
 Current base profile:
 
 - `sed-lite` is the main AA base profile in this repository
+- future AA defaults, flagship workflow validation, and operator-facing
+  examples should stay on `sed-lite`
 - it preserves the current CLI/provider ECDSA flow while moving signature
   checks behind a dedicated K1 validator
 - it splits account internals into lighter Auth/Manager layers and keeps a
@@ -969,6 +982,9 @@ Current limitations and cautions:
 - `wallet smart-account daily-spend-limit show|set|remove` drives the built-in
   profile state through the existing call/write pipeline, but native-transfer
   enforcement for `daily-spend-limit` still needs more EraVM-specific work
+- `daily-spend-limit` should not be used as the default AA acceptance wallet:
+  it is now treated as a constrained experimental profile, not the repository
+  baseline
 - execution-time checks on that profile do not currently catch plain native
   sends, while validation-time checks hit the documented `SystemContext`
   restriction because the policy uses `block.timestamp`

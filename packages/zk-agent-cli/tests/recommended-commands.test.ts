@@ -17,6 +17,9 @@ import {
   buildWalletRequestRelayStatusRecommendedCommand,
   buildWalletRequestShowRecommendedCommand,
   buildWalletRestoreRecommendedCommand,
+  buildWalletSignerAttachRecommendedCommand,
+  buildWalletSignerRemoveRecommendedCommand,
+  buildWalletSignerShowRecommendedCommand,
   buildWalletStatusRecommendedCommand,
   buildWalletReapproveRecommendedCommand,
   buildWorkflowDeleteRecommendedCommand,
@@ -50,6 +53,21 @@ test('recommended wallet status command includes wallet name', () => {
   assert.equal(
     buildWalletStatusRecommendedCommand('main'),
     'zk-agent wallet status --name main'
+  );
+});
+
+test('recommended wallet signer commands include wallet name and placeholder key input', () => {
+  assert.equal(
+    buildWalletSignerShowRecommendedCommand('main'),
+    'zk-agent wallet signer show --name main'
+  );
+  assert.equal(
+    buildWalletSignerAttachRecommendedCommand('main'),
+    'zk-agent wallet signer attach --name main --private-key <hex>'
+  );
+  assert.equal(
+    buildWalletSignerRemoveRecommendedCommand('main'),
+    'zk-agent wallet signer remove --name main'
   );
 });
 

@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createInterface } from 'node:readline/promises';
+import process from 'node:process';
 
 import { loadWalletSession, type WalletSessionRecord } from '@zk-agent/agent-core';
 import {
@@ -20,11 +22,67 @@ export interface SmokeRemoteApprovalOptions {
   relayUrl?: string;
   reapprove: boolean;
   plan: boolean;
+  manualApproval: boolean;
+  code?: string;
+  promptCode: boolean;
+  timeoutSeconds: string;
+  intervalMs: string;
 }
 
 interface JsonCommandResult {
   ok?: boolean;
   [key: string]: unknown;
+}
+
+function relayShareAndStatusUrls(result: JsonCommandResult): {
+  shareUrl?: string;
+  statusUrl?: string;
+} {
+  const relay = result.relay;
+  if (!relay || typeof relay !== 'object') {
+    return {};
+  }
+
+  const shareUrl =
+    'share_url' in relay && typeof relay.share_url === 'string' ? relay.share_url : undefined;
+  const statusUrl =
+    'status_url' in relay && typeof relay.status_url === 'string' ? relay.status_url : undefined;
+
+  return {
+    shareUrl,
+    statusUrl
+  };
+}
+
+function nestedRecord(
+  value: unknown,
+  key: string
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const nested = (value as Record<string, unknown>)[key];
+  return nested && typeof nested === 'object' ? (nested as Record<string, unknown>) : undefined;
+}
+
+function commandResultString(
+  result: JsonCommandResult,
+  key: string,
+  nestedKey?: string
+): string | undefined {
+  const direct = result[key];
+  if (typeof direct === 'string' && direct) {
+    return direct;
+  }
+
+  if (!nestedKey) {
+    return undefined;
+  }
+
+  const nested = nestedRecord(result, nestedKey);
+  const nestedValue = nested?.[key];
+  return typeof nestedValue === 'string' && nestedValue ? nestedValue : undefined;
 }
 
 interface DecodedApprovalRequest {
@@ -46,18 +104,21 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter zk-agent-cli smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--reapprove] [--plan]',
+      '  pnpm --filter zk-agent-cli smoke:remote-approval -- --wallet <name> [--chain <chain>] [--relay-url <url>] [--reapprove] [--manual-approval] [--code <code>|--prompt-code] [--plan]',
       '',
       'What it does:',
       '  1. Creates a wallet approval request through the real CLI.',
       '  2. Publishes that request to a relay (local in-process relay by default).',
-      '  3. Confirms the relay reports pending, then ready after an encrypted approval is submitted.',
+      '  3. By default, submits a synthetic encrypted approval and confirms the relay reports ready.',
       '  4. Finalizes the relay approval through the real CLI and confirms the wallet import/status path.',
+      '  5. With --manual-approval, stops after publish or waits for a real browser approval instead of submitting a synthetic payload.',
       '',
       'Defaults:',
       '  --chain defaults to zksync-sepolia',
       '  --relay-url is optional; when omitted, the smoke starts a local relay server automatically',
       '  --reapprove switches the flow from wallet creation to wallet reapproval for an existing stored wallet',
+      '  --manual-approval uses a real share-link/browser approval path instead of auto-submitting an encrypted payload',
+      '  --code / --prompt-code only apply together with --manual-approval when the smoke should finalize after the relay reports approval ready',
       '  --plan prints the intended command sequence without executing the flow',
       '',
       'Environment:',
@@ -81,6 +142,11 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
   let relayUrl: string | undefined;
   let reapprove = false;
   let plan = false;
+  let manualApproval = false;
+  let code: string | undefined;
+  let promptCode = false;
+  let timeoutSeconds = '600';
+  let intervalMs = '2000';
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -120,6 +186,34 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
       continue;
     }
 
+    if (arg === '--manual-approval') {
+      manualApproval = true;
+      continue;
+    }
+
+    if (arg === '--code') {
+      code = requireOptionValue(argv, index, arg).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--prompt-code') {
+      promptCode = true;
+      continue;
+    }
+
+    if (arg === '--timeout-seconds') {
+      timeoutSeconds = requireOptionValue(argv, index, arg).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--interval-ms') {
+      intervalMs = requireOptionValue(argv, index, arg).trim();
+      index += 1;
+      continue;
+    }
+
     throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -127,12 +221,25 @@ function parseArgs(argv: string[]): SmokeRemoteApprovalOptions {
     throw new Error('A wallet name is required. Pass --wallet <name> or set ZK_AGENT_SMOKE_WALLET.');
   }
 
+  if (!manualApproval && (code || promptCode)) {
+    throw new Error('--code and --prompt-code are only supported together with --manual-approval.');
+  }
+
+  if (code && promptCode) {
+    throw new Error('--code and --prompt-code cannot be used together.');
+  }
+
   return {
     walletName,
     chain,
     relayUrl,
     reapprove,
-    plan
+    plan,
+    manualApproval,
+    code,
+    promptCode,
+    timeoutSeconds,
+    intervalMs
   };
 }
 
@@ -247,6 +354,39 @@ function buildPlan(options: SmokeRemoteApprovalOptions) {
   const initialCommand = options.reapprove
     ? `zk-agent wallet reapprove --name ${options.walletName}`
     : `zk-agent wallet create --name ${options.walletName} --chain ${options.chain}`;
+  const approvalSteps = options.manualApproval
+    ? [
+        {
+          id: 'browser-approval',
+          command: 'Open the share URL in a real browser approval flow and approve the request'
+        },
+        {
+          id: 'check-relay-ready',
+          command:
+            `zk-agent wallet request relay-status --request-id <request-id> --relay-url ${relayOrigin} ` +
+            `--wait --timeout-seconds ${options.timeoutSeconds} --interval-ms ${options.intervalMs}`
+        },
+        {
+          id: 'approve-from-relay',
+          command:
+            `zk-agent wallet request approve --request-id <request-id> --relay-url ${relayOrigin} ` +
+            `${options.code ? `--code ${options.code}` : '--code <code>'} --wait`
+        }
+      ]
+    : [
+        {
+          id: 'submit-encrypted-approval',
+          command: `POST ${relayOrigin}/api/requests/<request-id>/approval`
+        },
+        {
+          id: 'check-relay-ready',
+          command: `zk-agent wallet request relay-status --request-id <request-id> --relay-url ${relayOrigin}`
+        },
+        {
+          id: 'approve-from-relay',
+          command: `zk-agent wallet request approve --request-id <request-id> --relay-url ${relayOrigin} --code <code> --wait`
+        }
+      ];
   return {
     ok: true,
     plan: true,
@@ -267,24 +407,26 @@ function buildPlan(options: SmokeRemoteApprovalOptions) {
         id: 'check-relay-pending',
         command: `zk-agent wallet request relay-status --request-id <request-id> --relay-url ${relayOrigin}`
       },
-      {
-        id: 'submit-encrypted-approval',
-        command: `POST ${relayOrigin}/api/requests/<request-id>/approval`
-      },
-      {
-        id: 'check-relay-ready',
-        command: `zk-agent wallet request relay-status --request-id <request-id> --relay-url ${relayOrigin}`
-      },
-      {
-        id: 'approve-from-relay',
-        command: `zk-agent wallet request approve --request-id <request-id> --relay-url ${relayOrigin} --code <code> --wait`
-      },
+      ...approvalSteps,
       {
         id: 'inspect-wallet',
         command: `zk-agent wallet status --name ${options.walletName}`
       }
     ]
   };
+}
+
+async function promptForApprovalCode(): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stderr
+  });
+
+  try {
+    return (await rl.question('Enter the 6-digit relay approval code: ')).trim();
+  } finally {
+    rl.close();
+  }
 }
 
 export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions) {
@@ -326,8 +468,11 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
             options.chain
           ]
     );
-    const requestId = String(created.requestId);
-    const approvalUrl = String(created.approvalUrl);
+    const requestId = commandResultString(created, 'requestId', 'request');
+    const approvalUrl = commandResultString(created, 'approvalUrl', 'request');
+    if (!requestId || !approvalUrl) {
+      throw new Error('CLI did not return a requestId and approvalUrl for the remote approval smoke.');
+    }
     const request = decodeApprovalRequest(approvalUrl);
 
     const published = await runCliJson([
@@ -348,6 +493,88 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       '--relay-url',
       relayOrigin
     ]);
+    const { shareUrl, statusUrl } = relayShareAndStatusUrls(published);
+
+    if (options.manualApproval) {
+      const relayWaitCommand =
+        `zk-agent wallet request relay-status --request-id ${requestId} --relay-url ${relayOrigin} ` +
+        `--wait --timeout-seconds ${options.timeoutSeconds} --interval-ms ${options.intervalMs}`;
+      const relayApproveCommand =
+        `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayOrigin} ` +
+        `${options.code ? `--code ${options.code}` : '--code <code>'} --wait`;
+
+      if (!options.code && !options.promptCode) {
+        return {
+          ok: true,
+          phase: 'awaiting-browser-approval',
+          walletName: options.walletName,
+          chain: options.chain,
+          operation: options.reapprove ? 'reapprove' : 'create',
+          relayOrigin,
+          relayMode: options.relayUrl ? 'external' : 'local-auto',
+          requestId,
+          shareUrl,
+          statusUrl,
+          nextAction: relayWaitCommand,
+          recommendedCommands: {
+            waitReady: relayWaitCommand,
+            approve: relayApproveCommand
+          },
+          create: created,
+          relayPublish: published,
+          relayStatusPending: relayPending
+        };
+      }
+
+      const relayReady = await runCliJson([
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        requestId,
+        '--relay-url',
+        relayOrigin,
+        '--wait',
+        '--timeout-seconds',
+        options.timeoutSeconds,
+        '--interval-ms',
+        options.intervalMs
+      ]);
+      const approvalCode = options.code || (options.promptCode ? await promptForApprovalCode() : '');
+      const approved = await runCliJson([
+        'wallet',
+        'request',
+        'approve',
+        '--request-id',
+        requestId,
+        '--relay-url',
+        relayOrigin,
+        '--code',
+        approvalCode,
+        '--wait'
+      ]);
+      const walletStatus = await runCliJson(['wallet', 'status', '--name', options.walletName]);
+
+      return {
+        ok: true,
+        phase: 'approved',
+        walletName: options.walletName,
+        chain: options.chain,
+        operation: options.reapprove ? 'reapprove' : 'create',
+        relayOrigin,
+        relayMode: options.relayUrl ? 'external' : 'local-auto',
+        approvalMode: 'browser-manual',
+        requestId,
+        recommendedCommand: String(approved.nextAction),
+        nextAction: approved.nextAction,
+        create: created,
+        relayPublish: published,
+        relayStatusPending: relayPending,
+        relayStatusReady: relayReady,
+        approve: approved,
+        walletStatus
+      };
+    }
 
     const payload = buildApprovedPayload(request, relayOrigin, existingWallet);
     const { encrypted, code } = encryptSession(payload, request.sessionPublicKey, request.requestId);

@@ -36,6 +36,21 @@ export function buildWalletStatusRecommendedCommand(walletName: string): string 
   return `zk-agent wallet status --name ${walletName}`;
 }
 
+export function buildWalletSignerShowRecommendedCommand(walletName: string): string {
+  return `zk-agent wallet signer show --name ${walletName}`;
+}
+
+export function buildWalletSignerAttachRecommendedCommand(
+  walletName: string,
+  privateKeyRef = '<hex>'
+): string {
+  return `zk-agent wallet signer attach --name ${walletName} --private-key ${privateKeyRef}`;
+}
+
+export function buildWalletSignerRemoveRecommendedCommand(walletName: string): string {
+  return `zk-agent wallet signer remove --name ${walletName}`;
+}
+
 export function buildAssetsRecommendedCommand(walletName: string): string {
   return `zk-agent assets --wallet ${walletName}`;
 }

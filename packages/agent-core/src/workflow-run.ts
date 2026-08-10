@@ -306,7 +306,12 @@ function manualBlockingActionIds(plan: WorkflowPlan): string[] {
       (step) =>
         step.kind === 'prerequisite' &&
         step.priority === 'required' &&
-        (step.id === 'reapprove' || step.id === 'signer-mismatch' || step.id === 'deploy')
+        (
+          step.id === 'reapprove' ||
+          step.id === 'attach-signer' ||
+          step.id === 'signer-mismatch' ||
+          step.id === 'deploy'
+        )
     )
     .map((step) => step.id);
 }

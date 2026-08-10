@@ -19,6 +19,12 @@ Use it for:
 - balances, bridge/deposit/withdraw lifecycle follow-up
 - sed-lite smart-account operations already implemented in the CLI
 
+Repository AA posture:
+
+- use `sed-lite` for the default AA/operator path
+- use `daily-spend-limit` only when a task explicitly needs that narrower
+  policy profile or a constrained control wallet
+
 Do not assume broader ecosystem integrations exist yet. In particular, this
 repo does **not** currently provide Polygon-style identity, Polymarket, or
 x402 surfaces.
@@ -136,10 +142,16 @@ Only pass the session-policy flags when the goal is to replace those defaults.
 Use `--session-preset` for the common shapes first, then add address allowlists
 only when the workflow needs them.
 
-If the wallet already exists but no longer has a writable local session:
+If the wallet already exists and approval metadata is missing or expired:
 
 ```bash
 zk-agent wallet reapprove --name main --await-local
+```
+
+If approval is still present but the local execution signer is missing:
+
+```bash
+zk-agent wallet signer attach --name main --private-key <hex>
 ```
 
 If the connector cannot return directly to the waiting CLI process, create the

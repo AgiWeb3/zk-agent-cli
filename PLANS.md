@@ -51,10 +51,14 @@ The repo is already past scaffolding. The current stable baseline is:
   - `sed-lite`
   - `daily-spend-limit`
 - `sed-lite` is the primary AA base profile:
+  - future AA defaults, acceptance, and operator examples should stay on
+    `sed-lite`
   - live Sepolia predict/deploy validated
   - live hook-managed policy rejection validated
   - approval-based smart-account live broadcast validated on the known-good
     EraVM fee-token path
+- `daily-spend-limit` remains available only for narrower policy experiments
+  and targeted regression coverage; it is not the default AA path
 - paymaster test infrastructure exists in `packages/paymaster-test-assets`
 - agent-facing tool wrappers exist in `packages/agent-tools`
 - local-first agent identity/profile management now exists in
@@ -348,6 +352,40 @@ Closed result areas:
      source checkout, and the npm release gate now checks packaged help
      entrypoints instead of relying on the repo-local wrapper
 
+### Completed post-Phase-5 architecture slice
+
+The signer/session separation slice is complete on the current baseline.
+
+Reference:
+
+- [docs/14-best-session-model.md](./docs/14-best-session-model.md)
+
+Closed results:
+
+1. wallet storage now separates connector-approved session metadata from local
+   execution authority through `localExecutionAuthority`
+2. wallet inspection and workflow remediation now distinguish:
+   - approval present
+   - local write signer present
+   - fully write-ready
+3. relay/browser approval no longer silently implies that a local writable
+   signer exists
+4. the CLI now has an explicit local signer management path:
+   - `wallet signer show`
+   - `wallet signer attach`
+   - `wallet signer remove`
+5. the provider, DeFi withdraw/finalize write paths, lifecycle smokes, and
+   follow-up guidance now resolve writable local execution through the split
+   local authority model instead of depending only on the legacy payload field
+
+Compatibility boundary kept intentionally:
+
+- the legacy `sessionPayload.sessionPrivateKey` mirror still exists for
+  compatibility and migration safety
+- protocol v1 still carries that field as a legacy-compatible shape
+- removing the legacy field entirely is not an active blocker for the current
+  product stage
+
 ### Explicit non-goals
 
 - do not chase Polygon-only verticals such as Polymarket or x402 just to match
@@ -416,6 +454,11 @@ Unless priorities change, the next concrete slices should be:
    - validate one full operator story beyond the synthetic hosted smoke:
      `wallet create|reapprove --relay-url ... --wait-relay --prompt-code`
      followed by `workflow pay` on the same real public relay path
+   - groundwork now exists in the shipped smoke layer:
+     `pnpm smoke:remote-approval -- --wallet <name> --relay-url <url> --manual-approval`
+     can publish a real browser/share-link request and either stop with
+     machine-readable `shareUrl` / `statusUrl` / `recommendedCommands` or wait
+     and finalize after a real 6-digit approval code is supplied
    - expected observable result:
      the current flagship story is proven not only by synthetic request
      smokes but also by one real browser-mediated approval flow

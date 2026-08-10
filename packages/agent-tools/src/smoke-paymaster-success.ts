@@ -66,6 +66,7 @@ function printUsage(): void {
       '  --amount defaults to 0.00001',
       '  --paymaster-mode defaults to approval-based',
       '  --to defaults to the wallet ownerAddress when available, otherwise the wallet execution address',
+      '  use a sed-lite wallet for the default AA/paymaster acceptance path; daily-spend-limit should only be used when you intentionally want that profile\'s constraints',
       '  when --paymaster-address is omitted, the workflow/provider path should resolve the tracked validated paymaster address itself',
       '  when --paymaster-token is omitted in approval-based mode, the workflow/provider path should resolve the tracked validated fee token itself',
       '  --paymaster-token is only valid for approval-based mode'

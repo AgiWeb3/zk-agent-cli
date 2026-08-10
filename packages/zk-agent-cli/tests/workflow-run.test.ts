@@ -32,6 +32,8 @@ function sampleInspection(
     accountKind: 'smart-account',
     deploymentStatus: 'deployed',
     codeLength: 123,
+    approvalReady: true,
+    localExecutionKeyStored: true,
     sessionPrivateKeyStored: true,
     writeReady: true,
     blockers: [],
@@ -63,6 +65,8 @@ test('workflow run stops on manual blockers such as missing local session approv
   const provider = {
     async inspectWallet() {
       return sampleInspection({
+        approvalReady: false,
+        localExecutionKeyStored: false,
         sessionPrivateKeyStored: false,
         writeReady: false
       });

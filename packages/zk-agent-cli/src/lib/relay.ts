@@ -113,17 +113,26 @@ function readRequestBody(request: IncomingMessage, limitBytes = RELAY_BODY_LIMIT
 }
 
 function writeJson(response: ServerResponse, statusCode: number, payload: unknown): void {
-  response.statusCode = statusCode;
-  response.setHeader('Content-Type', 'application/json; charset=utf-8');
-  response.setHeader('Access-Control-Allow-Origin', '*');
-  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  response.end(JSON.stringify(payload, null, 2));
+  writeBody(response, statusCode, 'application/json; charset=utf-8', JSON.stringify(payload, null, 2), {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  });
 }
 
-function writeText(response: ServerResponse, statusCode: number, contentType: string, value: string): void {
+function writeBody(
+  response: ServerResponse,
+  statusCode: number,
+  contentType: string,
+  value: string | Buffer,
+  extraHeaders: Record<string, string> = {}
+): void {
   response.statusCode = statusCode;
   response.setHeader('Content-Type', contentType);
+  response.setHeader('Content-Length', Buffer.isBuffer(value) ? String(value.byteLength) : String(Buffer.byteLength(value)));
+  for (const [key, headerValue] of Object.entries(extraHeaders)) {
+    response.setHeader(key, headerValue);
+  }
   response.end(value);
 }
 
@@ -410,13 +419,13 @@ export async function startRelayServer(options: RelayServerOptions): Promise<{
         }
 
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-          writeText(response, 200, contentTypeFor(filePath), fs.readFileSync(filePath, 'utf8'));
+          writeBody(response, 200, contentTypeFor(filePath), fs.readFileSync(filePath));
           return;
         }
 
         const indexPath = path.join(uiDistRoot, 'index.html');
         if (fs.existsSync(indexPath)) {
-          writeText(response, 200, 'text/html; charset=utf-8', fs.readFileSync(indexPath, 'utf8'));
+          writeBody(response, 200, 'text/html; charset=utf-8', fs.readFileSync(indexPath));
           return;
         }
       }

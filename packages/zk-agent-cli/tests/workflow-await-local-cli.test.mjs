@@ -136,7 +136,13 @@ function sampleWallet() {
     chainId: 300,
     provider: 'zksync-sso',
     accountKind: 'smart-account',
-    createdAt: FIXTURE_CREATED_AT,
+    createdAt: FIXTURE_CREATED_AT
+  };
+}
+
+function sampleWritableWallet() {
+  return {
+    ...sampleWallet(),
     sessionPayload: {
       version: 1,
       provider: 'zksync-sso',
@@ -147,7 +153,7 @@ function sampleWallet() {
         kind: 'smart-account',
         address: '0x1111111111111111111111111111111111111111',
         ownerAddress: '0x2222222222222222222222222222222222222222',
-        signerType: 'connector'
+        signerType: 'local'
       },
       sessionScope: {
         chainKeys: ['zksync-sepolia'],
@@ -170,16 +176,7 @@ function sampleWallet() {
         expiresAt: FIXTURE_EXPIRES_AT
       },
       connectorUrl: 'http://localhost:4444',
-      paymasterAddress: null
-    }
-  };
-}
-
-function sampleWritableWallet() {
-  return {
-    ...sampleWallet(),
-    sessionPayload: {
-      ...sampleWallet().sessionPayload,
+      paymasterAddress: null,
       sessionPrivateKey: '0x' + '77'.repeat(32)
     }
   };

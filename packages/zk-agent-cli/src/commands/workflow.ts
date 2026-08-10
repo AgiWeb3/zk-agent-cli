@@ -798,7 +798,7 @@ function prependWorkflowRequestId(
 }
 
 function workflowHasSessionApprovalBlocker(status: WorkflowStatusResult): boolean {
-  return status.blockingActionIds.some((actionId) => actionId === 'reapprove' || actionId === 'signer-mismatch');
+  return status.blockingActionIds.some((actionId) => actionId === 'reapprove');
 }
 
 function workflowShouldEnsureWalletSession(

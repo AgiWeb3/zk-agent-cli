@@ -1,7 +1,9 @@
 import { createWorkflowCommand } from '../../src/commands/workflow.ts';
 
 function buildInspection(wallet) {
-  const hasSessionKey = Boolean(wallet.sessionPayload?.sessionPrivateKey);
+  const hasSessionKey = Boolean(
+    wallet.localExecutionAuthority?.privateKey || wallet.sessionPayload?.sessionPrivateKey
+  );
 
   return {
     walletName: wallet.walletName,
@@ -12,10 +14,12 @@ function buildInspection(wallet) {
     accountKind: wallet.accountKind,
     deploymentStatus: 'deployed',
     codeLength: 123,
+    approvalReady: Boolean(wallet.sessionPayload),
+    localExecutionKeyStored: hasSessionKey,
     sessionPrivateKeyStored: hasSessionKey,
     writeReady: hasSessionKey,
     signerMatchesStoredIdentity: hasSessionKey ? true : undefined,
-    blockers: hasSessionKey ? [] : ['Writable local execution requires a stored sessionPrivateKey.'],
+    blockers: hasSessionKey ? [] : ['Writable local execution requires a stored local execution key.'],
     notes: []
   };
 }

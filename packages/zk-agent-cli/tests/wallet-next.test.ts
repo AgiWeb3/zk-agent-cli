@@ -33,6 +33,8 @@ function sampleInspection(
     accountKind: 'smart-account',
     deploymentStatus: 'deployed',
     codeLength: 123,
+    approvalReady: true,
+    localExecutionKeyStored: true,
     sessionPrivateKeyStored: true,
     writeReady: true,
     blockers: [],
@@ -63,6 +65,8 @@ test('wallet next prioritizes reapprove and deploy blockers before funding', () 
   const summary = buildWalletNextSummary({
     wallet: sampleWallet,
     inspection: sampleInspection({
+      approvalReady: false,
+      localExecutionKeyStored: false,
       sessionPrivateKeyStored: false,
       writeReady: false,
       deploymentStatus: 'not-deployed'
@@ -77,6 +81,60 @@ test('wallet next prioritizes reapprove and deploy blockers before funding', () 
   assert.equal(summary.actions[1]?.id, 'deploy');
   assert.equal(summary.actions[2]?.id, 'fund');
   assert.match(summary.recommendedCommand || '', /wallet reapprove/);
+});
+
+test('wallet next recommends signer attach when approval exists but no local execution signer is stored', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      sessionPayload: {
+        version: 1,
+        provider: 'zksync-sso',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        walletAddress: sampleWallet.walletAddress,
+        account: {
+          kind: 'smart-account',
+          address: sampleWallet.walletAddress,
+          ownerAddress: sampleWallet.ownerAddress,
+          signerType: 'connector'
+        },
+        sessionScope: {
+          chainKeys: ['zksync-sepolia'],
+          chainIds: [300]
+        },
+        capabilities: {
+          read: true,
+          write: true,
+          transfer: true,
+          contractCall: true,
+          paymaster: false
+        },
+        sessionExpiresAt: '2026-06-24T01:00:00.000Z',
+        paymaster: {
+          mode: 'none',
+          address: null
+        },
+        sessionPublicKey: '0x' + '11'.repeat(32),
+        permissions: {
+          expiresAt: '2026-06-24T01:00:00.000Z'
+        },
+        paymasterAddress: null
+      }
+    },
+    inspection: sampleInspection({
+      approvalReady: true,
+      localExecutionKeyStored: false,
+      sessionPrivateKeyStored: false,
+      writeReady: false
+    }),
+    nativeBalance: '1.25',
+    nativeSymbol: 'ETH'
+  });
+
+  assert.equal(summary.status, 'action-required');
+  assert.equal(summary.actions[0]?.id, 'attach-signer');
+  assert.match(summary.recommendedCommand || '', /wallet signer attach/);
 });
 
 test('wallet next recommends sync and fund for deployed but unsynced zero-balance wallets', () => {

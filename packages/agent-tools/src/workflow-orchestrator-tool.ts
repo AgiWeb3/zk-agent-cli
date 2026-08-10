@@ -324,9 +324,7 @@ function buildCheckpointFromResolvedInput(
 }
 
 function canResolveWalletSessionBlocker(status: WorkflowStatusResult): boolean {
-  return status.blockingActionIds.some(
-    (actionId) => actionId === 'reapprove' || actionId === 'signer-mismatch'
-  );
+  return status.blockingActionIds.some((actionId) => actionId === 'reapprove');
 }
 
 function walletApprovalNextCommand(

@@ -67,6 +67,13 @@ Interpretation:
 3. `wallet create|reapprove --wait-relay` completes the operator-facing
    approval loop through the same relay
 
+If approval is already present and the only missing piece is the local
+execution signer, do not force a new relay round-trip. Repair it locally with:
+
+```bash
+zk-agent wallet signer attach --name main --private-key <hex>
+```
+
 ## Hosted readiness checklist
 
 Run:
@@ -134,7 +141,7 @@ Fresh wallet:
 zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
 ```
 
-Existing wallet needing a fresh writable session:
+Existing wallet needing a fresh approved session:
 
 ```bash
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
@@ -173,7 +180,15 @@ Relay-backed approval lifecycle only:
 ```bash
 pnpm smoke:remote-approval -- --wallet <name> --relay-url <url>
 pnpm smoke:remote-approval -- --wallet <name> --reapprove --relay-url <url>
+pnpm smoke:remote-approval -- --wallet <name> --relay-url <url> --manual-approval
+pnpm smoke:remote-approval -- --wallet <name> --reapprove --relay-url <url> --manual-approval --prompt-code
 ```
+
+Use `--manual-approval` when you want the smoke to follow the real browser
+share-link approval path instead of auto-submitting a synthetic encrypted
+payload. Without `--code` or `--prompt-code`, the smoke stops after publish and
+returns `shareUrl`, `statusUrl`, plus explicit `waitReady` / `approve`
+follow-up commands so an operator can approve in a real browser first.
 
 Flagship AA path with hosted relay preflight:
 
@@ -182,7 +197,9 @@ pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> [--paymaster-m
 ```
 
 When `--relay-url` is present, that flagship smoke now validates the hosted
-relay first instead of assuming the URL is already good.
+relay first instead of assuming the URL is already good. Use a `sed-lite`
+wallet when this relay flow is meant to validate the default AA/operator path;
+keep `daily-spend-limit` for constrained control cases only.
 
 ## Failure patterns
 

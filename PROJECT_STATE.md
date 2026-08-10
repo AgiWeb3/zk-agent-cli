@@ -2,12 +2,12 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-07
-- Latest commit at write time: `a3d6d38`
+- Last updated: 2026-08-10
+- Latest commit at write time: `c5b2006`
 - Current branch: `main`
-- Working tree status when this document was written: dirty only with the
-  Phase 5 closeout and skill-alignment edits that followed the hosted-relay
-  outside-in proof
+- Working tree status when this document was written: dirty with the completed
+  session/signer separation closeout, matching docs/help alignment, and the
+  final state-document refresh
 
 ## Current phase
 
@@ -66,11 +66,29 @@ Closed results:
 Current ordered priorities:
 
 1. hosted remote approval hardening beyond the current file-backed prototype
-2. operator-informed polish on the packaged flagship workflow and relay UX
-3. broader DeFi breadth only when it is explicitly resumed
-4. optional connector/approval UX polish when live operator usage justifies it
+2. flagship AA real-user proof on a public relay
+3. operator-informed polish on the packaged flagship workflow and relay UX
+4. broader DeFi breadth only when it is explicitly resumed
+5. optional connector/approval UX polish when live operator usage justifies it
 
 Current concrete interpretation of those priorities:
+
+Completed architecture baseline to keep in mind:
+
+- signer/session separation is now landed end to end for the current product
+  path:
+  - wallet storage separates approval metadata from local execution authority
+  - `wallet status|next` and workflow remediation distinguish `reapprove` from
+    `wallet signer attach`
+  - relay/browser approval can restore approval metadata without claiming local
+    write readiness
+  - the CLI has explicit `wallet signer show|attach|remove` management commands
+- the intended long-term end-state is still documented in
+  `docs/14-best-session-model.md`, but the current baseline no longer treats
+  signer/session separation as an open blocking architecture thread
+- the legacy `sessionPayload.sessionPrivateKey` mirror remains intentionally
+  for compatibility; removing it entirely is optional cleanup, not the active
+  product priority
 
 1. hosted relay hardening
    - reduce ambiguity around reported `origin` vs `publicOrigin` under
@@ -81,6 +99,10 @@ Current concrete interpretation of those priorities:
    - move beyond the synthetic hosted smoke and prove one real
      browser-mediated `wallet create|reapprove --wait-relay --prompt-code`
      path followed by `workflow pay`
+   - current groundwork now exists in the smoke layer itself:
+     `smoke:remote-approval --manual-approval` can stop after relay publish
+     with `shareUrl` / `statusUrl` / `recommendedCommands` for a real browser
+     operator, or wait and finalize after a supplied 6-digit approval code
 3. packaged flagship UX polish
    - narrow the top-level operator surfaces that matter most in real usage:
      `next`, `wallet create|reapprove`, `relay serve`, and `workflow pay`
@@ -161,6 +183,12 @@ Current concrete interpretation of those priorities:
   `pnpm smoke:hosted-relay -- --relay-url <url>` reuses the real CLI
   `relay inspect` contract, publishes a synthetic request, and validates the
   hosted share-link/UI path against a caller-supplied external relay URL
+- the relay-backed approval smoke now also has a real browser/share-link mode:
+  `pnpm smoke:remote-approval -- --wallet <name> [--relay-url <url>] --manual-approval`
+  no longer posts a synthetic encrypted approval itself, and can either stop
+  after publish with machine-readable `shareUrl`, `statusUrl`, and explicit
+  relay follow-up commands or wait for readiness and finalize after a real
+  6-digit approval code is supplied
 - real hosted deployment validation is no longer blocked on public reachability:
   on `2026-08-07`, a public frp-backed relay URL was validated end to end with
   the real `relay inspect` contract and `pnpm smoke:hosted-relay`, including
@@ -349,7 +377,11 @@ Current built-in AA profiles:
 Current posture:
 
 - `sed-lite` is the main built-in AA base profile
+- future AA defaults, acceptance, and operator examples should stay on
+  `sed-lite`
 - `daily-spend-limit` remains a narrower experiment
+- `daily-spend-limit` is now kept for constrained policy coverage and targeted
+  regression/control-wallet validation, not as the repository baseline
 
 What is already validated:
 
@@ -394,6 +426,11 @@ What has been validated:
 - smart-account approval-based live broadcast is validated on `sed-lite-sa-v2`
   with tx hash:
   `0x2783de9185bcd6af21822c9c0ffa35e5329e96c8137ff41598d3cd001344ce8c`
+- hosted relay reapprove now also preserves the locally writable session on a
+  previously healthy control wallet (`daily-spend-limit-sa-v2`), while the
+  final post-fix native-send write-path acceptance remains on `sed-lite-sa-v1`
+  with tx hash:
+  `0x06f83d60bb858eb96c64cf6e9f2b55ba3e90838dabb8b09a1dc61d3a97bc5b1d`
 
 What remains constrained:
 

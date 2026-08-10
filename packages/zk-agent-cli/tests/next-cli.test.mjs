@@ -85,7 +85,7 @@ function sampleConfig() {
   };
 }
 
-function sampleWallet({ writable = false } = {}) {
+function sampleWallet({ writable = false, localExecutionOnly = false } = {}) {
   return {
     walletName: 'main',
     walletAddress: '0x1111111111111111111111111111111111111111',
@@ -97,6 +97,17 @@ function sampleWallet({ writable = false } = {}) {
     accountKind: 'smart-account',
     createdAt: '2026-07-02T00:00:00.000Z',
     syncedAt: '2026-07-02T00:05:00.000Z',
+    ...(localExecutionOnly
+      ? {
+          localExecutionAuthority: {
+            privateKey: '0x' + '22'.repeat(32),
+            signerAddress: '0x1563915e194D8CfBA1943570603F7606A3115508',
+            signerType: 'local',
+            source: 'explicit-local-approval',
+            attachedAt: '2026-07-02T00:00:00.000Z'
+          }
+        }
+      : {}),
     sessionPayload: {
       version: 1,
       provider: 'zksync-sso',
@@ -131,7 +142,7 @@ function sampleWallet({ writable = false } = {}) {
       },
       connectorUrl: 'http://localhost:4444',
       paymasterAddress: null,
-      ...(writable ? { sessionPrivateKey: '0x' + '22'.repeat(32) } : {})
+      ...((writable && !localExecutionOnly) ? { sessionPrivateKey: '0x' + '22'.repeat(32) } : {})
     }
   };
 }
@@ -351,6 +362,33 @@ test('top-level next recommends starting a workflow when the wallet is already r
   }
 });
 
+test('top-level next treats a stored local execution authority as writable even when the legacy sessionPrivateKey field is absent', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-local-execution-authority-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveProjectConfig(sampleConfig());
+    await storage.saveWalletSession(sampleWallet({ localExecutionOnly: true }));
+
+    const result = await runNextCli([], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'wallet');
+    assert.equal(result.summary.status, 'ready');
+    assert.equal(
+      result.nextCommand,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(
+      result.recommendedCommands.nextAction,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    );
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('top-level next preserves an explicit sponsored paymaster override in wallet guidance', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-sponsored-'));
 
@@ -402,7 +440,7 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'workflow');
     assert.equal(result.workflowRequestId, 'wf-next-001');
-    assert.equal(result.nextCommand, 'zk-agent wallet reapprove --name main --await-local');
+    assert.equal(result.nextCommand, 'zk-agent wallet signer attach --name main --private-key <hex>');
     assert.equal(result.result.status, 'blocked');
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
     assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name> --wallet main');
@@ -415,7 +453,7 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
       resume: 'zk-agent workflow resume --request-id wf-next-001',
       delete: 'zk-agent workflow delete --request-id wf-next-001',
       walletStatus: 'zk-agent wallet status --name main',
-      nextAction: 'zk-agent wallet reapprove --name main --await-local'
+      nextAction: 'zk-agent wallet signer attach --name main --private-key <hex>'
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { ProjectConfig, WalletRequestRecord, WalletSessionRecord } from './providers.js';
+import { migrateWalletSessionRecord } from './wallet-session.js';
 import type { WorkflowCheckpointRecord } from './workflow-checkpoint.js';
 
 interface CipherData {
@@ -144,13 +145,16 @@ export async function loadProjectConfig(): Promise<ProjectConfig | null> {
 
 export async function saveWalletSession(record: WalletSessionRecord): Promise<void> {
   const storageDirectory = ensureStorageDir();
-  writeEncryptedJson(path.join(storageDirectory, 'wallets', `${record.walletName}.json`), record);
+  writeEncryptedJson(
+    path.join(storageDirectory, 'wallets', `${record.walletName}.json`),
+    migrateWalletSessionRecord(record)
+  );
 }
 
 export async function loadWalletSession(walletName: string): Promise<WalletSessionRecord | null> {
   const filePath = storagePath('wallets', `${walletName}.json`);
   if (!fs.existsSync(filePath)) return null;
-  return readEncryptedJson<WalletSessionRecord>(filePath);
+  return migrateWalletSessionRecord(readEncryptedJson<WalletSessionRecord>(filePath));
 }
 
 export async function listWalletNames(): Promise<string[]> {

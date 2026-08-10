@@ -52,18 +52,28 @@ describe('connector request helpers', () => {
       request: SAMPLE_REQUEST,
       walletAddress: '0x1111111111111111111111111111111111111111',
       sessionPrivateKey,
-      paymasterToken: '0x2222222222222222222222222222222222222222',
-      signerType: 'connector'
+      paymasterToken: '0x2222222222222222222222222222222222222222'
     });
 
     expect(payload.walletAddress).toBe('0x1111111111111111111111111111111111111111');
     expect(payload.account?.kind).toBe('smart-account');
+    expect(payload.account?.signerType).toBe('local');
     expect(payload.account?.ownerAddress).toBe(
       deriveEthereumAddressFromPrivateKey(sessionPrivateKey)
     );
     expect(payload.permissions.expiresAt).toBe(SAMPLE_REQUEST.policies.expiresAt);
     expect(payload.sessionPrivateKey).toMatch(/^0x[0-9a-f]{64}$/);
     expect(payload.paymaster?.token).toBe('0x2222222222222222222222222222222222222222');
+  });
+
+  it('defaults signerType to connector when no local execution key is supplied', () => {
+    const payload = buildApprovedSessionPayload({
+      request: SAMPLE_REQUEST,
+      walletAddress: '0x1111111111111111111111111111111111111111',
+      ownerAddress: '0x2222222222222222222222222222222222222222'
+    });
+
+    expect(payload.account?.signerType).toBe('connector');
   });
 
   it('rejects smart-account approvals without owner metadata', () => {

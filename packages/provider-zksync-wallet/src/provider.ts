@@ -11,6 +11,7 @@ import {
 } from '@zk-agent/agent-session-protocol';
 import {
   AgentError,
+  buildLocalExecutionAuthority,
   type ContractCallInput,
   type ContractCallResult,
   type NativeTransferInput,
@@ -34,6 +35,7 @@ import {
   type WalletInspectionResult,
   type WalletProvider,
   type WalletSessionRecord,
+  resolveLocalExecutionPrivateKey,
   type WriteContractInput
 } from '@zk-agent/agent-core';
 import { ethers } from 'ethers';
@@ -320,6 +322,8 @@ function buildInspectionResult(
     paymasterMode: wallet.paymasterMode,
     deploymentStatus,
     codeLength,
+    approvalReady: Boolean(wallet.sessionPayload),
+    localExecutionKeyStored: Boolean(resolveLocalExecutionPrivateKey(wallet)),
     sessionPrivateKeyStored: Boolean(wallet.sessionPayload?.sessionPrivateKey),
     derivedSignerAddress,
     signerMatchesStoredIdentity,
@@ -945,7 +949,7 @@ async function resolveSmartAccountDeploymentContext(
   if (deployerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
     throw new AgentError(
       'SMART_ACCOUNT_SIGNER_MISMATCH',
-      'Stored sessionPrivateKey does not match the smart-account ownerAddress.',
+      'Stored local execution key does not match the smart-account ownerAddress.',
       {
         walletName: wallet.walletName,
         ownerAddress,
@@ -1051,7 +1055,7 @@ async function resolveSmartAccountDeploymentContext(
 async function inspectWalletRecord(wallet: WalletSessionRecord): Promise<WalletInspectionResult> {
   const executionAddress = resolveExecutionAddress(wallet);
   const ownerAddress = resolveOwnerAddress(wallet);
-  const sessionPrivateKey = wallet.sessionPayload?.sessionPrivateKey;
+  const sessionPrivateKey = resolveLocalExecutionPrivateKey(wallet);
   const derivedSignerAddress = deriveSignerAddress(sessionPrivateKey);
   const provider = getProvider(wallet.chain);
   const code = await provider.getCode(executionAddress);
@@ -1065,15 +1069,15 @@ async function inspectWalletRecord(wallet: WalletSessionRecord): Promise<WalletI
 
   if (!sessionPrivateKey) {
     blockers.push(
-      'Writable local execution requires a stored sessionPrivateKey. Re-approve locally with --session-private-key or import a writable session.'
+      'Writable local execution requires a stored local execution key. Attach one with wallet signer attach, re-approve locally with --session-private-key, or import a writable session.'
     );
   } else if (!isHexPrivateKey(sessionPrivateKey)) {
-    blockers.push('Stored sessionPrivateKey is not a valid 32-byte hex key.');
+    blockers.push('Stored local execution key is not a valid 32-byte hex key.');
   }
 
   if (wallet.accountKind === 'eoa') {
     if (derivedSignerAddress && derivedSignerAddress.toLowerCase() !== executionAddress.toLowerCase()) {
-      blockers.push('Stored sessionPrivateKey does not match the EOA execution address.');
+      blockers.push('Stored local execution key does not match the EOA execution address.');
     }
 
     if (codeLength > 0) {
@@ -1087,7 +1091,7 @@ async function inspectWalletRecord(wallet: WalletSessionRecord): Promise<WalletI
     }
 
     if (ownerAddress && derivedSignerAddress && derivedSignerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      blockers.push('Stored sessionPrivateKey does not match the smart-account ownerAddress.');
+      blockers.push('Stored local execution key does not match the smart-account ownerAddress.');
     }
 
     if (codeLength === 0) {
@@ -1119,11 +1123,11 @@ async function assertWalletReadyForWrite(wallet: WalletSessionRecord): Promise<W
     );
   }
 
-  const sessionPrivateKey = wallet.sessionPayload?.sessionPrivateKey;
+  const sessionPrivateKey = resolveLocalExecutionPrivateKey(wallet);
   if (!sessionPrivateKey || !isHexPrivateKey(sessionPrivateKey)) {
     throw new AgentError(
       'WRITABLE_SESSION_REQUIRED',
-      'Writable local execution requires a valid stored sessionPrivateKey.',
+      'Writable local execution requires a valid stored local execution key.',
       { inspection }
     );
   }
@@ -1131,7 +1135,7 @@ async function assertWalletReadyForWrite(wallet: WalletSessionRecord): Promise<W
   if (wallet.accountKind === 'eoa') {
     throw new AgentError(
       'EOA_SIGNER_MISMATCH',
-      'Stored sessionPrivateKey does not match the EOA execution address.',
+      'Stored local execution key does not match the EOA execution address.',
       { inspection }
     );
   }
@@ -1147,7 +1151,7 @@ async function assertWalletReadyForWrite(wallet: WalletSessionRecord): Promise<W
   if (inspection.signerMatchesStoredIdentity === false) {
     throw new AgentError(
       'SMART_ACCOUNT_SIGNER_MISMATCH',
-      'Stored sessionPrivateKey does not match the smart-account ownerAddress.',
+      'Stored local execution key does not match the smart-account ownerAddress.',
       { inspection }
     );
   }
@@ -1172,14 +1176,14 @@ async function assertWalletReadyForWrite(wallet: WalletSessionRecord): Promise<W
 }
 
 function requireWritableSession(wallet: WalletSessionRecord): string {
-  const privateKey = wallet.sessionPayload?.sessionPrivateKey;
+  const privateKey = resolveLocalExecutionPrivateKey(wallet);
   if (!privateKey) {
     throw new Error(
-      'Writable session requires sessionPrivateKey. Re-approve locally with --session-private-key or import a writable testnet session.'
+      'Writable session requires a stored local execution key. Re-approve locally with --session-private-key or import a writable testnet session.'
     );
   }
   if (!isHexPrivateKey(privateKey)) {
-    throw new Error('Stored sessionPrivateKey is not a valid 32-byte hex key');
+    throw new Error('Stored local execution key is not a valid 32-byte hex key');
   }
   return privateKey;
 }
@@ -1466,6 +1470,18 @@ export class ZkSyncWalletProvider implements WalletProvider {
 
     const chain = resolveChain(payload.chainId);
     const walletAddress = payload.account?.address || payload.walletAddress;
+    const createdAt = new Date().toISOString();
+    const localExecutionAuthority = buildLocalExecutionAuthority({
+      privateKey: payload.sessionPrivateKey,
+      signerType: payload.account?.signerType,
+      source: payload.sessionPrivateKey
+        ? payload.account?.signerType === 'local'
+          ? 'explicit-local-approval'
+          : 'approved-payload'
+        : undefined,
+      attachedAt: createdAt
+    });
+
     return {
       walletName,
       walletAddress,
@@ -1479,7 +1495,8 @@ export class ZkSyncWalletProvider implements WalletProvider {
       sessionScope: payload.sessionScope || summarizeScope(chain.key, chain.chainId),
       capabilities: payload.capabilities,
       paymasterMode: resolvePaymasterMode(payload),
-      createdAt: new Date().toISOString(),
+      createdAt,
+      localExecutionAuthority,
       sessionPayload: payload
     };
   }

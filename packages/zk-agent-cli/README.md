@@ -75,10 +75,13 @@ zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
-If a wallet already exists and only the writable session is stale, use:
+If a wallet already exists, inspect the blocker first. Use `wallet reapprove`
+when approval is missing or expired. Use `wallet signer attach` when approval
+is still present but the local execution signer is missing:
 
 ```bash
 zk-agent wallet reapprove --name main --await-local
+zk-agent wallet signer attach --name main --private-key <hex>
 zk-agent next
 ```
 
@@ -95,6 +98,10 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored
 ```
 
+Use a `sed-lite` wallet for the default AA acceptance path. Keep
+`daily-spend-limit` for profile-specific policy experiments, not as the main
+operator baseline.
+
 `workflow pay` fixes the workflow intent to `send-native`, persists a
 checkpoint, executes immediately when ready, reopens a missing writable session
 through the intent-scoped approval path, and defaults to the validated
@@ -109,10 +116,17 @@ zk-agent relay inspect --relay-url <relay-url>
 zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 ```
 
-If the wallet already exists and only the writable session is stale, use:
+If the wallet already exists and approval metadata needs to be refreshed, use:
 
 ```bash
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
+```
+
+If approval is still present and only the local execution signer is missing,
+repair that locally instead of forcing a new approval round-trip:
+
+```bash
+zk-agent wallet signer attach --name main --private-key <hex>
 ```
 
 Local relay prototype path:
@@ -179,7 +193,10 @@ Connector callback never arrives:
 
 CLI says the wallet is missing a writable session:
 
-- run `zk-agent wallet reapprove --name <wallet> --await-local`
+- inspect `zk-agent wallet status --name <wallet>`
+- if approval is missing, run `zk-agent wallet reapprove --name <wallet> --await-local`
+- if approval is present but the local signer is missing, run
+  `zk-agent wallet signer attach --name <wallet> --private-key <hex>`
 - then rerun `zk-agent next` or the blocked workflow command
 
 Workflow stops on funding:

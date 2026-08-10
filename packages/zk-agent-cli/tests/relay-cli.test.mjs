@@ -27,8 +27,8 @@ function buildRelayCreateRequest(requestId) {
       chain: 'zksync-sepolia',
       chainId: 300,
       provider: 'zksync-sso',
-      createdAt: '2026-08-04T00:00:00.000Z',
-      expiresAt: '2026-08-10T00:00:00.000Z',
+      createdAt: '2099-08-04T00:00:00.000Z',
+      expiresAt: '2099-08-10T00:00:00.000Z',
       connectorUrl: 'https://connector.example.test',
       requestedAccountKind: 'smart-account',
       requestedPaymasterMode: 'none',
@@ -72,6 +72,12 @@ async function assertHostedShareLinkServesUi(origin, publicOrigin, requestId) {
   const scriptResponse = await fetch(`${origin}${scriptPath}`);
   assert.equal(scriptResponse.status, 200);
   assert.match(scriptResponse.headers.get('content-type') || '', /text\/javascript/);
+  const scriptBytes = new Uint8Array(await scriptResponse.arrayBuffer());
+  assert.equal(scriptBytes.byteLength > 0, true);
+  assert.equal(
+    Number.parseInt(scriptResponse.headers.get('content-length') || '0', 10),
+    scriptBytes.byteLength
+  );
 }
 
 async function fetchRelayHealthWithHostHeader(origin, hostHeader) {

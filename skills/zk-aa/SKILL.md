@@ -65,6 +65,19 @@ This is the current flagship product story:
 2. keep the existing wallet record and smart-account metadata
 3. execute through `workflow pay` on the paymaster-aware path
 
+If approval is already present and the only missing piece is the local
+execution signer, attach it locally instead of opening a fresh relay
+round-trip:
+
+```bash
+zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+```
+
+Use a `sed-lite` wallet for this flagship acceptance path. Keep
+`daily-spend-limit` only for narrower policy experiments or control-wallet
+regression checks.
+
 ## Flagship AA smoke
 
 The current Phase 5 flagship AA smoke bundles that exact story:
@@ -84,6 +97,8 @@ Interpretation:
 
 - when `--relay-url` is present, the smoke first validates that external relay
   through the hosted share-link path before attempting reapproval
+- use a `sed-lite` wallet when you want this smoke to represent the AA
+  baseline instead of a profile-specific experiment
 - success means relay-backed reapproval and paymaster-aware workflow execution
   both remain coherent on the same stored wallet
 - failure means the current flagship AA product path is broken, even if some
@@ -117,7 +132,7 @@ For a fresh wallet:
 zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
 ```
 
-For an existing wallet that only needs a fresh writable session:
+For an existing wallet that needs a fresh approved session:
 
 ```bash
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
@@ -183,7 +198,11 @@ Relay approval path only:
 
 ```bash
 pnpm smoke:remote-approval -- --wallet <name> --reapprove [--relay-url <url>]
+pnpm smoke:remote-approval -- --wallet <name> --reapprove [--relay-url <url>] --manual-approval --prompt-code
 ```
+
+Use the manual variant when you want the relay-backed reapproval step to depend
+on a real browser/share-link approval before the CLI imports the session again.
 
 Use these when you want to isolate a single AA sub-surface instead of the full
 flagship path.

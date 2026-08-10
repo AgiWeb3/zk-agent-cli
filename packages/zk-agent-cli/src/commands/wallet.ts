@@ -59,8 +59,11 @@ import {
 } from '@zk-agent/account-profiles';
 
 import {
+  buildLocalExecutionAuthority,
   parseSessionPolicyPreset,
+  migrateWalletSessionRecord,
   resolveSessionPolicyPresetOptions,
+  resolveLocalExecutionPrivateKey,
   type PaymasterSelectionInput,
   deleteWalletRequest,
   deleteWalletSession,
@@ -121,6 +124,9 @@ import {
   buildWalletRequestRelayStatusRecommendedCommand,
   buildWalletRequestShowRecommendedCommand,
   buildWalletRestoreRecommendedCommand,
+  buildWalletSignerAttachRecommendedCommand,
+  buildWalletSignerRemoveRecommendedCommand,
+  buildWalletSignerShowRecommendedCommand,
   buildWalletStatusRecommendedCommand,
   buildWalletReapproveRecommendedCommand
 } from '../lib/recommended-commands.js';
@@ -160,6 +166,7 @@ const WALLET_HELP_COMMAND_ORDER = [
   'rename',
   'remove',
   'request',
+  'signer',
   'paymaster',
   'smart-account'
 ] as const;
@@ -180,6 +187,12 @@ const WALLET_SMART_ACCOUNT_HELP_COMMAND_ORDER = [
   'deploy',
   'sed-lite',
   'daily-spend-limit'
+] as const;
+
+const WALLET_SIGNER_HELP_COMMAND_ORDER = [
+  'show',
+  'attach',
+  'remove'
 ] as const;
 
 function applyCommandOrder(command: Command, orderedNames: readonly string[]): void {
@@ -205,6 +218,12 @@ export function sanitizeSessionPayload(payload?: SessionPayload): Record<string,
 function stripSensitiveWalletRecord(wallet: WalletSessionRecord): WalletSessionRecord {
   return {
     ...wallet,
+    localExecutionAuthority: wallet.localExecutionAuthority
+      ? {
+          ...wallet.localExecutionAuthority,
+          privateKey: undefined
+        }
+      : wallet.localExecutionAuthority,
     sessionPayload: wallet.sessionPayload
       ? {
           ...wallet.sessionPayload,
@@ -329,6 +348,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function cloneWalletSessionRecord(wallet: WalletSessionRecord): WalletSessionRecord {
   return {
     ...wallet,
+    localExecutionAuthority: wallet.localExecutionAuthority
+      ? { ...wallet.localExecutionAuthority }
+      : wallet.localExecutionAuthority,
     validationHookAddresses: wallet.validationHookAddresses
       ? [...wallet.validationHookAddresses]
       : wallet.validationHookAddresses,
@@ -416,6 +438,18 @@ function parseWalletExportRecord(value: string): WalletExportRecord {
     throw new Error('Restore payload validatorAddress must be a valid 20-byte hex address.');
   }
   if (
+    wallet.localExecutionAuthority?.signerAddress &&
+    !isAddress(wallet.localExecutionAuthority.signerAddress)
+  ) {
+    throw new Error('Restore payload localExecutionAuthority.signerAddress must be a valid 20-byte hex address.');
+  }
+  if (
+    wallet.localExecutionAuthority?.privateKey &&
+    !/^0x[a-fA-F0-9]{64}$/.test(wallet.localExecutionAuthority.privateKey)
+  ) {
+    throw new Error('Restore payload localExecutionAuthority.privateKey must be a valid 32-byte hex string.');
+  }
+  if (
     wallet.validationHookAddresses &&
     wallet.validationHookAddresses.some((hookAddress) => !isAddress(hookAddress))
   ) {
@@ -467,7 +501,7 @@ function parseWalletExportRecord(value: string): WalletExportRecord {
 
   return {
     ...candidate,
-    wallet: cloneWalletSessionRecord(wallet)
+    wallet: migrateWalletSessionRecord(cloneWalletSessionRecord(wallet))
   };
 }
 
@@ -478,6 +512,14 @@ function normalizeHexString(value: string, label: string): string {
     throw new Error(`${label} must be a 0x-prefixed even-length hex string`);
   }
   return prefixed;
+}
+
+function normalizePrivateKey(value: string, label: string): string {
+  const normalized = normalizeHexString(value, label);
+  if (!/^0x[a-fA-F0-9]{64}$/.test(normalized)) {
+    throw new Error(`${label} must be a valid 32-byte hex string.`);
+  }
+  return normalized;
 }
 
 function parseArtifactInput(value: string): SmartAccountArtifactInput {
@@ -1512,6 +1554,12 @@ function inspectionLines(inspection: WalletInspectionResult): Array<[string, str
     ]);
   }
 
+  if (typeof inspection.approvalReady === 'boolean') {
+    lines.push(['approval', inspection.approvalReady ? 'present' : 'missing']);
+  }
+  if (typeof inspection.localExecutionKeyStored === 'boolean') {
+    lines.push(['local signer', inspection.localExecutionKeyStored ? 'stored' : 'missing']);
+  }
   lines.push(['session key', inspection.sessionPrivateKeyStored ? 'stored' : 'missing']);
 
   if (inspection.paymasterMode) {
@@ -1656,6 +1704,7 @@ function walletRestoreLines(
   syncResult?: WalletSyncResult
 ): Array<[string, string]> {
   let nextCommand = buildWalletNextRecommendedCommand(wallet.walletName);
+  let afterNextCommandLabel: string | undefined;
   const lines: Array<[string, string]> = [
     ['wallet', wallet.walletName],
     ['address', wallet.walletAddress],
@@ -1669,12 +1718,17 @@ function walletRestoreLines(
     ['sensitive data', restoredFrom.sensitiveDataIncluded ? 'included in backup' : 'not included in backup']
   ];
 
-  if (!wallet.sessionPayload?.sessionPrivateKey) {
+  if (!resolveLocalExecutionPrivateKey(wallet)) {
+    const attachSignerCommand = buildWalletSignerAttachRecommendedCommand(wallet.walletName);
+    const reapproveCommand = buildWalletReapproveRecommendedCommand(wallet.walletName);
     lines.push([
       'note',
-      `No sessionPrivateKey was present in the backup. The restored wallet can be inspected and synced, but local write execution will stay blocked until you re-import or re-approve a writable session, for example: ${buildWalletReapproveRecommendedCommand(wallet.walletName)}`
+      wallet.sessionPayload
+        ? `No local execution signer was present in the backup. The restored wallet can be inspected and synced, but local write execution will stay blocked until you attach a local signer or re-approve a writable session, for example: ${attachSignerCommand}`
+        : `No local execution signer was present in the backup. The restored wallet can be inspected and synced, but local write execution will stay blocked until you re-import, attach a local signer, or re-approve a writable session, for example: ${reapproveCommand}`
     ]);
-    nextCommand = buildWalletReapproveRecommendedCommand(wallet.walletName);
+    nextCommand = wallet.sessionPayload ? attachSignerCommand : reapproveCommand;
+    afterNextCommandLabel = wallet.sessionPayload ? 'after signer attach' : 'after reapprove';
   }
 
   if (syncResult) {
@@ -1702,7 +1756,10 @@ function walletRestoreLines(
 
   lines.push(['next', nextCommand]);
   if (nextCommand !== buildWalletNextRecommendedCommand(wallet.walletName)) {
-    lines.push(['after reapprove', buildWalletNextRecommendedCommand(wallet.walletName)]);
+    lines.push([
+      afterNextCommandLabel || 'after reapprove',
+      buildWalletNextRecommendedCommand(wallet.walletName)
+    ]);
   }
   lines.push(['status command', buildWalletStatusRecommendedCommand(wallet.walletName)]);
 
@@ -1724,6 +1781,28 @@ function preserveExistingWalletMetadata(
   ) {
     return importedWallet;
   }
+
+  const sameAccountKind = existingWallet.accountKind === importedWallet.accountKind;
+  const sameSmartAccountOwner =
+    existingWallet.accountKind !== 'smart-account' ||
+    (existingWallet.ownerAddress &&
+      importedWallet.ownerAddress &&
+      existingWallet.ownerAddress.toLowerCase() === importedWallet.ownerAddress.toLowerCase());
+  const existingSessionPrivateKey = resolveLocalExecutionPrivateKey(existingWallet);
+  const existingLocalExecutionAuthority =
+    existingWallet.localExecutionAuthority ||
+    buildLocalExecutionAuthority({
+      privateKey: existingSessionPrivateKey,
+      signerType: existingWallet.sessionPayload?.account?.signerType,
+      source: existingSessionPrivateKey ? 'legacy-session-payload' : undefined,
+      attachedAt: existingWallet.createdAt
+    });
+  const importedSessionPrivateKey = resolveLocalExecutionPrivateKey(importedWallet);
+  const shouldPreserveWritableSession =
+    sameAccountKind &&
+    sameSmartAccountOwner &&
+    Boolean(existingSessionPrivateKey) &&
+    !importedSessionPrivateKey;
 
   const metadataUpdates: WalletSyncMetadataUpdates = {};
 
@@ -1748,7 +1827,16 @@ function preserveExistingWalletMetadata(
     metadataUpdates.validatorAddress = existingWallet.validatorAddress;
   }
 
-  return applyWalletSyncMetadata(importedWallet, metadataUpdates);
+  const mergedWallet: WalletSessionRecord = shouldPreserveWritableSession && existingLocalExecutionAuthority
+    ? {
+        ...importedWallet,
+        localExecutionAuthority: {
+          ...existingLocalExecutionAuthority
+        }
+      }
+    : importedWallet;
+
+  return migrateWalletSessionRecord(applyWalletSyncMetadata(mergedWallet, metadataUpdates));
 }
 
 function linesForWriteResult(
@@ -1889,32 +1977,143 @@ function buildWalletFollowUpRecommendedCommands(
 ): {
   next: string;
   status: string;
+  attachSigner?: string;
   reapprove?: string;
 } {
+  const localExecutionReady = Boolean(resolveLocalExecutionPrivateKey(walletRecord));
+  const approvalReady = Boolean(walletRecord.sessionPayload);
+
   return {
     next: buildWalletNextRecommendedCommand(walletRecord.walletName),
     status: buildWalletStatusRecommendedCommand(walletRecord.walletName),
-    ...(!walletRecord.sessionPayload?.sessionPrivateKey
-      ? { reapprove: buildWalletReapproveRecommendedCommand(walletRecord.walletName) }
-      : {})
+    ...(!localExecutionReady && approvalReady
+      ? {
+          attachSigner: buildWalletSignerAttachRecommendedCommand(walletRecord.walletName),
+          reapprove: buildWalletReapproveRecommendedCommand(walletRecord.walletName)
+        }
+      : !localExecutionReady
+        ? { reapprove: buildWalletReapproveRecommendedCommand(walletRecord.walletName) }
+        : {})
   };
+}
+
+function walletSignerSummary(walletRecord: WalletSessionRecord): {
+  approvalReady: boolean;
+  localExecutionKeyStored: boolean;
+  legacySessionKeyStored: boolean;
+  signerAddress?: string;
+  signerType?: 'local' | 'connector' | 'external';
+  source?: 'legacy-session-payload' | 'approved-payload' | 'explicit-local-approval';
+  attachedAt?: string;
+} {
+  const authority = walletRecord.localExecutionAuthority;
+  const localExecutionPrivateKey = resolveLocalExecutionPrivateKey(walletRecord);
+
+  return {
+    approvalReady: Boolean(walletRecord.sessionPayload),
+    localExecutionKeyStored: Boolean(localExecutionPrivateKey),
+    legacySessionKeyStored: Boolean(walletRecord.sessionPayload?.sessionPrivateKey),
+    signerAddress: authority?.signerAddress || deriveAddressFromPrivateKey(localExecutionPrivateKey),
+    signerType: authority?.signerType || walletRecord.sessionPayload?.account?.signerType,
+    source:
+      authority?.source ||
+      (walletRecord.sessionPayload?.sessionPrivateKey ? 'legacy-session-payload' : undefined),
+    attachedAt: authority?.attachedAt
+  };
+}
+
+function walletSignerLines(walletRecord: WalletSessionRecord): Array<[string, string]> {
+  const signer = walletSignerSummary(walletRecord);
+
+  return [
+    ['wallet', walletRecord.walletName],
+    ['address', walletRecord.walletAddress],
+    ...(displayOwnerAddress(walletRecord)
+      ? [['owner', displayOwnerAddress(walletRecord) as string] as [string, string]]
+      : []),
+    ['account', displayAccountKind(walletRecord)],
+    ['chain', `${walletRecord.chain} (${walletRecord.chainId})`],
+    ['approval', signer.approvalReady ? 'present' : 'missing'],
+    ['local signer', signer.localExecutionKeyStored ? 'stored' : 'missing'],
+    ['legacy payload mirror', signer.legacySessionKeyStored ? 'present' : 'missing'],
+    ...(signer.signerType ? [['signer type', signer.signerType] as [string, string]] : []),
+    ...(signer.signerAddress ? [['signer address', signer.signerAddress] as [string, string]] : []),
+    ...(signer.source ? [['source', signer.source] as [string, string]] : []),
+    ...(signer.attachedAt ? [['attached', signer.attachedAt] as [string, string]] : []),
+    ...walletFollowUpLines(walletRecord)
+  ];
+}
+
+function walletSignerAttachResult(
+  walletRecord: WalletSessionRecord,
+  note?: string
+): {
+  ok: true;
+  wallet: Record<string, unknown>;
+  signer: ReturnType<typeof walletSignerSummary>;
+  note?: string;
+  nextAction: string;
+  recommendedCommands: ReturnType<typeof buildWalletFollowUpRecommendedCommands>;
+} {
+  return {
+    ok: true,
+    wallet: sanitizeWalletRecord(walletRecord),
+    signer: walletSignerSummary(walletRecord),
+    ...(note ? { note } : {}),
+    nextAction: buildWalletFollowUpNextAction(walletRecord),
+    recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
+  };
+}
+
+function normalizeSignerType(
+  value: string | undefined
+): 'local' | 'connector' | 'external' {
+  if (value === 'local' || value === 'connector' || value === 'external') {
+    return value;
+  }
+
+  throw new Error(`Unsupported signer type: ${value}`);
+}
+
+function clearLegacySessionPrivateKey(
+  payload: WalletSessionRecord['sessionPayload']
+): WalletSessionRecord['sessionPayload'] {
+  return payload
+    ? {
+        ...payload,
+        sessionPrivateKey: undefined
+      }
+    : payload;
 }
 
 function walletFollowUpLines(walletRecord: WalletSessionRecord): Array<[string, string]> {
   const recommendedCommands = buildWalletFollowUpRecommendedCommands(walletRecord);
+  const nextCommand =
+    recommendedCommands.attachSigner ??
+    recommendedCommands.reapprove ??
+    recommendedCommands.next;
 
   return [
-    ['next', recommendedCommands.reapprove ?? recommendedCommands.next],
-    ...(recommendedCommands.reapprove
-      ? [['after reapprove', recommendedCommands.next] as [string, string]]
-      : []),
+    ['next', nextCommand],
+    ...(recommendedCommands.attachSigner
+      ? [
+          ['after signer attach', recommendedCommands.next] as [string, string],
+          ['or reapprove', recommendedCommands.reapprove as string] as [string, string]
+        ]
+      : recommendedCommands.reapprove
+        ? [['after reapprove', recommendedCommands.next] as [string, string]]
+        : []),
     ['status command', recommendedCommands.status]
   ];
 }
 
 function buildWalletFollowUpNextAction(walletRecord: WalletSessionRecord): string {
   const recommendedCommands = buildWalletFollowUpRecommendedCommands(walletRecord);
-  return recommendedCommands.reapprove ?? recommendedCommands.next;
+  return (
+    recommendedCommands.attachSigner ??
+    recommendedCommands.reapprove ??
+    recommendedCommands.next
+  );
 }
 
 function buildPendingRequestRecommendedCommands(
@@ -2686,6 +2885,9 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
   const resolvedDeps = resolveWalletCommandDeps(deps);
   const wallet = new Command('wallet').description('Manage wallet sessions');
   const request = new Command('request').description('Inspect and finalize pending wallet requests');
+  const signer = new Command('signer').description(
+    'Inspect and manage the stored local execution signer for a wallet'
+  );
   const smartAccount = new Command('smart-account').description(
     'Predict and deploy zkSync smart-account contracts from a supplied artifact or built-in profile'
   );
@@ -2717,8 +2919,11 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '    zk-agent wallet create --await-local',
       '    zk-agent next',
       '',
-      '  Restore a writable session for an existing wallet:',
+      '  Restore approval metadata for an existing wallet:',
       '    zk-agent wallet reapprove --name main --await-local',
+      '',
+      '  Attach a local signer when approval is still present:',
+      '    zk-agent wallet signer attach --name main --private-key <hex>',
       '    zk-agent next',
       '',
       '  Wallet-layer inspection:',
@@ -2744,6 +2949,22 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '    zk-agent wallet request relay-publish --request-id <id> --relay-url <url>',
       '    zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait',
       '    zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+    ].join('\n')
+  );
+
+  signer.addHelpText(
+    'after',
+    [
+      '',
+      'Wallet signer path:',
+      '  Inspect the stored local execution signer state:',
+      '    zk-agent wallet signer show --name main',
+      '',
+      '  Attach a local execution signer without rebuilding approval metadata:',
+      '    zk-agent wallet signer attach --name main --private-key <hex>',
+      '',
+      '  Remove the stored local execution signer:',
+      '    zk-agent wallet signer remove --name main'
     ].join('\n')
   );
 
@@ -3265,11 +3486,85 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       );
     });
 
+  signer
+    .command('show')
+    .description('Show the stored local execution signer state for a wallet')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+
+      printResult(walletSignerLines(walletRecord), {
+        ok: true,
+        wallet: sanitizeWalletRecord(walletRecord),
+        signer: walletSignerSummary(walletRecord),
+        nextAction: buildWalletFollowUpNextAction(walletRecord),
+        recommendedCommands: buildWalletFollowUpRecommendedCommands(walletRecord)
+      });
+    });
+
+  signer
+    .command('attach')
+    .description('Attach a stored local execution signer to an existing wallet record')
+    .option('--name <name>', 'Wallet name', 'main')
+    .requiredOption('--private-key <hex>', 'Local execution private key to store')
+    .action(async (options: { name: string; privateKey: string }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+      const privateKey = normalizePrivateKey(options.privateKey, '--private-key');
+      const nextWallet = migrateWalletSessionRecord({
+        ...walletRecord,
+        localExecutionAuthority: buildLocalExecutionAuthority({
+          privateKey,
+          signerType: 'local',
+          source: 'explicit-local-approval',
+          attachedAt: new Date().toISOString()
+        }),
+        sessionPayload: clearLegacySessionPrivateKey(walletRecord.sessionPayload)
+      });
+      const note = walletRecord.sessionPayload
+        ? undefined
+        : 'No approved session metadata is stored yet. Attach succeeded, but wallet reapprove is still required before local write execution becomes usable.';
+
+      await saveWalletSession(nextWallet);
+
+      printResult(
+        walletSignerLines(nextWallet),
+        walletSignerAttachResult(nextWallet, note)
+      );
+    });
+
+  signer
+    .command('remove')
+    .description('Remove the stored local execution signer from a wallet record')
+    .option('--name <name>', 'Wallet name', 'main')
+    .action(async (options: { name: string }) => {
+      const walletRecord = await requireWalletRecord(options.name);
+      const hadLocalExecutionKey = Boolean(resolveLocalExecutionPrivateKey(walletRecord));
+      const nextWallet = migrateWalletSessionRecord({
+        ...walletRecord,
+        localExecutionAuthority: undefined,
+        sessionPayload: clearLegacySessionPrivateKey(walletRecord.sessionPayload)
+      });
+      const note = hadLocalExecutionKey
+        ? 'Removed the stored local execution signer. Local write execution now requires signer attach or reapproval.'
+        : 'No stored local execution signer was present.';
+
+      await saveWalletSession(nextWallet);
+
+      printResult(
+        walletSignerLines(nextWallet),
+        walletSignerAttachResult(nextWallet, note)
+      );
+    });
+
   wallet
     .command('export')
     .description('Export one stored wallet as a portable backup bundle for later restore')
     .option('--name <name>', 'Wallet name', 'main')
-    .option('--include-sensitive-data', 'Include sessionPrivateKey in the exported bundle', false)
+    .option(
+      '--include-sensitive-data',
+      'Include the stored local execution key and any legacy sessionPrivateKey mirror in the exported bundle',
+      false
+    )
     .action(async (options: { name: string; includeSensitiveData?: boolean }) => {
       const walletRecord = await requireWalletRecord(options.name);
       const bundle = exportWalletRecord(walletRecord, Boolean(options.includeSensitiveData));
@@ -3731,11 +4026,11 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .option('--owner-address <address>', 'Owner / signer address for smart-account sessions')
     .option('--name <name>', 'Override saved wallet name')
     .option('--session-address <address>', 'Optional session address')
-    .option('--session-private-key <hex>', 'Optional local private key for writable testnet sessions')
+    .option('--session-private-key <hex>', 'Optional local execution private key for writable sessions')
     .option('--validator-address <address>', 'Optional validator address')
     .option('--paymaster-address <address>', 'Optional paymaster address')
     .option('--paymaster-token <address>', 'Optional ERC-20 token used by an approval-based paymaster')
-    .option('--signer-type <type>', 'Signer type', 'connector')
+    .option('--signer-type <type>', 'Optional signer type override: local, connector, or external')
     .action(
       async (options: {
         requestId: string;
@@ -3772,7 +4067,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           validatorAddress: options.validatorAddress,
           paymasterAddress: options.paymasterAddress,
           paymasterToken: options.paymasterToken,
-          signerType: options.signerType,
+          signerType: options.signerType ? normalizeSignerType(options.signerType) : undefined,
           connectorOrigin: connectorOriginFromUrl(walletRequest.connectorUrl),
           connectorUrl: walletRequest.connectorUrl
         });
@@ -5960,11 +6255,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
   sedLite.addCommand(selectorAllowlistHook);
   smartAccount.addCommand(sedLite);
   smartAccount.addCommand(dailySpendLimit);
-  wallet.addCommand(smartAccount);
-  wallet.addCommand(paymaster);
   wallet.addCommand(request);
+  wallet.addCommand(signer);
+  wallet.addCommand(paymaster);
+  wallet.addCommand(smartAccount);
 
   applyCommandOrder(request, WALLET_REQUEST_HELP_COMMAND_ORDER);
+  applyCommandOrder(signer, WALLET_SIGNER_HELP_COMMAND_ORDER);
   applyCommandOrder(smartAccount, WALLET_SMART_ACCOUNT_HELP_COMMAND_ORDER);
   applyCommandOrder(wallet, WALLET_HELP_COMMAND_ORDER);
 

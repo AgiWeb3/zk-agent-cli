@@ -14,3 +14,4 @@ export * from './validated-defaults.js';
 export * from './local-token-metadata.js';
 export * from './token-directory.js';
 export * from './session-policy-presets.js';
+export * from './wallet-session.js';

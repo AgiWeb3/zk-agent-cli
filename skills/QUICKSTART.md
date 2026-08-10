@@ -104,10 +104,16 @@ When you want the canonical wallet command sequence, run:
 zk-agent wallet --help
 ```
 
-If a wallet already exists but the writable local session is missing or stale:
+If a wallet already exists and approval metadata is missing or expired:
 
 ```bash
 zk-agent wallet reapprove --name main --await-local
+```
+
+If approval is still present but the local execution signer is missing:
+
+```bash
+zk-agent wallet signer attach --name main --private-key <hex>
 ```
 
 Shortest relay-backed completion path in one terminal process:
@@ -135,7 +141,7 @@ localhost-only `publicOrigin`, and is actually ready for hosted share-link
 approval.
 
 The same remote path also works for an existing wallet that needs a fresh
-session:
+approved session:
 
 ```bash
 zk-agent wallet reapprove --name main --relay-url <relay-url>
@@ -219,6 +225,9 @@ Broadcast the same flagship path:
 ```bash
 zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
 ```
+
+Use a `sed-lite` wallet for this default AA path. Keep `daily-spend-limit`
+only for profile-specific policy checks or control-wallet validation.
 
 Use `workflow pay` when the goal is the current flagship AA native send. It
 fixes the workflow to `send-native`, persists a checkpoint, executes when

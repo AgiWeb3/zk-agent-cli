@@ -51,6 +51,7 @@ function printUsage(): void {
       '  --paymaster-mode defaults to approval-based',
       '  --relay-url is optional; when omitted, the remote-approval smoke starts a local relay automatically',
       '  paymaster success runs in preview mode unless --execute is supplied',
+      '  use a sed-lite wallet for the flagship AA acceptance path; daily-spend-limit is only a constrained control/policy sample',
       '  --plan prints the intended command sequence without executing any live commands',
       '',
       'Environment:',

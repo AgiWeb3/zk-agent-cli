@@ -1,9 +1,11 @@
 # Daily Spend Limit Profile
 
-`daily-spend-limit` is now the first built-in AA profile in this repository.
+`daily-spend-limit` is a narrower built-in AA profile in this repository.
 
-It is not treated as a universal zkSync account standard. It is treated as a
-concrete, inspectable starting point for the AA part of `zk-agent-cli`.
+It is not treated as the default zkSync account model. The repository baseline
+for general-purpose AA work is `sed-lite`; `daily-spend-limit` is kept as a
+concrete, inspectable policy profile for narrower experiments and regression
+coverage.
 
 ## Why This Profile
 
@@ -42,6 +44,12 @@ concrete, inspectable starting point for the AA part of `zk-agent-cli`.
 
 That last point matters: this profile is useful as a real AA starting point,
 but it is not yet a complete "agent treasury policy engine".
+
+Current posture:
+
+- use `sed-lite` for the default AA/operator path
+- use `daily-spend-limit` only when the task specifically needs spend-limit
+  behavior or a constrained control wallet
 
 ## Current Repository State
 
@@ -85,7 +93,8 @@ Even before the artifact is compiled, this gives us three things we did not
 have before:
 
 - a stable first-party AA profile registry
-- a product-level decision about the first concrete account shape
+- a constrained policy profile that can be tested without changing the default
+  AA baseline
 - a clean separation between generic deployment plumbing and profile-specific
   account recipes
 

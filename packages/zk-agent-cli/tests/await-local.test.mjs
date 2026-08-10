@@ -377,7 +377,7 @@ test('await-local saves the approved wallet and exits after callback', async () 
     assert.equal(result.wallet.ownerAddress, ownerAddress);
     assert.equal(result.request.requestId, created.requestId);
     assert.equal(result.payload.account.ownerAddress, ownerAddress);
-    assert.equal(result.nextAction, 'zk-agent wallet reapprove --name await-local-test --await-local');
+    assert.equal(result.nextAction, 'zk-agent wallet signer attach --name await-local-test --private-key <hex>');
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
 
     const listed = await runCliJson(['wallet', 'request', 'list'], env);
@@ -479,11 +479,12 @@ test('wallet create --await-local completes the local approval round-trip in one
     assert.equal(result.payload.account.ownerAddress, ownerAddress);
     assert.equal(
       result.nextAction,
-      'zk-agent wallet reapprove --name create-await-local-test --await-local'
+      'zk-agent wallet signer attach --name create-await-local-test --private-key <hex>'
     );
     assert.deepEqual(result.recommendedCommands, {
       next: 'zk-agent wallet next --name create-await-local-test',
       status: 'zk-agent wallet status --name create-await-local-test',
+      attachSigner: 'zk-agent wallet signer attach --name create-await-local-test --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name create-await-local-test --await-local'
     });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
@@ -772,11 +773,12 @@ test('wallet request approve imports an approved connector payload and removes t
     assert.equal(approved.payload.account.ownerAddress, ownerAddress);
     assert.equal(
       approved.nextAction,
-      'zk-agent wallet reapprove --name remote-approve-test --await-local'
+      'zk-agent wallet signer attach --name remote-approve-test --private-key <hex>'
     );
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name remote-approve-test',
       status: 'zk-agent wallet status --name remote-approve-test',
+      attachSigner: 'zk-agent wallet signer attach --name remote-approve-test --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name remote-approve-test --await-local'
     });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
@@ -901,6 +903,7 @@ test('wallet request approve decrypts an encrypted relay payload and removes the
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name encrypted-approve-test',
       status: 'zk-agent wallet status --name encrypted-approve-test',
+      attachSigner: 'zk-agent wallet signer attach --name encrypted-approve-test --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name encrypted-approve-test --await-local'
     });
 
@@ -914,7 +917,7 @@ test('wallet request approve decrypts an encrypted relay payload and removes the
     assert.equal(approved.payload.account.ownerAddress, ownerAddress);
     assert.equal(
       approved.nextAction,
-      'zk-agent wallet reapprove --name encrypted-approve-test --await-local'
+      'zk-agent wallet signer attach --name encrypted-approve-test --private-key <hex>'
     );
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
   } finally {
@@ -1084,7 +1087,7 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(approved.walletRequestId, created.requestId);
     assert.equal(
       approved.nextAction,
-      'zk-agent wallet reapprove --name relay-approve-test --await-local'
+      'zk-agent wallet signer attach --name relay-approve-test --private-key <hex>'
     );
     assert.equal(approved.wallet.walletName, 'relay-approve-test');
     assert.equal(approved.wallet.walletAddress, '0x9999999999999999999999999999999999999999');
@@ -1092,6 +1095,7 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name relay-approve-test',
       status: 'zk-agent wallet status --name relay-approve-test',
+      attachSigner: 'zk-agent wallet signer attach --name relay-approve-test --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name relay-approve-test --await-local'
     });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
@@ -1368,6 +1372,7 @@ test('wallet request approve --wait blocks until the encrypted relay payload is 
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name relay-approve-wait-test',
       status: 'zk-agent wallet status --name relay-approve-wait-test',
+      attachSigner: 'zk-agent wallet signer attach --name relay-approve-wait-test --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name relay-approve-wait-test --await-local'
     });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
@@ -1564,7 +1569,7 @@ test('wallet create --relay-url --wait-relay --prompt-code can complete the remo
     assert.equal(approved.walletRequestId, request.requestId);
     assert.equal(
       approved.nextAction,
-      'zk-agent wallet reapprove --name relay-create-wait --await-local'
+      'zk-agent wallet signer attach --name relay-create-wait --private-key <hex>'
     );
     assert.equal(approved.request.requestId, request.requestId);
     assert.equal(approved.wallet.walletName, 'relay-create-wait');
@@ -1576,6 +1581,7 @@ test('wallet create --relay-url --wait-relay --prompt-code can complete the remo
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name relay-create-wait',
       status: 'zk-agent wallet status --name relay-create-wait',
+      attachSigner: 'zk-agent wallet signer attach --name relay-create-wait --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name relay-create-wait --await-local'
     });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
@@ -1795,7 +1801,7 @@ test('wallet reapprove --relay-url --wait-relay --prompt-code can complete the r
     assert.equal(approved.walletRequestId, request.requestId);
     assert.equal(
       approved.nextAction,
-      'zk-agent wallet reapprove --name relay-reapprove-wait --await-local'
+      'zk-agent wallet signer attach --name relay-reapprove-wait --private-key <hex>'
     );
     assert.equal(approved.request.requestId, request.requestId);
     assert.equal(approved.wallet.walletName, 'relay-reapprove-wait');
@@ -1807,6 +1813,7 @@ test('wallet reapprove --relay-url --wait-relay --prompt-code can complete the r
     assert.deepEqual(approved.recommendedCommands, {
       next: 'zk-agent wallet next --name relay-reapprove-wait',
       status: 'zk-agent wallet status --name relay-reapprove-wait',
+      attachSigner: 'zk-agent wallet signer attach --name relay-reapprove-wait --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name relay-reapprove-wait --await-local'
     });
 
@@ -1873,6 +1880,7 @@ test('wallet export strips sensitive session data by default and wallet restore 
     assert.deepEqual(restored.recommendedCommands, {
       next: 'zk-agent wallet next --name portable-restored',
       status: 'zk-agent wallet status --name portable-restored',
+      attachSigner: 'zk-agent wallet signer attach --name portable-restored --private-key <hex>',
       reapprove: 'zk-agent wallet reapprove --name portable-restored --await-local'
     });
 
@@ -1988,6 +1996,41 @@ test('wallet import preserves restored metadata for the same execution address a
     assert.ok(storedPreserved);
     assert.equal(storedPreserved.sessionPayload.sessionPrivateKey, '0x' + '99'.repeat(32));
     assert.equal(storedPreserved.smartAccountProfileId, 'sed-lite');
+
+    const connectorPayloadWithoutWritableKey = {
+      ...sameAddressPayload,
+      sessionPrivateKey: undefined,
+      account: {
+        ...sameAddressPayload.account,
+        signerType: 'connector'
+      }
+    };
+
+    const preservedWritableSession = await runCliJson(
+      [
+        'wallet',
+        'import',
+        '--name',
+        'recoverable-wallet',
+        '--payload',
+        JSON.stringify(connectorPayloadWithoutWritableKey)
+      ],
+      env
+    );
+
+    assert.equal(preservedWritableSession.ok, true);
+    assert.equal(
+      preservedWritableSession.wallet.sessionPayload.sessionPrivateKey,
+      undefined
+    );
+
+    const storedPreservedWritableSession = await loadWalletSession('recoverable-wallet');
+    assert.ok(storedPreservedWritableSession);
+    assert.equal(
+      storedPreservedWritableSession.localExecutionAuthority?.privateKey,
+      '0x' + '99'.repeat(32)
+    );
+    assert.equal(storedPreservedWritableSession.sessionPayload.sessionPrivateKey, undefined);
 
     const differentAddressPayload = {
       ...sameAddressPayload,

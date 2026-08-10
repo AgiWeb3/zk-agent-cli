@@ -2,6 +2,7 @@ import {
   AgentError,
   buildBridgeRegistryNotes,
   resolveBridgeRegistryResolution,
+  resolveLocalExecutionPrivateKey,
   resolveLocalTokenMetadata,
   buildSwapRegistryNotes,
   resolveSwapRegistryResolution,
@@ -1068,11 +1069,11 @@ function deriveSignerAddress(privateKey: string | undefined): string | undefined
 }
 
 function requireWritableSession(wallet: WalletSessionRecord): string {
-  const privateKey = wallet.sessionPayload?.sessionPrivateKey;
+  const privateKey = resolveLocalExecutionPrivateKey(wallet);
   if (!privateKey) {
     throw new AgentError(
       'WRITABLE_SESSION_REQUIRED',
-      'Writable local execution requires a stored sessionPrivateKey.',
+      'Writable local execution requires a stored local execution key.',
       {
         walletName: wallet.walletName
       }
@@ -1081,7 +1082,7 @@ function requireWritableSession(wallet: WalletSessionRecord): string {
   if (!isHexPrivateKey(privateKey)) {
     throw new AgentError(
       'WRITABLE_SESSION_INVALID',
-      'Stored sessionPrivateKey is not a valid 32-byte hex key.',
+      'Stored local execution key is not a valid 32-byte hex key.',
       {
         walletName: wallet.walletName
       }
@@ -1095,7 +1096,7 @@ function resolveWritableSignerAddress(wallet: WalletSessionRecord, privateKey: s
   if (!derivedSignerAddress) {
     throw new AgentError(
       'WRITABLE_SESSION_INVALID',
-      'Stored sessionPrivateKey is not a valid 32-byte hex key.',
+      'Stored local execution key is not a valid 32-byte hex key.',
       {
         walletName: wallet.walletName
       }
@@ -1107,7 +1108,7 @@ function resolveWritableSignerAddress(wallet: WalletSessionRecord, privateKey: s
     if (derivedSignerAddress.toLowerCase() !== executionAddress.toLowerCase()) {
       throw new AgentError(
         'EOA_SIGNER_MISMATCH',
-        'Stored sessionPrivateKey does not match the EOA execution address.',
+        'Stored local execution key does not match the EOA execution address.',
         {
           walletName: wallet.walletName,
           executionAddress,
@@ -1134,7 +1135,7 @@ function resolveWritableSignerAddress(wallet: WalletSessionRecord, privateKey: s
     if (derivedSignerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
       throw new AgentError(
         'SMART_ACCOUNT_SIGNER_MISMATCH',
-        'Stored sessionPrivateKey does not match the smart-account ownerAddress.',
+        'Stored local execution key does not match the smart-account ownerAddress.',
         {
           walletName: wallet.walletName,
           ownerAddress,
@@ -1171,7 +1172,7 @@ async function buildSigner(
     ) {
       throw new AgentError(
         'EOA_SIGNER_MISMATCH',
-        'Stored sessionPrivateKey does not match the EOA execution address.',
+        'Stored local execution key does not match the EOA execution address.',
         {
           walletName: wallet.walletName,
           executionAddress,
@@ -1201,7 +1202,7 @@ async function buildSigner(
     ) {
       throw new AgentError(
         'SMART_ACCOUNT_SIGNER_MISMATCH',
-        'Stored sessionPrivateKey does not match the smart-account ownerAddress.',
+        'Stored local execution key does not match the smart-account ownerAddress.',
         {
           walletName: wallet.walletName,
           ownerAddress,

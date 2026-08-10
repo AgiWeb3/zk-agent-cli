@@ -187,15 +187,31 @@ export function buildWalletPreparationActions(input: {
   const { wallet, inspection, funding } = input;
   const exclude = new Set(input.excludeActionIds || []);
   const actions: WalletNextAction[] = [];
+  const approvalReady = inspection.approvalReady ?? Boolean(wallet.sessionPayload);
+  const localExecutionReady =
+    inspection.localExecutionKeyStored ?? inspection.sessionPrivateKeyStored;
 
-  if (!exclude.has('reapprove') && !inspection.sessionPrivateKeyStored) {
+  if (!exclude.has('reapprove') && !approvalReady) {
     actions.push({
       id: 'reapprove',
       priority: 'required',
-      title: 'Restore a writable local session',
+      title: 'Restore approved session metadata',
       reason:
-        'No local session key is stored, so this wallet cannot execute local write actions yet.',
+        localExecutionReady
+          ? 'A local execution signer is already present, but approved session metadata is missing or not usable yet.'
+          : 'Approved session metadata is missing, so this wallet cannot execute local write actions yet.',
       command: `zk-agent wallet reapprove --name ${wallet.walletName} --await-local`
+    });
+  }
+
+  if (!exclude.has('attach-signer') && approvalReady && !localExecutionReady) {
+    actions.push({
+      id: 'attach-signer',
+      priority: 'required',
+      title: 'Attach a local execution signer',
+      reason:
+        'Approved session metadata exists, but no local execution signer is stored for write actions yet.',
+      command: `zk-agent wallet signer attach --name ${wallet.walletName} --private-key <hex>`
     });
   }
 
@@ -209,7 +225,7 @@ export function buildWalletPreparationActions(input: {
       title: 'Repair the signer/address mismatch',
       reason:
         'The stored local signer does not match the wallet identity currently recorded for this session.',
-      command: `zk-agent wallet reapprove --name ${wallet.walletName} --await-local`
+      command: `zk-agent wallet signer attach --name ${wallet.walletName} --private-key <hex>`
     });
   }
 

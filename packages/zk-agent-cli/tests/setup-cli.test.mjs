@@ -172,6 +172,7 @@ test('wallet help prints the default wallet path', async () => {
     assert.match(help, /Default wallet path:/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(help, /zk-agent wallet reapprove --name main --await-local/);
+    assert.match(help, /zk-agent wallet signer attach --name main --private-key <hex>/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent wallet next --name main/);
@@ -188,14 +189,15 @@ test('wallet help prints the default wallet path', async () => {
     assert.ok(help.indexOf('create [options]') < help.indexOf('reapprove [options]'));
     assert.ok(help.indexOf('reapprove [options]') < help.indexOf('status [options]'));
     assert.ok(help.indexOf('status [options]') < help.indexOf('next [options]'));
-    assert.ok(help.indexOf('\n  request') < help.indexOf('\n  paymaster'));
+    assert.ok(help.indexOf('\n  request') < help.indexOf('\n  signer'));
+    assert.ok(help.indexOf('\n  signer') < help.indexOf('\n  paymaster'));
     assert.ok(help.indexOf('\n  paymaster') < help.indexOf('\n  smart-account'));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
 });
 
-test('wallet request and smart-account help surfaces are product-ordered', async () => {
+test('wallet request, signer, and smart-account help surfaces are product-ordered', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-wallet-nested-help-cli-'));
 
   try {
@@ -207,6 +209,14 @@ test('wallet request and smart-account help surfaces are product-ordered', async
     assert.ok(requestHelp.indexOf('\n  list') < requestHelp.indexOf('\n  show [options]'));
     assert.ok(requestHelp.indexOf('\n  show [options]') < requestHelp.indexOf('\n  await-local [options]'));
     assert.ok(requestHelp.indexOf('\n  await-local [options]') < requestHelp.indexOf('\n  approve [options]'));
+
+    const signerHelp = await runCliText(['wallet', 'signer', '--help'], env);
+    assert.match(signerHelp, /Wallet signer path:/);
+    assert.match(signerHelp, /zk-agent wallet signer show --name main/);
+    assert.match(signerHelp, /zk-agent wallet signer attach --name main --private-key <hex>/);
+    assert.match(signerHelp, /zk-agent wallet signer remove --name main/);
+    assert.ok(signerHelp.indexOf('\n  show [options]') < signerHelp.indexOf('\n  attach [options]'));
+    assert.ok(signerHelp.indexOf('\n  attach [options]') < signerHelp.indexOf('\n  remove [options]'));
 
     const smartAccountHelp = await runCliText(['wallet', 'smart-account', '--help'], env);
     assert.match(smartAccountHelp, /Smart-account path:/);
