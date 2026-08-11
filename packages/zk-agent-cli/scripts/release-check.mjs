@@ -36,8 +36,24 @@ function readPackageReadme() {
   return readFileSync(join(packageDir, 'README.md'), 'utf8');
 }
 
+function readWorkspacePackageJson() {
+  return JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8'));
+}
+
 function readRootReadme() {
   return readFileSync(join(workspaceRoot, 'README.md'), 'utf8');
+}
+
+function readPlans() {
+  return readFileSync(join(workspaceRoot, 'PLANS.md'), 'utf8');
+}
+
+function readProjectState() {
+  return readFileSync(join(workspaceRoot, 'PROJECT_STATE.md'), 'utf8');
+}
+
+function readReleaseGateDoc() {
+  return readFileSync(join(workspaceRoot, 'docs', '11-npm-release-gate.md'), 'utf8');
 }
 
 function readSkillQuickstart() {
@@ -50,6 +66,10 @@ function readSkillGuide() {
 
 function normalizeWhitespace(text) {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function assertReleaseMetadata(pkg) {
@@ -83,6 +103,14 @@ function assertReleaseMetadata(pkg) {
     `Published runtime dependencies must not contain workspace:* entries: ${workspaceRuntimeDeps
       .map(([name]) => name)
       .join(', ')}`
+  );
+}
+
+function assertVersionAlignment(workspacePkg, packagePkg) {
+  assert.equal(
+    workspacePkg.version,
+    packagePkg.version,
+    'Workspace root version and published package version must stay aligned.'
   );
 }
 
@@ -181,6 +209,69 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       skillGuide,
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Primary skill guide must keep the canonical operator path visible.'
+    ]
+  ];
+
+  for (const [source, pattern, message] of requiredChecks) {
+    assert.match(source, pattern, message);
+  }
+}
+
+function assertCurrentVersionDocs({
+  version,
+  rootReadme,
+  plans,
+  projectState,
+  releaseGateDoc
+}) {
+  const escapedVersion = escapeRegExp(version);
+  const requiredChecks = [
+    [
+      rootReadme,
+      new RegExp(`zk-agent-cli@${escapedVersion}`),
+      'Root README must mention the current published package version.'
+    ],
+    [
+      rootReadme,
+      new RegExp(`beta -> ${escapedVersion}`),
+      'Root README must show the current beta dist-tag target.'
+    ],
+    [
+      rootReadme,
+      new RegExp(`latest -> ${escapedVersion}`),
+      'Root README must show the current latest dist-tag target.'
+    ],
+    [
+      plans,
+      new RegExp(`zk-agent-cli@${escapedVersion}`),
+      'PLANS.md must mention the current published package version in the closed baseline.'
+    ],
+    [
+      projectState,
+      new RegExp(`zk-agent-cli@${escapedVersion}`),
+      'PROJECT_STATE.md must mention the current published package version.'
+    ],
+    [
+      releaseGateDoc,
+      new RegExp(`npm view zk-agent-cli version -> ${escapedVersion}`),
+      'Release gate doc must record the current published npm version.'
+    ],
+    [
+      releaseGateDoc,
+      new RegExp(`npm view zk-agent-cli@latest version -> ${escapedVersion}`),
+      'Release gate doc must record the current latest dist-tag target.'
+    ],
+    [
+      releaseGateDoc,
+      new RegExp(`npm view zk-agent-cli@beta version -> ${escapedVersion}`),
+      'Release gate doc must record the current beta dist-tag target.'
+    ],
+    [
+      releaseGateDoc,
+      new RegExp(
+        `npm view zk-agent-cli dist-tags --json -> \\{"latest":"${escapedVersion}","beta":"${escapedVersion}"\\}`
+      ),
+      'Release gate doc must record the current dist-tag alignment.'
     ]
   ];
 
@@ -971,14 +1062,26 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
 }
 
 async function main() {
+  const workspacePkg = readWorkspacePackageJson();
   const pkg = readPackageJson();
   const readme = readPackageReadme();
   const rootReadme = readRootReadme();
+  const plans = readPlans();
+  const projectState = readProjectState();
+  const releaseGateDoc = readReleaseGateDoc();
   const quickstart = readSkillQuickstart();
   const skillGuide = readSkillGuide();
+  assertVersionAlignment(workspacePkg, pkg);
   assertReleaseMetadata(pkg);
   assertPackageReadme(readme);
   assertRepositoryDocs(rootReadme, quickstart, skillGuide);
+  assertCurrentVersionDocs({
+    version: pkg.version,
+    rootReadme,
+    plans,
+    projectState,
+    releaseGateDoc
+  });
   createPackDir();
   const reportedTarballPath = packPackage();
 

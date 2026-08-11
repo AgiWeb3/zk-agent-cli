@@ -82,20 +82,7 @@ The repo is already past scaffolding. The current stable baseline is:
 
 ### Main gaps that still matter
 
-1. Zero-setup onboarding and public install entrypoint still lag the reference.
-   - the local `polygon-agent-cli` reference is explicit about the two public
-     entrypoints that matter:
-     `npx skills add https://github.com/0xPolygon/polygon-agent-cli`
-     and
-     `npx @polygonlabs/agent-cli --help`
-   - `zk-agent-cli` now has a live npm package plus repo-local `skills/`, but
-     the packaged install story, agent-skill install story, and first-run
-     operator path are not yet presented as one equally obvious public surface
-   - the remaining gap is reducing first-run operator knowledge around setup,
-     connector expectations, relay fallback, and when `.env` is actually
-     required
-
-2. Hosted relay is proven, but not yet productized to the same standard.
+1. Hosted relay is proven, but not yet productized to the same standard.
    - the current hosted path is real and validated, including public
      browser-mediated approval
    - the remaining gap is moving beyond the current file-backed prototype into
@@ -103,16 +90,16 @@ The repo is already past scaffolding. The current stable baseline is:
      deployment semantics, public-origin handling, durability expectations, and
      eventual auth/rate-limit policy
 
-3. Release, versioning, and documentation discipline are still more manual than
+2. Release, versioning, and documentation discipline are still more manual than
    the reference.
    - `zk-agent-cli@0.1.0-beta.7` is now live and both npm dist-tags `beta` and
      `latest` point there
    - but the release path still depends on manual version bumps, manual npm
-     publish, manual dist-tag handling, and manual repo-doc sync
+   publish, manual dist-tag handling, and manual repo-doc sync
    - the remaining gap is one canonical public release contract that keeps the
      live npm version, install docs, CLI help, skills, and state docs aligned
 
-4. Product-layer discovery and asset abstraction are still thinner than the
+3. Product-layer discovery and asset abstraction are still thinner than the
    reference.
    - the local Polygon reference splits discovery and operator verticals more
      aggressively
@@ -121,6 +108,15 @@ The repo is already past scaffolding. The current stable baseline is:
      expect more local knowledge from the operator than they should
    - the remaining gap is richer symbol-first discovery and clearer validated
      token/default coverage around the canonical Sepolia paths
+
+4. Zero-setup onboarding and public install entrypoint are materially better,
+   but still need maintenance discipline.
+   - the current packaged install story, skill install story, root README,
+     package README, CLI help, and repo skills are now substantially aligned
+   - the remaining gap is keeping that public contract stable after each
+     release, especially around first-run environment expectations:
+     setup, connector locality, relay fallback, and when `.env` is actually
+     required
 
 5. Ecosystem integrations are still intentionally behind.
    - the local Polygon reference ships explicit product verticals such as
@@ -228,16 +224,21 @@ Unless priorities change, the next concrete slices should be:
    - expected observable result:
      a hosted operator no longer has to infer whether the relay is reporting
      the bind origin, the request origin, or the intended public origin
-2. public install and onboarding unification
-   - make one canonical public entrypoint obvious across the root README,
-     packaged README, skills, and CLI help
-   - treat `skills add`, `npx zk-agent-cli`, and the global `zk-agent`
-     install path as one coherent public story instead of adjacent fragments
-   - reduce first-run confusion around when `.env`, a local connector, or a
-     hosted relay is actually required
+2. release/version/doc automation
+   - keep the new public-entrypoint and canonical-path contract executable in
+     `release:check`, not only described in docs
+   - reduce manual release steps that can still drift after version bumps and
+     publish
+   - current baseline improvement:
+     `release:check` now rejects drift across the package README, root README,
+     `skills/`, packed top-level help, packed `wallet --help`, and packed
+     `workflow --help`
+   - current baseline improvement:
+     the same gate now also rejects drift between the published package
+     version and the current-version references kept in root state docs
    - expected observable result:
-     a new operator can choose the right install path and reach `zk-agent next`
-     without source-checkout context or guesswork
+     version bumps and publish prep stop depending on manually re-reading the
+     repo for stale public-version references
 3. packaged operator UX and discovery polish from real usage
    - tighten the highest-frequency outputs only where real operators still
      hesitate: `next`, `wallet create|reapprove`, `relay serve`,
@@ -247,14 +248,14 @@ Unless priorities change, the next concrete slices should be:
    - expected observable result:
      the shortest path becomes easier to follow without reading long docs or
      knowing local deployment metadata
-4. release/version/doc automation
-   - make the live npm version, public dist-tags, install docs, state docs,
-     and package metadata harder to let drift apart
-   - keep the current Node/pnpm runtime gate, but reduce manual release steps
-     where the reference repo already has stronger automation
+4. public install/onboarding maintenance
+   - keep the current public entrypoint story stable across README, package
+     README, CLI help, and primary skills
+   - treat future changes here as contract maintenance, not another large
+     restructuring pass
    - expected observable result:
-     a release no longer depends on remembering manual version, tag, and doc
-     synchronization steps after publish
+     a new operator can still choose the right install path and reach
+     `zk-agent next` without repo context or guesswork after future releases
 5. connector/approval hardening from live-usage findings
    - keep the hosted approval path stable under repeated relay polling,
      browser refresh, and manual operator retries

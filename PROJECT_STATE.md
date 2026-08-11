@@ -2,12 +2,12 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-10
-- Latest commit at write time: `23d17a1`
+- Last updated: 2026-08-11
+- Latest commit at write time: `fb53dca`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with the
-  productization-gap planning refresh after `0.1.0-beta.7` publish and
-  dist-tag alignment
+  release-gate automation and productization-priority refresh after
+  `0.1.0-beta.7`
 
 ## Current status
 
@@ -25,10 +25,10 @@ The product baseline is already closed for the core zkSync-native path:
 
 Current ordered priorities:
 
-1. public install and zero-setup onboarding unification
-2. hosted remote approval hardening beyond the current file-backed prototype
-3. release/version/doc alignment automation
-4. operator-informed discovery and flagship UX polish
+1. hosted remote approval hardening beyond the current file-backed prototype
+2. release/version/doc alignment automation
+3. operator-informed discovery and flagship UX polish
+4. public install/onboarding maintenance
 5. broader DeFi breadth only when it is explicitly resumed
 
 Current concrete interpretation and constraints:
@@ -50,22 +50,7 @@ Architecture baseline to keep in mind:
   for compatibility; removing it entirely is optional cleanup, not the active
   product priority
 
-1. public install and onboarding closeout
-   - the remaining gap versus `polygon-agent-cli` is no longer missing chain
-     capability; it is the first-run product shell
-   - the reference repo is still clearer about public entrypoints:
-     skill install, direct npm execution, and the shortest first-run path are
-     all more obvious there than they are here today
-   - the current closeout target is one coherent public story across the root
-     README, packaged README, skills, and CLI help:
-     when to use `skills add`, when to use `npx zk-agent-cli`, when the global
-     `zk-agent` binary is expected, and when source-checkout-only guidance is
-     actually relevant
-   - current gap exposed by the `0.1.0-beta.7` release:
-     repo docs can still drift after publish, so a packaged user may see
-     already-stale version/tag references in stable docs even though the live
-     npm package is newer
-2. hosted relay hardening
+1. hosted relay hardening
    - reduce ambiguity around reported `origin` vs `publicOrigin` under
      reverse-proxy or tunnel deployments
    - tighten the deployment contract shared by `/health`, `relay inspect`,
@@ -93,16 +78,21 @@ Architecture baseline to keep in mind:
      local-first operator baseline, including the explicit `zk-agent next`
      follow-up after local reapproval/signer repair and the hosted relay path
      as the fallback instead of the default
-3. release/version/doc discipline
+2. release/version/doc discipline
    - the product now has the public package, public beta line, hosted relay
      proof, and flagship AA proof; the remaining release risk is operational
      drift rather than missing package code
    - version bumps, npm publish, dist-tag alignment, and repo-doc refresh are
      still too manual compared with the reference repo
-   - the next closeout target is a tighter release contract that makes the
-     live npm version, dist-tags, help text, package README, root README,
-     skills, `PLANS.md`, and `PROJECT_STATE.md` harder to let drift apart
-4. packaged flagship and discovery UX polish
+   - current baseline improvement:
+     `release:check` now rejects drift across the package README, root README,
+     `skills/`, packed top-level help, packed `wallet --help`, and packed
+     `workflow --help`
+   - current baseline improvement:
+     the same gate now also rejects drift between the package version and the
+     current-version references kept in `README.md`, `PLANS.md`,
+     `PROJECT_STATE.md`, and `docs/11-npm-release-gate.md`
+3. packaged flagship and discovery UX polish
    - the real-user proof is no longer pending on the current baseline:
      on `2026-08-10`, a real browser-mediated hosted reapproval completed for
      `sed-lite-sa-v2` on a public frp-backed relay request
@@ -118,6 +108,11 @@ Architecture baseline to keep in mind:
    - the structure is now good enough; the remaining gap is making those
      surfaces require less local knowledge about tokens, validated defaults,
      and which discovery command should come next
+4. public install/onboarding maintenance
+   - the public entrypoint story is now substantially aligned across the root
+     README, package README, CLI help, and primary skills
+   - the remaining work here is contract maintenance after future releases,
+     not another large restructuring pass
 5. DeFi breadth only on explicit restart
    - do not let broader swap/deposit/withdraw breadth silently reclaim the
      default roadmap without a deliberate product decision

@@ -98,6 +98,8 @@ Pass criteria:
   anchors for public entrypoints, shortest path, relay path, storage path,
   runtime floor, and common repair guidance so this gate is not purely manual
   anymore
+- the same gate now also rejects drift between the published package version
+  and the current-version references kept in the repo-level public state docs
 
 Blockers:
 
@@ -251,6 +253,8 @@ Pass criteria:
   - packed `zk-agent --help`
   - packed `zk-agent wallet --help`
   - packed `zk-agent workflow --help`
+  - current-version references in `README.md`, `PLANS.md`,
+    `PROJECT_STATE.md`, and this release-gate doc
 
 Blockers:
 
