@@ -36,6 +36,22 @@ function readPackageReadme() {
   return readFileSync(join(packageDir, 'README.md'), 'utf8');
 }
 
+function readRootReadme() {
+  return readFileSync(join(workspaceRoot, 'README.md'), 'utf8');
+}
+
+function readSkillQuickstart() {
+  return readFileSync(join(workspaceRoot, 'skills', 'QUICKSTART.md'), 'utf8');
+}
+
+function readSkillGuide() {
+  return readFileSync(join(workspaceRoot, 'skills', 'SKILL.md'), 'utf8');
+}
+
+function normalizeWhitespace(text) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 function assertReleaseMetadata(pkg) {
   assert.equal(pkg.name, 'zk-agent-cli');
   assert.equal(pkg.type, 'module');
@@ -72,9 +88,18 @@ function assertReleaseMetadata(pkg) {
 
 function assertPackageReadme(readme) {
   const requiredPatterns = [
-    [/## Install/, 'Package README must include an Install section.'],
+    [/## Public Entry Points/, 'Package README must include a Public Entry Points section.'],
+    [
+      /Choose the entrypoint that matches the environment\./,
+      'Package README must explain how to choose the public entrypoint.'
+    ],
+    [
+      /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli/,
+      'Package README must document the compatible agent-harness skill install path.'
+    ],
     [/npx zk-agent-cli --help/, 'Package README must document one-shot npx usage.'],
     [/npm install -g zk-agent-cli/, 'Package README must document global install usage.'],
+    [/zksync-agent --help/, 'Package README must document the secondary binary name.'],
     [/Node\.js `>=24`/, 'Package README must document the supported Node runtime floor.'],
     [
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
@@ -108,6 +133,127 @@ function assertPackageReadme(readme) {
   for (const [pattern, message] of requiredPatterns) {
     assert.match(readme, pattern, message);
   }
+}
+
+function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
+  const requiredChecks = [
+    [
+      rootReadme,
+      /## Public Entry Points/,
+      'Root README must expose a Public Entry Points section.'
+    ],
+    [
+      rootReadme,
+      /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli[\s\S]*npx zk-agent-cli --help[\s\S]*npm install -g zk-agent-cli/,
+      'Root README must keep the skill, one-shot CLI, and global CLI entrypoints together.'
+    ],
+    [
+      rootReadme,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      'Root README must keep the canonical terminal path visible.'
+    ],
+    [
+      quickstart,
+      /Choose the entrypoint that matches the environment\./,
+      'Quickstart must explain how to choose the entrypoint.'
+    ],
+    [
+      quickstart,
+      /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli[\s\S]*npx zk-agent-cli --help[\s\S]*npm install -g zk-agent-cli/,
+      'Quickstart must keep the skill, one-shot CLI, and global CLI entrypoints together.'
+    ],
+    [
+      quickstart,
+      /zk-agent setup[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      'Quickstart must keep the canonical terminal path visible.'
+    ],
+    [
+      skillGuide,
+      /Choose the entrypoint that matches the environment\./,
+      'Primary skill guide must explain how to choose the entrypoint.'
+    ],
+    [
+      skillGuide,
+      /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli[\s\S]*zk-agent <command>[\s\S]*npx zk-agent-cli <command>[\s\S]*pnpm zk-agent <command>/,
+      'Primary skill guide must keep the skill, packaged CLI, and source-checkout surfaces aligned.'
+    ],
+    [
+      skillGuide,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      'Primary skill guide must keep the canonical operator path visible.'
+    ]
+  ];
+
+  for (const [source, pattern, message] of requiredChecks) {
+    assert.match(source, pattern, message);
+  }
+}
+
+function assertTopLevelHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Local-first zkSync Era CLI for wallet approval, workflow execution, and hosted relay recovery',
+    'Public entrypoints:',
+    'Agent harness: npx skills add https://github.com/AgiWeb3/zk-agent-cli',
+    'One-shot CLI: npx zk-agent-cli --help',
+    'Global CLI: npm install -g zk-agent-cli',
+    'Canonical terminal path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
+    'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
+    'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Top-level CLI help is missing required public-entrypoint contract text: ${snippet}`
+    );
+  }
+}
+
+function assertWalletHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Local-first wallet path:',
+    'First bootstrap: zk-agent wallet create --await-local zk-agent next',
+    'Restore approval metadata for an existing wallet: zk-agent wallet reapprove --name main --await-local zk-agent next',
+    'Attach a local signer when approval is still present: zk-agent wallet signer attach --name main --private-key <hex> zk-agent next',
+    'Hosted remote approval path: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent next'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Wallet help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertWorkflowHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Flagship native pay path: zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    'Broader multi-intent guided path: zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+    'Checkpointed execution: zk-agent workflow start --wallet main --intent <intent> [goal flags] zk-agent workflow status --request-id <id> zk-agent workflow next --request-id <id> zk-agent workflow resume --request-id <id> [--broadcast]',
+    'Funding-only step: zk-agent workflow fund --wallet main --amount <amount> --execute',
+    'Lower-level one-shot escape hatch: zk-agent workflow run --wallet main --intent <intent> [goal flags]'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Workflow help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+
+  assert.equal(
+    helpOutput.indexOf('pay [options]') < helpOutput.indexOf('auto [options]'),
+    true,
+    'Workflow help must list the flagship pay path ahead of workflow auto.'
+  );
 }
 
 function createPackDir() {
@@ -608,6 +754,26 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertPackedCliStderr(helpResult.stderr, helpResult.stdout, '--help');
     assert.match(helpResult.stdout, /Usage: zk-agent/);
     assertNoWorkspaceLeak(helpResult.stdout);
+    assertTopLevelHelpContract(helpResult.stdout);
+
+    const walletHelpResult = runPackedCli(extractedPackageDir, homeDir, ['wallet', '--help']);
+    assertPackedCliStderr(walletHelpResult.stderr, walletHelpResult.stdout, 'wallet --help');
+    assert.match(walletHelpResult.stdout, /Usage: zk-agent wallet/);
+    assertNoWorkspaceLeak(walletHelpResult.stdout);
+    assertWalletHelpContract(walletHelpResult.stdout);
+
+    const workflowHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'workflow',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      workflowHelpResult.stderr,
+      workflowHelpResult.stdout,
+      'workflow --help'
+    );
+    assert.match(workflowHelpResult.stdout, /Usage: zk-agent workflow/);
+    assertNoWorkspaceLeak(workflowHelpResult.stdout);
+    assertWorkflowHelpContract(workflowHelpResult.stdout);
 
     const defaultsOutput = runPackedCliJson(extractedPackageDir, homeDir, ['defaults', '--json']);
     assertNoWorkspaceLeak(defaultsOutput);
@@ -743,6 +909,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertPackedCliStderr(helpResult.stderr, helpResult.stdout, 'installed zk-agent --help');
     assert.match(helpResult.stdout, /Usage: zk-agent/);
     assertNoWorkspaceLeak(helpResult.stdout);
+    assertTopLevelHelpContract(helpResult.stdout);
 
     const aliasHelpResult = runInstalledCli(projectRoot, homeDir, ['--help'], 'zksync-agent');
     assertPackedCliStderr(
@@ -752,6 +919,27 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     );
     assert.match(aliasHelpResult.stdout, /Usage: zk-agent/);
     assertNoWorkspaceLeak(aliasHelpResult.stdout);
+    assertTopLevelHelpContract(aliasHelpResult.stdout);
+
+    const walletHelpResult = runInstalledCli(projectRoot, homeDir, ['wallet', '--help']);
+    assertPackedCliStderr(
+      walletHelpResult.stderr,
+      walletHelpResult.stdout,
+      'installed zk-agent wallet --help'
+    );
+    assert.match(walletHelpResult.stdout, /Usage: zk-agent wallet/);
+    assertNoWorkspaceLeak(walletHelpResult.stdout);
+    assertWalletHelpContract(walletHelpResult.stdout);
+
+    const workflowHelpResult = runInstalledCli(projectRoot, homeDir, ['workflow', '--help']);
+    assertPackedCliStderr(
+      workflowHelpResult.stderr,
+      workflowHelpResult.stdout,
+      'installed zk-agent workflow --help'
+    );
+    assert.match(workflowHelpResult.stdout, /Usage: zk-agent workflow/);
+    assertNoWorkspaceLeak(workflowHelpResult.stdout);
+    assertWorkflowHelpContract(workflowHelpResult.stdout);
 
     const defaultsOutput = runInstalledCliJson(projectRoot, homeDir, ['defaults', '--json']);
     assertNoWorkspaceLeak(defaultsOutput);
@@ -785,8 +973,12 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
 async function main() {
   const pkg = readPackageJson();
   const readme = readPackageReadme();
+  const rootReadme = readRootReadme();
+  const quickstart = readSkillQuickstart();
+  const skillGuide = readSkillGuide();
   assertReleaseMetadata(pkg);
   assertPackageReadme(readme);
+  assertRepositoryDocs(rootReadme, quickstart, skillGuide);
   createPackDir();
   const reportedTarballPath = packPackage();
 

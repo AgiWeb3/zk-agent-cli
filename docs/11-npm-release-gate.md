@@ -94,9 +94,10 @@ Pass criteria:
 
 - a first-time user can get through the first success path from the npm page
   README alone
-- the current `release:check` script also enforces the minimum README anchors
-  for install paths, shortest path, relay path, storage path, and common
-  repair guidance so this gate is not purely manual anymore
+- the current `release:check` script also enforces the minimum package-README
+  anchors for public entrypoints, shortest path, relay path, storage path,
+  runtime floor, and common repair guidance so this gate is not purely manual
+  anymore
 
 Blockers:
 
@@ -133,11 +134,14 @@ Pass criteria:
 - after extraction into a system temp directory, these commands still start
   correctly from an isolated cwd:
   - `zk-agent --help`
+  - `zk-agent wallet --help`
+  - `zk-agent workflow --help`
   - `zk-agent defaults --json`
   - `zk-agent wallet smart-account profiles --json`
 - the same tarball can also be installed into a temporary project outside the
   repository with `pnpm add --offline <tarball>` and the installed
-  `zk-agent` / `zksync-agent` binaries still start correctly
+  `zk-agent` / `zksync-agent` binaries still start correctly, including the
+  public-entrypoint and canonical-path help contract
 - that installed package can also start `relay serve --public-origin ...`,
   create a real relay request, redirect `/r/<id>` into the connector UI
   entrypoint, and still serve the bundled hashed frontend asset from the relay
@@ -239,6 +243,14 @@ Pass criteria:
   - the root README / skills
   - packaged help entrypoints reached through `npx zk-agent-cli ...` or the
     installed `zk-agent` / `zksync-agent` binaries
+- the current `release:check` script now also machine-checks that contract
+  across:
+  - package README public entrypoints
+  - root README public entrypoints
+  - `skills/SKILL.md` and `skills/QUICKSTART.md`
+  - packed `zk-agent --help`
+  - packed `zk-agent wallet --help`
+  - packed `zk-agent workflow --help`
 
 Blockers:
 
@@ -385,6 +397,10 @@ npm dist-tag add zk-agent-cli@<version> latest
   - `zk-agent-cli@0.1.0-beta.7` preserves that release baseline, keeps the
     hosted-relay and package-first validation gates intact, and is now live on
     both npm dist-tags `latest` and `beta`
+  - the current post-`beta.7` workspace gate is slightly tighter still:
+    `release:check` now also rejects drift across package README, root README,
+    `skills/`, packed top-level help, packed `wallet --help`, and packed
+    `workflow --help` for the public entrypoint and canonical-path contract
   - the next release gate will also fail fast when the active release runtime
     drifts below the declared floor:
     `release:check` now rejects Node `<24` and any `pnpm` version other than

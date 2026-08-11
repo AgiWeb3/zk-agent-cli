@@ -11,7 +11,9 @@ Current strengths:
 - workflow orchestration for send, swap, bridge, deposit, and withdraw
 - machine-readable JSON output for agent callers
 
-## Install
+## Public Entry Points
+
+Choose the entrypoint that matches the environment.
 
 If you are installing this repository into a compatible agent harness instead
 of using the CLI directly, prefer the repo skill surface:

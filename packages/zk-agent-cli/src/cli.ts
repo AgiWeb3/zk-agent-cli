@@ -38,7 +38,12 @@ import { buildWorkflowPayRecommendedCommand } from './lib/recommended-commands.j
 function buildDefaultOperatorPathHelpText(): string {
   return [
     '',
-    'Default local-first operator path:',
+    'Public entrypoints:',
+    '  Agent harness: npx skills add https://github.com/AgiWeb3/zk-agent-cli',
+    '  One-shot CLI:  npx zk-agent-cli --help',
+    '  Global CLI:    npm install -g zk-agent-cli',
+    '',
+    'Canonical terminal path:',
     '  zk-agent setup',
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
@@ -46,8 +51,8 @@ function buildDefaultOperatorPathHelpText(): string {
     `  ${buildWorkflowPayRecommendedCommand('main')}`,
     '',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
-    'Use `zk-agent relay inspect --relay-url <url>` and `zk-agent wallet --help` for the hosted remote-approval path.',
-    'Use `zk-agent wallet --help` for bootstrap/reapproval details and `zk-agent workflow --help` once the intent is known.'
+    'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
+    'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'
   ].join('\n');
 }
 
@@ -94,7 +99,9 @@ function applyRootHelpCommandOrder(program: Command): void {
 function createProgram(): Command {
   const program = new Command()
     .name('zk-agent')
-    .description('zkSync and ZK Stack CLI scaffold for agent workflows')
+    .description(
+      'Local-first zkSync Era CLI for wallet approval, workflow execution, and hosted relay recovery'
+    )
     .showHelpAfterError()
     .option('--json', 'Force JSON output for agent harnesses', false)
     .hook('preAction', (thisCommand) => {

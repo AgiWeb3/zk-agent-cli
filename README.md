@@ -24,9 +24,9 @@ The project is intentionally modeled after the real architecture of `polygon-age
 - provider packages for zkSync-specific wallet and DeFi capabilities
 - agent tool adapters for LLM / framework integration
 
-## Install Surfaces
+## Public Entry Points
 
-There are now three explicit install surfaces:
+There are now three explicit public entry points:
 
 - agent-harness skill install for compatible runtimes:
   - `npx skills add https://github.com/AgiWeb3/zk-agent-cli`

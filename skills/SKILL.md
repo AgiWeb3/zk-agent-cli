@@ -39,6 +39,8 @@ For detailed action-path reference, also read:
 
 ## Prerequisites
 
+Choose the entrypoint that matches the environment.
+
 If this repository has not been installed into a compatible agent harness yet,
 add it with:
 

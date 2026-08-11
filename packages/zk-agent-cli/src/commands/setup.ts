@@ -18,7 +18,7 @@ interface SetupArgs {
 export function createInitCommand(): Command {
   return new Command('init')
     .alias('setup')
-    .description('Initialize local zk-agent configuration')
+    .description('Initialize local zk-agent configuration for the default operator path')
     .option('--default-chain <chain>', 'Default chain key', 'zksync-era')
     .option('--connector-url <url>', 'Connector UI base URL', 'http://localhost:4444')
     .option('--force', 'Overwrite an existing config', false)

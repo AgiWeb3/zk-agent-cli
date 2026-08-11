@@ -103,7 +103,15 @@ test('top-level help prints the default operator path around zk-agent next', asy
     const env = createCliEnv(homeDir);
     const help = await runCliText(['--help'], env);
 
-    assert.match(help, /Default local-first operator path:/);
+    assert.match(
+      help,
+      /Local-first zkSync Era CLI for wallet approval, workflow execution, and hosted\s+relay recovery/
+    );
+    assert.match(help, /Public entrypoints:/);
+    assert.match(help, /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli/);
+    assert.match(help, /npx zk-agent-cli --help/);
+    assert.match(help, /npm install -g zk-agent-cli/);
+    assert.match(help, /Canonical terminal path:/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(
@@ -112,6 +120,10 @@ test('top-level help prints the default operator path around zk-agent next', asy
     );
     assert.match(help, /zk-agent next --request-id <id>/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(
+      help,
+      /zk-agent wallet create\|reapprove --relay-url <url> --wait-relay --prompt-code/
+    );
     assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent workflow --help/);
     assert.ok(help.indexOf('\n  next') < help.indexOf('\n  wallet'));
@@ -149,16 +161,16 @@ test('workflow help prints the default workflow path', async () => {
     const env = createCliEnv(homeDir);
     const help = await runCliText(['workflow', '--help'], env);
 
-    assert.match(help, /Default workflow path:/);
-    assert.match(help, /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/);
     assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /Broader multi-intent guided path:/);
+    assert.match(help, /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/);
     assert.match(help, /zk-agent workflow start --wallet main --intent <intent> \[goal flags\]/);
     assert.match(help, /zk-agent workflow status --request-id <id>/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
     assert.match(help, /zk-agent workflow resume --request-id <id> \[--broadcast\]/);
     assert.match(help, /zk-agent workflow fund --wallet main --amount <amount> --execute/);
     assert.match(help, /zk-agent workflow run --wallet main --intent <intent> \[goal flags\]/);
-    assert.ok(help.indexOf('auto [options]') < help.indexOf('pay [options]'));
+    assert.ok(help.indexOf('pay [options]') < help.indexOf('auto [options]'));
     assert.ok(help.indexOf('pay [options]') < help.indexOf('run [options]'));
     assert.ok(help.indexOf('status [options]') < help.indexOf('list [options]'));
     assert.ok(help.indexOf('fund [options]') < help.indexOf('plan [options]'));

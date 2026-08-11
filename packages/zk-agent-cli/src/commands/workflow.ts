@@ -2279,12 +2279,11 @@ function assertWorkflowResumeReady(
 function buildWorkflowHelpText(): string {
   return [
     '',
-    'Default workflow path:',
-    '  Guided default:',
-    '    zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
-    '',
     '  Flagship native pay path:',
     '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    '',
+    '  Broader multi-intent guided path:',
+    '    zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
     '',
     '  Checkpointed execution:',
     '    zk-agent workflow start --wallet main --intent <intent> [goal flags]',
@@ -2301,8 +2300,8 @@ function buildWorkflowHelpText(): string {
 }
 
 const WORKFLOW_HELP_COMMAND_ORDER = [
-  'auto',
   'pay',
+  'auto',
   'start',
   'status',
   'next',
@@ -2334,7 +2333,7 @@ function applyWorkflowHelpCommandOrder(workflow: Command): void {
 export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Command {
   const resolvedDeps = resolveWorkflowCommandDeps(deps);
   const workflow = new Command('workflow').description(
-    'Build a higher-level CLI workflow for a stored wallet and a concrete action intent'
+    'Plan, persist, and execute higher-level wallet workflows'
   );
 
   workflow.addHelpText('after', buildWorkflowHelpText());

@@ -28,7 +28,9 @@ package, replace `zk-agent` with `pnpm zk-agent`.
   `next`, and wallet-request creation usually work without custom RPC values,
   but live chain reads or broadcasts usually need the relevant RPC variables
 
-## 1. Install
+## 1. Choose an entrypoint
+
+Choose the entrypoint that matches the environment.
 
 If you are adding this project to a compatible agent harness, use the repo
 skill install:

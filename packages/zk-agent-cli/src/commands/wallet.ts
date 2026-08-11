@@ -2896,7 +2896,9 @@ async function printBuiltinSmartAccountProfiles(): Promise<void> {
 
 export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command {
   const resolvedDeps = resolveWalletCommandDeps(deps);
-  const wallet = new Command('wallet').description('Manage wallet sessions');
+  const wallet = new Command('wallet').description(
+    'Create, inspect, and recover local-first wallet sessions'
+  );
   const request = new Command('request').description('Inspect and finalize pending wallet requests');
   const signer = new Command('signer').description(
     'Inspect and manage the stored local execution signer for a wallet'
@@ -2947,7 +2949,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '  Hosted remote approval path:',
       '    zk-agent relay inspect --relay-url <url>',
       '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
-      '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code'
+      '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+      '    zk-agent next'
     ].join('\n')
   );
 
