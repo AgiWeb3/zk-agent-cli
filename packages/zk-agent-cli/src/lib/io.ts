@@ -105,6 +105,10 @@ export function formatHumanErrorMessage(error: unknown): string {
   pushDetailLine(lines, 'reason', details.reason);
   pushDetailLine(lines, 'note', details.note);
   pushDetailLine(lines, 'suggested action', details.suggestedAction);
+  pushDetailLine(lines, 'status command', details.statusCommand);
+  pushDetailLine(lines, 'approve command', details.approveCommand);
+  pushDetailLine(lines, 'relay inspect command', details.relayInspectCommand);
+  pushDetailLine(lines, 'reissue remote approval command', details.reissueRemoteApprovalCommand);
   pushDetailLine(lines, 'validation domain', details.validationDomain);
   pushDetailLine(lines, 'validation stage', details.validationStage);
 

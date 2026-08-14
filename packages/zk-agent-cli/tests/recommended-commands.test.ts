@@ -8,6 +8,7 @@ import {
   buildResolveTokenRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
+  buildWalletCreateRemoteRecommendedCommand,
   buildWalletListRecommendedCommand,
   buildWalletNextRecommendedCommand,
   buildWalletRequestApproveRecommendedCommand,
@@ -36,6 +37,22 @@ test('recommended defaults command uses the registry readout', () => {
 
 test('recommended wallet create command uses await-local flow', () => {
   assert.equal(buildWalletCreateRecommendedCommand(), 'zk-agent wallet create --await-local');
+});
+
+test('recommended wallet create remote command can preserve wallet name and request shape', () => {
+  assert.equal(
+    buildWalletCreateRemoteRecommendedCommand('http://127.0.0.1:4445'),
+    'zk-agent wallet create --relay-url http://127.0.0.1:4445 --wait-relay --prompt-code'
+  );
+  assert.equal(
+    buildWalletCreateRemoteRecommendedCommand(
+      'http://127.0.0.1:4445',
+      'approval-based',
+      'ops-wallet',
+      'eoa'
+    ),
+    'zk-agent wallet create --name ops-wallet --account-kind eoa --relay-url http://127.0.0.1:4445 --wait-relay --prompt-code --paymaster-mode approval-based'
+  );
 });
 
 test('recommended wallet list command shows stored wallets', () => {

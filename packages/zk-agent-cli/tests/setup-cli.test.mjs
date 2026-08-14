@@ -273,6 +273,12 @@ test('wallet request, signer, and smart-account help surfaces are product-ordere
     assert.match(requestHelp, /Wallet request path:/);
     assert.match(requestHelp, /zk-agent wallet request await-local --request-id <id>/);
     assert.match(requestHelp, /zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait/);
+    assert.match(requestHelp, /If relay-status returns status = expired:/);
+    assert.match(requestHelp, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(
+      requestHelp,
+      /zk-agent wallet create\|reapprove --relay-url <url> --wait-relay --prompt-code/
+    );
     assert.ok(requestHelp.indexOf('\n  list') < requestHelp.indexOf('\n  show [options]'));
     assert.ok(requestHelp.indexOf('\n  show [options]') < requestHelp.indexOf('\n  await-local [options]'));
     assert.ok(requestHelp.indexOf('\n  await-local [options]') < requestHelp.indexOf('\n  approve [options]'));

@@ -63,6 +63,39 @@ test('formatHumanErrorMessage renders top-level suggested actions', () => {
   );
 });
 
+test('formatHumanErrorMessage renders relay approval follow-up commands', () => {
+  const error = new AgentError(
+    'RELAY_APPROVAL_TIMEOUT',
+    'Timed out waiting for relay approval after 60 seconds.',
+    {
+      retryable: true,
+      suggestedAction:
+        'Check the current relay status, then finalize the wallet approval once approval_ready=true.',
+      statusCommand:
+        'zk-agent wallet request relay-status --request-id req_123 --relay-url https://relay.example.com',
+      approveCommand:
+        'zk-agent wallet request approve --request-id req_123 --relay-url https://relay.example.com --code <code> --wait'
+    }
+  );
+
+  const message = formatHumanErrorMessage(error);
+
+  assert.match(message, /code: RELAY_APPROVAL_TIMEOUT/);
+  assert.match(message, /retryable: yes/);
+  assert.match(
+    message,
+    /suggested action: Check the current relay status, then finalize the wallet approval once approval_ready=true\./
+  );
+  assert.match(
+    message,
+    /status command: zk-agent wallet request relay-status --request-id req_123 --relay-url https:\/\/relay\.example\.com/
+  );
+  assert.match(
+    message,
+    /approve command: zk-agent wallet request approve --request-id req_123 --relay-url https:\/\/relay\.example\.com --code <code> --wait/
+  );
+});
+
 test('formatHumanErrorMessage renders top-level retryable finalize details', () => {
   const error = new AgentError(
     'WITHDRAW_FINALIZE_NOT_READY',

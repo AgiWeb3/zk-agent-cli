@@ -134,6 +134,9 @@ The relay should now provide:
 - a share URL for the browser operator
 - a status URL for polling
 - an approval code flow for finalization
+- the lower-level `wallet request relay-status` response now keeps
+  `share_url`, `status_url`, and `approval_url` together so operators and
+  harnesses do not have to reconstruct link bases from one field
 
 If you need the lower-level manual fallback:
 
@@ -141,6 +144,16 @@ If you need the lower-level manual fallback:
 zk-agent wallet request relay-status --request-id <id> --relay-url https://relay.example.com
 zk-agent wallet request approve --request-id <id> --relay-url https://relay.example.com --code <code> --wait
 ```
+
+When `relay-status` reports `status = expired`, treat that as a request-reissue
+state, not a polling state:
+
+- inspect the relay again with `zk-agent relay inspect --relay-url ...` when
+  the hosted deployment itself is in doubt
+- reissue `wallet create --relay-url ...` or `wallet reapprove --relay-url ...`
+  instead of continuing to poll the expired request id
+- if the original request used scoped session flags, add those same flags again
+  on the reissued command
 
 ## Failure Patterns
 

@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -1267,6 +1267,276 @@ test('relay status --wait blocks until the encrypted approval payload is ready',
   }
 });
 
+test('relay status --wait timeout returns actionable follow-up commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-relay-status-timeout-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const created = await runCliJson(
+      ['wallet', 'create', '--name', 'relay-timeout-test', '--chain', 'zksync-sepolia'],
+      env
+    );
+
+    await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-publish',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    const { child, readStdout, readStderr } = spawnCli(
+      [
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        created.requestId,
+        '--relay-url',
+        relayBaseUrl,
+        '--wait',
+        '--timeout-seconds',
+        '1',
+        '--interval-ms',
+        '50'
+      ],
+      env
+    );
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 1, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'relay-status timeout JSON error output was empty');
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'RELAY_APPROVAL_TIMEOUT');
+    assert.match(result.error, /Timed out waiting for relay approval after 1 seconds\./);
+    assert.equal(result.details?.retryable, true);
+    assert.equal(result.details?.requestId, created.requestId);
+    assert.equal(result.details?.relayUrl, relayBaseUrl);
+    assert.equal(result.details?.timeoutMs, 1000);
+    assert.equal(result.details?.intervalMs, 50);
+    assert.equal(
+      result.details?.statusCommand,
+      `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`
+    );
+    assert.equal(
+      result.details?.approveCommand,
+      `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
+    );
+    assert.match(
+      String(result.details?.suggestedAction || ''),
+      /Check the current relay status, then finalize the wallet approval once approval_ready=true\./
+    );
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('relay status returns recovery commands instead of self-looping when the relay request is expired', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-relay-status-expired-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const createResponse = await fetch(`${relayBaseUrl}/api/requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        approval_url: 'https://connector.example.test/approve',
+        request: {
+          requestId: 'expired-relay-status',
+          walletName: 'ops-wallet',
+          chain: 'zksync-sepolia',
+          chainId: 300,
+          provider: 'zksync-sso',
+          createdAt: '2026-08-10T00:00:00.000Z',
+          expiresAt: '2026-08-10T00:05:00.000Z',
+          connectorUrl: 'https://connector.example.test',
+          requestedAccountKind: 'eoa',
+          requestedPaymasterMode: 'approval-based',
+          requestedSessionScope: {
+            chainKeys: ['zksync-sepolia'],
+            chainIds: [300]
+          },
+          requestedCapabilities: {
+            read: true,
+            write: true,
+            transfer: true,
+            contractCall: true,
+            paymaster: true
+          },
+          sessionPublicKey: '0x' + '22'.repeat(32)
+        }
+      })
+    });
+    assert.equal(createResponse.status, 201, await createResponse.text());
+
+    const relayStatusExpired = await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        'expired-relay-status',
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    assert.equal(relayStatusExpired.ok, true);
+    assert.equal(relayStatusExpired.relay.status, 'expired');
+    assert.equal(
+      relayStatusExpired.nextAction,
+      `zk-agent wallet create --name ops-wallet --account-kind eoa --relay-url ${relayBaseUrl} --wait-relay --prompt-code --paymaster-mode approval-based`
+    );
+    assert.equal(
+      relayStatusExpired.note,
+      'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
+    );
+    assert.deepEqual(relayStatusExpired.recommendedCommands, {
+      relayInspect: `zk-agent relay inspect --relay-url ${relayBaseUrl}`,
+      reissueRemoteApproval:
+        `zk-agent wallet create --name ops-wallet --account-kind eoa --relay-url ${relayBaseUrl} --wait-relay --prompt-code --paymaster-mode approval-based`
+    });
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('relay status prefers remote reapprove recovery when the wallet already exists locally', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-relay-status-expired-wallet-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(
+      sampleWalletRecord({
+        walletName: 'ops-wallet'
+      })
+    );
+
+    await waitForRelayHealth(relayPort);
+
+    const createResponse = await fetch(`${relayBaseUrl}/api/requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        approval_url: 'https://connector.example.test/approve',
+        request: {
+          requestId: 'expired-relay-status-existing-wallet',
+          walletName: 'ops-wallet',
+          chain: 'zksync-sepolia',
+          chainId: 300,
+          provider: 'zksync-sso',
+          createdAt: '2026-08-10T00:00:00.000Z',
+          expiresAt: '2026-08-10T00:05:00.000Z',
+          connectorUrl: 'https://connector.example.test',
+          requestedAccountKind: 'smart-account',
+          requestedPaymasterMode: 'approval-based',
+          requestedSessionScope: {
+            chainKeys: ['zksync-sepolia'],
+            chainIds: [300]
+          },
+          requestedCapabilities: {
+            read: true,
+            write: true,
+            transfer: true,
+            contractCall: true,
+            paymaster: true
+          },
+          sessionPublicKey: '0x' + '33'.repeat(32)
+        }
+      })
+    });
+    assert.equal(createResponse.status, 201, await createResponse.text());
+
+    const relayStatusExpired = await runCliJson(
+      [
+        'wallet',
+        'request',
+        'relay-status',
+        '--request-id',
+        'expired-relay-status-existing-wallet',
+        '--relay-url',
+        relayBaseUrl
+      ],
+      env
+    );
+
+    assert.equal(relayStatusExpired.ok, true);
+    assert.equal(relayStatusExpired.relay.status, 'expired');
+    assert.equal(
+      relayStatusExpired.nextAction,
+      `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+    );
+    assert.deepEqual(relayStatusExpired.recommendedCommands, {
+      relayInspect: `zk-agent relay inspect --relay-url ${relayBaseUrl}`,
+      reissueRemoteApproval:
+        `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+    });
+  } finally {
+    process.env.HOME = previousHome;
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('wallet request approve --wait blocks until the encrypted relay payload is ready and then imports the wallet', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-relay-approve-wait-'));
   const env = createCliEnv(homeDir);
@@ -1501,7 +1771,7 @@ test('wallet create --relay-url --wait-relay --prompt-code can complete the remo
         '--timeout-seconds',
         '5',
         '--interval-ms',
-        '50'
+        '1000'
       ],
       {
         cwd: packageRoot,
@@ -1589,6 +1859,89 @@ test('wallet create --relay-url --wait-relay --prompt-code can complete the remo
       reapprove: 'zk-agent wallet reapprove --name relay-create-wait --await-local'
     });
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
+  } finally {
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet create --wait-relay timeout returns actionable follow-up commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-create-relay-timeout-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+
+  try {
+    await waitForRelayHealth(relayPort);
+
+    const child = spawn(
+      process.execPath,
+      [
+        distEntry,
+        '--json',
+        'wallet',
+        'create',
+        '--name',
+        'relay-create-timeout',
+        '--chain',
+        'zksync-sepolia',
+        '--relay-url',
+        relayBaseUrl,
+        '--wait-relay',
+        '--prompt-code',
+        '--timeout-seconds',
+        '1',
+        '--interval-ms',
+        '50'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['pipe', 'pipe', 'pipe']
+      }
+    );
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+
+    const requestId = await waitForStoredRequestId(homeDir);
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 1, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'wallet create --wait-relay timeout JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'RELAY_APPROVAL_TIMEOUT');
+    assert.match(result.error, /Timed out waiting for relay approval after 1 seconds\./);
+    assert.equal(result.details?.retryable, true);
+    assert.equal(result.details?.requestId, requestId);
+    assert.equal(result.details?.relayUrl, relayBaseUrl);
+    assert.equal(result.details?.timeoutMs, 1000);
+    assert.equal(result.details?.intervalMs, 50);
+    assert.equal(
+      result.details?.statusCommand,
+      `zk-agent wallet request relay-status --request-id ${requestId} --relay-url ${relayBaseUrl}`
+    );
+    assert.equal(
+      result.details?.approveCommand,
+      `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
+    );
+    assert.match(
+      String(result.details?.suggestedAction || ''),
+      /Check the current relay status, then finalize the wallet approval once approval_ready=true\./
+    );
   } finally {
     relayChild.kill('SIGTERM');
     await waitForExit(relayChild, 5000).catch(() => {
@@ -1827,6 +2180,128 @@ test('wallet reapprove --relay-url --wait-relay --prompt-code can complete the r
     assert.equal(reapprovedWallet?.walletAddress, '0x1111111111111111111111111111111111111111');
     assert.equal(reapprovedWallet?.sessionPayload?.sessionPrivateKey, undefined);
     assert.deepEqual(await listStoredRequestIds(homeDir), []);
+  } finally {
+    process.env.HOME = previousHome;
+    relayChild.kill('SIGTERM');
+    await waitForExit(relayChild, 5000).catch(() => {
+      const relayErrorOutput = readRelayStderr().trim();
+      if (relayErrorOutput) {
+        throw new Error(relayErrorOutput);
+      }
+    });
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet reapprove --wait-relay expired request returns remote reapprove recovery commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-cli-wallet-reapprove-relay-expired-'));
+  const env = createCliEnv(homeDir);
+  const relayPort = await getFreePort();
+  const relayBaseUrl = `http://127.0.0.1:${relayPort}`;
+  const { child: relayChild, readStderr: readRelayStderr } = spawnCli(
+    ['relay', 'serve', '--host', '127.0.0.1', '--port', String(relayPort)],
+    env
+  );
+  const previousHome = process.env.HOME;
+
+  try {
+    process.env.HOME = homeDir;
+    const { saveWalletSession } = await loadAgentCoreStorage(homeDir);
+    await saveWalletSession(
+      sampleWalletRecord({
+        walletName: 'relay-reapprove-expired',
+        sessionPayload: {
+          ...sampleWalletRecord().sessionPayload,
+          sessionPrivateKey: undefined
+        }
+      })
+    );
+
+    await waitForRelayHealth(relayPort);
+
+    const child = spawn(
+      process.execPath,
+      [
+        distEntry,
+        '--json',
+        'wallet',
+        'reapprove',
+        '--name',
+        'relay-reapprove-expired',
+        '--relay-url',
+        relayBaseUrl,
+        '--wait-relay',
+        '--prompt-code',
+        '--timeout-seconds',
+        '5',
+        '--interval-ms',
+        '50'
+      ],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['pipe', 'pipe', 'pipe']
+      }
+    );
+    const readStdout = collectOutput(child.stdout);
+    const readStderr = collectOutput(child.stderr);
+
+    const requestId = await waitForStoredRequestId(homeDir);
+    const relayRecordPath = path.join(homeDir, '.zk-agent', 'relay', `${requestId}.json`);
+    const relayRecordTempPath = `${relayRecordPath}.tmp`;
+
+    const startedAt = Date.now();
+    let mutated = false;
+    while (Date.now() - startedAt < 5000) {
+      try {
+        const raw = await readFile(relayRecordPath, 'utf8');
+        const record = JSON.parse(raw);
+        record.expires_at = '2026-08-10T00:05:00.000Z';
+        await writeFile(relayRecordTempPath, JSON.stringify(record, null, 2));
+        await rename(relayRecordTempPath, relayRecordPath);
+        mutated = true;
+        break;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    assert.equal(mutated, true, 'failed to mutate relay record expiry before timeout');
+
+    const exitCode = await waitForExit(child, 5000);
+    const stdout = readStdout().trim();
+    const stderr = readStderr().trim();
+
+    assert.equal(exitCode, 1, stderr || stdout || `CLI exited with code ${exitCode}`);
+    assert.notEqual(stdout, '', 'wallet reapprove --wait-relay expired JSON output was empty');
+
+    const result = JSON.parse(stdout);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'RELAY_APPROVAL_EXPIRED');
+    assert.match(
+      result.error,
+      new RegExp(
+        `Relay approval expired before the encrypted payload was ready for request ${requestId}\\.`
+      )
+    );
+    assert.equal(result.details?.retryable, true);
+    assert.equal(result.details?.requestId, requestId);
+    assert.equal(result.details?.relayUrl, relayBaseUrl);
+    assert.equal(
+      result.details?.note,
+      'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
+    );
+    assert.equal(
+      result.details?.relayInspectCommand,
+      `zk-agent relay inspect --relay-url ${relayBaseUrl}`
+    );
+    assert.equal(
+      result.details?.reissueRemoteApprovalCommand,
+      `zk-agent wallet reapprove --name relay-reapprove-expired --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+    );
+    assert.match(
+      String(result.details?.suggestedAction || ''),
+      /Inspect the hosted relay, then reissue the remote approval request\./
+    );
   } finally {
     process.env.HOME = previousHome;
     relayChild.kill('SIGTERM');

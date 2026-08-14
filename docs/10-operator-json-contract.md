@@ -279,6 +279,70 @@ These checkpoint-management surfaces now also include:
 That keeps the agent-identity context available even when the harness moves
 into checkpoint-management commands.
 
+## `zk-agent wallet request relay-status`
+
+This is the lower-level hosted relay/manual-approval status surface.
+
+Current stable top-level fields:
+
+- `ok`
+- `walletRequestId`
+- `relay`
+- `recommendedCommands`
+- `nextAction`
+- `note`
+
+Current stable `relay` fields:
+
+- `request_id`
+- `status`
+- `approval_ready`
+- `share_url`
+- `status_url`
+- `approval_url`
+- `expires_at`
+
+When `status = ready`, `nextAction` points at:
+
+- `zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait`
+
+When `status = expired`, `nextAction` stops self-polling and instead points at
+remote request reissue.
+
+Key expired-shape example:
+
+```json
+{
+  "ok": true,
+  "walletRequestId": "req12345",
+  "relay": {
+    "request_id": "req12345",
+    "status": "expired",
+    "approval_ready": false,
+    "share_url": "https://relay.example.com/r/req12345",
+    "status_url": "https://relay.example.com/api/requests/req12345",
+    "approval_url": "https://relay.example.com/r/req12345",
+    "expires_at": "2026-08-10T00:05:00.000Z"
+  },
+  "recommendedCommands": {
+    "relayInspect": "zk-agent relay inspect --relay-url https://relay.example.com",
+    "reissueRemoteApproval": "zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code"
+  },
+  "nextAction": "zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code",
+  "note": "Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again."
+}
+```
+
+Current stable semantics:
+
+- `recommendedCommands.relayInspect`
+  Inspect the hosted relay contract again before retrying when deployment state
+  is in doubt.
+- `recommendedCommands.reissueRemoteApproval`
+  The default remote retry path after expiry.
+- `nextAction`
+  The single best executable next step for the current relay state.
+
 ## The role of `recommendedCommands`
 
 In the current contract, `recommendedCommands` remains the main container for

@@ -66,6 +66,14 @@ Architecture baseline to keep in mind:
      path now all point at the one-shot remote-approval path with
      `--wait-relay --prompt-code`
    - current baseline improvement:
+     relay/manual approval no longer self-loops on stale hosted requests:
+     `wallet request relay-status` now returns explicit `share_url` /
+     `status_url` / `approval_url`, expired relay states now point at
+     `relay inspect` plus remote request reissue, and the same timeout/expiry
+     recovery guidance now also appears on `wallet create|reapprove --wait-relay`
+     with stable `RELAY_APPROVAL_*` error codes and detail fields for JSON
+     consumers
+   - current baseline improvement:
      root help, `next --help`, `wallet --help`, the root README, the packaged
      CLI README, and the primary repo skills now all describe the same
      local-first baseline, with hosted relay approval positioned explicitly as

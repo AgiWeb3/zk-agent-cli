@@ -380,6 +380,27 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       status_url: `${publicOrigin}/api/requests/relay-public-origin-test`,
       approval_url: `${publicOrigin}/r/relay-public-origin-test`
     });
+    const statusResponse = await fetch(
+      `${result.origin}/api/requests/relay-public-origin-test`
+    );
+    assert.equal(statusResponse.status, 200);
+    const statusPayload = await statusResponse.json();
+    assert.equal(statusPayload.request_id, 'relay-public-origin-test');
+    assert.equal(statusPayload.status, 'pending');
+    assert.equal(statusPayload.approval_ready, false);
+    assert.equal(statusPayload.share_url, `${publicOrigin}/r/relay-public-origin-test`);
+    assert.equal(
+      statusPayload.status_url,
+      `${publicOrigin}/api/requests/relay-public-origin-test`
+    );
+    assert.equal(statusPayload.approval_url, `${publicOrigin}/r/relay-public-origin-test`);
+    assert.equal(statusPayload.expires_at, '2099-08-10T00:00:00.000Z');
+    assert.equal(statusPayload.request.requestId, 'relay-public-origin-test');
+    assert.equal(statusPayload.request.walletName, 'main');
+    assert.equal(statusPayload.request.chain, 'zksync-sepolia');
+    assert.equal(statusPayload.request.chainId, 300);
+    assert.equal(statusPayload.request.createdAt, '2099-08-04T00:00:00.000Z');
+    assert.equal(statusPayload.request.expiresAt, '2099-08-10T00:00:00.000Z');
     await assertHostedShareLinkServesUi(
       result.origin,
       publicOrigin,

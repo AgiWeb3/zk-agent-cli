@@ -190,6 +190,8 @@ export interface RelayStatusResponse {
   request_id: string;
   status: RelayRequestStatus;
   approval_ready: boolean;
+  share_url: string;
+  status_url: string;
   approval_url: string;
   expires_at: string;
   request?: SessionApprovalRequest;

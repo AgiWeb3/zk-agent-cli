@@ -34,9 +34,18 @@ export function buildRelayInspectRecommendedCommand(relayUrl = '<url>'): string 
 
 export function buildWalletCreateRemoteRecommendedCommand(
   relayUrl = '<url>',
-  paymasterMode?: PaymasterMode
+  paymasterMode?: PaymasterMode,
+  walletName = 'main',
+  accountKind: 'eoa' | 'smart-account' | 'session-key' = 'smart-account'
 ): string {
-  const command = `zk-agent wallet create --relay-url ${relayUrl} --wait-relay --prompt-code`;
+  const command = [
+    'zk-agent wallet create',
+    walletName !== 'main' ? `--name ${walletName}` : '',
+    accountKind !== 'smart-account' ? `--account-kind ${accountKind}` : '',
+    `--relay-url ${relayUrl} --wait-relay --prompt-code`
+  ]
+    .filter(Boolean)
+    .join(' ');
   return appendPaymasterMode(command, paymasterMode);
 }
 

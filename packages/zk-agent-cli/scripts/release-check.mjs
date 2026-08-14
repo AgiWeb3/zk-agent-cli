@@ -639,7 +639,8 @@ function assertWalletRequestHelpContract(helpOutput) {
   const requiredSnippets = [
     'Wallet request path:',
     'Colocated browser + terminal: zk-agent wallet request await-local --request-id <id>',
-    'Remote relay completion: zk-agent wallet request relay-publish --request-id <id> --relay-url <url> zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+    'Remote relay completion: zk-agent wallet request relay-publish --request-id <id> --relay-url <url> zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait',
+    'If relay-status returns status = expired: zk-agent relay inspect --relay-url <url> zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -806,6 +807,10 @@ function assertOperatorJsonContract(doc) {
     [
       /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`/,
       'Operator JSON contract doc must describe the tokenized workflow discovery follow-up contract.'
+    ],
+    [
+      /## `zk-agent wallet request relay-status`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`relay`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*Current stable `relay` fields:[\s\S]*`request_id`[\s\S]*`status`[\s\S]*`approval_ready`[\s\S]*`share_url`[\s\S]*`status_url`[\s\S]*`approval_url`[\s\S]*`expires_at`[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"reissueRemoteApproval": "zk-agent wallet reapprove --name main --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"/,
+      'Operator JSON contract doc must describe the wallet request relay-status recovery contract.'
     ],
     [
       /## `zk-agent agent \*`[\s\S]*### `agent status\|show`[\s\S]*`ok`[\s\S]*`plugin`[\s\S]*`profileExists`[\s\S]*`profile`[\s\S]*`recommendedCommands`[\s\S]*"status": "zk-agent agent status"[\s\S]*"show": "zk-agent agent show"[\s\S]*"export": "zk-agent agent export"[\s\S]*"import": "zk-agent agent import --payload @agent-profile\.json"[\s\S]*"set": "zk-agent agent set --name <name> --wallet main"/,

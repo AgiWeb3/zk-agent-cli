@@ -74,12 +74,16 @@ function relayStatusResponse(
   record: RelayRequestRecord
 ): RelayStatusResponse {
   const sanitized = sanitizeRelayRecord(record);
+  const shareUrl = relayShareUrl(baseUrl, sanitized.request_id);
+  const statusUrl = relayStatusUrl(baseUrl, sanitized.request_id);
 
   return {
     request_id: sanitized.request_id,
     status: relayStatus(record),
     approval_ready: Boolean(record.encrypted_payload),
-    approval_url: `${baseUrl}/r/${sanitized.request_id}`,
+    share_url: shareUrl,
+    status_url: statusUrl,
+    approval_url: shareUrl,
     expires_at: sanitized.expires_at,
     request: sanitized.request,
     approval_submitted_at: sanitized.approval_submitted_at

@@ -238,6 +238,14 @@ Unless priorities change, the next concrete slices should be:
      one-shot remote-approval path with `--wait-relay --prompt-code`, and the
      agent-tool registry metadata now matches that hosted reapproval story
    - current baseline improvement:
+     the relay/manual-approval recovery contract is now explicit across both
+     `wallet request relay-status` and `wallet create|reapprove --wait-relay`:
+     ready state points at `wallet request approve`, expired state points at
+     `relay inspect` plus remote request reissue, and timeout errors now carry
+     the concrete `relay-status` / `approve` follow-up commands with stable
+     error codes and detail fields, instead of leaving the operator in a dead
+     end or forcing JSON consumers to parse concatenated strings
+   - current baseline improvement:
      root help, `next --help`, `wallet --help`, the root README, the packaged
      CLI README, and the primary repo skills now all describe the same
      local-first operator baseline, including the explicit `zk-agent next`
@@ -287,7 +295,8 @@ Unless priorities change, the next concrete slices should be:
      from relay or connector regressions
    - expected observable result:
      a real hosted manual-approval run no longer surprises the operator with
-     hidden prompts, drifting approval codes, or false-negative DNS failures
+     hidden prompts, self-looping expired states, timeout dead ends, drifting
+     approval codes, or false-negative DNS failures
 6. resume broader DeFi breadth only by explicit decision
    - keep swap/deposit/withdraw breadth out of the default mainline until the
      product direction reopens that work intentionally

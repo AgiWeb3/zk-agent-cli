@@ -59,6 +59,7 @@ import {
 } from '@zk-agent/account-profiles';
 
 import {
+  AgentError,
   buildLocalExecutionAuthority,
   parseSessionPolicyPreset,
   migrateWalletSessionRecord,
@@ -113,10 +114,12 @@ import {
 } from '../lib/io.js';
 import { buildWalletSubcommandPreviewNextCommand } from '../lib/preview-next-command.js';
 import {
+  buildRelayInspectRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
   buildWalletRequestApproveRecommendedCommand,
   buildWalletRequestAwaitLocalRecommendedCommand,
   buildWalletCreateRecommendedCommand,
+  buildWalletCreateRemoteRecommendedCommand,
   buildWalletListRecommendedCommand,
   buildWalletNextRecommendedCommand,
   buildWalletRequestRelayApproveRecommendedCommand,
@@ -128,7 +131,8 @@ import {
   buildWalletSignerRemoveRecommendedCommand,
   buildWalletSignerShowRecommendedCommand,
   buildWalletStatusRecommendedCommand,
-  buildWalletReapproveRecommendedCommand
+  buildWalletReapproveRecommendedCommand,
+  buildWalletReapproveRemoteRecommendedCommand
 } from '../lib/recommended-commands.js';
 import {
   fetchRelayApproval,
@@ -2162,6 +2166,193 @@ function buildPendingRequestNextAction(
   return recommendedCommands.relayStatus ?? recommendedCommands.awaitLocal;
 }
 
+async function buildRelayStatusFollowUp(options: {
+  relay: RelayStatusResponse;
+  relayUrl: string;
+}): Promise<{
+  nextAction: string;
+  recommendedCommands: Record<string, string>;
+  note?: string;
+}> {
+  if (options.relay.status === 'expired') {
+    return await buildRelayExpiredRecoveryCommands({
+      walletName: options.relay.request?.walletName,
+      relayUrl: options.relayUrl,
+      paymasterMode: options.relay.request?.requestedPaymasterMode,
+      accountKind: options.relay.request?.requestedAccountKind
+    });
+  }
+
+  if (options.relay.approval_ready) {
+    const approve = buildWalletRequestRelayApproveRecommendedCommand(
+      options.relay.request_id,
+      options.relayUrl
+    );
+    return {
+      nextAction: approve,
+      recommendedCommands: {
+        status: buildWalletRequestRelayStatusRecommendedCommand(
+          options.relay.request_id,
+          options.relayUrl
+        ),
+        approve
+      }
+    };
+  }
+
+  return {
+    nextAction: buildWalletRequestRelayStatusRecommendedCommand(
+      options.relay.request_id,
+      options.relayUrl
+    ),
+    recommendedCommands: {
+      status: buildWalletRequestRelayStatusRecommendedCommand(
+        options.relay.request_id,
+        options.relayUrl
+      )
+    }
+  };
+}
+
+async function buildRelayExpiredRecoveryCommands(options: {
+  walletName?: string;
+  relayUrl: string;
+  paymasterMode?: PaymasterMode;
+  accountKind?: AccountKind;
+}): Promise<{
+  nextAction: string;
+  recommendedCommands: Record<string, string>;
+  note: string;
+}> {
+  const relayInspect = buildRelayInspectRecommendedCommand(options.relayUrl);
+  const walletName = options.walletName?.trim();
+
+  if (!walletName) {
+    return {
+      nextAction: relayInspect,
+      recommendedCommands: {
+        relayInspect
+      },
+      note:
+        'Relay approval expired. Inspect the hosted relay, then reissue the wallet request again.'
+    };
+  }
+
+  const existingWallet = await loadWalletSession(walletName);
+  const reissueRemoteApproval = existingWallet
+    ? buildWalletReapproveRemoteRecommendedCommand(walletName, options.relayUrl)
+    : buildWalletCreateRemoteRecommendedCommand(
+        options.relayUrl,
+        options.paymasterMode,
+        walletName,
+        options.accountKind
+      );
+
+  return {
+    nextAction: reissueRemoteApproval,
+    recommendedCommands: {
+      relayInspect,
+      reissueRemoteApproval
+    },
+    note:
+      'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
+  };
+}
+
+function buildRelayApprovalTimeoutError(options: {
+  requestId: string;
+  relayUrl: string;
+  timeoutMs: number;
+  intervalMs: number;
+}): AgentError {
+  const statusCommand = buildWalletRequestRelayStatusRecommendedCommand(
+    options.requestId,
+    options.relayUrl
+  );
+  const approveCommand = buildWalletRequestRelayApproveRecommendedCommand(
+    options.requestId,
+    options.relayUrl
+  );
+
+  return new AgentError(
+    'RELAY_APPROVAL_TIMEOUT',
+    `Timed out waiting for relay approval after ${Math.ceil(options.timeoutMs / 1000)} seconds.`,
+    {
+      requestId: options.requestId,
+      relayUrl: options.relayUrl,
+      timeoutMs: options.timeoutMs,
+      intervalMs: options.intervalMs,
+      retryable: true,
+      statusCommand,
+      approveCommand,
+      suggestedAction:
+        'Check the current relay status, then finalize the wallet approval once approval_ready=true.'
+    }
+  );
+}
+
+async function buildRelayApprovalExpiredError(options: {
+  requestId: string;
+  relayUrl: string;
+  walletName?: string;
+  paymasterMode?: PaymasterMode;
+  accountKind?: AccountKind;
+}): Promise<AgentError> {
+  const recovery = await buildRelayExpiredRecoveryCommands({
+    walletName: options.walletName,
+    relayUrl: options.relayUrl,
+    paymasterMode: options.paymasterMode,
+    accountKind: options.accountKind
+  });
+
+  return new AgentError(
+    'RELAY_APPROVAL_EXPIRED',
+    `Relay approval expired before the encrypted payload was ready for request ${options.requestId}.`,
+    {
+      requestId: options.requestId,
+      relayUrl: options.relayUrl,
+      retryable: true,
+      note: recovery.note,
+      relayInspectCommand: recovery.recommendedCommands.relayInspect,
+      reissueRemoteApprovalCommand: recovery.recommendedCommands.reissueRemoteApproval,
+      suggestedAction:
+        'Inspect the hosted relay, then reissue the remote approval request.'
+    }
+  );
+}
+
+function buildRelayApprovalNotReadyError(options: {
+  requestId: string;
+  relayUrl: string;
+  status: string;
+  approvalReady: boolean;
+}): AgentError {
+  const statusCommand = buildWalletRequestRelayStatusRecommendedCommand(
+    options.requestId,
+    options.relayUrl
+  );
+  const approveCommand = buildWalletRequestRelayApproveRecommendedCommand(
+    options.requestId,
+    options.relayUrl
+  );
+
+  return new AgentError(
+    'RELAY_APPROVAL_NOT_READY',
+    `Relay approval is not ready yet for request ${options.requestId}.`,
+    {
+      requestId: options.requestId,
+      relayUrl: options.relayUrl,
+      status: options.status,
+      approvalReady: options.approvalReady,
+      retryable: true,
+      statusCommand,
+      approveCommand,
+      suggestedAction:
+        'Check the current relay status, then retry approval once approval_ready=true.'
+    }
+  );
+}
+
 function buildRequestListEntryRecommendedCommands(
   walletName: string,
   requestId: string,
@@ -2380,13 +2571,21 @@ async function fetchEncryptedRelayApprovalPayload(
       intervalMs: options.intervalMs ?? 2_000
     });
     if (!relay.approval_ready) {
-      throw new Error(`Relay approval expired before the encrypted payload was ready for request ${requestId}.`);
+      throw await buildRelayApprovalExpiredError({
+        requestId,
+        relayUrl
+      });
     }
   }
 
   const approval = await fetchRelayApproval(relayUrl, requestId);
   if (!approval.approval_ready || !approval.encrypted_payload) {
-    throw new Error(`Relay approval is not ready yet for request ${requestId}.`);
+    throw buildRelayApprovalNotReadyError({
+      requestId,
+      relayUrl,
+      status: approval.status,
+      approvalReady: approval.approval_ready
+    });
   }
 
   return approval.encrypted_payload;
@@ -2403,15 +2602,42 @@ async function finalizePublishedRelayWalletRequest(options: {
   payload: SessionPayload;
   walletRecord: WalletSessionRecord;
 }> {
-  const encryptedPayload = await fetchEncryptedRelayApprovalPayload(
-    options.relayUrl,
-    options.walletRequest.requestId,
-    {
-      wait: true,
-      timeoutMs: options.timeoutMs,
-      intervalMs: options.intervalMs
+  let encryptedPayload: EncryptedPayload;
+  try {
+    encryptedPayload = await fetchEncryptedRelayApprovalPayload(
+      options.relayUrl,
+      options.walletRequest.requestId,
+      {
+        wait: true,
+        timeoutMs: options.timeoutMs,
+        intervalMs: options.intervalMs
+      }
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Timed out waiting for relay approval after ')
+    ) {
+      throw buildRelayApprovalTimeoutError({
+        requestId: options.walletRequest.requestId,
+        relayUrl: options.relayUrl,
+        timeoutMs: options.timeoutMs,
+        intervalMs: options.intervalMs
+      });
     }
-  );
+
+    if (error instanceof AgentError && error.code === 'RELAY_APPROVAL_EXPIRED') {
+      throw await buildRelayApprovalExpiredError({
+        requestId: options.walletRequest.requestId,
+        walletName: options.walletRequest.walletName,
+        relayUrl: options.relayUrl,
+        paymasterMode: options.walletRequest.requestedPaymasterMode,
+        accountKind: options.walletRequest.requestedAccountKind
+      });
+    }
+
+    throw error;
+  }
   const code = options.code || (options.promptCode ? await readApprovalCodeFromStdin() : undefined);
   if (!code) {
     throw new Error('Missing relay approval code.');
@@ -2965,7 +3191,11 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '  Remote relay completion:',
       '    zk-agent wallet request relay-publish --request-id <id> --relay-url <url>',
       '    zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait',
-      '    zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+      '    zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait',
+      '',
+      '  If relay-status returns status = expired:',
+      '    zk-agent relay inspect --relay-url <url>',
+      '    zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code'
     ].join('\n')
   );
 
@@ -3914,49 +4144,60 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .option('--timeout-seconds <seconds>', 'How long to wait while polling relay status', '600')
     .option('--interval-ms <milliseconds>', 'How often to poll relay status while waiting', '2000')
     .action(async (options: { requestId: string; relayUrl: string; wait?: boolean; timeoutSeconds?: string; intervalMs?: string }) => {
-      const relay = options.wait
-        ? await waitForRelayApprovalReady(options.relayUrl, options.requestId, {
-            timeoutMs: parsePositiveIntegerOption(options.timeoutSeconds, '--timeout-seconds', 600) * 1000,
-            intervalMs: parsePositiveIntegerOption(options.intervalMs, '--interval-ms', 2000)
-          })
-        : await fetchRelayStatus(options.relayUrl, options.requestId);
+      const timeoutMs = parsePositiveIntegerOption(options.timeoutSeconds, '--timeout-seconds', 600) * 1000;
+      const intervalMs = parsePositiveIntegerOption(options.intervalMs, '--interval-ms', 2000);
+      let relay: RelayStatusResponse;
+      try {
+        relay = options.wait
+          ? await waitForRelayApprovalReady(options.relayUrl, options.requestId, {
+              timeoutMs,
+              intervalMs
+            })
+          : await fetchRelayStatus(options.relayUrl, options.requestId);
+      } catch (error) {
+        if (
+          options.wait &&
+          error instanceof Error &&
+          error.message.startsWith('Timed out waiting for relay approval after ')
+        ) {
+          throw buildRelayApprovalTimeoutError({
+            requestId: options.requestId,
+            relayUrl: options.relayUrl,
+            timeoutMs,
+            intervalMs
+          });
+        }
+        throw error;
+      }
+      const followUp = await buildRelayStatusFollowUp({
+        relay,
+        relayUrl: options.relayUrl
+      });
 
       printResult(
         [
           ['status', relay.status],
           ['request', relay.request_id],
           ['approval ready', relay.approval_ready ? 'yes' : 'no'],
-          ['share url', relay.approval_url],
-          ['share-link base', relay.approval_url.replace(/\/[^/]+$/, '')],
-          ['status api base', `${relay.approval_url.replace(/\/r\/[^/]+$/, '')}/api/requests`],
+          ['share url', relay.share_url],
+          ['status url', relay.status_url],
+          ['approval url', relay.approval_url],
+          ['share-link base', relay.share_url.replace(/\/[^/]+$/, '')],
+          ['status api base', relay.status_url.replace(/\/[^/]+$/, '')],
           ['expires', relay.expires_at],
-          ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
-          ...(relay.approval_ready
-            ? [[
-                'next approve',
-                buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
-              ] as [string, string]]
-            : [])
+          ...(followUp.note ? [['note', followUp.note] as [string, string]] : []),
+          ...Object.entries(followUp.recommendedCommands).map(
+            ([label, command]) => [label, command] as [string, string]
+          )
         ],
         {
           ok: true,
           walletRequestId: relay.request_id,
           relay,
           ...relayOutputAliases(relay),
-          nextAction: relay.approval_ready
-            ? buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
-            : buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
-          recommendedCommands: {
-            status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
-            ...(relay.approval_ready
-              ? {
-                  approve: buildWalletRequestRelayApproveRecommendedCommand(
-                    relay.request_id,
-                    options.relayUrl
-                  )
-                }
-              : {})
-          }
+          nextAction: followUp.nextAction,
+          recommendedCommands: followUp.recommendedCommands,
+          ...(followUp.note ? { note: followUp.note } : {})
         }
       );
     });
