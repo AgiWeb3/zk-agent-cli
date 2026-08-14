@@ -2166,6 +2166,51 @@ function buildPendingRequestNextAction(
   return recommendedCommands.relayStatus ?? recommendedCommands.awaitLocal;
 }
 
+export function buildRelayWaitGuidanceLines(options: {
+  requestId: string;
+  walletName: string;
+  relay: RelayCreateResponse | RelayStatusResponse;
+  expiresAt: string;
+  codeEntry: 'prompt' | 'provided';
+  statusCommand: string;
+  approveCommand: string;
+}): Array<[string, string]> {
+  return [
+    ['status', 'Waiting for relay approval'],
+    ['request', options.requestId],
+    ['wallet', options.walletName],
+    ['share url', options.relay.share_url],
+    ['status url', options.relay.status_url],
+    ['approval url', options.relay.approval_url],
+    ['expires', options.expiresAt],
+    ['browser step', 'Open the share url in a browser and complete connector approval.'],
+    [
+      'terminal step',
+      options.codeEntry === 'prompt'
+        ? 'After the relay is ready, enter the 6-digit approval code in this terminal.'
+        : 'The CLI will finalize automatically with the provided 6-digit approval code once the relay is ready.'
+    ],
+    ['fallback status', options.statusCommand],
+    ['fallback approve', options.approveCommand]
+  ];
+}
+
+function printRelayWaitGuidance(options: {
+  requestId: string;
+  walletName: string;
+  relay: RelayCreateResponse | RelayStatusResponse;
+  expiresAt: string;
+  codeEntry: 'prompt' | 'provided';
+  statusCommand: string;
+  approveCommand: string;
+}): void {
+  if (shouldJsonOutput()) return;
+
+  for (const [label, value] of buildRelayWaitGuidanceLines(options)) {
+    humanLine(label, value);
+  }
+}
+
 async function buildRelayStatusFollowUp(options: {
   relay: RelayStatusResponse;
   relayUrl: string;
@@ -3351,6 +3396,23 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         : undefined;
 
       if (relayWaitOptions) {
+        if (relay) {
+          printRelayWaitGuidance({
+            requestId: request.requestId,
+            walletName: request.walletName,
+            relay,
+            expiresAt: request.expiresAt,
+            codeEntry: relayWaitOptions.promptCode ? 'prompt' : 'provided',
+            statusCommand: buildWalletRequestRelayStatusRecommendedCommand(
+              request.requestId,
+              relayWaitOptions.relayUrl
+            ),
+            approveCommand: buildWalletRequestRelayApproveRecommendedCommand(
+              request.requestId,
+              relayWaitOptions.relayUrl
+            )
+          });
+        }
         const { payload, walletRecord } = await finalizePublishedRelayWalletRequest({
           walletRequest: request,
           ...relayWaitOptions
@@ -3554,6 +3616,23 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         : undefined;
 
       if (relayWaitOptions) {
+        if (relay) {
+          printRelayWaitGuidance({
+            requestId: request.requestId,
+            walletName: request.walletName,
+            relay,
+            expiresAt: request.expiresAt,
+            codeEntry: relayWaitOptions.promptCode ? 'prompt' : 'provided',
+            statusCommand: buildWalletRequestRelayStatusRecommendedCommand(
+              request.requestId,
+              relayWaitOptions.relayUrl
+            ),
+            approveCommand: buildWalletRequestRelayApproveRecommendedCommand(
+              request.requestId,
+              relayWaitOptions.relayUrl
+            )
+          });
+        }
         const { payload, walletRecord: approvedWallet } = await finalizePublishedRelayWalletRequest({
           walletRequest: request,
           ...relayWaitOptions
@@ -4233,6 +4312,25 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       }
       if (options.wait && !options.relayUrl) {
         throw new Error('--wait is only supported together with --relay-url.');
+      }
+
+      if (options.wait && options.relayUrl && !shouldJsonOutput()) {
+        const relayStatus = await fetchRelayStatus(options.relayUrl, walletRequest.requestId);
+        printRelayWaitGuidance({
+          requestId: walletRequest.requestId,
+          walletName: walletRequest.walletName,
+          relay: relayStatus,
+          expiresAt: walletRequest.expiresAt,
+          codeEntry: 'provided',
+          statusCommand: buildWalletRequestRelayStatusRecommendedCommand(
+            walletRequest.requestId,
+            options.relayUrl
+          ),
+          approveCommand: buildWalletRequestRelayApproveRecommendedCommand(
+            walletRequest.requestId,
+            options.relayUrl
+          )
+        });
       }
 
       const payload = options.payload
