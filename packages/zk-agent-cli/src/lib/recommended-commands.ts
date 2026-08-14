@@ -28,6 +28,18 @@ export function buildWalletCreateRecommendedCommand(): string {
   return 'zk-agent wallet create --await-local';
 }
 
+export function buildRelayInspectRecommendedCommand(relayUrl = '<url>'): string {
+  return `zk-agent relay inspect --relay-url ${relayUrl}`;
+}
+
+export function buildWalletCreateRemoteRecommendedCommand(
+  relayUrl = '<url>',
+  paymasterMode?: PaymasterMode
+): string {
+  const command = `zk-agent wallet create --relay-url ${relayUrl} --wait-relay --prompt-code`;
+  return appendPaymasterMode(command, paymasterMode);
+}
+
 export function buildWalletListRecommendedCommand(): string {
   return 'zk-agent wallet list';
 }
@@ -138,6 +150,13 @@ export function buildDiscoveryRecommendedCommands(input: {
 
 export function buildWalletReapproveRecommendedCommand(walletName: string): string {
   return `zk-agent wallet reapprove --name ${walletName} --await-local`;
+}
+
+export function buildWalletReapproveRemoteRecommendedCommand(
+  walletName: string,
+  relayUrl = '<url>'
+): string {
+  return `zk-agent wallet reapprove --name ${walletName} --relay-url ${relayUrl} --wait-relay --prompt-code`;
 }
 
 export function buildWalletNextRecommendedCommand(walletName: string): string {

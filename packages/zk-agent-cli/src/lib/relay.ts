@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { storageDir } from '@zk-agent/agent-core';
 import type {
   RelayCapability,
+  RelayDeploymentScope,
   EncryptedPayload,
   RelayApprovalResponse,
   RelayApprovalSubmitRequest,
@@ -14,6 +15,7 @@ import type {
   RelayHealthResponse,
   RelayPublicOriginSource,
   RelayRequestRecord,
+  RelayStateBackend,
   RelayRequestStatus,
   RelayStatusResponse
 } from '@zk-agent/agent-session-protocol';
@@ -24,6 +26,8 @@ const RELAY_BODY_LIMIT_BYTES = 1024 * 1024;
 const RELAY_SERVICE = 'zk-agent-relay';
 const RELAY_PROTOCOL = 'zk-agent-session-relay';
 const RELAY_SCHEMA_VERSION = 1;
+const RELAY_STATE_BACKEND: RelayStateBackend = 'local-filesystem';
+const RELAY_DEPLOYMENT_SCOPE: RelayDeploymentScope = 'single-host';
 
 function relayDir(): string {
   const directory = path.join(storageDir(), 'relay');
@@ -201,6 +205,9 @@ function relayHealthResponse(
     origin: normalizeRelayBaseUrl(bindBaseUrl),
     public_origin: normalizeRelayBaseUrl(publicBaseUrl),
     public_origin_source: publicOriginSource,
+    state_backend: RELAY_STATE_BACKEND,
+    deployment_scope: RELAY_DEPLOYMENT_SCOPE,
+    same_host_restart_persists: true,
     connector_ui_available: connectorUiAvailable,
     capabilities: relayCapabilities(connectorUiAvailable)
   };

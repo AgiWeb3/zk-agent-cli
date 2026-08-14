@@ -88,10 +88,17 @@ What to rely on:
 - `origin` stays the relay's local bind origin
 - `publicOriginLooksLocal = false`
 - `publicOrigin` is the externally reachable share/status origin
+- `stateBackend = local-filesystem`
+- `deploymentScope = single-host`
+- `sameHostRestartPersists = true`
 - `connectorUiAvailable = true`
 - `hostedShareRedirectReady = true`
 
 If any of those fail, do not treat the relay as hosted-ready yet.
+
+The current prototype is still single-host only: request state lives on the
+relay host local filesystem, same-host process restarts keep that state, and
+multi-instance or load-balanced deployments do not share it.
 
 ## Outside-in hosted validation
 

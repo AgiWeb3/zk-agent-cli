@@ -944,6 +944,25 @@ export function createAssetsCommand(deps?: Partial<BalancesCommandDeps>): Comman
 
   return new Command('assets')
     .description('Fetch the preferred single-chain asset view with native balance plus registry-backed ERC-20 holdings')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Discovery asset path:',
+        '  Preferred single-chain asset entrypoint:',
+        '    zk-agent assets --wallet main',
+        '',
+        '  Narrower owned ERC-20 registry subset:',
+        '    zk-agent tokens --wallet main --owned',
+        '',
+        '  Symbol-first token lookup before a tokenized command:',
+        '    zk-agent tokens --chain zksync-sepolia --symbol USDC',
+        '    zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+        '',
+        '  For the machine-readable registry/default catalog:',
+        '    zk-agent defaults'
+      ].join('\n')
+    )
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--chain <chain>', 'Single chain override')
     .action(async (options: AssetsCommandOptions) => {

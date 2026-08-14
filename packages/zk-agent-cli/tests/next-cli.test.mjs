@@ -260,6 +260,7 @@ test('top-level next recommends setup when local config is missing', async () =>
     assert.equal(result.agentFollowup.nextAction, 'zk-agent agent set --name <name>');
     assert.deepEqual(result.recommendedCommands, {
       setup: 'zk-agent setup',
+      afterSetup: 'zk-agent next',
       inspectDefaults: 'zk-agent defaults'
     });
   } finally {
@@ -285,6 +286,9 @@ test('top-level next recommends wallet creation when config exists but the walle
     assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name>');
     assert.deepEqual(result.recommendedCommands, {
       createWallet: 'zk-agent wallet create --await-local',
+      relayInspect: 'zk-agent relay inspect --relay-url <url>',
+      createWalletRemote:
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
       afterApproval: 'zk-agent next',
       inspectDefaults: 'zk-agent defaults'
     });
@@ -307,6 +311,9 @@ test('top-level next preserves an explicit paymaster override in wallet-bootstra
     assert.equal(result.scope, 'wallet-bootstrap');
     assert.deepEqual(result.recommendedCommands, {
       createWallet: 'zk-agent wallet create --await-local --paymaster-mode sponsored',
+      relayInspect: 'zk-agent relay inspect --relay-url <url>',
+      createWalletRemote:
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code --paymaster-mode sponsored',
       afterApproval: 'zk-agent next --paymaster-mode sponsored',
       inspectDefaults: 'zk-agent defaults'
     });

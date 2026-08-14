@@ -92,10 +92,10 @@ The repo is already past scaffolding. The current stable baseline is:
 
 2. Release, versioning, and documentation discipline are still more manual than
    the reference.
-   - `zk-agent-cli@0.1.0-beta.7` is now live and both npm dist-tags `beta` and
-     `latest` point there
+   - the current public beta is already live on npm and both dist-tags point
+     at it
    - but the release path still depends on manual version bumps, manual npm
-   publish, manual dist-tag handling, and manual repo-doc sync
+     publish, manual dist-tag handling, and manual repo-doc sync
    - the remaining gap is one canonical public release contract that keeps the
      live npm version, install docs, CLI help, skills, and state docs aligned
 
@@ -108,6 +108,11 @@ The repo is already past scaffolding. The current stable baseline is:
      expect more local knowledge from the operator than they should
    - the remaining gap is richer symbol-first discovery and clearer validated
      token/default coverage around the canonical Sepolia paths
+   - current baseline improvement:
+     the packaged CLI, README/skills, and release gate now all point at the
+     same discovery/defaults contract:
+     `defaults`, `assets`, `tokens`, `resolve-token`, and the matching
+     `workflow --help` token-recovery path
 
 4. Zero-setup onboarding and public install entrypoint are materially better,
    but still need maintenance discipline.
@@ -117,6 +122,17 @@ The repo is already past scaffolding. The current stable baseline is:
      release, especially around first-run environment expectations:
      setup, connector locality, relay fallback, and when `.env` is actually
      required
+   - current baseline improvement:
+     `setup`, top-level `next`, root help, the packaged README, and the main
+     skills now all surface the same first-run fork between local
+     `--await-local` approval and relay-backed remote approval, and now say
+     explicitly that a custom `.env` is usually not required until live reads
+     or broadcasts
+   - current baseline improvement:
+     the release gate now also locks the hosted relay fallback, optional local
+     `agent` profile path, nested wallet help surfaces, direct-command help
+     surfaces, and the machine-readable `agent status --json` contract so
+     those public entrypoints do not drift after publish
 
 5. Ecosystem integrations are still intentionally behind.
    - the local Polygon reference ships explicit product verticals such as
@@ -205,6 +221,12 @@ Unless priorities change, the next concrete slices should be:
      `publicOrigin` is explicitly configured or only a bind-origin default,
      so proxy/tunnel deployments are less ambiguous in both JSON and TTY
      guidance
+   - current baseline improvement:
+     `/health`, `relay serve`, and `relay inspect` now also expose explicit
+     `stateBackend`, `deploymentScope`, and `sameHostRestartPersists`
+     semantics for the file-backed prototype, so operators can tell that the
+     hosted path is single-host local-filesystem state instead of guessing
+     restart or load-balancer behavior
    - current baseline improvement:
      relay-backed wallet create/reapprove outputs, workflow approval outputs,
      agent-tool workflow wrappers, and manual remote-approval smoke results

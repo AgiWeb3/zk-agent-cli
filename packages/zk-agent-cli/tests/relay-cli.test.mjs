@@ -229,6 +229,9 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.match(result.origin, /^http:\/\/127\.0\.0\.1:\d+$/);
     assert.equal(result.publicOrigin, result.origin);
     assert.equal(result.publicOriginSource, 'bind-origin-default');
+    assert.equal(result.stateBackend, 'local-filesystem');
+    assert.equal(result.deploymentScope, 'single-host');
+    assert.equal(result.sameHostRestartPersists, true);
     assert.equal(result.shareLinkBaseUrl, `${result.origin}/r`);
     assert.equal(result.statusApiBaseUrl, `${result.origin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, true);
@@ -264,6 +267,9 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(health.origin, result.origin);
     assert.equal(health.public_origin, result.origin);
     assert.equal(health.public_origin_source, 'bind-origin-default');
+    assert.equal(health.state_backend, 'local-filesystem');
+    assert.equal(health.deployment_scope, 'single-host');
+    assert.equal(health.same_host_restart_persists, true);
     assert.equal(typeof health.connector_ui_available, 'boolean');
     assert.equal(Array.isArray(health.capabilities), true);
     assert.equal(health.capabilities.includes('create-request'), true);
@@ -280,6 +286,9 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, result.origin);
     assert.equal(inspected.publicOriginSource, 'bind-origin-default');
+    assert.equal(inspected.stateBackend, 'local-filesystem');
+    assert.equal(inspected.deploymentScope, 'single-host');
+    assert.equal(inspected.sameHostRestartPersists, true);
     assert.equal(inspected.shareLinkBaseUrl, `${result.origin}/r`);
     assert.equal(inspected.statusApiBaseUrl, `${result.origin}/api/requests`);
     assert.equal(inspected.relayUrlMatchesOrigin, true);
@@ -289,6 +298,12 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(
       inspected.notes.some((note) =>
         note.includes('still advertising its bind origin as the public origin')
+      ),
+      true
+    );
+    assert.equal(
+      inspected.notes.some((note) =>
+        note.includes('multi-instance or load-balanced deployments do not share relay state')
       ),
       true
     );
@@ -330,6 +345,9 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(result.ok, true);
     assert.equal(result.publicOrigin, publicOrigin);
     assert.equal(result.publicOriginSource, 'configured');
+    assert.equal(result.stateBackend, 'local-filesystem');
+    assert.equal(result.deploymentScope, 'single-host');
+    assert.equal(result.sameHostRestartPersists, true);
     assert.equal(result.shareLinkBaseUrl, `${publicOrigin}/r`);
     assert.equal(result.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, false);
@@ -376,6 +394,9 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(proxiedHealth.body.origin, result.origin);
     assert.equal(proxiedHealth.body.public_origin, publicOrigin);
     assert.equal(proxiedHealth.body.public_origin_source, 'configured');
+    assert.equal(proxiedHealth.body.state_backend, 'local-filesystem');
+    assert.equal(proxiedHealth.body.deployment_scope, 'single-host');
+    assert.equal(proxiedHealth.body.same_host_restart_persists, true);
 
     const inspected = await runCliJson(['relay', 'inspect', '--relay-url', result.origin], env);
     assert.equal(inspected.ok, true);
@@ -384,6 +405,9 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(inspected.origin, result.origin);
     assert.equal(inspected.publicOrigin, publicOrigin);
     assert.equal(inspected.publicOriginSource, 'configured');
+    assert.equal(inspected.stateBackend, 'local-filesystem');
+    assert.equal(inspected.deploymentScope, 'single-host');
+    assert.equal(inspected.sameHostRestartPersists, true);
     assert.equal(inspected.shareLinkBaseUrl, `${publicOrigin}/r`);
     assert.equal(inspected.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(inspected.relayUrlMatchesOrigin, true);
@@ -408,6 +432,12 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(
       inspected.notes.some((note) =>
         note.includes('Share links and wallet approval commands will use the public origin')
+      ),
+      true
+    );
+    assert.equal(
+      inspected.notes.some((note) =>
+        note.includes('multi-instance or load-balanced deployments do not share relay state')
       ),
       true
     );

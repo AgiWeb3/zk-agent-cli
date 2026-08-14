@@ -2,8 +2,10 @@ import { Command } from 'commander';
 
 import type {
   RelayCapability,
+  RelayDeploymentScope,
   RelayHealthResponse,
-  RelayPublicOriginSource
+  RelayPublicOriginSource,
+  RelayStateBackend
 } from '@zk-agent/agent-session-protocol';
 
 import { humanLine, jsonOut, shouldJsonOutput } from '../lib/io.js';
@@ -49,6 +51,14 @@ function isRelayPublicOriginSource(value: unknown): value is RelayPublicOriginSo
   return value === 'configured' || value === 'bind-origin-default';
 }
 
+function isRelayStateBackend(value: unknown): value is RelayStateBackend {
+  return value === 'local-filesystem';
+}
+
+function isRelayDeploymentScope(value: unknown): value is RelayDeploymentScope {
+  return value === 'single-host';
+}
+
 function asRelayHealthResponse(value: unknown): RelayHealthResponse | null {
   if (!isRecord(value)) return null;
   if (value.ok !== true) return null;
@@ -61,6 +71,21 @@ function asRelayHealthResponse(value: unknown): RelayHealthResponse | null {
   if (
     typeof value.public_origin_source !== 'undefined' &&
     !isRelayPublicOriginSource(value.public_origin_source)
+  ) {
+    return null;
+  }
+  if (typeof value.state_backend !== 'undefined' && !isRelayStateBackend(value.state_backend)) {
+    return null;
+  }
+  if (
+    typeof value.deployment_scope !== 'undefined' &&
+    !isRelayDeploymentScope(value.deployment_scope)
+  ) {
+    return null;
+  }
+  if (
+    typeof value.same_host_restart_persists !== 'undefined' &&
+    typeof value.same_host_restart_persists !== 'boolean'
   ) {
     return null;
   }
@@ -129,6 +154,22 @@ function inferRelayPublicOriginSource(options: {
   return normalizedOrigin === normalizedPublicOrigin ? 'bind-origin-default' : 'configured';
 }
 
+function inferRelayStateBackend(relayMode: RelayHealthResponse['relay_mode'] | null): RelayStateBackend | null {
+  return relayMode === 'local-file' ? 'local-filesystem' : null;
+}
+
+function inferRelayDeploymentScope(
+  relayMode: RelayHealthResponse['relay_mode'] | null
+): RelayDeploymentScope | null {
+  return relayMode === 'local-file' ? 'single-host' : null;
+}
+
+function inferSameHostRestartPersists(
+  relayMode: RelayHealthResponse['relay_mode'] | null
+): boolean | null {
+  return relayMode === 'local-file' ? true : null;
+}
+
 function relayHostedReadinessNotes(options: {
   compatible: boolean;
   publicOrigin: string;
@@ -159,6 +200,29 @@ function relayHostedReadinessNotes(options: {
   }
 
   return notes;
+}
+
+function relayOperationalContractNotes(options: {
+  compatible: boolean;
+  stateBackend: RelayStateBackend | null;
+  deploymentScope: RelayDeploymentScope | null;
+  sameHostRestartPersists: boolean | null;
+}): string[] {
+  if (!options.compatible) {
+    return [];
+  }
+
+  if (
+    options.stateBackend === 'local-filesystem' &&
+    options.deploymentScope === 'single-host' &&
+    options.sameHostRestartPersists === true
+  ) {
+    return [
+      'Relay state is stored on the relay host local filesystem. Restarts on the same host keep pending approval state, but multi-instance or load-balanced deployments do not share relay state.'
+    ];
+  }
+
+  return [];
 }
 
 function relayOriginRelationshipNotes(options: {
@@ -197,6 +261,9 @@ interface RelayInspectPayload {
   origin: string | null;
   publicOrigin: string;
   publicOriginSource: RelayPublicOriginSource | null;
+  stateBackend: RelayStateBackend | null;
+  deploymentScope: RelayDeploymentScope | null;
+  sameHostRestartPersists: boolean | null;
   shareLinkBaseUrl: string;
   statusApiBaseUrl: string;
   relayUrlMatchesOrigin: boolean | null;
@@ -225,6 +292,14 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
       origin: health?.origin || null,
       publicOrigin
     });
+  const stateBackend =
+    health?.state_backend || inferRelayStateBackend(health?.relay_mode || null);
+  const deploymentScope =
+    health?.deployment_scope || inferRelayDeploymentScope(health?.relay_mode || null);
+  const sameHostRestartPersists =
+    typeof health?.same_host_restart_persists === 'boolean'
+      ? health.same_host_restart_persists
+      : inferSameHostRestartPersists(health?.relay_mode || null);
   const compatible = Boolean(health && hasCoreRelayCapabilities(health.capabilities));
   const connectorUiAvailable = health?.connector_ui_available ?? null;
   const relayUrlMatchesOrigin = relayUrlMatches(relayUrl, health?.origin || null);
@@ -239,6 +314,12 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
       publicOrigin,
       publicOriginSource,
       connectorUiAvailable
+    }),
+    ...relayOperationalContractNotes({
+      compatible,
+      stateBackend,
+      deploymentScope,
+      sameHostRestartPersists
     }),
     ...relayOriginRelationshipNotes({
       relayUrl,
@@ -259,6 +340,9 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     origin: health?.origin || null,
     publicOrigin,
     publicOriginSource,
+    stateBackend,
+    deploymentScope,
+    sameHostRestartPersists,
     shareLinkBaseUrl,
     statusApiBaseUrl,
     relayUrlMatchesOrigin,
@@ -274,6 +358,24 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
 
 export function createRelayCommand(): Command {
   const relay = new Command('relay').description('Run the local connector relay prototype server');
+
+  relay.addHelpText(
+    'after',
+    [
+      '',
+      '  Hosted remote-approval path:',
+      '    zk-agent relay serve --public-origin https://relay.example.com',
+      '    zk-agent relay inspect --relay-url <url>',
+      '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+      '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+      '',
+      '  Keep `wallet create|reapprove --await-local` as the default baseline when',
+      '  the browser and terminal are colocated.',
+      '',
+      '  Use `relay inspect` before sending operators to a hosted share link so',
+      '  the public origin, connector UI, and hosted-readiness contract are visible.'
+    ].join('\n')
+  );
 
   relay
     .command('serve')
@@ -318,6 +420,9 @@ export function createRelayCommand(): Command {
         origin: server.origin,
         publicOrigin,
         publicOriginSource,
+        stateBackend: 'local-filesystem',
+        deploymentScope: 'single-host',
+        sameHostRestartPersists: true,
         shareLinkBaseUrl,
         statusApiBaseUrl,
         publicOriginLooksLocal,
@@ -348,6 +453,12 @@ export function createRelayCommand(): Command {
           humanLine('public origin', publicOrigin);
         }
         humanLine('public origin source', publicOriginSource);
+        humanLine('state backend', payload.stateBackend);
+        humanLine('deployment scope', payload.deploymentScope);
+        humanLine(
+          'same-host restart persists',
+          payload.sameHostRestartPersists ? 'yes' : 'no'
+        );
         humanLine('share-link base', shareLinkBaseUrl);
         humanLine('status api base', statusApiBaseUrl);
         humanLine('health', `${server.origin}/health`);
@@ -411,6 +522,18 @@ export function createRelayCommand(): Command {
       }
       if (payload.publicOriginSource) {
         humanLine('public origin source', payload.publicOriginSource);
+      }
+      if (payload.stateBackend) {
+        humanLine('state backend', payload.stateBackend);
+      }
+      if (payload.deploymentScope) {
+        humanLine('deployment scope', payload.deploymentScope);
+      }
+      if (payload.sameHostRestartPersists !== null) {
+        humanLine(
+          'same-host restart persists',
+          payload.sameHostRestartPersists ? 'yes' : 'no'
+        );
       }
       humanLine('share-link base', payload.shareLinkBaseUrl);
       humanLine('status api base', payload.statusApiBaseUrl);

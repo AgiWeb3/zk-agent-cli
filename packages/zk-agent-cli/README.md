@@ -86,6 +86,15 @@ zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
+If the browser is not colocated with the terminal, keep the same flow but
+replace the wallet-creation step with:
+
+```bash
+zk-agent relay inspect --relay-url <relay-url>
+zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
+zk-agent next
+```
+
 If a wallet already exists, inspect the blocker first. Use `wallet reapprove`
 when approval is missing or expired, then return to `zk-agent next`. Use
 `wallet signer attach` when approval is still present but the local execution
@@ -119,6 +128,52 @@ operator baseline.
 checkpoint, executes immediately when ready, reopens a missing writable session
 through the intent-scoped approval path, and defaults to the validated
 approval-based paymaster mode unless you override it.
+
+## Discovery Path
+
+Use the discovery surfaces in this order when a workflow or direct command
+needs token context:
+
+- `zk-agent assets --wallet main` for the preferred single-chain asset view
+- `zk-agent tokens --wallet main --owned` for the narrower owned ERC-20 subset
+- `zk-agent tokens --chain zksync-sepolia` and
+  `zk-agent resolve-token --chain zksync-sepolia --symbol USDC` for
+  symbol-first discovery before choosing an explicit token address
+- `zk-agent defaults` for the machine-readable registry/defaults catalog:
+  tracked token roles, paymaster metadata, source order, and validated/fallback
+  route metadata
+
+## Direct Command Escape Hatches
+
+Use the guided workflow layer first, but the lower-level direct commands now
+keep the same symbol/discovery contract:
+
+- `zk-agent send-token --wallet main --symbol USDC --to <address> --amount <amount>`
+- `zk-agent swap --wallet main --token-in-symbol USDC --token-out-symbol ETH --amount-in <amount>`
+- `zk-agent fund --wallet main --symbol USDC --amount <amount>`
+- `zk-agent deposit --wallet main --symbol USDC --amount <amount>`
+- `zk-agent withdraw --wallet main --symbol USDC --amount <amount>`
+
+Current direct-command behavior:
+
+- `send-token`, `fund`, `deposit`, and `withdraw` accept symbol-first token
+  resolution when the local registry can resolve the active chain token
+- `swap` follows the current registry-backed validated route by default when
+  `--protocol` is omitted
+- `bridge` can reuse the tracked default destination route when one is already
+  known for the current wallet chain
+
+## Local Agent Identity
+
+The local operator profile is optional. It helps agent harnesses and operators
+persist stable metadata, but wallet approval and workflow execution do not
+depend on it.
+
+Use:
+
+- `zk-agent agent status`
+- `zk-agent agent set --name "<operator-name>" --wallet main`
+- `zk-agent agent show`
 
 ## Remote Approval
 
@@ -160,7 +215,10 @@ reverse proxy, pass `--public-origin` so the emitted share/status URLs point at
 the externally reachable hosted URL instead of the local bind address. The
 published package now also ships the bundled connector UI build used by
 `relay serve`, so hosted share-link approval no longer depends on a separate
-source checkout just to serve the UI.
+source checkout just to serve the UI. `relay inspect` now also reports
+`stateBackend`, `deploymentScope`, and `sameHostRestartPersists` so the
+single-host local-filesystem constraint is explicit before you rely on a hosted
+URL.
 
 ## Local Storage
 

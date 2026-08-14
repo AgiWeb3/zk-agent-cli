@@ -81,16 +81,48 @@ test('setup command returns the default operator-path recommendations', async ()
 
     assert.equal(result.ok, true);
     assert.equal(result.config.defaultChain, 'zksync-sepolia');
+    assert.equal(result.recommendedCommands.next, 'zk-agent next');
     assert.equal(result.recommendedCommands.inspectDefaults, 'zk-agent defaults');
     assert.equal(result.recommendedCommands.createWallet, 'zk-agent wallet create --await-local');
+    assert.equal(result.recommendedCommands.relayInspect, 'zk-agent relay inspect --relay-url <url>');
+    assert.equal(
+      result.recommendedCommands.createWalletRemote,
+      'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code'
+    );
     assert.equal(result.recommendedCommands.afterWalletApproval, 'zk-agent next');
 
     const second = await runCliJson(['setup'], env);
     assert.equal(second.ok, true);
     assert.match(second.message, /Config already exists/);
+    assert.equal(second.recommendedCommands.next, 'zk-agent next');
     assert.equal(second.recommendedCommands.inspectDefaults, 'zk-agent defaults');
     assert.equal(second.recommendedCommands.createWallet, 'zk-agent wallet create --await-local');
+    assert.equal(second.recommendedCommands.relayInspect, 'zk-agent relay inspect --relay-url <url>');
+    assert.equal(
+      second.recommendedCommands.createWalletRemote,
+      'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code'
+    );
     assert.equal(second.recommendedCommands.afterWalletApproval, 'zk-agent next');
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('setup help explains the local-first path, relay fallback, and env boundary', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-setup-help-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['setup', '--help'], env);
+
+    assert.match(help, /What setup does:/);
+    assert.match(help, /Writes the local default chain and connector URL/);
+    assert.match(help, /zk-agent next/);
+    assert.match(help, /zk-agent wallet create --await-local/);
+    assert.match(help, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
+    assert.match(help, /No custom \.env is required for setup, next, or wallet request creation/);
+    assert.match(help, /Add RPC env vars later, before live reads or broadcasts/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -118,6 +150,11 @@ test('top-level help prints the default operator path around zk-agent next', asy
       help,
       /zk-agent workflow pay --wallet main --to <address> --amount <amount>/
     );
+    assert.match(
+      help,
+      /No custom \.env is required for setup, next, or wallet create\/reapprove request generation/
+    );
+    assert.match(help, /Add RPC env vars later, before live reads or broadcasts/);
     assert.match(help, /zk-agent next --request-id <id>/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(
@@ -145,6 +182,12 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     assert.match(help, /Fresh local-first routing:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent wallet create --await-local/);
+    assert.match(
+      help,
+      /If the browser is remote, switch at the wallet step instead of waiting for a local callback:/
+    );
+    assert.match(help, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
     assert.match(help, /zk-agent next --request-id <id>/);
     assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent wallet next --name main/);
@@ -169,6 +212,12 @@ test('workflow help prints the default workflow path', async () => {
     assert.match(help, /zk-agent workflow next --request-id <id>/);
     assert.match(help, /zk-agent workflow resume --request-id <id> \[--broadcast\]/);
     assert.match(help, /zk-agent workflow fund --wallet main --amount <amount> --execute/);
+    assert.match(help, /Token\/discovery recovery path:/);
+    assert.match(help, /zk-agent assets --wallet main/);
+    assert.match(help, /zk-agent tokens --wallet main --owned/);
+    assert.match(help, /zk-agent tokens --chain zksync-sepolia/);
+    assert.match(help, /zk-agent resolve-token --chain zksync-sepolia --symbol USDC/);
+    assert.match(help, /zk-agent defaults/);
     assert.match(help, /zk-agent workflow run --wallet main --intent <intent> \[goal flags\]/);
     assert.ok(help.indexOf('pay [options]') < help.indexOf('auto [options]'));
     assert.ok(help.indexOf('pay [options]') < help.indexOf('run [options]'));
@@ -243,6 +292,89 @@ test('wallet request, signer, and smart-account help surfaces are product-ordere
     assert.ok(smartAccountHelp.indexOf('\n  profiles') < smartAccountHelp.indexOf('\n  predict [options]'));
     assert.ok(smartAccountHelp.indexOf('\n  predict [options]') < smartAccountHelp.indexOf('\n  deploy [options]'));
     assert.ok(smartAccountHelp.indexOf('\n  deploy [options]') < smartAccountHelp.indexOf('\n  sed-lite'));
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('relay and agent help surfaces expose the public product contract', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-relay-agent-help-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+
+    const relayHelp = await runCliText(['relay', '--help'], env);
+    assert.match(relayHelp, /Hosted remote-approval path:/);
+    assert.match(relayHelp, /zk-agent relay serve --public-origin https:\/\/relay\.example\.com/);
+    assert.match(relayHelp, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(
+      relayHelp,
+      /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      relayHelp,
+      /zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      relayHelp,
+      /Keep `wallet create\|reapprove --await-local` as the default baseline/
+    );
+    assert.match(
+      relayHelp,
+      /Use `relay inspect` before sending operators to a hosted share link/
+    );
+
+    const agentHelp = await runCliText(['agent', '--help'], env);
+    assert.match(agentHelp, /Agent identity path:/);
+    assert.match(agentHelp, /zk-agent agent status/);
+    assert.match(agentHelp, /zk-agent agent set --name "SED Operator" --wallet main/);
+    assert.match(agentHelp, /zk-agent agent show/);
+    assert.match(agentHelp, /Portable local profile management:/);
+    assert.match(agentHelp, /zk-agent agent export/);
+    assert.match(agentHelp, /zk-agent agent import --payload @agent-profile\.json --overwrite/);
+    assert.match(agentHelp, /zk-agent agent clear/);
+    assert.match(
+      agentHelp,
+      /This profile is optional\. Wallet approval and workflow execution still work/
+    );
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('discovery help surfaces keep the asset/default/token contract visible', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-discovery-help-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+
+    const defaultsHelp = await runCliText(['defaults', '--help'], env);
+    assert.match(defaultsHelp, /Discovery defaults path:/);
+    assert.match(defaultsHelp, /zk-agent assets --wallet main/);
+    assert.match(defaultsHelp, /zk-agent tokens --chain zksync-sepolia/);
+    assert.match(defaultsHelp, /zk-agent resolve-token --chain zksync-sepolia --symbol USDC/);
+
+    const assetsHelp = await runCliText(['assets', '--help'], env);
+    assert.match(assetsHelp, /Discovery asset path:/);
+    assert.match(assetsHelp, /zk-agent assets --wallet main/);
+    assert.match(assetsHelp, /zk-agent tokens --wallet main --owned/);
+    assert.match(assetsHelp, /zk-agent defaults/);
+
+    const tokensHelp = await runCliText(['tokens', '--help'], env);
+    assert.match(tokensHelp, /Discovery token path:/);
+    assert.match(tokensHelp, /zk-agent assets --wallet main/);
+    assert.match(tokensHelp, /zk-agent tokens --wallet main --owned/);
+    assert.match(tokensHelp, /zk-agent tokens --chain zksync-sepolia --symbol USDC/);
+    assert.match(tokensHelp, /zk-agent resolve-token --chain zksync-sepolia --symbol USDC/);
+    assert.match(tokensHelp, /zk-agent defaults/);
+
+    const resolveHelp = await runCliText(['resolve-token', '--help'], env);
+    assert.match(resolveHelp, /Resolve-token path:/);
+    assert.match(resolveHelp, /zk-agent resolve-token --chain zksync-sepolia --symbol USDC/);
+    assert.match(resolveHelp, /zk-agent resolve-token --wallet main --symbol USDC/);
+    assert.match(resolveHelp, /zk-agent tokens --chain zksync-sepolia/);
+    assert.match(resolveHelp, /zk-agent assets --wallet main/);
+    assert.match(resolveHelp, /zk-agent defaults/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

@@ -2,12 +2,11 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-11
-- Latest commit at write time: `fb53dca`
+- Last updated: 2026-08-14
+- Latest commit at write time: `ac54000`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with the
-  release-gate automation and productization-priority refresh after
-  `0.1.0-beta.7`
+  current release-gate automation and productization-priority refresh
 
 ## Current status
 
@@ -56,28 +55,21 @@ Architecture baseline to keep in mind:
    - tighten the deployment contract shared by `/health`, `relay inspect`,
      and share-link generation
    - current baseline improvement:
-     `relay inspect` now reports whether the inspected relay URL matches the
-     relay-reported bind `origin` and the advertised `publicOrigin`, now also
-     surfaces whether that `publicOrigin` came from explicit relay
-     configuration or only the bind-origin default, and the human-readable
-     inspect output no longer suppresses hosted-readiness notes on otherwise
-     compatible relays
+     `relay serve` / `relay inspect` / `/health` now expose the hosted-relay
+     contract directly:
+     `origin`, `publicOrigin`, `publicOriginSource`, `stateBackend`,
+     `deploymentScope`, `sameHostRestartPersists`, `shareLinkBaseUrl`, and
+     `statusApiBaseUrl`
    - current baseline improvement:
      relay-backed wallet create/reapprove outputs, workflow approval outputs,
      agent-tool workflow wrappers, and the manual `smoke:remote-approval`
-     path now also surface explicit `shareLinkBaseUrl` and
-     `statusApiBaseUrl` fields, so operators do not have to reconstruct the
-     final hosted link bases from one sample URL
-   - current baseline improvement:
-     `relay serve` / `relay inspect` recommended commands now point at the
-     one-shot remote-approval path with `--wait-relay --prompt-code`, and the
-     agent-tool registry metadata now matches that hosted reapproval path
+     path now all point at the one-shot remote-approval path with
+     `--wait-relay --prompt-code`
    - current baseline improvement:
      root help, `next --help`, `wallet --help`, the root README, the packaged
      CLI README, and the primary repo skills now all describe the same
-     local-first operator baseline, including the explicit `zk-agent next`
-     follow-up after local reapproval/signer repair and the hosted relay path
-     as the fallback instead of the default
+     local-first baseline, with hosted relay approval positioned explicitly as
+     the fallback rather than the default
 2. release/version/doc discipline
    - the product now has the public package, public beta line, hosted relay
      proof, and flagship AA proof; the remaining release risk is operational
@@ -85,13 +77,21 @@ Architecture baseline to keep in mind:
    - version bumps, npm publish, dist-tag alignment, and repo-doc refresh are
      still too manual compared with the reference repo
    - current baseline improvement:
-     `release:check` now rejects drift across the package README, root README,
-     `skills/`, packed top-level help, packed `wallet --help`, and packed
-     `workflow --help`
+     `release:check` now rejects drift across package/root README, `skills/`,
+     current-version references in `README.md` / `PLANS.md` /
+     `PROJECT_STATE.md` / `docs/11-npm-release-gate.md`, and the packed or
+     installed top-level/public help surfaces
    - current baseline improvement:
-     the same gate now also rejects drift between the package version and the
-     current-version references kept in `README.md`, `PLANS.md`,
-     `PROJECT_STATE.md`, and `docs/11-npm-release-gate.md`
+     the same gate now also locks the discovery/defaults/workflow recovery
+     contract across README, skills, operator JSON docs, and packed help:
+     `defaults`, `assets`, `tokens`, `resolve-token`, and `workflow --help`
+   - current baseline improvement:
+     the same gate now also locks hosted relay, optional local identity, and
+     lower-level recovery surfaces on the published CLI:
+     `relay --help`, `agent --help`, `wallet request --help`,
+     `wallet signer --help`, `wallet smart-account --help`, `bridge`,
+     `send-token`, `swap`, `fund`, `deposit`, `withdraw`, and
+     `agent status --json`
 3. packaged flagship and discovery UX polish
    - the real-user proof is no longer pending on the current baseline:
      on `2026-08-10`, a real browser-mediated hosted reapproval completed for
@@ -105,12 +105,26 @@ Architecture baseline to keep in mind:
    - narrow the top-level operator surfaces that matter most in real usage:
      `next`, `wallet create|reapprove`, `relay serve`, `workflow pay`, and the
      surrounding token/asset discovery path
-   - the structure is now good enough; the remaining gap is making those
-     surfaces require less local knowledge about tokens, validated defaults,
-     and which discovery command should come next
+   - current baseline improvement:
+     `defaults`, `assets`, `tokens`, `resolve-token`, and `workflow --help`
+     now all point at the same discovery and token-recovery path, so the
+     operator can stay inside CLI help instead of falling back to repo prose
+   - the remaining gap is making those surfaces require less local knowledge
+     about tokens, validated defaults, and which discovery command should come
+     next
 4. public install/onboarding maintenance
    - the public entrypoint story is now substantially aligned across the root
      README, package README, CLI help, and primary skills
+   - current baseline improvement:
+     `setup`, top-level `next`, root help, the packaged README, and the main
+     skills now all show the same first-run fork between local
+     `--await-local` approval and relay-backed remote approval, and now say
+     explicitly that a custom `.env` is usually not required until live reads
+     or broadcasts
+   - current baseline improvement:
+     `relay --help`, `agent --help`, and the package/root README now surface
+     the hosted remote-approval fallback, direct-command escape hatches, and
+     the optional local operator-identity path directly on the public surface
    - the remaining work here is contract maintenance after future releases,
      not another large restructuring pass
 5. DeFi breadth only on explicit restart

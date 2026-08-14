@@ -73,6 +73,9 @@ Current success signals:
 - `origin` is the relay's local bind origin
 - `publicOriginLooksLocal` is `false`
 - `publicOrigin` is the externally reachable URL you intend to share
+- `stateBackend` is `local-filesystem`
+- `deploymentScope` is `single-host`
+- `sameHostRestartPersists` is `true`
 - `shareLinkBaseUrl` is the `/r` base that generated approval/share links will use
 - `statusApiBaseUrl` is the `/api/requests` base that generated status URLs will use
 - `hostedShareRedirectReady` is `true`
@@ -92,6 +95,23 @@ That smoke reuses the real CLI `relay inspect` path, publishes a synthetic
 relay request, verifies that `/r/<id>` redirects to the connector UI entrypoint
 with the advertised public origin embedded in `relayRequestUrl`, and confirms
 that the bundled hashed frontend asset still serves from the relay.
+
+## Deployment Contract Exposed by `/health` and `relay inspect`
+
+The current prototype now makes its storage and restart contract explicit:
+
+- `relayMode = local-file`
+- `stateBackend = local-filesystem`
+- `deploymentScope = single-host`
+- `sameHostRestartPersists = true`
+
+Interpretation:
+
+- request state is written to the relay host local filesystem
+- restarting the relay process on that same host keeps pending approval state
+- tunnels and reverse proxies are fine when they keep routing to that same host
+- load-balanced or stateless multi-instance deployments are not supported by
+  this prototype because relay state is not shared across instances
 
 ### 3. Create or refresh the approval request
 

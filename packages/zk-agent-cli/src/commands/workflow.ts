@@ -2294,6 +2294,13 @@ function buildWorkflowHelpText(): string {
     '  Funding-only step:',
     '    zk-agent workflow fund --wallet main --amount <amount> --execute',
     '',
+    '  Token/discovery recovery path:',
+    '    zk-agent assets --wallet main',
+    '    zk-agent tokens --wallet main --owned',
+    '    zk-agent tokens --chain zksync-sepolia',
+    '    zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    '    zk-agent defaults',
+    '',
     '  Lower-level one-shot escape hatch:',
     '    zk-agent workflow run --wallet main --intent <intent> [goal flags]'
   ].join('\n');

@@ -50,6 +50,9 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zk-agent next',
     `  ${buildWorkflowPayRecommendedCommand('main')}`,
     '',
+    'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
+    'Add RPC env vars later, before live reads or broadcasts.',
+    '',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
     'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
     'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'

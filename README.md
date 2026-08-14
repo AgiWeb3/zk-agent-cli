@@ -45,10 +45,8 @@ work only.
 
 Release snapshot:
 
-- the current public beta, `zk-agent-cli@0.1.0-beta.7`, was published on
-  `2026-08-10`
-- the local workspace is now continuing post-publish iteration on top of the
-  `zk-agent-cli@0.1.0-beta.7` baseline
+- the current public beta is `zk-agent-cli@0.1.0-beta.7`
+- that release was published on `2026-08-10`
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
@@ -196,6 +194,15 @@ Interpretation:
    `workflow fund` cover explicit checkpoint, resume, and funding-only cases.
 7. `workflow run` remains available as the lower-level one-shot path.
 
+If the browser is not colocated with the terminal, keep the same operator path
+but replace the local wallet-approval step with:
+
+```bash
+zk-agent relay inspect --relay-url <relay-url>
+zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
+zk-agent next
+```
+
 Use the help entrypoint that matches the current question:
 
 - `zk-agent --help` for the top-level product path
@@ -243,6 +250,24 @@ Discovery is also productized around one local-first path:
   fallback routes, tokens, and paymaster metadata
 - `ZK_AGENT_TOKEN_DIRECTORY_ROOT` is the optional broader local token-directory
   input when repo-local deployment metadata is not enough
+
+Direct-command escape hatches still follow that same product contract:
+
+- `send-token`, `fund`, `deposit`, and `withdraw` can resolve symbols locally,
+  so explicit token addresses are no longer always required
+- `swap` follows the current registry-backed validated path by default and can
+  still be narrowed with explicit protocol or symbol-role flags
+- `bridge` can reuse the tracked default destination route when the current
+  wallet chain has one, so `--to-chain` is no longer always mandatory
+
+Optional local operator identity is a separate layer, not a prerequisite:
+
+- use `zk-agent agent status` to inspect whether a local profile exists
+- use `zk-agent agent set --name <name> --wallet main` to save or relink the
+  local operator profile
+- use `zk-agent agent show` to inspect the saved profile
+- wallet approval and workflow execution still work without a saved local
+  agent profile
 
 For the full command examples, relay/manual recovery flow, token-discovery
 variants, and workflow checkpoint patterns, use:
@@ -339,7 +364,6 @@ Common grouped entrypoints:
 - release gate:
   - `pnpm release:check`
   - `pnpm validate:release`
-  - `pnpm validate:phase4a` remains as a legacy alias for `validate:release`
 - agent-tools:
   - `pnpm tool:list`
   - `pnpm tool:run -- --tool <toolName> --input <json|@file>`

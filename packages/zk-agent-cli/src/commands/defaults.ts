@@ -543,6 +543,24 @@ export function buildDefaultsLines(input: {
 export function createDefaultsCommand(): Command {
   return new Command('defaults')
     .description('Show the machine-readable registry of supported, validated, experimental, and manually configured defaults')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Discovery defaults path:',
+        '  Use `defaults` as the machine-readable registry escape hatch for:',
+        '    - validated or fallback swap / bridge paths',
+        '    - tracked token roles and source order',
+        '    - paymaster defaults and supported modes',
+        '',
+        '  For wallet-scoped asset discovery, prefer:',
+        '    zk-agent assets --wallet main',
+        '',
+        '  For symbol-first token discovery, prefer:',
+        '    zk-agent tokens --chain zksync-sepolia',
+        '    zk-agent resolve-token --chain zksync-sepolia --symbol USDC'
+      ].join('\n')
+    )
     .action(async () => {
       const defaults = loadValidatedDefaults();
       const localTokenRegistry = listLocalTokenRegistryEntries();

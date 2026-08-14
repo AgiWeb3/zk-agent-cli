@@ -188,6 +188,18 @@ defaults when you need the machine-readable baseline:
 zk-agent defaults
 ```
 
+Use `assets` as the default single-chain asset entrypoint. Keep
+`balances --owned-tokens` for the raw balances surface and `tokens --owned`
+for the narrower owned ERC-20 registry subset. `zk-agent defaults` now also
+shows that source order and token-directory chain coverage explicitly.
+
+When you need the broader symbol-first discovery path for a chain, start with:
+
+```bash
+zk-agent tokens --chain zksync-sepolia
+zk-agent resolve-token --chain zksync-sepolia --symbol USDC
+```
+
 ```bash
 zk-agent resolve-token --chain zksync-sepolia --symbol USDC
 ```

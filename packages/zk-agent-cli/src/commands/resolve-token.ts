@@ -82,6 +82,27 @@ export function createResolveTokenCommand(
 
   return new Command('resolve-token')
     .description('Resolve a token symbol or address against the configured local-first token registry')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Resolve-token path:',
+        '  Symbol-first resolution on one active chain:',
+        '    zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+        '',
+        '  Use the stored wallet to infer the active chain:',
+        '    zk-agent resolve-token --wallet main --symbol USDC',
+        '',
+        '  Use broader chain discovery before resolution when you still need the candidate set:',
+        '    zk-agent tokens --chain zksync-sepolia',
+        '',
+        '  Use the wallet asset entrypoint when the real question is balances/holdings:',
+        '    zk-agent assets --wallet main',
+        '',
+        '  Use the registry/default catalog when you need tracked roles or source order:',
+        '    zk-agent defaults'
+      ].join('\n')
+    )
     .option('--wallet <name>', 'Optional stored wallet name to infer the active chain')
     .option('--chain <chain>', 'Chain key or chain id override')
     .option('--symbol <symbol>', 'Token symbol to resolve on the active chain')

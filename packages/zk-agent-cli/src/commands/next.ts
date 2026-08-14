@@ -23,9 +23,11 @@ import {
   buildAssetsRecommendedCommand,
   buildDefaultsRecommendedCommand,
   buildOwnedTokensRecommendedCommand,
+  buildRelayInspectRecommendedCommand,
   buildResolveTokenRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
+  buildWalletCreateRemoteRecommendedCommand,
   buildWalletNextRecommendedCommand,
   buildWalletStatusRecommendedCommand,
   buildWorkflowAutoRecommendedCommand,
@@ -129,6 +131,11 @@ function buildNextHelpText(): string {
     '    zk-agent setup',
     '    zk-agent next',
     '    zk-agent wallet create --await-local',
+    '    zk-agent next',
+    '',
+    '  If the browser is remote, switch at the wallet step instead of waiting for a local callback:',
+    '    zk-agent relay inspect --relay-url <url>',
+    '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
     '    zk-agent next',
     '',
     '  Continue a stored workflow checkpoint:',
@@ -249,6 +256,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
       if (!config) {
         const recommendedCommands = {
           setup: buildSetupCommand(),
+          afterSetup: buildTopLevelNextRecommendedCommand(),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
 
@@ -258,6 +266,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ...agentProfileLines(agentProfile),
             ...agentFollowupLines(defaultAgentFollowup),
             ['next', recommendedCommands.setup],
+            ['after setup', recommendedCommands.afterSetup],
             ['inspect defaults', recommendedCommands.inspectDefaults]
           ]),
           {
@@ -280,6 +289,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             buildWalletCreateRecommendedCommand(),
             paymasterMode
           ),
+          relayInspect: buildRelayInspectRecommendedCommand(),
+          createWalletRemote: buildWalletCreateRemoteRecommendedCommand(
+            '<url>',
+            paymasterMode
+          ),
           afterApproval: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
@@ -292,6 +306,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ...agentProfileLines(agentProfile),
             ...agentFollowupLines(defaultAgentFollowup),
             ['next', recommendedCommands.createWallet],
+            ['relay inspect', recommendedCommands.relayInspect],
+            ['remote fallback', recommendedCommands.createWalletRemote],
             ['after approval', recommendedCommands.afterApproval],
             ['inspect defaults', recommendedCommands.inspectDefaults]
           ]),

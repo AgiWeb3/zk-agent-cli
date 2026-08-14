@@ -1,9 +1,7 @@
 # npm Release Gate
 
-This checklist was originally created to decide whether `zk-agent-cli` was
-ready for its first public npm release. The first public beta was completed on
-`2026-07-31`, and the same gate now remains the release checklist for future
-beta or stable cuts.
+This checklist is the release gate for current beta or stable cuts of
+`zk-agent-cli`.
 
 The goal is not to prove that the project has "many features". The goal is to
 prove that:
@@ -137,7 +135,21 @@ Pass criteria:
   correctly from an isolated cwd:
   - `zk-agent --help`
   - `zk-agent wallet --help`
+  - `zk-agent wallet request --help`
+    including the colocated vs relay-completion request contract
+  - `zk-agent wallet signer --help`
+    including the local execution-signer repair contract
+  - `zk-agent wallet smart-account --help`
+    including the built-in `sed-lite` predict/deploy contract
   - `zk-agent workflow --help`
+    including the flagship-pay ordering and the token/discovery recovery path
+  - `zk-agent bridge|send-token|swap|fund|deposit|withdraw --help`
+    including the direct-command symbol-resolution and tracked-default
+    contracts
+  - `zk-agent relay --help`
+    including the hosted remote-approval fallback contract
+  - `zk-agent agent --help`
+    including the optional local operator-identity contract
   - `zk-agent defaults --json`
   - `zk-agent wallet smart-account profiles --json`
 - the same tarball can also be installed into a temporary project outside the
@@ -174,8 +186,6 @@ Notes:
   - `zk-agent-cli release:check`
   - `@zk-agent/agent-tools test`
   - `zk-agent-cli test`
-- `pnpm validate:phase4a` is currently kept as a legacy alias for the same
-  gate while older notes are being retired
 
 Pass criteria:
 
@@ -251,8 +261,12 @@ Pass criteria:
   - root README public entrypoints
   - `skills/SKILL.md` and `skills/QUICKSTART.md`
   - packed `zk-agent --help`
+  - packed `zk-agent setup --help`
+  - packed `zk-agent next --help`
+  - packed `zk-agent defaults|assets|tokens|resolve-token --help`
   - packed `zk-agent wallet --help`
   - packed `zk-agent workflow --help`
+  - `docs/10-operator-json-contract.md` setup / wallet-bootstrap / wallet discovery examples
   - current-version references in `README.md`, `PLANS.md`,
     `PROJECT_STATE.md`, and this release-gate doc
 
@@ -344,29 +358,10 @@ npm dist-tag add zk-agent-cli@<version> latest
   - `beta` points at the expected version
   - at least one package-outside-the-repo smoke passes
 
-## First beta release result
-
-- first public beta completed on `2026-07-31`:
-  `zk-agent-cli@0.1.0-beta.1`
-- publishing-account readback:
-  `npm whoami -> jerrygod`
-- post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.1`
-  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.1","latest":"0.1.0-beta.1"}`
-- post-publish clean-machine smoke:
-  - `npx --yes zk-agent-cli --help` ran successfully outside the repository
-  - but host Node `20.10.0` emitted `EBADENGINE` warnings because the package
-    currently declares `node >=24`; that environment is outside the supported
-    runtime floor
-
 ## Current published baseline
 
 - current public beta completed on `2026-08-10`:
   `zk-agent-cli@0.1.0-beta.7`
-- the local workspace has already resumed post-publish iteration on top of
-  that published baseline
-- publishing-account readback:
-  `npm whoami -> jerrygod`
 - post-publish npm readback:
   - `npm view zk-agent-cli version -> 0.1.0-beta.7`
   - `npm view zk-agent-cli@latest version -> 0.1.0-beta.7`
@@ -388,27 +383,21 @@ npm dist-tag add zk-agent-cli@<version> latest
     `release:check` gate:
     its clean-machine tarball install executed `zk-agent defaults --json` and
     `zk-agent wallet smart-account profiles --json` outside the repository
-  - `zk-agent-cli@0.1.0-beta.3` had a published hosted-relay regression:
-    `npx --yes zk-agent-cli@latest --json relay serve --port 0 --public-origin https://relay.example.test`
-    exposed the public relay contract, but still reported `connectorUiAvailable: false`
-  - `zk-agent-cli@0.1.0-beta.4` fixed that published regression by correcting
-    bundled connector-UI path resolution and tightening `release:check` so the
-    installed tarball must pass the same hosted-relay readiness and share-link
-    entrypoint checks before publish
-  - `zk-agent-cli@0.1.0-beta.5` kept that hosted-relay packaging baseline,
-    aligned the package-first docs/help surface, and completed a full
-    `pnpm validate:release` pass on the supported host runtime before publish
-  - `zk-agent-cli@0.1.0-beta.7` preserves that release baseline, keeps the
-    hosted-relay and package-first validation gates intact, and is now live on
-    both npm dist-tags `latest` and `beta`
-  - the current post-`beta.7` workspace gate is slightly tighter still:
-    `release:check` now also rejects drift across package README, root README,
-    `skills/`, packed top-level help, packed `wallet --help`, and packed
-    `workflow --help` for the public entrypoint and canonical-path contract
-  - the next release gate will also fail fast when the active release runtime
-    drifts below the declared floor:
-    `release:check` now rejects Node `<24` and any `pnpm` version other than
+- current workspace gate additions since that publish:
+  - `release:check` now also rejects drift across package README, root README,
+    `skills/`, packed top-level help, packed `wallet --help`, packed
+    `workflow --help`, and active-version references in the repo state docs
+  - `release:check` also rejects Node `<24` and any `pnpm` version other than
     the workspace-declared `pnpm@10.30.3`
+
+## Historical lessons already baked into the gate
+
+- an earlier published beta exposed a hosted-relay packaging regression where
+  the public relay contract existed but the bundled connector UI was not
+  actually available
+- the current `release:check` now prevents that class of failure by requiring
+  the installed tarball to pass hosted-relay readiness and share-link
+  entrypoint checks before publish
 
 ## Post-release follow-up to keep
 

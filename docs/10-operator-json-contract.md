@@ -113,7 +113,12 @@ Key fields:
 {
   "scope": "setup",
   "status": "action-required",
-  "nextCommand": "zk-agent setup"
+  "nextCommand": "zk-agent setup",
+  "recommendedCommands": {
+    "setup": "zk-agent setup",
+    "afterSetup": "zk-agent next",
+    "inspectDefaults": "zk-agent defaults"
+  }
 }
 ```
 
@@ -127,7 +132,14 @@ Key fields:
 {
   "scope": "wallet-bootstrap",
   "walletName": "main",
-  "nextCommand": "zk-agent wallet create --await-local"
+  "nextCommand": "zk-agent wallet create --await-local",
+  "recommendedCommands": {
+    "createWallet": "zk-agent wallet create --await-local",
+    "relayInspect": "zk-agent relay inspect --relay-url <url>",
+    "createWalletRemote": "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code",
+    "afterApproval": "zk-agent next",
+    "inspectDefaults": "zk-agent defaults"
+  }
 }
 ```
 
@@ -249,6 +261,14 @@ Within that set:
 - `workflow resume`
   first verifies whether the checkpoint can actually be resumed
 
+Tokenized workflow outputs should keep the same local-first recovery contract
+visible:
+
+- `discoverAssets`
+- `discoverOwnedTokens`
+- `discoverTokens`
+- `inspectToken`
+
 ### `workflow list|show|update|delete`
 
 These checkpoint-management surfaces now also include:
@@ -275,6 +295,62 @@ So the current contract layering is:
   execution-path follow-ups
 - `agentFollowup`
   local agent-identity follow-ups
+
+## `zk-agent agent *`
+
+The local operator-identity commands are also part of the machine-readable
+contract.
+
+### `agent status|show`
+
+These surfaces currently include:
+
+- `ok`
+- `plugin`
+- `profileExists`
+- `profile`
+- `recommendedCommands`
+
+For `agent status`, an optional `inspectedWallet` may also be present.
+
+Key fields:
+
+```json
+{
+  "ok": true,
+  "profileExists": false,
+  "profile": null,
+  "recommendedCommands": {
+    "status": "zk-agent agent status",
+    "show": "zk-agent agent show",
+    "export": "zk-agent agent export",
+    "import": "zk-agent agent import --payload @agent-profile.json",
+    "set": "zk-agent agent set --name <name> --wallet main"
+  }
+}
+```
+
+Current stable semantics:
+
+- `profileExists`
+  Whether a local profile is already saved.
+- `profile`
+  `null` when no local profile exists; otherwise the saved local profile.
+- `recommendedCommands`
+  The local agent-identity follow-up set for create, inspect, export, and
+  import paths.
+
+### `agent export|set|import|clear`
+
+These surfaces also keep `recommendedCommands` as the main follow-up
+container, with command-specific payloads such as:
+
+- `export`
+  portable local profile bundle
+- `profile`
+  saved profile after `set` or `import`
+- `removed`
+  whether `clear` actually removed a saved profile
 
 ## `pnpm tool:run -- --list`
 

@@ -166,6 +166,29 @@ export function createTokensCommand(
 
   return new Command('tokens')
     .description('List discoverable tokens from the configured local-first token registry, or inspect the owned ERC-20 registry subset for one wallet')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Discovery token path:',
+        '  Start with the preferred wallet asset view when you need balances plus tracked ERC-20 holdings:',
+        '    zk-agent assets --wallet main',
+        '',
+        '  Use the narrower owned ERC-20 registry subset when you only want held tokens:',
+        '    zk-agent tokens --wallet main --owned',
+        '',
+        '  Use chain-scoped discovery before choosing a token address:',
+        '    zk-agent tokens --chain zksync-sepolia',
+        '    zk-agent tokens --chain zksync-sepolia --symbol USDC',
+        '    zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+        '',
+        '  For one direct token-resolution check:',
+        '    zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+        '',
+        '  For the full defaults/registry catalog:',
+        '    zk-agent defaults'
+      ].join('\n')
+    )
     .option('--wallet <name>', 'Optional stored wallet name to infer the active chain')
     .option('--chain <chain>', 'Chain key or chain id override')
     .option('--symbol <symbol>', 'Optional exact symbol filter')

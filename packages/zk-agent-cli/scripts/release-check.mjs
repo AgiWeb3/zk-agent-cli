@@ -56,6 +56,10 @@ function readReleaseGateDoc() {
   return readFileSync(join(workspaceRoot, 'docs', '11-npm-release-gate.md'), 'utf8');
 }
 
+function readOperatorJsonContractDoc() {
+  return readFileSync(join(workspaceRoot, 'docs', '10-operator-json-contract.md'), 'utf8');
+}
+
 function readSkillQuickstart() {
   return readFileSync(join(workspaceRoot, 'skills', 'QUICKSTART.md'), 'utf8');
 }
@@ -134,6 +138,26 @@ function assertPackageReadme(readme) {
       'Package README must document the shortest success path.'
     ],
     [
+      /If the browser is not colocated with the terminal[\s\S]*zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent next/,
+      'Package README must document the remote-browser wallet-create fallback on the shortest path.'
+    ],
+    [
+      /## Discovery Path[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent defaults/,
+      'Package README must document the discovery/defaults path and its command order.'
+    ],
+    [
+      /## Direct Command Escape Hatches[\s\S]*zk-agent send-token --wallet main --symbol USDC[\s\S]*zk-agent swap --wallet main --token-in-symbol USDC --token-out-symbol ETH[\s\S]*zk-agent fund --wallet main --symbol USDC[\s\S]*zk-agent deposit --wallet main --symbol USDC[\s\S]*zk-agent withdraw --wallet main --symbol USDC/,
+      'Package README must document the symbol-first direct-command escape hatches.'
+    ],
+    [
+      /Current direct-command behavior:[\s\S]*send-token`, `fund`, `deposit`, and `withdraw` accept symbol-first token[\s\S]*`swap` follows the current registry-backed validated route by default[\s\S]*`bridge` can reuse the tracked default destination route/,
+      'Package README must document the current direct-command behavior contract.'
+    ],
+    [
+      /## Local Agent Identity[\s\S]*wallet approval and workflow execution do not[\s\S]*depend on it[\s\S]*zk-agent agent status[\s\S]*zk-agent agent set --name "<operator-name>" --wallet main[\s\S]*zk-agent agent show/,
+      'Package README must document the optional local agent-identity path.'
+    ],
+    [
       /zk-agent wallet reapprove --name main --await-local/,
       'Package README must document the shortest stale-session recovery path.'
     ],
@@ -141,6 +165,10 @@ function assertPackageReadme(readme) {
     [
       /ZKSYNC_SEPOLIA_RPC_URL=[\s\S]*ETHEREUM_SEPOLIA_RPC_URL=/,
       'Package README must document the relevant Sepolia RPC environment variables.'
+    ],
+    [
+      /You do not need a custom `\.env` just to run `setup`, `next`, or create a local[\s\S]*wallet request\./,
+      'Package README must document the first-run .env boundary.'
     ],
     [
       /zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code/,
@@ -181,6 +209,26 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       'Root README must keep the canonical terminal path visible.'
     ],
     [
+      rootReadme,
+      /Discovery is also productized around one local-first path:[\s\S]*`assets` is the preferred single-chain asset view[\s\S]*`tokens --wallet <name> --owned` is the narrower ERC-20 holdings view[\s\S]*`tokens --chain <chain>` and `resolve-token` are the symbol-first discovery[\s\S]*surfaces[\s\S]*`defaults` is the machine-readable registry escape hatch/,
+      'Root README must keep the discovery/defaults contract visible.'
+    ],
+    [
+      rootReadme,
+      /Direct-command escape hatches still follow that same product contract:[\s\S]*`send-token`, `fund`, `deposit`, and `withdraw` can resolve symbols locally[\s\S]*`swap` follows the current registry-backed validated path by default[\s\S]*`bridge` can reuse the tracked default destination route/,
+      'Root README must keep the direct-command symbol/default contract visible.'
+    ],
+    [
+      rootReadme,
+      /Optional local operator identity is a separate layer, not a prerequisite:[\s\S]*`zk-agent agent status`[\s\S]*`zk-agent agent set --name <name> --wallet main`[\s\S]*`zk-agent agent show`[\s\S]*wallet approval and workflow execution still work without a saved local[\s\S]*agent profile/,
+      'Root README must keep the optional local operator-identity contract visible.'
+    ],
+    [
+      rootReadme,
+      /If the browser is not colocated with the terminal[\s\S]*zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent next/,
+      'Root README must keep the remote-browser wallet-create fallback visible.'
+    ],
+    [
       quickstart,
       /Choose the entrypoint that matches the environment\./,
       'Quickstart must explain how to choose the entrypoint.'
@@ -196,6 +244,16 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       'Quickstart must keep the canonical terminal path visible.'
     ],
     [
+      quickstart,
+      /Use `assets` as the default single-chain asset entrypoint\.[\s\S]*`balances --owned-tokens`[\s\S]*`tokens --owned`[\s\S]*`zk-agent defaults` now also[\s\S]*shows that source order[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC/,
+      'Quickstart must keep the discovery/defaults contract visible.'
+    ],
+    [
+      quickstart,
+      /the CLI auto-loads `\.env`[\s\S]*wallet-request creation usually work without custom RPC values/,
+      'Quickstart must keep the first-run .env boundary visible.'
+    ],
+    [
       skillGuide,
       /Choose the entrypoint that matches the environment\./,
       'Primary skill guide must explain how to choose the entrypoint.'
@@ -209,6 +267,16 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       skillGuide,
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Primary skill guide must keep the canonical operator path visible.'
+    ],
+    [
+      skillGuide,
+      /Use `zk-agent defaults` when you need the current token-registry source[\s\S]*order[\s\S]*Use `zk-agent tokens --chain zksync-sepolia`[\s\S]*Use `zk-agent tokens --wallet main --owned`[\s\S]*default asset view, start with `assets`\.[\s\S]*Use `zk-agent resolve-token --chain zksync-sepolia --symbol USDC`/,
+      'Primary skill guide must keep the discovery/defaults contract visible.'
+    ],
+    [
+      skillGuide,
+      /the CLI auto-loads `\.env`[\s\S]*wallet-request creation usually work without custom RPC values/,
+      'Primary skill guide must keep the first-run .env boundary visible.'
     ]
   ];
 
@@ -289,6 +357,8 @@ function assertTopLevelHelpContract(helpOutput) {
     'One-shot CLI: npx zk-agent-cli --help',
     'Global CLI: npm install -g zk-agent-cli',
     'Canonical terminal path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
+    'Add RPC env vars later, before live reads or broadcasts.',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
     'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
     'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'
@@ -299,6 +369,123 @@ function assertTopLevelHelpContract(helpOutput) {
       help.includes(snippet),
       true,
       `Top-level CLI help is missing required public-entrypoint contract text: ${snippet}`
+    );
+  }
+}
+
+function assertSetupHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'What setup does:',
+    'Writes the local default chain and connector URL used by the first-run path.',
+    'After setup, stay on the canonical local-first path: zk-agent next zk-agent wallet create --await-local zk-agent next',
+    'If the browser is not colocated with this terminal, switch at the wallet step: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'Environment note: No custom .env is required for setup, next, or wallet request creation. Add RPC env vars later, before live reads or broadcasts.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Setup help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertNextHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Use `next` as the product entrypoint:',
+    'Fresh local-first routing: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next',
+    'If the browser is remote, switch at the wallet step instead of waiting for a local callback: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'Continue a stored workflow checkpoint: zk-agent next --request-id <id>',
+    'Stay on the wallet layer only when you need wallet-specific remediation: zk-agent wallet next --name main',
+    'Switch to the hosted remote-approval path only when the browser is not colocated: zk-agent wallet --help',
+    'Stay on the workflow layer only when you already have an explicit workflow or checkpoint: zk-agent workflow next --request-id <id>'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Next help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertDefaultsHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Discovery defaults path:',
+    'Use `defaults` as the machine-readable registry escape hatch for:',
+    'For wallet-scoped asset discovery, prefer: zk-agent assets --wallet main',
+    'For symbol-first token discovery, prefer: zk-agent tokens --chain zksync-sepolia zk-agent resolve-token --chain zksync-sepolia --symbol USDC'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Defaults help is missing required discovery contract text: ${snippet}`
+    );
+  }
+}
+
+function assertAssetsHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Discovery asset path:',
+    'Preferred single-chain asset entrypoint: zk-agent assets --wallet main',
+    'Narrower owned ERC-20 registry subset: zk-agent tokens --wallet main --owned',
+    'Symbol-first token lookup before a tokenized command: zk-agent tokens --chain zksync-sepolia --symbol USDC zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    'For the machine-readable registry/default catalog: zk-agent defaults'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Assets help is missing required discovery contract text: ${snippet}`
+    );
+  }
+}
+
+function assertTokensHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Discovery token path:',
+    'Start with the preferred wallet asset view when you need balances plus tracked ERC-20 holdings: zk-agent assets --wallet main',
+    'Use the narrower owned ERC-20 registry subset when you only want held tokens: zk-agent tokens --wallet main --owned',
+    'Use chain-scoped discovery before choosing a token address: zk-agent tokens --chain zksync-sepolia zk-agent tokens --chain zksync-sepolia --symbol USDC zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+    'For one direct token-resolution check: zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    'For the full defaults/registry catalog: zk-agent defaults'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Tokens help is missing required discovery contract text: ${snippet}`
+    );
+  }
+}
+
+function assertResolveTokenHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Resolve-token path:',
+    'Symbol-first resolution on one active chain: zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    'Use the stored wallet to infer the active chain: zk-agent resolve-token --wallet main --symbol USDC',
+    'Use broader chain discovery before resolution when you still need the candidate set: zk-agent tokens --chain zksync-sepolia',
+    'Use the wallet asset entrypoint when the real question is balances/holdings: zk-agent assets --wallet main',
+    'Use the registry/default catalog when you need tracked roles or source order: zk-agent defaults'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Resolve-token help is missing required discovery contract text: ${snippet}`
     );
   }
 }
@@ -329,6 +516,7 @@ function assertWorkflowHelpContract(helpOutput) {
     'Broader multi-intent guided path: zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
     'Checkpointed execution: zk-agent workflow start --wallet main --intent <intent> [goal flags] zk-agent workflow status --request-id <id> zk-agent workflow next --request-id <id> zk-agent workflow resume --request-id <id> [--broadcast]',
     'Funding-only step: zk-agent workflow fund --wallet main --amount <amount> --execute',
+    'Token/discovery recovery path: zk-agent assets --wallet main zk-agent tokens --wallet main --owned zk-agent tokens --chain zksync-sepolia zk-agent resolve-token --chain zksync-sepolia --symbol USDC zk-agent defaults',
     'Lower-level one-shot escape hatch: zk-agent workflow run --wallet main --intent <intent> [goal flags]'
   ];
 
@@ -345,6 +533,289 @@ function assertWorkflowHelpContract(helpOutput) {
     true,
     'Workflow help must list the flagship pay path ahead of workflow auto.'
   );
+}
+
+function assertBridgeHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '--to-chain <chain> Destination chain key or id. Optional when the current chain has a tracked default bridge route'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Bridge help is missing required direct-command contract text: ${snippet}`
+    );
+  }
+}
+
+function assertSendTokenHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '--token <address> ERC-20 token contract address. Optional when --symbol resolves from the configured token registry',
+    '--symbol <symbol> Token symbol for display. Also used for token-registry lookup when --token is omitted',
+    '--role <role> Optional defaults-registry role filter for symbol-based token resolution'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Send-token help is missing required direct-command contract text: ${snippet}`
+    );
+  }
+}
+
+function assertSwapHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '--token-in <address> Input ERC-20 token contract address. Optional when --token-in-symbol resolves from the configured token registry',
+    '--token-out <address> Output ERC-20 token contract address. Optional when --token-out-symbol resolves from the configured token registry',
+    '--protocol <protocol> Optional swap protocol override: uniswap-v3-exact-input-single or syncswap-classic. Defaults to the current registry-backed validated swap path',
+    '--token-in-role <role> Optional defaults-registry role filter for input symbol-based token resolution',
+    '--token-out-role <role> Optional defaults-registry role filter for output symbol-based token resolution'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Swap help is missing required direct-command contract text: ${snippet}`
+    );
+  }
+}
+
+function assertFundHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '--token <address> Optional token address to embed into the suggested funding commands. Also optional when --symbol resolves from the configured token registry',
+    '--role <role> Optional defaults-registry role filter for symbol-based token resolution'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Fund help is missing required direct-command contract text: ${snippet}`
+    );
+  }
+}
+
+function assertDepositHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '--token <address> L1 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry',
+    '--role <role> Optional defaults-registry role filter for symbol-based token resolution'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Deposit help is missing required direct-command contract text: ${snippet}`
+    );
+  }
+}
+
+function assertWithdrawHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '--token <address> L2 token contract address. Omit for the native token path or when --symbol resolves from the configured token registry',
+    '--role <role> Optional defaults-registry role filter for symbol-based token resolution'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Withdraw help is missing required direct-command contract text: ${snippet}`
+    );
+  }
+}
+
+function assertWalletRequestHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Wallet request path:',
+    'Colocated browser + terminal: zk-agent wallet request await-local --request-id <id>',
+    'Remote relay completion: zk-agent wallet request relay-publish --request-id <id> --relay-url <url> zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Wallet request help is missing required public contract text: ${snippet}`
+    );
+  }
+
+  assert.equal(
+    helpOutput.indexOf('list') < helpOutput.indexOf('show [options]'),
+    true,
+    'Wallet request help must list list before show.'
+  );
+  assert.equal(
+    helpOutput.indexOf('show [options]') < helpOutput.indexOf('await-local [options]'),
+    true,
+    'Wallet request help must list show before await-local.'
+  );
+  assert.equal(
+    helpOutput.indexOf('await-local [options]') < helpOutput.indexOf('approve [options]'),
+    true,
+    'Wallet request help must list await-local before approve.'
+  );
+}
+
+function assertWalletSignerHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Wallet signer path:',
+    'Inspect the stored local execution signer state: zk-agent wallet signer show --name main',
+    'Attach a local execution signer without rebuilding approval metadata: zk-agent wallet signer attach --name main --private-key <hex>',
+    'Remove the stored local execution signer: zk-agent wallet signer remove --name main'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Wallet signer help is missing required public contract text: ${snippet}`
+    );
+  }
+
+  assert.equal(
+    helpOutput.indexOf('show [options]') < helpOutput.indexOf('attach [options]'),
+    true,
+    'Wallet signer help must list show before attach.'
+  );
+  assert.equal(
+    helpOutput.indexOf('attach [options]') < helpOutput.indexOf('remove [options]'),
+    true,
+    'Wallet signer help must list attach before remove.'
+  );
+}
+
+function assertSmartAccountHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Smart-account path:',
+    'Predict from a built-in profile: zk-agent wallet smart-account predict --name main --profile sed-lite',
+    'Deploy and persist the new execution address: zk-agent wallet smart-account deploy --name main --profile sed-lite',
+    'Inspect or update built-in SED behaviors after deployment: zk-agent wallet smart-account sed-lite hooks --name main zk-agent wallet smart-account daily-spend-limit show --name main'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Smart-account help is missing required public contract text: ${snippet}`
+    );
+  }
+
+  assert.equal(
+    helpOutput.indexOf('profiles') < helpOutput.indexOf('predict [options]'),
+    true,
+    'Smart-account help must list profiles before predict.'
+  );
+  assert.equal(
+    helpOutput.indexOf('predict [options]') < helpOutput.indexOf('deploy [options]'),
+    true,
+    'Smart-account help must list predict before deploy.'
+  );
+}
+
+function assertRelayHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Hosted remote-approval path: zk-agent relay serve --public-origin https://relay.example.com zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+    'Keep `wallet create|reapprove --await-local` as the default baseline when the browser and terminal are colocated.',
+    'Use `relay inspect` before sending operators to a hosted share link so the public origin, connector UI, and hosted-readiness contract are visible.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Relay help is missing required public contract text: ${snippet}`
+    );
+  }
+}
+
+function assertAgentHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Agent identity path: zk-agent agent status zk-agent agent set --name "SED Operator" --wallet main zk-agent agent show',
+    'Portable local profile management: zk-agent agent export zk-agent agent import --payload @agent-profile.json --overwrite',
+    'Remove the saved local profile: zk-agent agent clear',
+    'This profile is optional. Wallet approval and workflow execution still work without a saved local agent profile.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Agent help is missing required public contract text: ${snippet}`
+    );
+  }
+}
+
+function assertAgentStatusPayload(payload) {
+  assert.equal(payload.ok, true);
+  assert.equal(payload.profileExists, false);
+  assert.equal(payload.profile, null);
+  assert.equal(payload.plugin?.status, 'local-profile');
+  assert.equal(typeof payload.plugin?.milestone, 'string');
+  assert.equal(payload.plugin.milestone.length > 0, true);
+  assert.equal(
+    payload.recommendedCommands?.status,
+    'zk-agent agent status'
+  );
+  assert.equal(
+    payload.recommendedCommands?.show,
+    'zk-agent agent show'
+  );
+  assert.equal(
+    payload.recommendedCommands?.export,
+    'zk-agent agent export'
+  );
+  assert.equal(
+    payload.recommendedCommands?.import,
+    'zk-agent agent import --payload @agent-profile.json'
+  );
+  assert.equal(
+    payload.recommendedCommands?.set,
+    'zk-agent agent set --name <name> --wallet main'
+  );
+}
+
+function assertOperatorJsonContract(doc) {
+  const requiredChecks = [
+    [
+      /"scope": "setup"[\s\S]*"nextCommand": "zk-agent setup"[\s\S]*"recommendedCommands": \{[\s\S]*"setup": "zk-agent setup"[\s\S]*"afterSetup": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      'Operator JSON contract doc must describe the setup-scope recommendedCommands contract.'
+    ],
+    [
+      /"scope": "wallet-bootstrap"[\s\S]*"nextCommand": "zk-agent wallet create --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"createWallet": "zk-agent wallet create --await-local"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url <url>"[\s\S]*"createWalletRemote": "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code"[\s\S]*"afterApproval": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      'Operator JSON contract doc must describe the wallet-bootstrap recommendedCommands contract.'
+    ],
+    [
+      /"scope": "wallet"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
+      'Operator JSON contract doc must describe the wallet-scope discovery recommendedCommands contract.'
+    ],
+    [
+      /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`/,
+      'Operator JSON contract doc must describe the tokenized workflow discovery follow-up contract.'
+    ],
+    [
+      /## `zk-agent agent \*`[\s\S]*### `agent status\|show`[\s\S]*`ok`[\s\S]*`plugin`[\s\S]*`profileExists`[\s\S]*`profile`[\s\S]*`recommendedCommands`[\s\S]*"status": "zk-agent agent status"[\s\S]*"show": "zk-agent agent show"[\s\S]*"export": "zk-agent agent export"[\s\S]*"import": "zk-agent agent import --payload @agent-profile\.json"[\s\S]*"set": "zk-agent agent set --name <name> --wallet main"/,
+      'Operator JSON contract doc must describe the agent status/show machine-readable contract.'
+    ]
+  ];
+
+  for (const [pattern, message] of requiredChecks) {
+    assert.match(doc, pattern, message);
+  }
 }
 
 function createPackDir() {
@@ -853,6 +1324,91 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertNoWorkspaceLeak(walletHelpResult.stdout);
     assertWalletHelpContract(walletHelpResult.stdout);
 
+    const walletRequestHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'wallet',
+      'request',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletRequestHelpResult.stderr,
+      walletRequestHelpResult.stdout,
+      'wallet request --help'
+    );
+    assert.match(walletRequestHelpResult.stdout, /Usage: zk-agent wallet request/);
+    assertNoWorkspaceLeak(walletRequestHelpResult.stdout);
+    assertWalletRequestHelpContract(walletRequestHelpResult.stdout);
+
+    const walletSignerHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'wallet',
+      'signer',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletSignerHelpResult.stderr,
+      walletSignerHelpResult.stdout,
+      'wallet signer --help'
+    );
+    assert.match(walletSignerHelpResult.stdout, /Usage: zk-agent wallet signer/);
+    assertNoWorkspaceLeak(walletSignerHelpResult.stdout);
+    assertWalletSignerHelpContract(walletSignerHelpResult.stdout);
+
+    const smartAccountHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'wallet',
+      'smart-account',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      smartAccountHelpResult.stderr,
+      smartAccountHelpResult.stdout,
+      'wallet smart-account --help'
+    );
+    assert.match(smartAccountHelpResult.stdout, /Usage: zk-agent wallet smart-account/);
+    assertNoWorkspaceLeak(smartAccountHelpResult.stdout);
+    assertSmartAccountHelpContract(smartAccountHelpResult.stdout);
+
+    const setupHelpResult = runPackedCli(extractedPackageDir, homeDir, ['setup', '--help']);
+    assertPackedCliStderr(setupHelpResult.stderr, setupHelpResult.stdout, 'setup --help');
+    assert.match(setupHelpResult.stdout, /Usage: zk-agent (init|setup)/);
+    assertNoWorkspaceLeak(setupHelpResult.stdout);
+    assertSetupHelpContract(setupHelpResult.stdout);
+
+    const nextHelpResult = runPackedCli(extractedPackageDir, homeDir, ['next', '--help']);
+    assertPackedCliStderr(nextHelpResult.stderr, nextHelpResult.stdout, 'next --help');
+    assert.match(nextHelpResult.stdout, /Usage: zk-agent next/);
+    assertNoWorkspaceLeak(nextHelpResult.stdout);
+    assertNextHelpContract(nextHelpResult.stdout);
+
+    const defaultsHelpResult = runPackedCli(extractedPackageDir, homeDir, ['defaults', '--help']);
+    assertPackedCliStderr(defaultsHelpResult.stderr, defaultsHelpResult.stdout, 'defaults --help');
+    assert.match(defaultsHelpResult.stdout, /Usage: zk-agent defaults/);
+    assertNoWorkspaceLeak(defaultsHelpResult.stdout);
+    assertDefaultsHelpContract(defaultsHelpResult.stdout);
+
+    const assetsHelpResult = runPackedCli(extractedPackageDir, homeDir, ['assets', '--help']);
+    assertPackedCliStderr(assetsHelpResult.stderr, assetsHelpResult.stdout, 'assets --help');
+    assert.match(assetsHelpResult.stdout, /Usage: zk-agent assets/);
+    assertNoWorkspaceLeak(assetsHelpResult.stdout);
+    assertAssetsHelpContract(assetsHelpResult.stdout);
+
+    const tokensHelpResult = runPackedCli(extractedPackageDir, homeDir, ['tokens', '--help']);
+    assertPackedCliStderr(tokensHelpResult.stderr, tokensHelpResult.stdout, 'tokens --help');
+    assert.match(tokensHelpResult.stdout, /Usage: zk-agent tokens/);
+    assertNoWorkspaceLeak(tokensHelpResult.stdout);
+    assertTokensHelpContract(tokensHelpResult.stdout);
+
+    const resolveTokenHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'resolve-token',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      resolveTokenHelpResult.stderr,
+      resolveTokenHelpResult.stdout,
+      'resolve-token --help'
+    );
+    assert.match(resolveTokenHelpResult.stdout, /Usage: zk-agent resolve-token/);
+    assertNoWorkspaceLeak(resolveTokenHelpResult.stdout);
+    assertResolveTokenHelpContract(resolveTokenHelpResult.stdout);
+
     const workflowHelpResult = runPackedCli(extractedPackageDir, homeDir, [
       'workflow',
       '--help'
@@ -865,6 +1421,61 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assert.match(workflowHelpResult.stdout, /Usage: zk-agent workflow/);
     assertNoWorkspaceLeak(workflowHelpResult.stdout);
     assertWorkflowHelpContract(workflowHelpResult.stdout);
+
+    const bridgeHelpResult = runPackedCli(extractedPackageDir, homeDir, ['bridge', '--help']);
+    assertPackedCliStderr(bridgeHelpResult.stderr, bridgeHelpResult.stdout, 'bridge --help');
+    assert.match(bridgeHelpResult.stdout, /Usage: zk-agent bridge/);
+    assertNoWorkspaceLeak(bridgeHelpResult.stdout);
+    assertBridgeHelpContract(bridgeHelpResult.stdout);
+
+    const sendTokenHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'send-token',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      sendTokenHelpResult.stderr,
+      sendTokenHelpResult.stdout,
+      'send-token --help'
+    );
+    assert.match(sendTokenHelpResult.stdout, /Usage: zk-agent send-token/);
+    assertNoWorkspaceLeak(sendTokenHelpResult.stdout);
+    assertSendTokenHelpContract(sendTokenHelpResult.stdout);
+
+    const swapHelpResult = runPackedCli(extractedPackageDir, homeDir, ['swap', '--help']);
+    assertPackedCliStderr(swapHelpResult.stderr, swapHelpResult.stdout, 'swap --help');
+    assert.match(swapHelpResult.stdout, /Usage: zk-agent swap/);
+    assertNoWorkspaceLeak(swapHelpResult.stdout);
+    assertSwapHelpContract(swapHelpResult.stdout);
+
+    const fundHelpResult = runPackedCli(extractedPackageDir, homeDir, ['fund', '--help']);
+    assertPackedCliStderr(fundHelpResult.stderr, fundHelpResult.stdout, 'fund --help');
+    assert.match(fundHelpResult.stdout, /Usage: zk-agent fund/);
+    assertNoWorkspaceLeak(fundHelpResult.stdout);
+    assertFundHelpContract(fundHelpResult.stdout);
+
+    const depositHelpResult = runPackedCli(extractedPackageDir, homeDir, ['deposit', '--help']);
+    assertPackedCliStderr(depositHelpResult.stderr, depositHelpResult.stdout, 'deposit --help');
+    assert.match(depositHelpResult.stdout, /Usage: zk-agent deposit/);
+    assertNoWorkspaceLeak(depositHelpResult.stdout);
+    assertDepositHelpContract(depositHelpResult.stdout);
+
+    const withdrawHelpResult = runPackedCli(extractedPackageDir, homeDir, ['withdraw', '--help']);
+    assertPackedCliStderr(withdrawHelpResult.stderr, withdrawHelpResult.stdout, 'withdraw --help');
+    assert.match(withdrawHelpResult.stdout, /Usage: zk-agent withdraw/);
+    assertNoWorkspaceLeak(withdrawHelpResult.stdout);
+    assertWithdrawHelpContract(withdrawHelpResult.stdout);
+
+    const relayHelpResult = runPackedCli(extractedPackageDir, homeDir, ['relay', '--help']);
+    assertPackedCliStderr(relayHelpResult.stderr, relayHelpResult.stdout, 'relay --help');
+    assert.match(relayHelpResult.stdout, /Usage: zk-agent relay/);
+    assertNoWorkspaceLeak(relayHelpResult.stdout);
+    assertRelayHelpContract(relayHelpResult.stdout);
+
+    const agentHelpResult = runPackedCli(extractedPackageDir, homeDir, ['agent', '--help']);
+    assertPackedCliStderr(agentHelpResult.stderr, agentHelpResult.stdout, 'agent --help');
+    assert.match(agentHelpResult.stdout, /Usage: zk-agent agent/);
+    assertNoWorkspaceLeak(agentHelpResult.stdout);
+    assertAgentHelpContract(agentHelpResult.stdout);
 
     const defaultsOutput = runPackedCliJson(extractedPackageDir, homeDir, ['defaults', '--json']);
     assertNoWorkspaceLeak(defaultsOutput);
@@ -895,6 +1506,15 @@ function assertStandaloneSmoke(extractedPackageDir) {
         false
       );
     }
+
+    const agentStatusOutput = runPackedCliJson(extractedPackageDir, homeDir, [
+      'agent',
+      'status',
+      '--json'
+    ]);
+    assertNoWorkspaceLeak(agentStatusOutput);
+    const agentStatusPayload = JSON.parse(agentStatusOutput);
+    assertAgentStatusPayload(agentStatusPayload);
 
     const importOutput = runPackedCliJson(extractedPackageDir, homeDir, [
       'wallet',
@@ -975,6 +1595,9 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
     assert.equal(healthPayload.capabilities.includes('connector-ui'), true);
     assert.equal(healthPayload.public_origin, 'https://relay.example.test');
     assert.equal(healthPayload.public_origin_source, 'configured');
+    assert.equal(healthPayload.state_backend, 'local-filesystem');
+    assert.equal(healthPayload.deployment_scope, 'single-host');
+    assert.equal(healthPayload.same_host_restart_persists, true);
 
     await assertHostedShareLink(payload.origin, payload.publicOrigin, 'release-check-share-link');
   } finally {
@@ -1022,6 +1645,108 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(walletHelpResult.stdout);
     assertWalletHelpContract(walletHelpResult.stdout);
 
+    const walletRequestHelpResult = runInstalledCli(projectRoot, homeDir, [
+      'wallet',
+      'request',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletRequestHelpResult.stderr,
+      walletRequestHelpResult.stdout,
+      'installed zk-agent wallet request --help'
+    );
+    assert.match(walletRequestHelpResult.stdout, /Usage: zk-agent wallet request/);
+    assertNoWorkspaceLeak(walletRequestHelpResult.stdout);
+    assertWalletRequestHelpContract(walletRequestHelpResult.stdout);
+
+    const walletSignerHelpResult = runInstalledCli(projectRoot, homeDir, [
+      'wallet',
+      'signer',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletSignerHelpResult.stderr,
+      walletSignerHelpResult.stdout,
+      'installed zk-agent wallet signer --help'
+    );
+    assert.match(walletSignerHelpResult.stdout, /Usage: zk-agent wallet signer/);
+    assertNoWorkspaceLeak(walletSignerHelpResult.stdout);
+    assertWalletSignerHelpContract(walletSignerHelpResult.stdout);
+
+    const smartAccountHelpResult = runInstalledCli(projectRoot, homeDir, [
+      'wallet',
+      'smart-account',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      smartAccountHelpResult.stderr,
+      smartAccountHelpResult.stdout,
+      'installed zk-agent wallet smart-account --help'
+    );
+    assert.match(smartAccountHelpResult.stdout, /Usage: zk-agent wallet smart-account/);
+    assertNoWorkspaceLeak(smartAccountHelpResult.stdout);
+    assertSmartAccountHelpContract(smartAccountHelpResult.stdout);
+
+    const setupHelpResult = runInstalledCli(projectRoot, homeDir, ['setup', '--help']);
+    assertPackedCliStderr(
+      setupHelpResult.stderr,
+      setupHelpResult.stdout,
+      'installed zk-agent setup --help'
+    );
+    assert.match(setupHelpResult.stdout, /Usage: zk-agent (init|setup)/);
+    assertNoWorkspaceLeak(setupHelpResult.stdout);
+    assertSetupHelpContract(setupHelpResult.stdout);
+
+    const nextHelpResult = runInstalledCli(projectRoot, homeDir, ['next', '--help']);
+    assertPackedCliStderr(
+      nextHelpResult.stderr,
+      nextHelpResult.stdout,
+      'installed zk-agent next --help'
+    );
+    assert.match(nextHelpResult.stdout, /Usage: zk-agent next/);
+    assertNoWorkspaceLeak(nextHelpResult.stdout);
+    assertNextHelpContract(nextHelpResult.stdout);
+
+    const defaultsHelpResult = runInstalledCli(projectRoot, homeDir, ['defaults', '--help']);
+    assertPackedCliStderr(
+      defaultsHelpResult.stderr,
+      defaultsHelpResult.stdout,
+      'installed zk-agent defaults --help'
+    );
+    assert.match(defaultsHelpResult.stdout, /Usage: zk-agent defaults/);
+    assertNoWorkspaceLeak(defaultsHelpResult.stdout);
+    assertDefaultsHelpContract(defaultsHelpResult.stdout);
+
+    const assetsHelpResult = runInstalledCli(projectRoot, homeDir, ['assets', '--help']);
+    assertPackedCliStderr(
+      assetsHelpResult.stderr,
+      assetsHelpResult.stdout,
+      'installed zk-agent assets --help'
+    );
+    assert.match(assetsHelpResult.stdout, /Usage: zk-agent assets/);
+    assertNoWorkspaceLeak(assetsHelpResult.stdout);
+    assertAssetsHelpContract(assetsHelpResult.stdout);
+
+    const tokensHelpResult = runInstalledCli(projectRoot, homeDir, ['tokens', '--help']);
+    assertPackedCliStderr(
+      tokensHelpResult.stderr,
+      tokensHelpResult.stdout,
+      'installed zk-agent tokens --help'
+    );
+    assert.match(tokensHelpResult.stdout, /Usage: zk-agent tokens/);
+    assertNoWorkspaceLeak(tokensHelpResult.stdout);
+    assertTokensHelpContract(tokensHelpResult.stdout);
+
+    const resolveTokenHelpResult = runInstalledCli(projectRoot, homeDir, ['resolve-token', '--help']);
+    assertPackedCliStderr(
+      resolveTokenHelpResult.stderr,
+      resolveTokenHelpResult.stdout,
+      'installed zk-agent resolve-token --help'
+    );
+    assert.match(resolveTokenHelpResult.stdout, /Usage: zk-agent resolve-token/);
+    assertNoWorkspaceLeak(resolveTokenHelpResult.stdout);
+    assertResolveTokenHelpContract(resolveTokenHelpResult.stdout);
+
     const workflowHelpResult = runInstalledCli(projectRoot, homeDir, ['workflow', '--help']);
     assertPackedCliStderr(
       workflowHelpResult.stderr,
@@ -1031,6 +1756,86 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.match(workflowHelpResult.stdout, /Usage: zk-agent workflow/);
     assertNoWorkspaceLeak(workflowHelpResult.stdout);
     assertWorkflowHelpContract(workflowHelpResult.stdout);
+
+    const bridgeHelpResult = runInstalledCli(projectRoot, homeDir, ['bridge', '--help']);
+    assertPackedCliStderr(
+      bridgeHelpResult.stderr,
+      bridgeHelpResult.stdout,
+      'installed zk-agent bridge --help'
+    );
+    assert.match(bridgeHelpResult.stdout, /Usage: zk-agent bridge/);
+    assertNoWorkspaceLeak(bridgeHelpResult.stdout);
+    assertBridgeHelpContract(bridgeHelpResult.stdout);
+
+    const sendTokenHelpResult = runInstalledCli(projectRoot, homeDir, ['send-token', '--help']);
+    assertPackedCliStderr(
+      sendTokenHelpResult.stderr,
+      sendTokenHelpResult.stdout,
+      'installed zk-agent send-token --help'
+    );
+    assert.match(sendTokenHelpResult.stdout, /Usage: zk-agent send-token/);
+    assertNoWorkspaceLeak(sendTokenHelpResult.stdout);
+    assertSendTokenHelpContract(sendTokenHelpResult.stdout);
+
+    const swapHelpResult = runInstalledCli(projectRoot, homeDir, ['swap', '--help']);
+    assertPackedCliStderr(
+      swapHelpResult.stderr,
+      swapHelpResult.stdout,
+      'installed zk-agent swap --help'
+    );
+    assert.match(swapHelpResult.stdout, /Usage: zk-agent swap/);
+    assertNoWorkspaceLeak(swapHelpResult.stdout);
+    assertSwapHelpContract(swapHelpResult.stdout);
+
+    const fundHelpResult = runInstalledCli(projectRoot, homeDir, ['fund', '--help']);
+    assertPackedCliStderr(
+      fundHelpResult.stderr,
+      fundHelpResult.stdout,
+      'installed zk-agent fund --help'
+    );
+    assert.match(fundHelpResult.stdout, /Usage: zk-agent fund/);
+    assertNoWorkspaceLeak(fundHelpResult.stdout);
+    assertFundHelpContract(fundHelpResult.stdout);
+
+    const depositHelpResult = runInstalledCli(projectRoot, homeDir, ['deposit', '--help']);
+    assertPackedCliStderr(
+      depositHelpResult.stderr,
+      depositHelpResult.stdout,
+      'installed zk-agent deposit --help'
+    );
+    assert.match(depositHelpResult.stdout, /Usage: zk-agent deposit/);
+    assertNoWorkspaceLeak(depositHelpResult.stdout);
+    assertDepositHelpContract(depositHelpResult.stdout);
+
+    const withdrawHelpResult = runInstalledCli(projectRoot, homeDir, ['withdraw', '--help']);
+    assertPackedCliStderr(
+      withdrawHelpResult.stderr,
+      withdrawHelpResult.stdout,
+      'installed zk-agent withdraw --help'
+    );
+    assert.match(withdrawHelpResult.stdout, /Usage: zk-agent withdraw/);
+    assertNoWorkspaceLeak(withdrawHelpResult.stdout);
+    assertWithdrawHelpContract(withdrawHelpResult.stdout);
+
+    const relayHelpResult = runInstalledCli(projectRoot, homeDir, ['relay', '--help']);
+    assertPackedCliStderr(
+      relayHelpResult.stderr,
+      relayHelpResult.stdout,
+      'installed zk-agent relay --help'
+    );
+    assert.match(relayHelpResult.stdout, /Usage: zk-agent relay/);
+    assertNoWorkspaceLeak(relayHelpResult.stdout);
+    assertRelayHelpContract(relayHelpResult.stdout);
+
+    const agentHelpResult = runInstalledCli(projectRoot, homeDir, ['agent', '--help']);
+    assertPackedCliStderr(
+      agentHelpResult.stderr,
+      agentHelpResult.stdout,
+      'installed zk-agent agent --help'
+    );
+    assert.match(agentHelpResult.stdout, /Usage: zk-agent agent/);
+    assertNoWorkspaceLeak(agentHelpResult.stdout);
+    assertAgentHelpContract(agentHelpResult.stdout);
 
     const defaultsOutput = runInstalledCliJson(projectRoot, homeDir, ['defaults', '--json']);
     assertNoWorkspaceLeak(defaultsOutput);
@@ -1054,6 +1859,15 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       assert.equal(profile.artifactReady, true);
     }
 
+    const agentStatusOutput = runInstalledCliJson(projectRoot, homeDir, [
+      'agent',
+      'status',
+      '--json'
+    ]);
+    assertNoWorkspaceLeak(agentStatusOutput);
+    const agentStatusPayload = JSON.parse(agentStatusOutput);
+    assertAgentStatusPayload(agentStatusPayload);
+
     await assertInstalledRelayServe(projectRoot, homeDir);
   } finally {
     rmSync(projectRoot, { recursive: true, force: true });
@@ -1069,12 +1883,14 @@ async function main() {
   const plans = readPlans();
   const projectState = readProjectState();
   const releaseGateDoc = readReleaseGateDoc();
+  const operatorJsonContractDoc = readOperatorJsonContractDoc();
   const quickstart = readSkillQuickstart();
   const skillGuide = readSkillGuide();
   assertVersionAlignment(workspacePkg, pkg);
   assertReleaseMetadata(pkg);
   assertPackageReadme(readme);
   assertRepositoryDocs(rootReadme, quickstart, skillGuide);
+  assertOperatorJsonContract(operatorJsonContractDoc);
   assertCurrentVersionDocs({
     version: pkg.version,
     rootReadme,

@@ -167,6 +167,8 @@ export type RelayCapability =
   | 'connector-ui';
 
 export type RelayPublicOriginSource = 'configured' | 'bind-origin-default';
+export type RelayStateBackend = 'local-filesystem';
+export type RelayDeploymentScope = 'single-host';
 
 export interface RelayHealthResponse {
   ok: true;
@@ -177,6 +179,9 @@ export interface RelayHealthResponse {
   origin: string;
   public_origin: string;
   public_origin_source?: RelayPublicOriginSource;
+  state_backend?: RelayStateBackend;
+  deployment_scope?: RelayDeploymentScope;
+  same_host_restart_persists?: boolean;
   connector_ui_available: boolean;
   capabilities: RelayCapability[];
 }
