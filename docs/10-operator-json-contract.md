@@ -152,6 +152,11 @@ When the wallet is writable and there is no narrower blocker, the default
 flagship next step now points to `workflow pay`, while `workflowAuto` remains
 available for broader multi-intent guided execution.
 
+When that flagship path stays on the default approval-based paymaster mode, the
+same wallet-scope follow-up contract also surfaces the paymaster fee-token
+recovery commands directly instead of forcing the operator back into generic
+token discovery.
+
 Key fields:
 
 ```json
@@ -168,6 +173,8 @@ Key fields:
     "discoverOwnedTokens": "zk-agent tokens --wallet main --owned",
     "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
     "inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>",
+    "discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token",
+    "inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token",
     "workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
     "workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready",
     "nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
@@ -268,6 +275,8 @@ visible:
 - `discoverOwnedTokens`
 - `discoverTokens`
 - `inspectToken`
+- `discoverPaymasterTokens`
+- `inspectPaymasterToken`
 
 ### `workflow list|show|update|delete`
 

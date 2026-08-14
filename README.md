@@ -190,6 +190,9 @@ Interpretation:
 5. `workflow pay` is the default guided execution surface for the flagship
    native-send path. Use `workflow auto` when the workflow intent is broader
    than that one productized path.
+   When the approval-based fee-token choice is unclear, recover with
+   `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token` and
+   `zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token`.
 6. `workflow start`, `workflow status`, `workflow next`, `workflow resume`, and
    `workflow fund` cover explicit checkpoint, resume, and funding-only cases.
 7. `workflow run` remains available as the lower-level one-shot path.
@@ -246,6 +249,10 @@ Discovery is also productized around one local-first path:
 - `tokens --wallet <name> --owned` is the narrower ERC-20 holdings view
 - `tokens --chain <chain>` and `resolve-token` are the symbol-first discovery
   surfaces
+- `tokens --chain <chain> --role paymaster-fee-token` and
+  `resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`
+  are the approval-based fee-token recovery path when `workflow pay` or another
+  paymaster-backed flow needs a canonical candidate set
 - `defaults` is the machine-readable registry escape hatch for validated and
   fallback routes, tokens, and paymaster metadata
 - `ZK_AGENT_TOKEN_DIRECTORY_ROOT` is the optional broader local token-directory

@@ -142,7 +142,7 @@ function assertPackageReadme(readme) {
       'Package README must document the remote-browser wallet-create fallback on the shortest path.'
     ],
     [
-      /## Discovery Path[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent defaults/,
+      /## Discovery Path[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token[\s\S]*zk-agent defaults/,
       'Package README must document the discovery/defaults path and its command order.'
     ],
     [
@@ -210,7 +210,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /Discovery is also productized around one local-first path:[\s\S]*`assets` is the preferred single-chain asset view[\s\S]*`tokens --wallet <name> --owned` is the narrower ERC-20 holdings view[\s\S]*`tokens --chain <chain>` and `resolve-token` are the symbol-first discovery[\s\S]*surfaces[\s\S]*`defaults` is the machine-readable registry escape hatch/,
+      /Discovery is also productized around one local-first path:[\s\S]*`assets` is the preferred single-chain asset view[\s\S]*`tokens --wallet <name> --owned` is the narrower ERC-20 holdings view[\s\S]*`tokens --chain <chain>` and `resolve-token` are the symbol-first discovery[\s\S]*surfaces[\s\S]*`tokens --chain <chain> --role paymaster-fee-token`[\s\S]*`resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`[\s\S]*`defaults` is the machine-readable registry escape hatch/,
       'Root README must keep the discovery/defaults contract visible.'
     ],
     [
@@ -516,7 +516,8 @@ function assertWorkflowHelpContract(helpOutput) {
     'Broader multi-intent guided path: zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
     'Checkpointed execution: zk-agent workflow start --wallet main --intent <intent> [goal flags] zk-agent workflow status --request-id <id> zk-agent workflow next --request-id <id> zk-agent workflow resume --request-id <id> [--broadcast]',
     'Funding-only step: zk-agent workflow fund --wallet main --amount <amount> --execute',
-    'Token/discovery recovery path: zk-agent assets --wallet main zk-agent tokens --wallet main --owned zk-agent tokens --chain zksync-sepolia zk-agent resolve-token --chain zksync-sepolia --symbol USDC zk-agent defaults',
+    'Token/discovery recovery path: zk-agent assets --wallet main zk-agent tokens --wallet main --owned zk-agent tokens --chain zksync-sepolia zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    'Approval-based paymaster fee-token recovery: zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token zk-agent defaults',
     'Lower-level one-shot escape hatch: zk-agent workflow run --wallet main --intent <intent> [goal flags]'
   ];
 
@@ -801,11 +802,11 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the wallet-bootstrap recommendedCommands contract.'
     ],
     [
-      /"scope": "wallet"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
+      /"scope": "wallet"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
       'Operator JSON contract doc must describe the wallet-scope discovery recommendedCommands contract.'
     ],
     [
-      /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`/,
+      /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`/,
       'Operator JSON contract doc must describe the tokenized workflow discovery follow-up contract.'
     ],
     [

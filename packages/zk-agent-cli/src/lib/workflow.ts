@@ -23,7 +23,9 @@ export interface WorkflowFollowupLinesInput {
   inspectDefaults?: string;
   discoverAssets?: string;
   discoverOwnedTokens?: string;
+  discoverPaymasterTokens?: string;
   discoverTokens?: string;
+  inspectPaymasterToken?: string;
   inspectToken?: string;
   workflowHelp?: string;
 }
@@ -318,8 +320,14 @@ export function workflowFollowupLines(
   if (recommendedCommands.discoverOwnedTokens) {
     lines.push(['discover owned tokens', recommendedCommands.discoverOwnedTokens]);
   }
+  if (recommendedCommands.discoverPaymasterTokens) {
+    lines.push(['discover paymaster tokens', recommendedCommands.discoverPaymasterTokens]);
+  }
   if (recommendedCommands.discoverTokens) {
     lines.push(['discover tokens', recommendedCommands.discoverTokens]);
+  }
+  if (recommendedCommands.inspectPaymasterToken) {
+    lines.push(['inspect paymaster token', recommendedCommands.inspectPaymasterToken]);
   }
   if (recommendedCommands.inspectToken) {
     lines.push(['inspect token', recommendedCommands.inspectToken]);

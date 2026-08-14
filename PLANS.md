@@ -275,6 +275,12 @@ Unless priorities change, the next concrete slices should be:
      `workflow pay`, and the asset/token discovery commands around them
    - keep changes narrow and evidence-driven; do not reopen broad command
      family redesign without repeated operator pain
+   - current baseline improvement:
+     the flagship `approval-based` path now surfaces fee-token discovery
+     follow-ups directly in `next` and the `workflow pay` family:
+     `tokens --role paymaster-fee-token` plus the matching role-scoped
+     `resolve-token`, instead of leaving paymaster token recovery buried in
+     generic token discovery or docs
    - expected observable result:
      the shortest path becomes easier to follow without reading long docs or
      knowing local deployment metadata

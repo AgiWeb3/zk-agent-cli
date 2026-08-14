@@ -490,6 +490,20 @@ test('workflow pay creates a flagship reapproval request with paymaster-aware de
       result.status.recommendedCommand,
       `zk-agent wallet request await-local --request-id ${walletRequestId}`
     );
+    assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-pay-001',
+      status: 'zk-agent workflow status --request-id wf-pay-001',
+      next: 'zk-agent workflow next --request-id wf-pay-001',
+      resume: 'zk-agent workflow resume --request-id wf-pay-001',
+      delete: 'zk-agent workflow delete --request-id wf-pay-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction: result.status.recommendedCommand,
+      discoverPaymasterTokens: 'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+      inspectPaymasterToken:
+        'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token'
+    });
 
     const storedCheckpoint = await storage.loadWorkflowCheckpoint('wf-pay-001');
     assert.equal(storedCheckpoint?.requestId, 'wf-pay-001');
@@ -561,6 +575,20 @@ test('workflow pay executes the flagship native-send preview immediately when th
     assert.equal(result.result.goal.mode, 'preview');
     assert.equal(result.result.goal.to, '0x3333333333333333333333333333333333333333');
     assert.equal(result.walletApproval, undefined);
+    assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
+      list: 'zk-agent workflow list',
+      show: 'zk-agent workflow show --request-id wf-pay-ready-001',
+      status: 'zk-agent workflow status --request-id wf-pay-ready-001',
+      next: 'zk-agent workflow next --request-id wf-pay-ready-001',
+      resume: 'zk-agent workflow resume --request-id wf-pay-ready-001',
+      delete: 'zk-agent workflow delete --request-id wf-pay-ready-001',
+      walletStatus: 'zk-agent wallet status --name main',
+      nextAction: result.result.nextCommand,
+      discoverPaymasterTokens: 'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+      inspectPaymasterToken:
+        'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token'
+    });
 
     const storedCheckpoint = await storage.loadWorkflowCheckpoint('wf-pay-ready-001');
     assert.equal(storedCheckpoint?.intent, 'send-native');

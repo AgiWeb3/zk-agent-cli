@@ -217,6 +217,12 @@ test('workflow help prints the default workflow path', async () => {
     assert.match(help, /zk-agent tokens --wallet main --owned/);
     assert.match(help, /zk-agent tokens --chain zksync-sepolia/);
     assert.match(help, /zk-agent resolve-token --chain zksync-sepolia --symbol USDC/);
+    assert.match(help, /Approval-based paymaster fee-token recovery:/);
+    assert.match(help, /zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/);
+    assert.match(
+      help,
+      /zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token/
+    );
     assert.match(help, /zk-agent defaults/);
     assert.match(help, /zk-agent workflow run --wallet main --intent <intent> \[goal flags\]/);
     assert.ok(help.indexOf('pay [options]') < help.indexOf('auto [options]'));

@@ -128,6 +128,9 @@ operator baseline.
 checkpoint, executes immediately when ready, reopens a missing writable session
 through the intent-scoped approval path, and defaults to the validated
 approval-based paymaster mode unless you override it.
+When that approval-based path still needs a fee-token candidate, recover with
+`zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token` and
+`zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token`.
 
 ## Discovery Path
 
@@ -139,6 +142,9 @@ needs token context:
 - `zk-agent tokens --chain zksync-sepolia` and
   `zk-agent resolve-token --chain zksync-sepolia --symbol USDC` for
   symbol-first discovery before choosing an explicit token address
+- `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token` and
+  `zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token`
+  for approval-based paymaster fee-token discovery on the flagship pay path
 - `zk-agent defaults` for the machine-readable registry/defaults catalog:
   tracked token roles, paymaster metadata, source order, and validated/fallback
   route metadata

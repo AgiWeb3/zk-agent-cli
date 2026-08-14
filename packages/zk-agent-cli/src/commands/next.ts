@@ -8,6 +8,7 @@ import {
   loadWorkflowCheckpoint,
   saveWorkflowCheckpoint,
   type DefiProvider,
+  type WorkflowCheckpointRecord,
   type WalletProvider
 } from '@zk-agent/agent-core';
 import { loadAgentIdentitySummary } from '@zk-agent/plugin-identity';
@@ -23,6 +24,8 @@ import {
   buildAssetsRecommendedCommand,
   buildDefaultsRecommendedCommand,
   buildOwnedTokensRecommendedCommand,
+  buildPaymasterFeeTokenResolveRecommendedCommand,
+  buildPaymasterFeeTokensRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildResolveTokenRecommendedCommand,
   buildTokensRecommendedCommand,
@@ -72,6 +75,7 @@ function buildTopLevelWorkflowRecommendedCommands(input: {
   nextAction?: string;
   chain: string;
   intent: string;
+  paymasterMode?: PaymasterMode;
 }) {
   return {
     inspectDefaults: buildDefaultsRecommendedCommand(),
@@ -90,8 +94,21 @@ function buildTopLevelWorkflowRecommendedCommands(input: {
           discoverTokens: buildTokensRecommendedCommand(input.chain),
           inspectToken: buildResolveTokenRecommendedCommand(input.chain)
         }
+      : {}),
+    ...(input.paymasterMode === 'approval-based'
+      ? {
+          discoverPaymasterTokens: buildPaymasterFeeTokensRecommendedCommand(input.chain),
+          inspectPaymasterToken: buildPaymasterFeeTokenResolveRecommendedCommand(input.chain)
+        }
       : {})
   };
+}
+
+function extractCheckpointPaymasterMode(
+  checkpoint: WorkflowCheckpointRecord
+): PaymasterMode | undefined {
+  if (!('paymaster' in checkpoint.goal)) return undefined;
+  return checkpoint.goal.paymaster?.mode;
 }
 
 function resolveNextCommandDeps(
@@ -207,7 +224,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           walletName: wallet.walletName,
           nextAction: nextCommand,
           chain: result.plan.chain,
-          intent: result.intent
+          intent: result.intent,
+          paymasterMode: extractCheckpointPaymasterMode(updatedCheckpoint)
         });
         const workflowAgentProfile = await loadAgentIdentitySummary(wallet.walletName);
         const agentFollowup = buildAgentFollowup(workflowAgentProfile, {
@@ -366,6 +384,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
         discoverAssets: buildAssetsRecommendedCommand(wallet.walletName),
         discoverOwnedTokens: buildOwnedTokensRecommendedCommand(wallet.walletName),
+        ...(paymasterMode === 'approval-based'
+          ? {
+              discoverPaymasterTokens: buildPaymasterFeeTokensRecommendedCommand(wallet.chain),
+              inspectPaymasterToken: buildPaymasterFeeTokenResolveRecommendedCommand(wallet.chain)
+            }
+          : {}),
         discoverTokens: buildTokensRecommendedCommand(wallet.chain),
         inspectToken: buildResolveTokenRecommendedCommand(wallet.chain),
         workflowPay,
@@ -382,7 +406,13 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           ...(summary.recommendedCommand ? [] : [['next', workflowPay] as [string, string]]),
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
+          ...(recommendedCommands.discoverPaymasterTokens
+            ? [['discover paymaster tokens', recommendedCommands.discoverPaymasterTokens] as [string, string]]
+            : []),
           ['discover tokens', recommendedCommands.discoverTokens],
+          ...(recommendedCommands.inspectPaymasterToken
+            ? [['inspect paymaster token', recommendedCommands.inspectPaymasterToken] as [string, string]]
+            : []),
           ['inspect token', recommendedCommands.inspectToken],
           ['inspect defaults', recommendedCommands.inspectDefaults]
         ]),

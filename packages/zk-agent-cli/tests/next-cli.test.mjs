@@ -433,6 +433,46 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
   }
 });
 
+test('top-level next adds paymaster fee-token discovery commands for approval-based flagship guidance', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-approval-based-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveProjectConfig(sampleConfig());
+    await storage.saveWalletSession(sampleWallet({ writable: true }));
+
+    const result = await runNextCli(['--paymaster-mode', 'approval-based'], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'wallet');
+    assert.equal(
+      result.nextCommand,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based'
+    );
+    assert.deepEqual(result.recommendedCommands, {
+      walletNext: 'zk-agent wallet next --name main',
+      walletStatus: 'zk-agent wallet status --name main',
+      discoverAssets: 'zk-agent assets --wallet main',
+      discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+      discoverPaymasterTokens: 'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+      inspectPaymasterToken:
+        'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token',
+      inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+      workflowPay:
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
+      workflowAuto:
+        'zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready --paymaster-mode approval-based',
+      nextAction:
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
+      inspectDefaults: 'zk-agent defaults'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('top-level next can summarize the next step for a stored workflow checkpoint', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-workflow-'));
 

@@ -103,12 +103,25 @@ export function buildResolveTokenRecommendedCommand(
   return source ? `${withRole} --source ${source}` : withRole;
 }
 
+export function buildPaymasterFeeTokensRecommendedCommand(chain: string): string {
+  return buildTokensRecommendedCommand(chain, undefined, 'paymaster-fee-token');
+}
+
+export function buildPaymasterFeeTokenResolveRecommendedCommand(
+  chain: string,
+  symbol?: string
+): string {
+  return buildResolveTokenRecommendedCommand(chain, symbol, 'paymaster-fee-token');
+}
+
 export interface DiscoveryRecommendedCommands {
   inspectDefaults: string;
   discoverAssets?: string;
   discoverOwnedTokens?: string;
   discoverTokens?: string;
   inspectToken?: string;
+  discoverPaymasterTokens?: string;
+  inspectPaymasterToken?: string;
 }
 
 export function buildDiscoveryRecommendedCommands(input: {

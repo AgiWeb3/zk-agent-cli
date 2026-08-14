@@ -64,6 +64,8 @@ import {
 import {
   buildAssetsRecommendedCommand,
   buildOwnedTokensRecommendedCommand,
+  buildPaymasterFeeTokenResolveRecommendedCommand,
+  buildPaymasterFeeTokensRecommendedCommand,
   buildResolveTokenRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
   buildTokensRecommendedCommand,
@@ -1161,7 +1163,10 @@ async function printWorkflowRunCommandResult(
       walletName: execution.result.walletName,
       nextAction: execution.result.nextCommand,
       chain: execution.result.plan.chain,
-      intent: execution.result.intent
+      intent: execution.result.intent,
+      paymasterMode:
+        execution.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(execution.result.goal)
     });
 
     printResult(
@@ -1204,7 +1209,10 @@ async function printWorkflowRunCommandResult(
     walletName: execution.status.walletName,
     nextAction: execution.status.recommendedCommand,
     chain: execution.status.plan.chain,
-    intent: execution.status.intent
+    intent: execution.status.intent,
+    paymasterMode:
+      execution.walletApproval?.request.requestedPaymasterMode ??
+      extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
   });
 
   printResult(
@@ -1558,7 +1566,11 @@ async function printWorkflowAutoCommandResult(
     walletName: execution.status.walletName,
     nextAction,
     chain: execution.status.plan.chain,
-    intent: execution.status.intent
+    intent: execution.status.intent,
+    paymasterMode:
+      execution.walletApproval?.request.requestedPaymasterMode ??
+      extractWorkflowGoalPaymasterMode(execution.result?.goal) ??
+      extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
   });
   const summaryLines: Array<[string, string]> = [
     ['source', execution.source],
@@ -1636,12 +1648,35 @@ function buildWorkflowCheckpointRecommendedCommands(checkpoint: WorkflowCheckpoi
   };
 }
 
+function extractWorkflowGoalPaymasterMode(
+  goal:
+    | WorkflowCheckpointRecord['goal']
+    | WorkflowRunResult['goal']
+    | undefined
+): PaymasterMode | undefined {
+  if (!goal || !('paymaster' in goal)) {
+    return undefined;
+  }
+
+  return goal.paymaster?.mode;
+}
+
+function extractPaymasterModeFromCommand(command?: string): PaymasterMode | undefined {
+  if (!command) {
+    return undefined;
+  }
+
+  const match = command.match(/--paymaster-mode (none|sponsored|approval-based)\b/);
+  return match?.[1] as PaymasterMode | undefined;
+}
+
 function buildWorkflowRuntimeRecommendedCommands(input: {
   requestId?: string;
   walletName?: string;
   nextAction?: string;
   chain?: string;
   intent?: WorkflowIntent;
+  paymasterMode?: PaymasterMode;
 }): {
   inspectDefaults: string;
   list: string;
@@ -1654,9 +1689,14 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
   nextAction?: string;
   discoverAssets?: string;
   discoverOwnedTokens?: string;
+  discoverPaymasterTokens?: string;
   discoverTokens?: string;
+  inspectPaymasterToken?: string;
   inspectToken?: string;
 } {
+  const paymasterMode =
+    extractPaymasterModeFromCommand(input.nextAction) ?? input.paymasterMode;
+
   return {
     inspectDefaults: 'zk-agent defaults',
     list: buildWorkflowListRecommendedCommand(),
@@ -1690,6 +1730,12 @@ function buildWorkflowRuntimeRecommendedCommands(input: {
           discoverTokens: `zk-agent tokens --chain ${input.chain}`,
           inspectToken: `zk-agent resolve-token --chain ${input.chain} --symbol <symbol>`
         }
+      : {}),
+    ...(input.chain && paymasterMode === 'approval-based'
+      ? {
+          discoverPaymasterTokens: buildPaymasterFeeTokensRecommendedCommand(input.chain),
+          inspectPaymasterToken: buildPaymasterFeeTokenResolveRecommendedCommand(input.chain)
+        }
       : {})
   };
 }
@@ -1710,6 +1756,7 @@ function buildWorkflowPlanRecommendedCommands(plan: {
   intent: WorkflowIntent;
   recommendedCommand: string;
   goalCommand: string;
+  paymasterMode?: PaymasterMode;
 }): {
   inspectDefaults: string;
   next: string;
@@ -1717,7 +1764,9 @@ function buildWorkflowPlanRecommendedCommands(plan: {
   workflowHelp: string;
   discoverAssets?: string;
   discoverOwnedTokens?: string;
+  discoverPaymasterTokens?: string;
   discoverTokens?: string;
+  inspectPaymasterToken?: string;
   inspectToken?: string;
 } {
   return {
@@ -1731,6 +1780,12 @@ function buildWorkflowPlanRecommendedCommands(plan: {
           discoverOwnedTokens: buildOwnedTokensRecommendedCommand(plan.walletName),
           discoverTokens: buildTokensRecommendedCommand(plan.chain),
           inspectToken: buildResolveTokenRecommendedCommand(plan.chain)
+        }
+      : {}),
+    ...(plan.paymasterMode === 'approval-based'
+      ? {
+          discoverPaymasterTokens: buildPaymasterFeeTokensRecommendedCommand(plan.chain),
+          inspectPaymasterToken: buildPaymasterFeeTokenResolveRecommendedCommand(plan.chain)
         }
       : {})
   };
@@ -2299,6 +2354,10 @@ function buildWorkflowHelpText(): string {
     '    zk-agent tokens --wallet main --owned',
     '    zk-agent tokens --chain zksync-sepolia',
     '    zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    '',
+    '  Approval-based paymaster fee-token recovery:',
+    '    zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+    '    zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token',
     '    zk-agent defaults',
     '',
     '  Lower-level one-shot escape hatch:',
@@ -2372,15 +2431,19 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         paymasterToken?: string;
       }) => {
         const intent = parseWorkflowIntent(options.intent);
+        const paymasterInput = resolveWorkflowPaymasterInput(options);
         const { inspection, plan } = await loadWorkflowPlanState(
           options.wallet,
           intent,
           parseWorkflowSwapProtocol(options.protocol),
           options.toChain,
-          resolveWorkflowPaymasterInput(options),
+          paymasterInput,
           resolvedDeps
         );
-        const recommendedCommands = buildWorkflowPlanRecommendedCommands(plan);
+        const recommendedCommands = buildWorkflowPlanRecommendedCommands({
+          ...plan,
+          paymasterMode: paymasterInput?.mode
+        });
         const agentProfile = await loadWorkflowAgentProfile(plan.walletName);
         const agentFollowup = buildAgentFollowup(agentProfile, {
           walletName: plan.walletName,
@@ -2678,7 +2741,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       walletName: inspection.result.walletName,
       nextAction: inspection.result.recommendedCommand,
       chain: inspection.result.plan.chain,
-      intent: inspection.result.intent
+      intent: inspection.result.intent,
+      paymasterMode:
+        inspection.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(inspection.checkpoint?.goal)
     });
     const agentProfile = await loadWorkflowAgentProfile(inspection.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2737,7 +2803,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       walletName: inspection.result.walletName,
       nextAction: nextCommand,
       chain: inspection.result.plan.chain,
-      intent: inspection.result.intent
+      intent: inspection.result.intent,
+      paymasterMode:
+        inspection.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(inspection.checkpoint?.goal)
     });
     const agentProfile = await loadWorkflowAgentProfile(inspection.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2812,7 +2881,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         walletName: inspection.result.walletName,
         nextAction: inspection.result.recommendedCommand,
         chain: inspection.result.plan.chain,
-        intent: inspection.result.intent
+        intent: inspection.result.intent,
+        paymasterMode: inspection.walletApproval.request.requestedPaymasterMode
       });
       const agentProfile = await loadWorkflowAgentProfile(inspection.result.walletName);
       const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2867,7 +2937,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         walletName: execution.status.walletName,
         nextAction: execution.status.recommendedCommand,
         chain: execution.status.plan.chain,
-        intent: execution.status.intent
+        intent: execution.status.intent,
+        paymasterMode:
+          execution.walletApproval?.request.requestedPaymasterMode ??
+          extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
       });
       const agentProfile = await loadWorkflowAgentProfile(execution.status.walletName);
       const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2911,7 +2984,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       walletName: execution.result.walletName,
       nextAction: execution.result.nextCommand,
       chain: execution.result.plan.chain,
-      intent: execution.result.intent
+      intent: execution.result.intent,
+      paymasterMode:
+        execution.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(execution.result.goal)
     });
     const agentProfile = await loadWorkflowAgentProfile(execution.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {

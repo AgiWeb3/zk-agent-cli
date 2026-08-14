@@ -117,6 +117,11 @@ Architecture baseline to keep in mind:
      `defaults`, `assets`, `tokens`, `resolve-token`, and `workflow --help`
      now all point at the same discovery and token-recovery path, so the
      operator can stay inside CLI help instead of falling back to repo prose
+   - current baseline improvement:
+     the `approval-based` flagship pay path now surfaces paymaster fee-token
+     discovery commands directly in `next` and workflow follow-ups, so the
+     operator gets `tokens --role paymaster-fee-token` and the matching
+     role-scoped `resolve-token` without having to infer that recovery path
    - the remaining gap is making those surfaces require less local knowledge
      about tokens, validated defaults, and which discovery command should come
      next
