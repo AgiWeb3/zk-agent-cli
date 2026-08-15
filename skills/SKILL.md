@@ -48,6 +48,10 @@ add it with:
 npx skills add https://github.com/AgiWeb3/zk-agent-cli
 ```
 
+This repository currently ships a repo skill bundle only. It does not yet
+ship a native ChatGPT/Codex plugin manifest such as
+`.codex-plugin/plugin.json`.
+
 - Node.js `>=24`
 - packaged CLI entrypoint:
 

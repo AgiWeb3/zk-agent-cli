@@ -129,6 +129,10 @@ function assertPackageReadme(readme) {
       /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli/,
       'Package README must document the compatible agent-harness skill install path.'
     ],
+    [
+      /\.codex-plugin\/plugin\.json/,
+      'Package README must keep the current skill-vs-plugin boundary explicit.'
+    ],
     [/npx zk-agent-cli --help/, 'Package README must document one-shot npx usage.'],
     [/npm install -g zk-agent-cli/, 'Package README must document global install usage.'],
     [/zksync-agent --help/, 'Package README must document the secondary binary name.'],
@@ -205,6 +209,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
+      /\.codex-plugin\/plugin\.json/,
+      'Root README must keep the current skill-vs-plugin boundary explicit.'
+    ],
+    [
+      rootReadme,
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Root README must keep the canonical terminal path visible.'
     ],
@@ -240,12 +249,17 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
+      /\.codex-plugin\/plugin\.json/,
+      'Quickstart must keep the current skill-vs-plugin boundary explicit.'
+    ],
+    [
+      quickstart,
       /zk-agent setup[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Quickstart must keep the canonical terminal path visible.'
     ],
     [
       quickstart,
-      /Use `assets` as the default single-chain asset entrypoint\.[\s\S]*`balances --owned-tokens`[\s\S]*`tokens --owned`[\s\S]*`zk-agent defaults` now also[\s\S]*shows that source order[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC/,
+      /Use `assets` as the default single-chain asset entrypoint\.[\s\S]*`balances --owned-tokens`[\s\S]*`tokens --owned`[\s\S]*`zk-agent defaults` now also[\s\S]*shows that source order[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC --role paymaster-fee-token/,
       'Quickstart must keep the discovery/defaults contract visible.'
     ],
     [
@@ -265,12 +279,17 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
+      /\.codex-plugin\/plugin\.json/,
+      'Primary skill guide must keep the current skill-vs-plugin boundary explicit.'
+    ],
+    [
+      skillGuide,
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Primary skill guide must keep the canonical operator path visible.'
     ],
     [
       skillGuide,
-      /Use `zk-agent defaults` when you need the current token-registry source[\s\S]*order[\s\S]*Use `zk-agent tokens --chain zksync-sepolia`[\s\S]*Use `zk-agent tokens --wallet main --owned`[\s\S]*default asset view, start with `assets`\.[\s\S]*Use `zk-agent resolve-token --chain zksync-sepolia --symbol USDC`/,
+      /Use `zk-agent defaults` when you need the current token-registry source[\s\S]*order[\s\S]*Use `zk-agent tokens --chain zksync-sepolia`[\s\S]*Use `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`[\s\S]*Use `zk-agent tokens --wallet main --owned`[\s\S]*default asset view, start with `assets`\.[\s\S]*Use `zk-agent resolve-token --chain zksync-sepolia --symbol USDC`[\s\S]*Add `--role swap-token-a\|swap-token-b\|paymaster-fee-token`/,
       'Primary skill guide must keep the discovery/defaults contract visible.'
     ],
     [

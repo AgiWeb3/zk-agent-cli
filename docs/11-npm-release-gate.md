@@ -233,6 +233,9 @@ each other.
 - [ ] the root README install/run paths match the package README
 - [ ] `skills/SKILL.md` and `skills/QUICKSTART.md` use the same canonical path
       as CLI help
+- [ ] README/skills say clearly that `npx skills add ...` is the repo skill
+      path for compatible harnesses, not proof of native ChatGPT/Codex plugin
+      packaging
 - [ ] `zk-agent --help` exposes the same main capability surface claimed by the
       README
 - [ ] docs no longer imply that an unpublished install surface is already live
@@ -245,6 +248,7 @@ npx zk-agent-cli wallet --help
 npx zk-agent-cli workflow --help
 zk-agent --help
 zksync-agent --help
+PATH=/Users/mac/.nvm/versions/node/v24.14.1/bin:$PATH npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list
 ```
 
 Pass criteria:
@@ -255,6 +259,11 @@ Pass criteria:
   - the root README / skills
   - packaged help entrypoints reached through `npx zk-agent-cli ...` or the
     installed `zk-agent` / `zksync-agent` binaries
+- the same docs also keep the install boundary honest:
+  - `npx skills add ...` is described only as the repo skill surface for
+    compatible harnesses
+  - native ChatGPT/Codex plugin packaging is not implied unless the repo
+    actually ships `.codex-plugin/plugin.json`
 - the current `release:check` script now also machine-checks that contract
   across:
   - package README public entrypoints
@@ -275,6 +284,8 @@ Blockers:
 - the README claims one default path while CLI help claims another
 - the root docs still default to the repo-local wrapper while the packaged
   install surface is already the public promise
+- docs imply native ChatGPT/Codex plugin distribution even though the repo
+  only ships repo-local skills
 - deferred capability is described as stable and shipped
 
 ## Gate 7: public promise boundary must stay clear
@@ -307,6 +318,12 @@ Even after automation passes, complete one short manual path.
 - [ ] `npx zk-agent-cli --help` behaves as expected
 - [ ] `npm install -g zk-agent-cli` then `zk-agent --help` behaves correctly
 - [ ] `npm install -g zk-agent-cli` then `zksync-agent --help` behaves correctly
+- [ ] `PATH=/Users/mac/.nvm/versions/node/v24.14.1/bin:$PATH npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list`
+      recognizes the repo and shows the expected skill names before any real
+      install attempt
+- [ ] from one compatible external harness or temporary project, `PATH=/Users/mac/.nvm/versions/node/v24.14.1/bin:$PATH npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --skill '*' --agent codex --copy -y`
+      installs the repo skill bundle and the main `zk-agent-cli` skill is
+      visible
 - [ ] `zk-agent setup`
 - [ ] `zk-agent next`
 - [ ] at least one wallet create or reapprove path works in the target
@@ -317,6 +334,9 @@ Notes:
 
 - if the release machine is not intended for live chain broadcast at this
   stage, at minimum complete the help, setup, next, and preview path
+- for a single-agent install smoke, do not use `--all --agent codex`:
+  the external `skills` CLI currently treats `--all` as `--skill '*' --agent '*'`
+  and installs broadly; use `--skill '*' --agent codex -y` instead
 
 Blockers:
 
@@ -360,13 +380,13 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current published baseline
 
-- current public beta completed on `2026-08-10`:
-  `zk-agent-cli@0.1.0-beta.7`
+- current public beta completed on `2026-08-15`:
+  `zk-agent-cli@0.1.0-beta.8`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.7`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.7`
-  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.7`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.7","beta":"0.1.0-beta.7"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.8`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.8`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.8`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.8","beta":"0.1.0-beta.8"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted

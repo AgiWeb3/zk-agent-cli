@@ -133,6 +133,30 @@ The repo is already past scaffolding. The current stable baseline is:
      `agent` profile path, nested wallet help surfaces, direct-command help
      surfaces, and the machine-readable `agent status --json` contract so
      those public entrypoints do not drift after publish
+   - current baseline improvement:
+     the repo docs now also say explicitly that `npx skills add ...` is the
+     repo skill path for compatible harnesses only, while native
+     ChatGPT/Codex plugin packaging is still a separate future surface
+   - current baseline improvement:
+     a real external `skills` CLI parse smoke now works against the repo on a
+     clean Node 24 path:
+     `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list`
+     recognizes the repository and lists the 4 expected skills
+     (`zk-agent-cli`, `zk-aa`, `zk-defi`, `zk-relay`) without requiring an
+     actual install first
+   - current baseline improvement:
+     a real project-scoped install smoke now also works on the same clean
+     Node 24 path when the command stays explicit:
+     `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --skill '*' --agent codex --copy -y`
+     installs the 4 expected skills into the temporary project's
+     `./.agents/skills/` tree for Codex only
+   - current caution:
+     `--all --agent codex` is not a safe equivalent for single-agent smoke,
+     because the external `skills` CLI currently expands `--all` broadly and
+     installs to every detected agent target
+   - the remaining gap is one real compatible-harness install smoke before the
+     repo skill surface can be called fully install-ready outside the
+     repository
 
 5. Ecosystem integrations are still intentionally behind.
    - the local Polygon reference ships explicit product verticals such as
@@ -171,9 +195,12 @@ This final productization closeout is done when all of the following are true:
 Completed work is intentionally compressed here. The important closed baseline
 for the next stage is:
 
-- the public npm package is live at `zk-agent-cli@0.1.0-beta.7`
+- the public npm package is live at `zk-agent-cli@0.1.0-beta.8`
 - the install surface works as a packaged CLI, a repo skill surface, and a
   source-checkout wrapper
+- the repo skill surface is ready for compatible harnesses, but native
+  ChatGPT/Codex plugin packaging remains a separate future surface because the
+  repo does not yet ship `.codex-plugin/plugin.json`
 - hosted relay approval is proven end to end, including real public hosted
   proof
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`

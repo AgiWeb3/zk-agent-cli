@@ -39,6 +39,10 @@ skill install:
 npx skills add https://github.com/AgiWeb3/zk-agent-cli
 ```
 
+This repo currently ships a repo skill bundle for compatible harnesses. It
+does not yet ship a native ChatGPT/Codex plugin bundle such as
+`.codex-plugin/plugin.json`.
+
 If you want the CLI directly in a terminal, use one of the packaged paths
 below.
 
@@ -198,10 +202,8 @@ When you need the broader symbol-first discovery path for a chain, start with:
 ```bash
 zk-agent tokens --chain zksync-sepolia
 zk-agent resolve-token --chain zksync-sepolia --symbol USDC
-```
-
-```bash
-zk-agent resolve-token --chain zksync-sepolia --symbol USDC
+zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
+zk-agent resolve-token --chain zksync-sepolia --symbol USDC --role paymaster-fee-token
 ```
 
 Shortest next-step summary across setup, wallet readiness, and stored workflow checkpoints:

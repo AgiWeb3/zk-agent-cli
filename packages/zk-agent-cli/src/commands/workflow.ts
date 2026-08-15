@@ -1166,7 +1166,7 @@ async function printWorkflowRunCommandResult(
       intent: execution.result.intent,
       paymasterMode:
         execution.walletApproval?.request.requestedPaymasterMode ??
-        extractWorkflowGoalPaymasterMode(execution.result.goal)
+        extractWorkflowGoalPaymasterMode(execution.goal)
     });
 
     printResult(
@@ -1424,6 +1424,7 @@ interface WorkflowAutoCommandResult {
   action: WorkflowStatusResult['status'] | WorkflowWalletApprovalResult['stage'] | WorkflowRunResult['stage'];
   requestId?: string;
   checkpointPersisted: boolean;
+  goal: WorkflowGoalInput;
   checkpoint?: WorkflowCheckpointRecord;
   status: WorkflowStatusResult;
   result?: WorkflowRunResult;
@@ -1543,6 +1544,7 @@ async function executeWorkflowAutoCommand(
     action: result ? result.stage : (walletApproval?.stage ?? status.status),
     requestId: context.requestId,
     checkpointPersisted: Boolean(checkpoint),
+    goal: context.goal,
     checkpoint,
     status,
     result,
@@ -1569,7 +1571,7 @@ async function printWorkflowAutoCommandResult(
     intent: execution.status.intent,
     paymasterMode:
       execution.walletApproval?.request.requestedPaymasterMode ??
-      extractWorkflowGoalPaymasterMode(execution.result?.goal) ??
+      extractWorkflowGoalPaymasterMode(execution.goal) ??
       extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
   });
   const summaryLines: Array<[string, string]> = [
@@ -1651,7 +1653,7 @@ function buildWorkflowCheckpointRecommendedCommands(checkpoint: WorkflowCheckpoi
 function extractWorkflowGoalPaymasterMode(
   goal:
     | WorkflowCheckpointRecord['goal']
-    | WorkflowRunResult['goal']
+    | WorkflowGoalInput
     | undefined
 ): PaymasterMode | undefined {
   if (!goal || !('paymaster' in goal)) {
@@ -2185,6 +2187,7 @@ async function executeWorkflowRunCommand(
     ) {
       return {
         requestId: inspection.requestId,
+        goal: context.goal,
         status: inspection.result,
         walletApproval: inspection.walletApproval,
         checkpoint: inspection.checkpoint
@@ -2225,6 +2228,7 @@ async function executeWorkflowRunCommand(
 
   return {
     requestId: context.requestId,
+    goal: context.goal,
     result,
     walletApproval
   };
@@ -2987,7 +2991,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       intent: execution.result.intent,
       paymasterMode:
         execution.walletApproval?.request.requestedPaymasterMode ??
-        extractWorkflowGoalPaymasterMode(execution.result.goal)
+        extractWorkflowGoalPaymasterMode(execution.goal)
     });
     const agentProfile = await loadWorkflowAgentProfile(execution.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {

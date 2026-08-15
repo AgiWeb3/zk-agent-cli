@@ -45,12 +45,12 @@ work only.
 
 Release snapshot:
 
-- the current public beta is `zk-agent-cli@0.1.0-beta.7`
-- that release was published on `2026-08-10`
+- the current public beta is `zk-agent-cli@0.1.0-beta.8`
+- that release was published on `2026-08-15`
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
-  `beta -> 0.1.0-beta.7`, `latest -> 0.1.0-beta.7`
+  `beta -> 0.1.0-beta.8`, `latest -> 0.1.0-beta.8`
 - public agent-harness docs now default to
   `npx skills add https://github.com/AgiWeb3/zk-agent-cli`
 - public operator docs now default to the packaged `zk-agent ...` surface
@@ -293,6 +293,9 @@ The repo now includes an agent-facing skills surface:
 
 These files are the shortest maintained entrypoint for agent harnesses that
 need the current canonical CLI path without reading the entire repository.
+They are the repo skill bundle for compatible harnesses, not a native
+ChatGPT/Codex plugin package. This repo does not yet ship
+`.codex-plugin/plugin.json`.
 
 ## Development Environment Strategy
 

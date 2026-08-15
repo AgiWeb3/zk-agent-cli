@@ -12,7 +12,7 @@
 
 The product baseline is already closed for the core zkSync-native path:
 
-- `zk-agent-cli@0.1.0-beta.7` is live and both npm dist-tags `beta` and
+- `zk-agent-cli@0.1.0-beta.8` is live and both npm dist-tags `beta` and
   `latest` point there
 - the public package, local-first wallet/session lifecycle, hosted relay path,
   and flagship `workflow pay` AA flow all exist and have real validation proof
@@ -138,8 +138,29 @@ Architecture baseline to keep in mind:
      `relay --help`, `agent --help`, and the package/root README now surface
      the hosted remote-approval fallback, direct-command escape hatches, and
      the optional local operator-identity path directly on the public surface
-   - the remaining work here is contract maintenance after future releases,
-     not another large restructuring pass
+   - current baseline improvement:
+     the docs now also say explicitly that `npx skills add ...` is the repo
+     skill path for compatible harnesses only; the repo still does not ship a
+     native ChatGPT/Codex plugin bundle such as `.codex-plugin/plugin.json`
+   - current baseline improvement:
+     on `2026-08-14`, the external `skills` CLI successfully parsed this repo
+     from a clean Node 24 path with
+     `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list`
+     and recognized the 4 expected skills:
+     `zk-agent-cli`, `zk-aa`, `zk-defi`, and `zk-relay`
+   - current baseline improvement:
+     on `2026-08-15`, a real project-scoped install smoke also succeeded from
+     a clean Node 24 path with
+     `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --skill '*' --agent codex --copy -y`
+     and installed the 4 expected skills into a temporary project's
+     `./.agents/skills/` tree for Codex
+   - current caution:
+     `--all --agent codex` is not a safe equivalent for single-agent smoke:
+     the external `skills` CLI currently broadens that combination and
+     installs to every detected agent target
+   - the remaining work here is contract maintenance after future releases
+     plus one real external harness install smoke before the skill surface can
+     be called install-ready
 5. DeFi breadth only on explicit restart
    - do not let broader swap/deposit/withdraw breadth silently reclaim the
      default roadmap without a deliberate product decision
