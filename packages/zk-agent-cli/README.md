@@ -100,6 +100,11 @@ zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
 
+If local setup or wallet readiness is unclear, start with `zk-agent doctor`.
+It inspects saved config, wallet approval metadata, and local signer state
+without live RPC reads, and `--relay-url` only makes the remote fallback
+commands concrete.
+
 If a wallet already exists, inspect the blocker first. Use `wallet reapprove`
 when approval is missing or expired, then return to `zk-agent next`. Use
 `wallet signer attach` when approval is still present but the local execution
@@ -279,6 +284,7 @@ Connector callback never arrives:
 
 CLI says the wallet is missing a writable session:
 
+- if the blocker is unclear, run `zk-agent doctor --wallet <wallet>` first
 - inspect `zk-agent wallet status --name <wallet>`
 - if approval is missing, run `zk-agent wallet reapprove --name <wallet> --await-local`
 - if approval is present but the local signer is missing, run
@@ -301,6 +307,7 @@ For the canonical command surfaces:
 
 ```bash
 zk-agent --help
+zk-agent doctor --help
 zk-agent wallet --help
 zk-agent workflow --help
 ```

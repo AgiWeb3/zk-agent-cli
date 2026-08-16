@@ -143,6 +143,10 @@ The repo is already past scaffolding. The current stable baseline is:
      explicitly that a custom `.env` is usually not required until live reads
      or broadcasts
    - current baseline improvement:
+     the top-level `doctor` command now compresses local config, wallet
+     approval metadata, and signer readiness into one local-only diagnostic,
+     and the public docs/release gate now lock that recovery contract
+   - current baseline improvement:
      the release gate now also locks the hosted relay fallback, optional local
      `agent` profile path, nested wallet help surfaces, direct-command help
      surfaces, and the machine-readable `agent status --json` contract so

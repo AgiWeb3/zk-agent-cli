@@ -20,6 +20,7 @@ import {
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
 import { createNextCommand } from './commands/next.js';
+import { createDoctorCommand } from './commands/doctor.js';
 import { createAgentCommand } from './commands/agent.js';
 import { createDefaultsCommand } from './commands/defaults.js';
 import { createResolveTokenCommand } from './commands/resolve-token.js';
@@ -50,6 +51,9 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zk-agent next',
     `  ${buildWorkflowPayRecommendedCommand('main')}`,
     '',
+    'If local setup or wallet state is unclear:',
+    '  zk-agent doctor',
+    '',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
     'Add RPC env vars later, before live reads or broadcasts.',
     '',
@@ -61,6 +65,7 @@ function buildDefaultOperatorPathHelpText(): string {
 
 const ROOT_HELP_COMMAND_ORDER = [
   'next',
+  'doctor',
   'init',
   'wallet',
   'workflow',
@@ -113,6 +118,7 @@ function createProgram(): Command {
 
   program.addCommand(createInitCommand());
   program.addCommand(createNextCommand());
+  program.addCommand(createDoctorCommand());
   program.addCommand(createAgentCommand());
   program.addCommand(createDefaultsCommand());
   program.addCommand(createTokensCommand());

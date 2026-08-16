@@ -237,6 +237,8 @@ each other.
       `npx skills add ...` is still the repo-skill path for compatible
       harnesses, and native plugin packaging is only claimed through the real
       `.codex-plugin/plugin.json` manifest now shipped by the repo
+- [ ] `zk-agent doctor --help` exposes the same local-only diagnostic and
+      recovery contract claimed by README/skills
 - [ ] `zk-agent --help` exposes the same main capability surface claimed by the
       README
 - [ ] docs no longer imply that an unpublished install surface is already live
@@ -246,9 +248,11 @@ Suggested checks:
 ```bash
 pnpm codex:plugin:doctor
 npx zk-agent-cli --help
+npx zk-agent-cli doctor --help
 npx zk-agent-cli wallet --help
 npx zk-agent-cli workflow --help
 zk-agent --help
+zk-agent doctor --help
 zksync-agent --help
 PATH=/Users/mac/.nvm/versions/node/v24.14.1/bin:$PATH npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list
 ```
@@ -273,12 +277,13 @@ Pass criteria:
   - root README public entrypoints
   - `skills/SKILL.md` and `skills/QUICKSTART.md`
   - packed `zk-agent --help`
+  - packed `zk-agent doctor --help`
   - packed `zk-agent setup --help`
   - packed `zk-agent next --help`
   - packed `zk-agent defaults|assets|tokens|resolve-token --help`
   - packed `zk-agent wallet --help`
   - packed `zk-agent workflow --help`
-  - `docs/10-operator-json-contract.md` setup / wallet-bootstrap / wallet discovery examples
+  - `docs/10-operator-json-contract.md` doctor / setup / wallet-bootstrap / wallet discovery examples
   - current-version references in `README.md`, `PLANS.md`,
     `PROJECT_STATE.md`, and this release-gate doc
 
@@ -330,6 +335,7 @@ Even after automation passes, complete one short manual path.
       installs the repo skill bundle and the main `zk-agent-cli` skill is
       visible
 - [ ] `zk-agent setup`
+- [ ] `zk-agent doctor`
 - [ ] `zk-agent next`
 - [ ] at least one wallet create or reapprove path works in the target
       environment

@@ -187,6 +187,10 @@ function assertPackageReadme(readme) {
       'Package README must document the remote-browser wallet-create fallback on the shortest path.'
     ],
     [
+      /If local setup or wallet readiness is unclear, start with `zk-agent doctor`\.[\s\S]*without live RPC reads/,
+      'Package README must document the local-only doctor entrypoint.'
+    ],
+    [
       /## Discovery Path[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent tokens --chain zksync-sepolia[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token[\s\S]*zk-agent defaults/,
       'Package README must document the discovery/defaults path and its command order.'
     ],
@@ -205,6 +209,10 @@ function assertPackageReadme(readme) {
     [
       /zk-agent wallet reapprove --name main --await-local/,
       'Package README must document the shortest stale-session recovery path.'
+    ],
+    [
+      /if the blocker is unclear, run `zk-agent doctor --wallet <wallet>` first/,
+      'Package README must document doctor as the first local recovery diagnostic.'
     ],
     [/~\/\.zk-agent\//, 'Package README must document the default local storage path.'],
     [
@@ -257,6 +265,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       rootReadme,
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Root README must keep the canonical terminal path visible.'
+    ],
+    [
+      rootReadme,
+      /If local config or wallet readiness is unclear before you choose a fork, run[\s\S]*`zk-agent doctor`[\s\S]*without live RPC reads/,
+      'Root README must keep the local-only doctor diagnostic visible.'
     ],
     [
       rootReadme,
@@ -327,6 +340,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       skillGuide,
       /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Primary skill guide must keep the canonical operator path visible.'
+    ],
+    [
+      skillGuide,
+      /When local setup or wallet readiness is unclear, run `zk-agent doctor` first\.[\s\S]*without live RPC reads/,
+      'Primary skill guide must keep the doctor diagnostic visible.'
     ],
     [
       skillGuide,
@@ -419,6 +437,7 @@ function assertTopLevelHelpContract(helpOutput) {
     'Canonical terminal path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount>',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
     'Add RPC env vars later, before live reads or broadcasts.',
+    'If local setup or wallet state is unclear: zk-agent doctor',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
     'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
     'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'
@@ -469,6 +488,26 @@ function assertNextHelpContract(helpOutput) {
       help.includes(snippet),
       true,
       `Next help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertDoctorHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Use `doctor` when local state is unclear:',
+    'zk-agent doctor',
+    'zk-agent doctor --wallet main',
+    'zk-agent doctor --wallet main --relay-url https://relay.example.com',
+    'Default behavior: Inspects saved config, local wallet approval metadata, local signer state, and the shortest next command without requiring live RPC reads.',
+    'Remote-browser recovery path: Pass --relay-url when you want the remote approval fallback commands to use a concrete relay URL instead of a placeholder.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Doctor help is missing required onboarding contract text: ${snippet}`
     );
   }
 }
@@ -851,8 +890,50 @@ function assertAgentStatusPayload(payload) {
   );
 }
 
+function assertDoctorSetupPayload(payload) {
+  assert.equal(payload.ok, true);
+  assert.equal(payload.scope, 'setup');
+  assert.equal(payload.walletName, 'main');
+  assert.deepEqual(payload.config, { exists: false });
+  assert.equal(payload.wallet, null);
+  assert.equal(payload.summary?.stage, 'setup');
+  assert.equal(payload.summary?.configExists, false);
+  assert.equal(payload.summary?.walletExists, false);
+  assert.equal(payload.summary?.approvalReady, null);
+  assert.equal(payload.summary?.localExecutionKeyStored, null);
+  assert.equal(payload.summary?.relayUrl, null);
+  assert.equal(payload.summary?.nextAction, 'zk-agent setup');
+  assert.equal(payload.summary?.localOnly, true);
+  assert.equal(payload.nextAction, 'zk-agent setup');
+  assert.deepEqual(payload.recommendedCommands, {
+    setup: 'zk-agent setup',
+    next: 'zk-agent next',
+    inspectDefaults: 'zk-agent defaults'
+  });
+}
+
 function assertOperatorJsonContract(doc) {
   const requiredChecks = [
+    [
+      /## `zk-agent doctor`[\s\S]*local-only onboarding and wallet-recovery diagnostic[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`scope`[\s\S]*`walletName`[\s\S]*`config`[\s\S]*`wallet`[\s\S]*`summary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `scope` values:[\s\S]*`setup`[\s\S]*`wallet-bootstrap`[\s\S]*`wallet-recovery`[\s\S]*`wallet-ready`[\s\S]*Current stable `config` fields:[\s\S]*`exists`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`provider`[\s\S]*Current stable `wallet` fields when present:[\s\S]*`exists`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`smartAccountProfileId`[\s\S]*`syncedAt`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`legacySessionKeyStored`[\s\S]*`signerType`[\s\S]*`signerAddress`[\s\S]*`signerSource`[\s\S]*Current stable `summary` fields:[\s\S]*`stage`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`localOnly`[\s\S]*`notes`/,
+      'Operator JSON contract doc must describe the doctor top-level contract.'
+    ],
+    [
+      /### `scope = "setup"`[\s\S]*"scope": "setup"[\s\S]*"config": \{[\s\S]*"exists": false[\s\S]*"summary": \{[\s\S]*"stage": "setup"[\s\S]*"nextAction": "zk-agent setup"[\s\S]*"localOnly": true[\s\S]*"recommendedCommands": \{[\s\S]*"setup": "zk-agent setup"[\s\S]*"next": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      'Operator JSON contract doc must describe the doctor setup contract.'
+    ],
+    [
+      /### `scope = "wallet-bootstrap"`[\s\S]*"scope": "wallet-bootstrap"[\s\S]*"defaultChain": "zksync-sepolia"[\s\S]*"connectorUrl": "http:\/\/localhost:4444"[\s\S]*"provider": "zksync-sso"[\s\S]*"nextAction": "zk-agent wallet create --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"createWallet": "zk-agent wallet create --await-local"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"createWalletRemote": "zk-agent wallet create --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"/,
+      'Operator JSON contract doc must describe the doctor wallet-bootstrap contract.'
+    ],
+    [
+      /### `scope = "wallet-recovery"`[\s\S]*"scope": "wallet-recovery"[\s\S]*"approvalReady": false[\s\S]*"localExecutionKeyStored": false[\s\S]*"nextAction": "zk-agent wallet reapprove --name main --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"signerShow": "zk-agent wallet signer show --name main"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"reapproveRemote": "zk-agent wallet reapprove --name main --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"[\s\S]*"reapprove": "zk-agent wallet reapprove --name main --await-local"[\s\S]*When approval metadata is present but the local execution signer is missing[\s\S]*`zk-agent wallet signer attach --name main --private-key <hex>`[\s\S]*`attachSigner`[\s\S]*`reapprove`/,
+      'Operator JSON contract doc must describe the doctor wallet-recovery contract.'
+    ],
+    [
+      /### `scope = "wallet-ready"`[\s\S]*"scope": "wallet-ready"[\s\S]*"approvalReady": true[\s\S]*"localExecutionKeyStored": true[\s\S]*"nextAction": "zk-agent next"[\s\S]*"recommendedCommands": \{[\s\S]*"next": "zk-agent next"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      'Operator JSON contract doc must describe the doctor wallet-ready contract.'
+    ],
     [
       /"scope": "setup"[\s\S]*"nextCommand": "zk-agent setup"[\s\S]*"recommendedCommands": \{[\s\S]*"setup": "zk-agent setup"[\s\S]*"afterSetup": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
       'Operator JSON contract doc must describe the setup-scope recommendedCommands contract.'
@@ -1508,6 +1589,12 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertNoWorkspaceLeak(nextHelpResult.stdout);
     assertNextHelpContract(nextHelpResult.stdout);
 
+    const doctorHelpResult = runPackedCli(extractedPackageDir, homeDir, ['doctor', '--help']);
+    assertPackedCliStderr(doctorHelpResult.stderr, doctorHelpResult.stdout, 'doctor --help');
+    assert.match(doctorHelpResult.stdout, /Usage: zk-agent doctor/);
+    assertNoWorkspaceLeak(doctorHelpResult.stdout);
+    assertDoctorHelpContract(doctorHelpResult.stdout);
+
     const defaultsHelpResult = runPackedCli(extractedPackageDir, homeDir, ['defaults', '--help']);
     assertPackedCliStderr(defaultsHelpResult.stderr, defaultsHelpResult.stdout, 'defaults --help');
     assert.match(defaultsHelpResult.stdout, /Usage: zk-agent defaults/);
@@ -1645,6 +1732,11 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertNoWorkspaceLeak(agentStatusOutput);
     const agentStatusPayload = JSON.parse(agentStatusOutput);
     assertAgentStatusPayload(agentStatusPayload);
+
+    const doctorOutput = runPackedCliJson(extractedPackageDir, homeDir, ['doctor', '--json']);
+    assertNoWorkspaceLeak(doctorOutput);
+    const doctorPayload = JSON.parse(doctorOutput);
+    assertDoctorSetupPayload(doctorPayload);
 
     const importOutput = runPackedCliJson(extractedPackageDir, homeDir, [
       'wallet',
@@ -1837,6 +1929,16 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(nextHelpResult.stdout);
     assertNextHelpContract(nextHelpResult.stdout);
 
+    const doctorHelpResult = runInstalledCli(projectRoot, homeDir, ['doctor', '--help']);
+    assertPackedCliStderr(
+      doctorHelpResult.stderr,
+      doctorHelpResult.stdout,
+      'installed zk-agent doctor --help'
+    );
+    assert.match(doctorHelpResult.stdout, /Usage: zk-agent doctor/);
+    assertNoWorkspaceLeak(doctorHelpResult.stdout);
+    assertDoctorHelpContract(doctorHelpResult.stdout);
+
     const defaultsHelpResult = runInstalledCli(projectRoot, homeDir, ['defaults', '--help']);
     assertPackedCliStderr(
       defaultsHelpResult.stderr,
@@ -1997,6 +2099,11 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(agentStatusOutput);
     const agentStatusPayload = JSON.parse(agentStatusOutput);
     assertAgentStatusPayload(agentStatusPayload);
+
+    const doctorOutput = runInstalledCliJson(projectRoot, homeDir, ['doctor', '--json']);
+    assertNoWorkspaceLeak(doctorOutput);
+    const doctorPayload = JSON.parse(doctorOutput);
+    assertDoctorSetupPayload(doctorPayload);
 
     await assertInstalledRelayServe(projectRoot, homeDir);
   } finally {

@@ -131,6 +131,10 @@ zk-agent agent set --name "<operator-name>" --wallet main
 This is the default decision point across setup, wallet bootstrap/recovery, and
 stored workflow continuation.
 
+When local setup or wallet readiness is unclear, run `zk-agent doctor` first.
+It inspects saved config, wallet approval metadata, and local signer state
+without live RPC reads.
+
 ### 3. Create or refresh a writable local wallet session
 
 ```bash

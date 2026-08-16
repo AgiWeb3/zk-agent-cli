@@ -163,6 +163,10 @@ Architecture baseline to keep in mind:
      explicitly that a custom `.env` is usually not required until live reads
      or broadcasts
    - current baseline improvement:
+     the top-level `doctor` command now compresses local config, wallet
+     approval metadata, and signer readiness into one local-only diagnostic,
+     and the public docs/release gate now keep that recovery surface aligned
+   - current baseline improvement:
      `relay --help`, `agent --help`, and the package/root README now surface
      the hosted remote-approval fallback, direct-command escape hatches, and
      the optional local operator-identity path directly on the public surface

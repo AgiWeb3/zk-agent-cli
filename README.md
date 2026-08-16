@@ -188,6 +188,9 @@ Interpretation:
 1. `setup` writes local config.
 2. `next` is the default decision point. Use it whenever you want the shortest
    valid next step across setup, wallet recovery, and stored workflows.
+   If local config or wallet readiness is unclear before you choose a fork, run
+   `zk-agent doctor`; it inspects saved config, wallet approval metadata, and
+   local signer state without live RPC reads.
 3. `wallet create --await-local` or `wallet reapprove --await-local` is the
    preferred local-first connector path for obtaining a writable local
    session; run `zk-agent next` again after the approval round-trip finishes.
@@ -215,6 +218,8 @@ zk-agent next
 Use the help entrypoint that matches the current question:
 
 - `zk-agent --help` for the top-level product path
+- `zk-agent doctor --help` when local setup, wallet approval, or signer state
+  is unclear
 - `zk-agent wallet --help` for wallet/session recovery
 - `zk-agent workflow --help` for workflow execution and resume
 
@@ -236,8 +241,11 @@ zk-agent <top-level-command> [subcommand] [flags]
 
 The public surface is intentionally organized around five questions:
 
-1. What should I do next?
+1. What should I do next, or is local state unclear?
    Use `zk-agent --help` and `zk-agent next`.
+   Use `zk-agent doctor` when you want one local-only diagnosis across config,
+   wallet approval, and signer state before dropping into wallet-specific
+   commands.
 2. Is the wallet/session itself blocked?
    Use `zk-agent wallet --help`, `wallet status`, and `wallet next`.
 3. Do I already know the workflow intent?

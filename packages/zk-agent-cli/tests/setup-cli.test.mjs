@@ -145,6 +145,8 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /npm install -g zk-agent-cli/);
     assert.match(help, /Canonical terminal path:/);
     assert.match(help, /zk-agent next/);
+    assert.match(help, /If local setup or wallet state is unclear:/);
+    assert.match(help, /zk-agent doctor/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(
       help,
@@ -164,6 +166,8 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent workflow --help/);
     assert.ok(help.indexOf('\n  next') < help.indexOf('\n  wallet'));
+    assert.ok(help.indexOf('\n  next') < help.indexOf('\n  doctor'));
+    assert.ok(help.indexOf('\n  doctor') < help.indexOf('\n  wallet'));
     assert.ok(help.indexOf('\n  wallet') < help.indexOf('\n  workflow'));
     assert.ok(help.indexOf('\n  workflow') < help.indexOf('\n  assets'));
   } finally {

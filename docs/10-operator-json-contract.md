@@ -17,6 +17,7 @@ contract:
 - `zk-agent balances --owned-tokens`
 - `zk-agent tokens`
 - `zk-agent resolve-token`
+- `zk-agent doctor`
 - `zk-agent next`
 - `zk-agent relay serve`
 - `zk-agent relay inspect`
@@ -103,6 +104,222 @@ Notes:
 - `nextAction` is the default recommendation within this follow-up set.
 - `agentFollowup` does not replace `recommendedCommands`; it only describes the
   local agent-identity dimension.
+
+## `zk-agent doctor`
+
+`zk-agent doctor` is the local-only onboarding and wallet-recovery diagnostic.
+It inspects saved config, wallet approval metadata, local signer readiness,
+and the shortest next command without requiring live RPC reads. Passing
+`--relay-url` only makes remote approval fallback commands concrete; it does
+not turn `doctor` into a live relay probe.
+
+Current stable top-level fields:
+
+- `ok`
+- `scope`
+- `walletName`
+- `config`
+- `wallet`
+- `summary`
+- `agentProfile`
+- `agentFollowup`
+- `nextAction`
+- `recommendedCommands`
+
+Current stable `scope` values:
+
+- `setup`
+- `wallet-bootstrap`
+- `wallet-recovery`
+- `wallet-ready`
+
+Current stable `config` fields:
+
+- `exists`
+- when present:
+  - `defaultChain`
+  - `connectorUrl`
+  - `provider`
+
+Current stable `wallet` fields when present:
+
+- `exists`
+- `walletName`
+- `walletAddress`
+- `chain`
+- `chainId`
+- `accountKind`
+- `smartAccountProfileId`
+- `syncedAt`
+- `approvalReady`
+- `localExecutionKeyStored`
+- `legacySessionKeyStored`
+- `signerType`
+- `signerAddress`
+- `signerSource`
+
+Current stable `summary` fields:
+
+- `stage`
+- `configExists`
+- `walletExists`
+- `approvalReady`
+- `localExecutionKeyStored`
+- `relayUrl`
+- `nextAction`
+- `localOnly`
+- `notes`
+
+### `scope = "setup"`
+
+This means local config is missing.
+
+Key fields:
+
+```json
+{
+  "scope": "setup",
+  "walletName": "main",
+  "config": {
+    "exists": false
+  },
+  "wallet": null,
+  "summary": {
+    "stage": "setup",
+    "configExists": false,
+    "walletExists": false,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "relayUrl": null,
+    "nextAction": "zk-agent setup",
+    "localOnly": true
+  },
+  "nextAction": "zk-agent setup",
+  "recommendedCommands": {
+    "setup": "zk-agent setup",
+    "next": "zk-agent next",
+    "inspectDefaults": "zk-agent defaults"
+  }
+}
+```
+
+### `scope = "wallet-bootstrap"`
+
+This means local config exists, but the target wallet does not.
+
+Key fields:
+
+```json
+{
+  "scope": "wallet-bootstrap",
+  "walletName": "main",
+  "config": {
+    "exists": true,
+    "defaultChain": "zksync-sepolia",
+    "connectorUrl": "http://localhost:4444",
+    "provider": "zksync-sso"
+  },
+  "wallet": null,
+  "summary": {
+    "stage": "wallet-bootstrap",
+    "configExists": true,
+    "walletExists": false,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "relayUrl": "https://relay.example.com",
+    "nextAction": "zk-agent wallet create --await-local",
+    "localOnly": true
+  },
+  "nextAction": "zk-agent wallet create --await-local",
+  "recommendedCommands": {
+    "next": "zk-agent next",
+    "inspectDefaults": "zk-agent defaults",
+    "createWallet": "zk-agent wallet create --await-local",
+    "relayInspect": "zk-agent relay inspect --relay-url https://relay.example.com",
+    "createWalletRemote": "zk-agent wallet create --relay-url https://relay.example.com --wait-relay --prompt-code"
+  }
+}
+```
+
+### `scope = "wallet-recovery"`
+
+This means a saved wallet exists, but approval metadata or local signer
+readiness is incomplete.
+
+Key fields when approval metadata is missing:
+
+```json
+{
+  "scope": "wallet-recovery",
+  "walletName": "main",
+  "wallet": {
+    "exists": true,
+    "walletName": "main",
+    "approvalReady": false,
+    "localExecutionKeyStored": false
+  },
+  "summary": {
+    "stage": "wallet-recovery",
+    "configExists": true,
+    "walletExists": true,
+    "approvalReady": false,
+    "localExecutionKeyStored": false,
+    "relayUrl": "https://relay.example.com",
+    "nextAction": "zk-agent wallet reapprove --name main --await-local",
+    "localOnly": true
+  },
+  "nextAction": "zk-agent wallet reapprove --name main --await-local",
+  "recommendedCommands": {
+    "next": "zk-agent next",
+    "walletStatus": "zk-agent wallet status --name main",
+    "walletNext": "zk-agent wallet next --name main",
+    "signerShow": "zk-agent wallet signer show --name main",
+    "relayInspect": "zk-agent relay inspect --relay-url https://relay.example.com",
+    "reapproveRemote": "zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code",
+    "reapprove": "zk-agent wallet reapprove --name main --await-local"
+  }
+}
+```
+
+When approval metadata is present but the local execution signer is missing,
+`nextAction` changes to
+`zk-agent wallet signer attach --name main --private-key <hex>`, and
+`recommendedCommands` also includes:
+
+- `attachSigner`
+- `reapprove`
+
+### `scope = "wallet-ready"`
+
+This means config, approval metadata, and local execution signer state are all
+present locally.
+
+Key fields:
+
+```json
+{
+  "scope": "wallet-ready",
+  "walletName": "main",
+  "summary": {
+    "stage": "wallet-ready",
+    "configExists": true,
+    "walletExists": true,
+    "approvalReady": true,
+    "localExecutionKeyStored": true,
+    "relayUrl": null,
+    "nextAction": "zk-agent next",
+    "localOnly": true
+  },
+  "nextAction": "zk-agent next",
+  "recommendedCommands": {
+    "next": "zk-agent next",
+    "walletStatus": "zk-agent wallet status --name main",
+    "walletNext": "zk-agent wallet next --name main",
+    "workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+    "inspectDefaults": "zk-agent defaults"
+  }
+}
+```
 
 ## `zk-agent next`
 
