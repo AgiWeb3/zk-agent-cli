@@ -1,7 +1,7 @@
 {
   "name": "zk-agent-cli-workspace",
   "private": true,
-  "version": "0.1.0-beta.8",
+  "version": "0.1.0-beta.9",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.30.3",
@@ -26,6 +26,8 @@
     "smoke:swap-success": "pnpm --filter @zk-agent/agent-tools smoke:swap-success --",
     "smoke:withdraw-followup": "pnpm --filter @zk-agent/agent-tools smoke:withdraw-followup --",
     "smoke:broadcast": "pnpm --filter @zk-agent/agent-tools smoke:broadcast --",
+    "codex:plugin:doctor": "node ./scripts/codex-plugin-local.mjs --json",
+    "codex:plugin:install-local": "node ./scripts/codex-plugin-local.mjs --install --json",
     "release:check": "pnpm --filter zk-agent-cli release:check",
     "validate:release": "pnpm run release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
     "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",

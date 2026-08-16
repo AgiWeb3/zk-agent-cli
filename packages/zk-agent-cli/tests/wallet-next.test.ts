@@ -5,6 +5,7 @@ import type { FundingInfo, WalletInspectionResult, WalletSessionRecord } from '@
 
 import {
   buildWalletNextRecommendedCommands,
+  buildWalletTokenDiscoverySummary,
   buildWalletNextSummary,
   resolveEffectivePaymasterSelection
 } from '../src/lib/wallet-next.ts';
@@ -189,6 +190,50 @@ test('wallet next recommended commands include assets discovery even when no rem
     inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
     walletStatus: 'zk-agent wallet status --name main'
   });
+});
+
+test('wallet token discovery summary compresses the wallet routing contract', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      syncedAt: '2026-06-23T01:00:00.000Z',
+      paymasterMode: 'approval-based'
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '1.25',
+    nativeSymbol: 'ETH'
+  });
+  const recommendedCommands = {
+    ...buildWalletNextRecommendedCommands('main', summary),
+    discoverPaymasterTokens:
+      'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+    inspectPaymasterToken:
+      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token'
+  };
+
+  assert.deepEqual(
+    buildWalletTokenDiscoverySummary({
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      nextAction: summary.recommendedCommand,
+      paymasterMode: 'approval-based',
+      recommendedCommands
+    }),
+    {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: null,
+      nextAction: null,
+      paymasterMode: 'approval-based',
+      tokenizedIntent: false,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: true,
+      includesPaymasterTokenInspection: true
+    }
+  );
 });
 
 test('wallet next suppresses fund guidance when a saved paymaster can cover supported writes', () => {

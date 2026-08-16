@@ -12,7 +12,19 @@ stabilize the most important contracts on the default product path.
 The following outputs should currently be treated as the default operator
 contract:
 
+- `zk-agent defaults`
+- `zk-agent assets`
+- `zk-agent balances --owned-tokens`
+- `zk-agent tokens`
+- `zk-agent resolve-token`
 - `zk-agent next`
+- `zk-agent relay serve`
+- `zk-agent relay inspect`
+- `zk-agent wallet next`
+- `zk-agent wallet create --relay-url <url>`
+- `zk-agent wallet reapprove --name <name> --relay-url <url>`
+- `zk-agent wallet request relay-publish`
+- `zk-agent wallet request relay-status`
 - `zk-agent workflow plan`
 - `zk-agent workflow start`
 - `zk-agent workflow auto`
@@ -21,6 +33,7 @@ contract:
 - `zk-agent workflow run`
 - `zk-agent workflow resume`
 - `zk-agent workflow list|show|update|delete`
+- `zk-agent agent status|show`
 - `pnpm smoke:operator-path`
 - `pnpm smoke:product-path`
 - `pnpm smoke:paymaster-success`
@@ -165,6 +178,7 @@ Key fields:
   "walletName": "main",
   "inspection": { "...": "wallet inspection payload" },
   "summary": { "...": "wallet next summary payload" },
+  "tokenDiscoverySummary": { "...": "wallet-scope token recovery summary" },
   "nextCommand": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
   "recommendedCommands": {
     "walletNext": "zk-agent wallet next --name main",
@@ -182,6 +196,22 @@ Key fields:
 }
 ```
 
+When the wallet scope exposes token/discovery follow-ups, `tokenDiscoverySummary`
+compresses that routing contract into:
+
+- `walletName`
+- `chain`
+- `intent`
+- `nextAction`
+- `paymasterMode`
+- `tokenizedIntent`
+- `includesAssetDiscovery`
+- `includesOwnedTokenDiscovery`
+- `includesChainTokenDiscovery`
+- `includesDirectTokenInspection`
+- `includesPaymasterTokenDiscovery`
+- `includesPaymasterTokenInspection`
+
 ### `scope = "workflow"`
 
 This means the result is a workflow follow-up restored from `--request-id`.
@@ -195,10 +225,56 @@ Key fields:
   "workflowRequestId": "wf123456",
   "walletName": "main",
   "nextCommand": "zk-agent workflow resume --request-id wf123456",
+  "tokenDiscoverySummary": { "...": "workflow-scope token recovery summary" },
   "result": { "...": "workflow status payload" },
   "checkpoint": { "...": "stored checkpoint payload" }
 }
 ```
+
+When the restored workflow intent is tokenized, `tokenDiscoverySummary` uses
+the same field set described for wallet scope.
+
+## `zk-agent wallet next`
+
+`zk-agent wallet next` is the wallet-layer remediation and routing contract
+that top-level `zk-agent next` reuses after local setup and wallet bootstrap
+are already complete.
+
+Current stable top-level fields:
+
+- `ok`
+- `inspection`
+- `summary`
+- `tokenDiscoverySummary`
+- `recommendedCommands`
+
+Within that set:
+
+- `inspection`
+  The detailed wallet inspection payload for approval, signer, deployment, and
+  local execution readiness.
+- `summary`
+  The compressed wallet-remediation summary with current actions, notes, and
+  the preferred wallet-layer next step.
+- `recommendedCommands`
+  The wallet-scoped remediation and discovery follow-up contract that can also
+  point onward into the flagship workflow path.
+
+When wallet-scoped discovery follow-ups are present, `tokenDiscoverySummary`
+uses the same field set described for top-level `zk-agent next` wallet scope:
+
+- `walletName`
+- `chain`
+- `intent`
+- `nextAction`
+- `paymasterMode`
+- `tokenizedIntent`
+- `includesAssetDiscovery`
+- `includesOwnedTokenDiscovery`
+- `includesChainTokenDiscovery`
+- `includesDirectTokenInspection`
+- `includesPaymasterTokenDiscovery`
+- `includesPaymasterTokenInspection`
 
 ## `zk-agent workflow *`
 
@@ -210,10 +286,27 @@ The most important fields in the current contract are:
 - `agentFollowup`
 - `inspection`
 - `plan`
+- `tokenDiscoverySummary`
 - `recommendedCommands`
 
 On the plan surface, `recommendedCommands` is the default container for
 bridge/swap/token follow-ups. It is not the agent-identity follow-up container.
+
+When the current intent is tokenized, `tokenDiscoverySummary` compresses the
+workflow-scoped token recovery path into:
+
+- `walletName`
+- `chain`
+- `intent`
+- `nextAction`
+- `paymasterMode`
+- `tokenizedIntent`
+- `includesAssetDiscovery`
+- `includesOwnedTokenDiscovery`
+- `includesChainTokenDiscovery`
+- `includesDirectTokenInspection`
+- `includesPaymasterTokenDiscovery`
+- `includesPaymasterTokenInspection`
 
 ### `workflow start`
 
@@ -240,6 +333,7 @@ Key fields:
 - `result`
 - `checkpoint`
 - `walletApproval`
+- `tokenDiscoverySummary`
 - `recommendedCommands`
 - `agentProfile`
 - `agentFollowup`
@@ -257,6 +351,7 @@ These surfaces currently all include:
 
 - `agentProfile`
 - `agentFollowup`
+- `tokenDiscoverySummary`
 - `recommendedCommands`
 
 Within that set:
@@ -278,6 +373,42 @@ visible:
 - `discoverPaymasterTokens`
 - `inspectPaymasterToken`
 
+Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:
+
+- `walletName`
+- `chain`
+- `intent`
+- `nextAction`
+- `paymasterMode`
+- `tokenizedIntent`
+- `includesAssetDiscovery`
+- `includesOwnedTokenDiscovery`
+- `includesChainTokenDiscovery`
+- `includesDirectTokenInspection`
+- `includesPaymasterTokenDiscovery`
+- `includesPaymasterTokenInspection`
+
+When the current workflow intent is not tokenized, `tokenDiscoverySummary` may
+be absent.
+
+### Token-input workflow errors
+
+When `workflow status|next|run|resume|auto` fails during token input
+resolution, the error payload now also includes:
+
+- `recommendedCommands`
+- `tokenDiscoverySummary`
+
+Current stable `tokenDiscoverySummary` fields on that error path:
+
+- `chain`
+- `queryType`
+- `query`
+- `roleFilter`
+- `includesChainTokenDiscovery`
+- `includesDirectTokenInspection`
+- `workflowHelp`
+
 ### `workflow list|show|update|delete`
 
 These checkpoint-management surfaces now also include:
@@ -288,6 +419,224 @@ These checkpoint-management surfaces now also include:
 That keeps the agent-identity context available even when the harness moves
 into checkpoint-management commands.
 
+## `zk-agent relay serve`
+
+This is the local hosted-relay startup surface.
+
+Current stable top-level fields:
+
+- `ok`
+- `status`
+- `origin`
+- `publicOrigin`
+- `publicOriginSource`
+- `stateBackend`
+- `deploymentScope`
+- `sameHostRestartPersists`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `publicOriginLooksLocal`
+- `deploymentSummary`
+- `healthUrl`
+- `publicHealthUrl`
+- `relayMode`
+- `connectorUiAvailable`
+- `hostedShareRedirectReady`
+- `capabilities`
+- `recommendedCommands`
+- `notes`
+
+When present, `deploymentSummary` compresses the hosted deployment contract
+into:
+
+- `origin`
+- `publicOrigin`
+- `publicOriginSource`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `publicOriginConfigured`
+- `publicOriginLooksLocal`
+- `connectorUiAvailable`
+- `hostedShareRedirectReady`
+- `singleHostFileState`
+
+## `zk-agent relay inspect`
+
+This is the hosted-relay compatibility and deployment-inspection surface.
+
+Current stable top-level fields:
+
+- `ok`
+- `status`
+- `relayUrl`
+- `compatible`
+- `origin`
+- `publicOrigin`
+- `publicOriginSource`
+- `stateBackend`
+- `deploymentScope`
+- `sameHostRestartPersists`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `relayUrlMatchesOrigin`
+- `relayUrlMatchesPublicOrigin`
+- `publicOriginLooksLocal`
+- `deploymentSummary`
+- `connectorUiAvailable`
+- `hostedShareRedirectReady`
+- `capabilities`
+- `recommendedCommands`
+- `notes`
+
+Current stable `deploymentSummary` fields on this surface:
+
+- `origin`
+- `publicOrigin`
+- `publicOriginSource`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `publicOriginConfigured`
+- `publicOriginLooksLocal`
+- `connectorUiAvailable`
+- `hostedShareRedirectReady`
+- `singleHostFileState`
+
+## `zk-agent wallet create --relay-url <url>`
+
+This is the higher-level remote wallet-bootstrap publish surface.
+
+Current stable top-level fields:
+
+- `ok`
+- `walletName`
+- `requestId`
+- `walletRequestId`
+- `approvalUrl`
+- `relay`
+- `relayRecoverySummary`
+- `expiresAt`
+- `chain`
+- `chainId`
+- `accountKind`
+- `paymasterMode`
+- `capabilities`
+- `sessionScope`
+- `nextAction`
+- `recommendedCommands`
+
+Current stable `recommendedCommands` shape on this surface:
+
+- `awaitLocal`
+- `relayStatus`
+- `relayApprove`
+- `approve`
+- `afterApproval`
+- `afterApprovalStatus`
+
+Current stable `relayRecoverySummary` fields on this surface:
+
+- `requestId`
+- `walletName`
+- `relayUrl`
+- `relayStatus`
+- `approvalReady`
+- `nextAction`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `recoveryMode`
+- `includesStatusPoll`
+- `includesApprove`
+- `includesRelayInspect`
+- `includesRemoteReissue`
+
+Current stable semantics:
+
+- `nextAction`
+  Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`
+  immediately after publish.
+- `recommendedCommands.relayApprove`
+  Preserves the lower-level manual finalize path even when the operator starts
+  from the higher-level wallet-create entrypoint.
+
+## `zk-agent wallet reapprove --name <name> --relay-url <url>`
+
+This is the higher-level remote existing-wallet reapproval publish surface.
+
+Current stable top-level fields:
+
+- `ok`
+- `walletRequestId`
+- `wallet`
+- `request`
+- `relay`
+- `relayRecoverySummary`
+- `nextAction`
+- `recommendedCommands`
+
+Current stable `recommendedCommands` shape on this surface:
+
+- `awaitLocal`
+- `relayStatus`
+- `relayApprove`
+- `approve`
+- `afterApproval`
+- `afterApprovalStatus`
+
+Current stable `relayRecoverySummary` fields on this surface:
+
+- `requestId`
+- `walletName`
+- `relayUrl`
+- `relayStatus`
+- `approvalReady`
+- `nextAction`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `recoveryMode`
+- `includesStatusPoll`
+- `includesApprove`
+- `includesRelayInspect`
+- `includesRemoteReissue`
+
+Current stable semantics:
+
+- `request`
+  Preserves the pending reapproval request metadata that the higher-level
+  entrypoint generated before relay publication.
+- `nextAction`
+  Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`
+  immediately after publish.
+
+## `zk-agent wallet request relay-publish`
+
+This is the lower-level hosted relay/manual-approval publish surface.
+
+Current stable top-level fields:
+
+- `ok`
+- `walletRequestId`
+- `relay`
+- `relayRecoverySummary`
+- `request`
+- `recommendedCommands`
+- `nextAction`
+
+Current stable `relayRecoverySummary` fields on this surface:
+
+- `requestId`
+- `walletName`
+- `relayUrl`
+- `relayStatus`
+- `approvalReady`
+- `nextAction`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `recoveryMode`
+- `includesStatusPoll`
+- `includesApprove`
+- `includesRelayInspect`
+- `includesRemoteReissue`
+
 ## `zk-agent wallet request relay-status`
 
 This is the lower-level hosted relay/manual-approval status surface.
@@ -297,6 +646,7 @@ Current stable top-level fields:
 - `ok`
 - `walletRequestId`
 - `relay`
+- `relayRecoverySummary`
 - `recommendedCommands`
 - `nextAction`
 - `note`
@@ -310,6 +660,22 @@ Current stable `relay` fields:
 - `status_url`
 - `approval_url`
 - `expires_at`
+
+Current stable `relayRecoverySummary` fields on this surface:
+
+- `requestId`
+- `walletName`
+- `relayUrl`
+- `relayStatus`
+- `approvalReady`
+- `nextAction`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+- `recoveryMode`
+- `includesStatusPoll`
+- `includesApprove`
+- `includesRelayInspect`
+- `includesRemoteReissue`
 
 When `status = ready`, `nextAction` points at:
 
@@ -352,6 +718,14 @@ Current stable semantics:
 - `nextAction`
   The single best executable next step for the current relay state.
 
+The same `relayRecoverySummary` field set now also appears in:
+
+- `wallet create --relay-url <url>`
+- `wallet reapprove --name <name> --relay-url <url>`
+- `wallet request relay-publish`
+- `RELAY_APPROVAL_TIMEOUT` error details
+- `RELAY_APPROVAL_EXPIRED` error details
+
 ## The role of `recommendedCommands`
 
 In the current contract, `recommendedCommands` remains the main container for
@@ -368,6 +742,413 @@ So the current contract layering is:
   execution-path follow-ups
 - `agentFollowup`
   local agent-identity follow-ups
+
+## `zk-agent defaults`
+
+`zk-agent defaults` is the machine-readable defaults and discovery catalog for
+the current validated product path.
+
+Current stable top-level fields:
+
+- `ok`
+- `summary`
+- `recommendedCommands`
+- `defaults`
+- `localTokenRegistry`
+- `tokenRegistrySources`
+- `tokenDirectoryChains`
+
+### `recommendedCommands`
+
+The current stable discovery follow-up contract is:
+
+```json
+{
+  "recommendedCommands": {
+    "inspectDefaults": "zk-agent defaults",
+    "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
+    "inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT",
+    "discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token",
+    "inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token"
+  }
+}
+```
+
+Current stable semantics:
+
+- `inspectDefaults`
+  Reopen the registry/defaults catalog directly.
+- `discoverTokens`
+  Start the symbol-first chain token discovery path from the current primary
+  chain.
+- `inspectToken`
+  Inspect one concrete token symbol on that same primary discovery chain.
+- `discoverPaymasterTokens`
+  Narrow discovery to tokens that are valid for approval-based paymaster fees.
+- `inspectPaymasterToken`
+  Inspect one concrete paymaster-fee-token candidate on the primary discovery
+  chain.
+
+### `summary`
+
+The current stable `summary` fields are:
+
+- `primaryDiscoveryChain`
+- `exampleTokenSymbol`
+- `paymasterFeeTokenSymbol`
+- `localTokenCount`
+- `tokenDirectoryChainCount`
+- `tokenRegistrySources`
+- `resolvedDefaults`
+
+Example shape on the current validated Sepolia path:
+
+```json
+{
+  "summary": {
+    "primaryDiscoveryChain": "zksync-sepolia",
+    "exampleTokenSymbol": "ZKAT",
+    "paymasterFeeTokenSymbol": "ZKAT",
+    "localTokenCount": 3,
+    "tokenDirectoryChainCount": 0,
+    "tokenRegistrySources": [
+      {
+        "id": "local-deployments",
+        "enabled": true,
+        "exists": true
+      }
+    ],
+    "resolvedDefaults": {
+      "swap": {
+        "entryId": "syncswap-classic",
+        "chain": "zksync-sepolia",
+        "protocol": "syncswap-classic",
+        "status": "validated"
+      },
+      "bridgeDeposit": {
+        "entryId": "ethereum-sepolia-to-zksync-sepolia",
+        "fromChain": "ethereum-sepolia",
+        "toChain": "zksync-sepolia",
+        "status": "validated"
+      },
+      "bridgeWithdraw": {
+        "entryId": "zksync-sepolia-to-ethereum-sepolia",
+        "fromChain": "zksync-sepolia",
+        "toChain": "ethereum-sepolia",
+        "status": "validated",
+        "requiresFinalize": true
+      },
+      "paymasterDefault": {
+        "entryId": "zksync-sepolia-approval-based-eravm",
+        "chain": "zksync-sepolia",
+        "mode": "approval-based",
+        "status": "validated"
+      },
+      "paymasterByMode": {
+        "none": "zksync-sepolia-no-paymaster",
+        "sponsored": "zksync-sepolia-sponsored",
+        "approvalBased": "zksync-sepolia-approval-based-eravm"
+      }
+    }
+  }
+}
+```
+
+Current stable semantics:
+
+- `primaryDiscoveryChain`
+  The one chain that downstream discovery flows should prefer by default.
+- `exampleTokenSymbol`
+  The current concrete symbol used for symbol-first discovery follow-ups.
+- `paymasterFeeTokenSymbol`
+  The current concrete symbol used for approval-based paymaster fee-token
+  follow-ups, or `null` when no validated candidate exists.
+- `localTokenCount`
+  Count of locally indexed token entries shipped with the repo/runtime.
+- `tokenDirectoryChainCount`
+  Count of indexed token-directory chains available locally to the CLI.
+- `tokenRegistrySources`
+  The enabled/existing source-state summary for the merged token registry.
+- `resolvedDefaults`
+  The compressed swap/bridge/paymaster defaults that the flagship product path
+  currently resolves to.
+
+## `zk-agent assets`
+
+`zk-agent assets` is the preferred single-chain asset entrypoint on the
+current product path.
+
+Current stable top-level fields:
+
+- `ok`
+- `discoverySummary`
+- `recommendedCommands`
+- `walletName`
+- `walletAddress`
+- `chain`
+- `chainId`
+- `balances`
+- `ownedTokenRegistry`
+
+### `recommendedCommands`
+
+Current stable discovery follow-up shape:
+
+```json
+{
+  "recommendedCommands": {
+    "inspectDefaults": "zk-agent defaults",
+    "discoverOwnedTokens": "zk-agent tokens --wallet main --owned",
+    "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
+    "inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"
+  }
+}
+```
+
+### `discoverySummary`
+
+Current stable fields:
+
+- `walletName`
+- `chain`
+- `chainId`
+- `assetCount`
+- `nativeAssetSymbol`
+- `nativeAssetBalance`
+- `ownedTokenCount`
+- `primaryOwnedTokenSymbol`
+- `ownedTokenSymbols`
+- `ownedTokenSourceCounts`
+- `ownedBridgeMappingCounts`
+- `ownedRegistryRoleCounts`
+
+Current stable semantics:
+
+- `assetCount`
+  Count of entries in the merged single-chain asset view, including native
+  balance plus registry-backed owned ERC-20 balances.
+- `ownedTokenCount`
+  Count of owned registry-backed ERC-20 entries in the same asset view.
+- `primaryOwnedTokenSymbol`
+  The first concrete owned token symbol exposed by this asset view, or `null`
+  when none are currently held.
+- `ownedTokenSourceCounts`
+  Compressed source counts for the owned ERC-20 subset.
+- `ownedBridgeMappingCounts`
+  Compressed shared-bridge mapping status counts for the owned ERC-20 subset.
+- `ownedRegistryRoleCounts`
+  Compressed defaults-registry role counts for the owned ERC-20 subset.
+
+## `zk-agent balances --owned-tokens`
+
+When `zk-agent balances` stays on the single-chain path and `--owned-tokens`
+is enabled, it now exposes the same discovery follow-up contract as
+`zk-agent assets`.
+
+Current stable top-level fields on that path:
+
+- `ok`
+- `discoverySummary`
+- `recommendedCommands`
+- `walletName`
+- `walletAddress`
+- `chain`
+- `chainId`
+- `balances`
+- `ownedTokenRegistry`
+
+Current stable semantics:
+
+- `discoverySummary`
+  Same compressed single-chain owned-token summary contract as `zk-agent assets`.
+- `recommendedCommands`
+  Same local-first discovery follow-up contract as `zk-agent assets`.
+
+## `zk-agent tokens`
+
+`zk-agent tokens` is the symbol-first discovery surface for either:
+
+- chain-scoped discoverable tokens
+- wallet-scoped owned registry-backed ERC-20 tokens via `--owned`
+
+Current stable top-level fields:
+
+- `ok`
+- `discoverySummary`
+- `recommendedCommands`
+- `tokenRegistrySources`
+- `entries`
+- `entryCount`
+
+Additional current stable top-level fields depend on mode:
+
+- chain discovery:
+  - `chainFilter`
+  - `symbol`
+  - `role`
+  - `source`
+- owned discovery:
+  - `walletName`
+  - `walletAddress`
+  - `ownedOnly`
+  - `chainFilter`
+  - `symbol`
+  - `role`
+  - `source`
+  - `summary`
+  - `probeFailureCount`
+  - `probeFailures`
+
+Important current distinction:
+
+- `discoverySummary`
+  The compressed operator-facing summary contract added by the CLI surface.
+- `summary`
+  On `tokens --owned`, the existing detailed owned-token probe summary from the
+  underlying registry path. This is preserved and not replaced.
+
+### `recommendedCommands`
+
+Current stable chain-discovery shape:
+
+```json
+{
+  "recommendedCommands": {
+    "inspectDefaults": "zk-agent defaults",
+    "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
+    "inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"
+  }
+}
+```
+
+Current stable owned-token shape:
+
+```json
+{
+  "recommendedCommands": {
+    "inspectDefaults": "zk-agent defaults",
+    "discoverAssets": "zk-agent assets --wallet main",
+    "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
+    "inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"
+  }
+}
+```
+
+### `discoverySummary`
+
+Current stable fields:
+
+- `mode`
+- `walletName`
+- `chainScope`
+- `chainCount`
+- `entryCount`
+- `symbolFilter`
+- `roleFilter`
+- `sourceFilter`
+- `primarySymbol`
+- `primarySource`
+- `sourceCounts`
+- `roleMatchCounts`
+- `currentDefaultEntryCount`
+- `probeFailureCount`
+- `bridgeMappingCounts`
+- `tokenRegistrySources`
+
+Current stable semantics:
+
+- `mode`
+  Currently `discoverable` or `owned-registry-erc20`.
+- `chainScope`
+  The active chain key when discovery is narrowed to one chain, otherwise
+  `all-built-in-chains`.
+- `primarySymbol`
+  The first concrete symbol surfaced by the current token query, or `null`
+  when the query is empty.
+- `sourceCounts`
+  Compressed token-source counts across the returned entries.
+- `roleMatchCounts`
+  Compressed defaults-registry role-match counts across the returned entries.
+- `currentDefaultEntryCount`
+  Count of returned entries that match at least one current validated default.
+- `probeFailureCount`
+  On `tokens --owned`, the count of ERC-20 probe failures; otherwise `null`.
+- `bridgeMappingCounts`
+  On `tokens --owned`, the compressed shared-bridge mapping status counts;
+  otherwise `null`.
+
+## `zk-agent resolve-token`
+
+`zk-agent resolve-token` is the direct token inspection surface after the
+candidate set is already known.
+
+Current stable top-level fields:
+
+- `ok`
+- `discoverySummary`
+- `recommendedCommands`
+- `chainId`
+- `chainKey`
+- `queryType`
+- `symbol`
+- `address`
+- `role`
+- `source`
+- `matchCount`
+- `ambiguous`
+- `primaryMatch`
+- `matches`
+- `tokenRegistrySources`
+
+### `recommendedCommands`
+
+Current stable follow-up shape:
+
+```json
+{
+  "recommendedCommands": {
+    "inspectDefaults": "zk-agent defaults",
+    "discoverTokens": "zk-agent tokens --chain zksync-sepolia --symbol USDC"
+  }
+}
+```
+
+### `discoverySummary`
+
+Current stable fields:
+
+- `chain`
+- `chainId`
+- `queryType`
+- `query`
+- `roleFilter`
+- `sourceFilter`
+- `matchCount`
+- `ambiguous`
+- `primarySymbol`
+- `primaryAddress`
+- `primaryDecimals`
+- `primarySource`
+- `sourceCounts`
+- `roleMatchCounts`
+- `currentDefaultEntryCount`
+- `tokenRegistrySources`
+
+Current stable semantics:
+
+- `query`
+  The concrete symbol or address that the command inspected on the active
+  chain.
+- `primary*`
+  The compressed identity of the preferred match when at least one match
+  exists.
+- `sourceCounts`
+  Compressed source counts across the returned matches.
+- `roleMatchCounts`
+  Compressed defaults-registry role-match counts across the returned matches.
+- `currentDefaultEntryCount`
+  Count of returned matches that align with at least one current validated
+  default.
 
 ## `zk-agent agent *`
 

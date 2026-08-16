@@ -19,11 +19,18 @@ interface SmokeDiscoveryRuntime {
 
 interface RecommendedCommandsLike {
   inspectDefaults?: string;
+  discoverTokens?: string;
+  inspectToken?: string;
 }
 
 interface AssetsLike extends JsonCommandResult {
   chain?: string;
   recommendedCommands?: RecommendedCommandsLike;
+  discoverySummary?: {
+    chain?: string;
+    ownedTokenCount?: number;
+    primaryOwnedTokenSymbol?: string | null;
+  };
   ownedTokenRegistry?: {
     entryCount?: number;
     summary?: unknown;
@@ -33,6 +40,11 @@ interface AssetsLike extends JsonCommandResult {
 interface BalancesLike extends JsonCommandResult {
   chain?: string;
   recommendedCommands?: RecommendedCommandsLike;
+  discoverySummary?: {
+    chain?: string;
+    ownedTokenCount?: number;
+    primaryOwnedTokenSymbol?: string | null;
+  };
   ownedTokenRegistry?: {
     entryCount?: number;
     summary?: unknown;
@@ -44,6 +56,12 @@ interface TokensOwnedLike extends JsonCommandResult {
     chainKey?: string;
   };
   entryCount?: number;
+  discoverySummary?: {
+    mode?: string;
+    chainScope?: string;
+    entryCount?: number;
+    primarySymbol?: string | null;
+  };
   entries?: Array<{
     symbol?: string;
   }>;
@@ -53,6 +71,12 @@ interface TokensOwnedLike extends JsonCommandResult {
 
 interface TokensChainLike extends JsonCommandResult {
   entryCount?: number;
+  discoverySummary?: {
+    mode?: string;
+    chainScope?: string;
+    entryCount?: number;
+    primarySymbol?: string | null;
+  };
   entries?: Array<{
     symbol?: string;
   }>;
@@ -61,7 +85,18 @@ interface TokensChainLike extends JsonCommandResult {
 
 interface ResolveTokenLike extends JsonCommandResult {
   matchCount?: number;
+  discoverySummary?: {
+    matchCount?: number;
+    primarySymbol?: string | null;
+  };
   primaryMatch?: unknown;
+  recommendedCommands?: RecommendedCommandsLike;
+}
+
+interface DefaultsLike extends JsonCommandResult {
+  summary?: {
+    primaryDiscoveryChain?: string;
+  };
   recommendedCommands?: RecommendedCommandsLike;
 }
 
@@ -200,6 +235,66 @@ function requireInspectDefaultsContract(name: string, result: {
   }
 }
 
+function requireDefaultsContract(result: DefaultsLike): void {
+  requireInspectDefaultsContract('defaults', result);
+
+  if (!result.summary?.primaryDiscoveryChain) {
+    throw new Error('defaults did not expose summary.primaryDiscoveryChain.');
+  }
+
+  if (!result.recommendedCommands?.discoverTokens) {
+    throw new Error('defaults did not expose recommendedCommands.discoverTokens.');
+  }
+
+  if (!result.recommendedCommands?.inspectToken) {
+    throw new Error('defaults did not expose recommendedCommands.inspectToken.');
+  }
+}
+
+function requireAssetsContract(result: AssetsLike): void {
+  requireInspectDefaultsContract('assets', result);
+
+  if (!result.discoverySummary?.chain) {
+    throw new Error('assets did not expose discoverySummary.chain.');
+  }
+
+  if (typeof result.discoverySummary.ownedTokenCount !== 'number') {
+    throw new Error('assets did not expose discoverySummary.ownedTokenCount.');
+  }
+}
+
+function requireBalancesContract(result: BalancesLike): void {
+  requireInspectDefaultsContract('balances', result);
+
+  if (!result.discoverySummary?.chain) {
+    throw new Error('balances did not expose discoverySummary.chain.');
+  }
+
+  if (typeof result.discoverySummary.ownedTokenCount !== 'number') {
+    throw new Error('balances did not expose discoverySummary.ownedTokenCount.');
+  }
+}
+
+function requireTokensContract(name: string, result: TokensOwnedLike | TokensChainLike): void {
+  requireInspectDefaultsContract(name, result);
+
+  if (!result.discoverySummary?.mode) {
+    throw new Error(`${name} did not expose discoverySummary.mode.`);
+  }
+
+  if (typeof result.discoverySummary.entryCount !== 'number') {
+    throw new Error(`${name} did not expose discoverySummary.entryCount.`);
+  }
+}
+
+function requireResolveTokenContract(result: ResolveTokenLike): void {
+  requireInspectDefaultsContract('resolve-token', result);
+
+  if (typeof result.discoverySummary?.matchCount !== 'number') {
+    throw new Error('resolve-token did not expose discoverySummary.matchCount.');
+  }
+}
+
 function inferChain(
   assets: AssetsLike,
   balances: BalancesLike,
@@ -272,8 +367,9 @@ export async function runSmokeDiscovery(
   options: SmokeDiscoveryOptions,
   runtime: SmokeDiscoveryRuntime
 ) {
-  const defaults = await runtime.runCliJson(['defaults']);
+  const defaults = (await runtime.runCliJson(['defaults'])) as DefaultsLike;
   requireOk('defaults', defaults);
+  requireDefaultsContract(defaults);
 
   const assets = (await runtime.runCliJson([
     'assets',
@@ -281,7 +377,7 @@ export async function runSmokeDiscovery(
     options.walletName
   ])) as AssetsLike;
   requireOk('assets', assets);
-  requireInspectDefaultsContract('assets', assets);
+  requireAssetsContract(assets);
 
   const balances = (await runtime.runCliJson([
     'balances',
@@ -290,7 +386,7 @@ export async function runSmokeDiscovery(
     '--owned-tokens'
   ])) as BalancesLike;
   requireOk('balances', balances);
-  requireInspectDefaultsContract('balances', balances);
+  requireBalancesContract(balances);
 
   const ownedTokens = (await runtime.runCliJson([
     'tokens',
@@ -299,7 +395,7 @@ export async function runSmokeDiscovery(
     '--owned'
   ])) as TokensOwnedLike;
   requireOk('tokens --owned', ownedTokens);
-  requireInspectDefaultsContract('tokens --owned', ownedTokens);
+  requireTokensContract('tokens --owned', ownedTokens);
 
   const chain = inferChain(assets, balances, ownedTokens);
 
@@ -309,7 +405,7 @@ export async function runSmokeDiscovery(
     chain
   ])) as TokensChainLike;
   requireOk('tokens --chain', chainTokens);
-  requireInspectDefaultsContract('tokens --chain', chainTokens);
+  requireTokensContract('tokens --chain', chainTokens);
 
   const resolvedSymbol =
     options.symbol?.trim() ||
@@ -331,7 +427,7 @@ export async function runSmokeDiscovery(
       resolvedSymbol
     ])) as ResolveTokenLike;
     requireOk('resolve-token', resolveToken);
-    requireInspectDefaultsContract('resolve-token', resolveToken);
+    requireResolveTokenContract(resolveToken);
     if ((resolveToken.matchCount || 0) < 1) {
       throw new Error(`resolve-token returned no matches for symbol ${resolvedSymbol}.`);
     }
@@ -363,6 +459,11 @@ export async function runSmokeDiscovery(
       chainTokenCount: chainTokens.entryCount || 0,
       assetOwnedTokenCount: assets.ownedTokenRegistry?.entryCount || 0,
       balanceOwnedTokenCount: balances.ownedTokenRegistry?.entryCount || 0,
+      defaultsPrimaryDiscoveryChain: defaults.summary?.primaryDiscoveryChain || null,
+      assetsPrimaryOwnedTokenSymbol: assets.discoverySummary?.primaryOwnedTokenSymbol || null,
+      balancesPrimaryOwnedTokenSymbol: balances.discoverySummary?.primaryOwnedTokenSymbol || null,
+      chainTokensPrimarySymbol: chainTokens.discoverySummary?.primarySymbol || null,
+      resolvedPrimarySymbol: resolveToken?.discoverySummary?.primarySymbol || null,
       ownedTokenSummary:
         ownedTokens.summary ||
         assets.ownedTokenRegistry?.summary ||

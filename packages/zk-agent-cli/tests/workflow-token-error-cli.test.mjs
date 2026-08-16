@@ -94,6 +94,15 @@ test('workflow next returns formal recommendedCommands for ambiguous token symbo
     assert.equal(result.ok, false);
     assert.equal(result.code, 'TOKEN_RESOLUTION_AMBIGUOUS');
     assert.match(String(result.details?.suggestedAction || ''), /zk-agent tokens --chain zksync-sepolia --symbol ZKAT/);
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      chain: 'zksync-sepolia',
+      queryType: 'symbol',
+      query: 'ZKAT',
+      roleFilter: null,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      workflowHelp: 'zk-agent workflow --help'
+    });
     assert.deepEqual(result.recommendedCommands, {
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol ZKAT',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT',
@@ -152,6 +161,15 @@ test('workflow next preserves an explicit token role in token-resolution recover
       String(result.details?.suggestedAction || ''),
       /zk-agent tokens --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token/
     );
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      chain: 'zksync-sepolia',
+      queryType: 'symbol',
+      query: 'ZKAT',
+      roleFilter: 'paymaster-fee-token',
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      workflowHelp: 'zk-agent workflow --help'
+    });
     assert.deepEqual(result.recommendedCommands, {
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token',

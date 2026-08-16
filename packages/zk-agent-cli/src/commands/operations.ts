@@ -23,6 +23,10 @@ import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { humanLine, plannedCommandMessage, printResult, shouldJsonOutput } from '../lib/io.js';
 import { executeFundAction } from '../lib/fund.js';
+import {
+  findNativeBalance,
+  firstDiscoverySymbol
+} from '../lib/discovery-summary.js';
 import { buildDiscoveryRecommendedCommands } from '../lib/recommended-commands.js';
 import { summarizeBridgeAssetConstraints } from '../lib/validated-defaults.js';
 import {
@@ -854,6 +858,32 @@ function linesForMultiBalances(result: MultiChainBalancesResult): Array<[string,
   return lines;
 }
 
+function buildAssetsDiscoverySummary(result: ExtendedSingleChainBalancesResult) {
+  const nativeBalance = findNativeBalance(result.balances);
+  const ownedTokenSymbols = (result.ownedTokenRegistry?.entries || [])
+    .map((entry) => entry.symbol?.trim())
+    .filter((value): value is string => Boolean(value));
+
+  return {
+    walletName: result.walletName,
+    chain: result.chain,
+    chainId: result.chainId,
+    assetCount: result.balances.length,
+    nativeAssetSymbol: nativeBalance?.symbol || null,
+    nativeAssetBalance: nativeBalance?.balance || null,
+    ownedTokenCount: result.ownedTokenRegistry?.entryCount || 0,
+    primaryOwnedTokenSymbol: firstDiscoverySymbol(result.ownedTokenRegistry?.entries || []),
+    ownedTokenSymbols,
+    ownedTokenSourceCounts: result.ownedTokenRegistry?.summary.sourceCounts || null,
+    ownedBridgeMappingCounts: result.ownedTokenRegistry?.summary.bridgeMappingCounts || null,
+    ownedRegistryRoleCounts: result.ownedTokenRegistry?.summary.registryRoleCounts || null
+  };
+}
+
+function buildBalancesDiscoverySummary(result: ExtendedSingleChainBalancesResult) {
+  return buildAssetsDiscoverySummary(result);
+}
+
 function withPaymasterOptions(command: Command): Command {
   return command
     .option('--paymaster-mode <mode>', 'none, sponsored, or approval-based')
@@ -934,8 +964,30 @@ export function createBalancesCommand(deps?: Partial<BalancesCommandDeps>): Comm
         provider: resolvedDeps.provider,
         ownedTokens: options.ownedTokens
       });
+      const discoverySummary =
+        options.ownedTokens && 'ownedTokenRegistry' in payload
+          ? buildBalancesDiscoverySummary(payload as ExtendedSingleChainBalancesResult)
+          : undefined;
+      const recommendedCommands =
+        options.ownedTokens
+          ? buildDiscoveryRecommendedCommands({
+              walletName,
+              chain: payload.chain
+            })
+          : undefined;
 
-      printResult(linesForSingleBalances(payload), { ok: true, ...payload });
+      printResult(
+        [
+          ...linesForSingleBalances(payload),
+          ...(recommendedCommands ? workflowFollowupLines(recommendedCommands) : [])
+        ],
+        {
+          ok: true,
+          ...(discoverySummary ? { discoverySummary } : {}),
+          ...(recommendedCommands ? { recommendedCommands } : {}),
+          ...payload
+        }
+      );
     });
 }
 
@@ -982,10 +1034,13 @@ export function createAssetsCommand(deps?: Partial<BalancesCommandDeps>): Comman
         chain: payload.chain,
         includeAssets: false
       });
+      const discoverySummary = buildAssetsDiscoverySummary(
+        payload as ExtendedSingleChainBalancesResult
+      );
 
       printResult(
         [...linesForSingleBalances(payload), ...workflowFollowupLines(recommendedCommands)],
-        { ok: true, recommendedCommands, ...payload }
+        { ok: true, discoverySummary, recommendedCommands, ...payload }
       );
     });
 }

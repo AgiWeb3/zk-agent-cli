@@ -79,6 +79,49 @@ test('defaults command exposes built-in chains and tracked validated Sepolia def
     assert.equal(Array.isArray(result.localTokenRegistry), true);
     assert.equal(Array.isArray(result.tokenRegistrySources), true);
     assert.equal(Array.isArray(result.tokenDirectoryChains), true);
+    assert.deepEqual(result.recommendedCommands, {
+      inspectDefaults: 'zk-agent defaults',
+      discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+      inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT',
+      discoverPaymasterTokens: 'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+      inspectPaymasterToken:
+        'zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token'
+    });
+    assert.equal(result.summary.primaryDiscoveryChain, 'zksync-sepolia');
+    assert.equal(result.summary.exampleTokenSymbol, 'ZKAT');
+    assert.equal(result.summary.paymasterFeeTokenSymbol, 'ZKAT');
+    assert.equal(result.summary.localTokenCount > 0, true);
+    assert.equal(result.summary.tokenDirectoryChainCount, 0);
+    assert.deepEqual(result.summary.resolvedDefaults.swap, {
+      entryId: 'syncswap-classic',
+      chain: 'zksync-sepolia',
+      protocol: 'syncswap-classic',
+      status: 'validated'
+    });
+    assert.deepEqual(result.summary.resolvedDefaults.bridgeDeposit, {
+      entryId: 'ethereum-sepolia-to-zksync-sepolia',
+      fromChain: 'ethereum-sepolia',
+      toChain: 'zksync-sepolia',
+      status: 'validated'
+    });
+    assert.deepEqual(result.summary.resolvedDefaults.bridgeWithdraw, {
+      entryId: 'zksync-sepolia-to-ethereum-sepolia',
+      fromChain: 'zksync-sepolia',
+      toChain: 'ethereum-sepolia',
+      status: 'validated',
+      requiresFinalize: true
+    });
+    assert.deepEqual(result.summary.resolvedDefaults.paymasterDefault, {
+      entryId: 'zksync-sepolia-approval-based-eravm',
+      chain: 'zksync-sepolia',
+      mode: 'approval-based',
+      status: 'validated'
+    });
+    assert.deepEqual(result.summary.resolvedDefaults.paymasterByMode, {
+      none: 'zksync-sepolia-no-paymaster',
+      sponsored: 'zksync-sepolia-sponsored',
+      approvalBased: 'zksync-sepolia-approval-based-eravm'
+    });
 
     const uniswap = result.defaults.registry.swapProtocols.find(
       (entry) => entry.id === 'uniswap-v3-exact-input-single'
@@ -474,6 +517,7 @@ test('defaults command exposes token-directory chain coverage when a local direc
     assert.equal(tokenDirectorySource.exists, true);
     assert.equal(zksyncSepoliaChain.chainKey, 'zksync-sepolia');
     assert.equal(zksyncSepoliaChain.hasErc20List, true);
+    assert.equal(result.summary.tokenDirectoryChainCount, 1);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
     await rm(tokenDirectoryRoot, { recursive: true, force: true });

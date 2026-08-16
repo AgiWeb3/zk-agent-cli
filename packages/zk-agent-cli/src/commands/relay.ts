@@ -271,12 +271,56 @@ interface RelayInspectPayload {
   publicOriginLooksLocal: boolean;
   connectorUiAvailable: boolean | null;
   hostedShareRedirectReady: boolean;
+  deploymentSummary: RelayDeploymentSummary;
   capabilities: RelayCapability[];
   recommendedCommands: {
     createWallet?: string;
     reapproveWallet?: string;
   };
   notes: string[];
+}
+
+interface RelayDeploymentSummary {
+  origin: string | null;
+  publicOrigin: string;
+  publicOriginSource: RelayPublicOriginSource | null;
+  shareLinkBaseUrl: string;
+  statusApiBaseUrl: string;
+  publicOriginConfigured: boolean;
+  publicOriginLooksLocal: boolean;
+  connectorUiAvailable: boolean | null;
+  hostedShareRedirectReady: boolean;
+  singleHostFileState: boolean;
+}
+
+function buildRelayDeploymentSummary(options: {
+  origin: string | null;
+  publicOrigin: string;
+  publicOriginSource: RelayPublicOriginSource | null;
+  shareLinkBaseUrl: string;
+  statusApiBaseUrl: string;
+  publicOriginLooksLocal: boolean;
+  connectorUiAvailable: boolean | null;
+  hostedShareRedirectReady: boolean;
+  stateBackend: RelayStateBackend | null;
+  deploymentScope: RelayDeploymentScope | null;
+  sameHostRestartPersists: boolean | null;
+}): RelayDeploymentSummary {
+  return {
+    origin: options.origin,
+    publicOrigin: options.publicOrigin,
+    publicOriginSource: options.publicOriginSource,
+    shareLinkBaseUrl: options.shareLinkBaseUrl,
+    statusApiBaseUrl: options.statusApiBaseUrl,
+    publicOriginConfigured: options.publicOriginSource === 'configured',
+    publicOriginLooksLocal: options.publicOriginLooksLocal,
+    connectorUiAvailable: options.connectorUiAvailable,
+    hostedShareRedirectReady: options.hostedShareRedirectReady,
+    singleHostFileState:
+      options.stateBackend === 'local-filesystem' &&
+      options.deploymentScope === 'single-host' &&
+      options.sameHostRestartPersists === true
+  };
 }
 
 function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayInspectPayload {
@@ -308,6 +352,19 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
   const hostedShareRedirectReady =
     compatible && connectorUiAvailable === true && !publicOriginLooksLocal;
   const { shareLinkBaseUrl, statusApiBaseUrl } = buildAdvertisedRelayBases(publicOrigin);
+  const deploymentSummary = buildRelayDeploymentSummary({
+    origin: health?.origin || null,
+    publicOrigin,
+    publicOriginSource,
+    shareLinkBaseUrl,
+    statusApiBaseUrl,
+    publicOriginLooksLocal,
+    connectorUiAvailable,
+    hostedShareRedirectReady,
+    stateBackend,
+    deploymentScope,
+    sameHostRestartPersists
+  });
   const notes = [
     ...relayHostedReadinessNotes({
       compatible,
@@ -350,6 +407,7 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     publicOriginLooksLocal,
     connectorUiAvailable,
     hostedShareRedirectReady,
+    deploymentSummary,
     capabilities: health?.capabilities || [],
     recommendedCommands: compatible ? buildRelayServeRecommendedCommands(publicOrigin) : {},
     notes
@@ -407,6 +465,19 @@ export function createRelayCommand(): Command {
       const hostedShareRedirectReady = connectorUiAvailable && !publicOriginLooksLocal;
       const { shareLinkBaseUrl, statusApiBaseUrl } = buildAdvertisedRelayBases(publicOrigin);
       const recommendedCommands = buildRelayServeRecommendedCommands(publicOrigin);
+      const deploymentSummary = buildRelayDeploymentSummary({
+        origin: server.origin,
+        publicOrigin,
+        publicOriginSource,
+        shareLinkBaseUrl,
+        statusApiBaseUrl,
+        publicOriginLooksLocal,
+        connectorUiAvailable,
+        hostedShareRedirectReady,
+        stateBackend: 'local-filesystem',
+        deploymentScope: 'single-host',
+        sameHostRestartPersists: true
+      });
       const notes = relayHostedReadinessNotes({
         compatible: true,
         publicOrigin,
@@ -426,6 +497,7 @@ export function createRelayCommand(): Command {
         shareLinkBaseUrl,
         statusApiBaseUrl,
         publicOriginLooksLocal,
+        deploymentSummary,
         port: server.port,
         healthUrl: `${server.origin}/health`,
         publicHealthUrl: `${publicOrigin}/health`,

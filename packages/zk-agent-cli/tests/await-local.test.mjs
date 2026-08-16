@@ -970,6 +970,22 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(published.relayApprovalUrl, published.relay.approval_url);
     assert.equal(published.relayShareLinkBaseUrl, `${relayBaseUrl}/r`);
     assert.equal(published.relayStatusApiBaseUrl, `${relayBaseUrl}/api/requests`);
+    assert.deepEqual(published.relayRecoverySummary, {
+      requestId: created.requestId,
+      walletName: 'relay-approve-test',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'pending',
+      approvalReady: null,
+      nextAction:
+        `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'status-poll',
+      includesStatusPoll: true,
+      includesApprove: true,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.deepEqual(published.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
@@ -999,6 +1015,22 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(relayStatusPending.relayShareUrl, relayStatusPending.relay.share_url);
     assert.equal(relayStatusPending.relayStatusUrl, relayStatusPending.relay.status_url);
     assert.equal(relayStatusPending.relayApprovalUrl, relayStatusPending.relay.approval_url);
+    assert.deepEqual(relayStatusPending.relayRecoverySummary, {
+      requestId: created.requestId,
+      walletName: 'relay-approve-test',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'pending',
+      approvalReady: false,
+      nextAction:
+        `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'status-poll',
+      includesStatusPoll: true,
+      includesApprove: false,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.deepEqual(relayStatusPending.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`
     });
@@ -1065,6 +1097,22 @@ test('relay publish, relay status, and relay-backed wallet approval complete an 
     assert.equal(relayStatusReady.relayShareUrl, relayStatusReady.relay.share_url);
     assert.equal(relayStatusReady.relayStatusUrl, relayStatusReady.relay.status_url);
     assert.equal(relayStatusReady.relayApprovalUrl, relayStatusReady.relay.approval_url);
+    assert.deepEqual(relayStatusReady.relayRecoverySummary, {
+      requestId: created.requestId,
+      walletName: 'relay-approve-test',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'ready',
+      approvalReady: true,
+      nextAction:
+        `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'approve',
+      includesStatusPoll: true,
+      includesApprove: true,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.deepEqual(relayStatusReady.recommendedCommands, {
       status: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
       approve: `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
@@ -1339,6 +1387,22 @@ test('relay status --wait timeout returns actionable follow-up commands', async 
       result.details?.approveCommand,
       `zk-agent wallet request approve --request-id ${created.requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
     );
+    assert.deepEqual(result.details?.relayRecoverySummary, {
+      requestId: created.requestId,
+      walletName: 'relay-timeout-test',
+      relayUrl: relayBaseUrl,
+      relayStatus: null,
+      approvalReady: null,
+      nextAction:
+        `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
+      shareLinkBaseUrl: null,
+      statusApiBaseUrl: null,
+      recoveryMode: 'status-poll',
+      includesStatusPoll: true,
+      includesApprove: true,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.match(
       String(result.details?.suggestedAction || ''),
       /Check the current relay status, then finalize the wallet approval once approval_ready=true\./
@@ -1426,6 +1490,22 @@ test('relay status returns recovery commands instead of self-looping when the re
       relayStatusExpired.note,
       'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
     );
+    assert.deepEqual(relayStatusExpired.relayRecoverySummary, {
+      requestId: 'expired-relay-status',
+      walletName: 'ops-wallet',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'expired',
+      approvalReady: false,
+      nextAction:
+        `zk-agent wallet create --name ops-wallet --account-kind eoa --relay-url ${relayBaseUrl} --wait-relay --prompt-code --paymaster-mode approval-based`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'reissue-remote-approval',
+      includesStatusPoll: false,
+      includesApprove: false,
+      includesRelayInspect: true,
+      includesRemoteReissue: true
+    });
     assert.deepEqual(relayStatusExpired.recommendedCommands, {
       relayInspect: `zk-agent relay inspect --relay-url ${relayBaseUrl}`,
       reissueRemoteApproval:
@@ -1519,6 +1599,22 @@ test('relay status prefers remote reapprove recovery when the wallet already exi
       relayStatusExpired.nextAction,
       `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
     );
+    assert.deepEqual(relayStatusExpired.relayRecoverySummary, {
+      requestId: 'expired-relay-status-existing-wallet',
+      walletName: 'ops-wallet',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'expired',
+      approvalReady: false,
+      nextAction:
+        `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'reissue-remote-approval',
+      includesStatusPoll: false,
+      includesApprove: false,
+      includesRelayInspect: true,
+      includesRemoteReissue: true
+    });
     assert.deepEqual(relayStatusExpired.recommendedCommands, {
       relayInspect: `zk-agent relay inspect --relay-url ${relayBaseUrl}`,
       reissueRemoteApproval:
@@ -1704,6 +1800,21 @@ test('wallet create --relay-url publishes the request immediately for remote app
     assert.equal(created.relayApprovalUrl, created.relay.approval_url);
     assert.equal(created.relayShareLinkBaseUrl, `${relayBaseUrl}/r`);
     assert.equal(created.relayStatusApiBaseUrl, `${relayBaseUrl}/api/requests`);
+    assert.deepEqual(created.relayRecoverySummary, {
+      requestId: created.requestId,
+      walletName: 'relay-create-direct',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'pending',
+      approvalReady: null,
+      nextAction: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'status-poll',
+      includesStatusPoll: true,
+      includesApprove: true,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.deepEqual(created.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.requestId} --relay-url ${relayBaseUrl}`,
@@ -1938,6 +2049,22 @@ test('wallet create --wait-relay timeout returns actionable follow-up commands',
       result.details?.approveCommand,
       `zk-agent wallet request approve --request-id ${requestId} --relay-url ${relayBaseUrl} --code <code> --wait`
     );
+    assert.deepEqual(result.details?.relayRecoverySummary, {
+      requestId,
+      walletName: 'relay-create-timeout',
+      relayUrl: relayBaseUrl,
+      relayStatus: null,
+      approvalReady: null,
+      nextAction:
+        `zk-agent wallet request relay-status --request-id ${requestId} --relay-url ${relayBaseUrl}`,
+      shareLinkBaseUrl: null,
+      statusApiBaseUrl: null,
+      recoveryMode: 'status-poll',
+      includesStatusPoll: true,
+      includesApprove: true,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.match(
       String(result.details?.suggestedAction || ''),
       /Check the current relay status, then finalize the wallet approval once approval_ready=true\./
@@ -2008,6 +2135,21 @@ test('wallet reapprove --relay-url publishes the request immediately for remote 
     assert.equal(created.relayApprovalUrl, created.relay.approval_url);
     assert.equal(created.relayShareLinkBaseUrl, `${relayBaseUrl}/r`);
     assert.equal(created.relayStatusApiBaseUrl, `${relayBaseUrl}/api/requests`);
+    assert.deepEqual(created.relayRecoverySummary, {
+      requestId: created.request.requestId,
+      walletName: 'relay-reapprove-direct',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'pending',
+      approvalReady: null,
+      nextAction: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,
+      shareLinkBaseUrl: `${relayBaseUrl}/r`,
+      statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
+      recoveryMode: 'status-poll',
+      includesStatusPoll: true,
+      includesApprove: true,
+      includesRelayInspect: false,
+      includesRemoteReissue: false
+    });
     assert.deepEqual(created.recommendedCommands, {
       awaitLocal: `zk-agent wallet request await-local --request-id ${created.request.requestId}`,
       relayStatus: `zk-agent wallet request relay-status --request-id ${created.request.requestId} --relay-url ${relayBaseUrl}`,
@@ -2298,6 +2440,22 @@ test('wallet reapprove --wait-relay expired request returns remote reapprove rec
       result.details?.reissueRemoteApprovalCommand,
       `zk-agent wallet reapprove --name relay-reapprove-expired --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
     );
+    assert.deepEqual(result.details?.relayRecoverySummary, {
+      requestId,
+      walletName: 'relay-reapprove-expired',
+      relayUrl: relayBaseUrl,
+      relayStatus: 'expired',
+      approvalReady: false,
+      nextAction:
+        `zk-agent wallet reapprove --name relay-reapprove-expired --relay-url ${relayBaseUrl} --wait-relay --prompt-code`,
+      shareLinkBaseUrl: null,
+      statusApiBaseUrl: null,
+      recoveryMode: 'reissue-remote-approval',
+      includesStatusPoll: false,
+      includesApprove: false,
+      includesRelayInspect: true,
+      includesRemoteReissue: true
+    });
     assert.match(
       String(result.details?.suggestedAction || ''),
       /Inspect the hosted relay, then reissue the remote approval request\./

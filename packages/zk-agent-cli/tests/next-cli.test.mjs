@@ -357,6 +357,20 @@ test('top-level next recommends starting a workflow when the wallet is already r
         'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
       inspectDefaults: 'zk-agent defaults'
     });
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: null,
+      nextAction: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      paymasterMode: null,
+      tokenizedIntent: false,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: false,
+      includesPaymasterTokenInspection: false
+    });
     assert.equal(result.agentProfile.profileExists, true);
     assert.equal(result.agentProfile.agentId, 'sed-operator');
     assert.equal(result.agentProfile.walletRelation, 'linked-active-wallet');
@@ -428,6 +442,21 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
         'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored',
       inspectDefaults: 'zk-agent defaults'
     });
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: null,
+      nextAction:
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored',
+      paymasterMode: 'sponsored',
+      tokenizedIntent: false,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: false,
+      includesPaymasterTokenInspection: false
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -467,6 +496,21 @@ test('top-level next adds paymaster fee-token discovery commands for approval-ba
       nextAction:
         'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
       inspectDefaults: 'zk-agent defaults'
+    });
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: null,
+      nextAction:
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
+      paymasterMode: 'approval-based',
+      tokenizedIntent: false,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: true,
+      includesPaymasterTokenInspection: true
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -539,6 +583,20 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+    });
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: 'send-token',
+      nextAction: result.nextCommand,
+      paymasterMode: null,
+      tokenizedIntent: true,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: false,
+      includesPaymasterTokenInspection: false
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });

@@ -19,7 +19,10 @@ import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 import { agentFollowupLines, buildAgentFollowup } from '../lib/agent-followup.js';
 import { agentProfileLines } from '../lib/agent-profile.js';
 import { printResult } from '../lib/io.js';
-import { walletNextLines } from '../lib/wallet-next.js';
+import {
+  buildWalletTokenDiscoverySummary,
+  walletNextLines
+} from '../lib/wallet-next.js';
 import {
   buildAssetsRecommendedCommand,
   buildDefaultsRecommendedCommand,
@@ -227,6 +230,14 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           intent: result.intent,
           paymasterMode: extractCheckpointPaymasterMode(updatedCheckpoint)
         });
+        const tokenDiscoverySummary = buildWalletTokenDiscoverySummary({
+          walletName: wallet.walletName,
+          chain: result.plan.chain,
+          intent: result.intent,
+          nextAction: nextCommand,
+          paymasterMode: extractCheckpointPaymasterMode(updatedCheckpoint),
+          recommendedCommands
+        });
         const workflowAgentProfile = await loadAgentIdentitySummary(wallet.walletName);
         const agentFollowup = buildAgentFollowup(workflowAgentProfile, {
           walletName: wallet.walletName,
@@ -264,6 +275,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             agentFollowup,
             result,
             checkpoint: updatedCheckpoint,
+            tokenDiscoverySummary,
             recommendedCommands
           }
         );
@@ -397,6 +409,13 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         nextAction: nextCommand,
         inspectDefaults: buildDefaultsRecommendedCommand()
       };
+      const tokenDiscoverySummary = buildWalletTokenDiscoverySummary({
+        walletName: wallet.walletName,
+        chain: wallet.chain,
+        nextAction: nextCommand,
+        paymasterMode,
+        recommendedCommands
+      });
 
       printResult(
         topLevelNextLines('wallet', [
@@ -425,6 +444,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           inspection,
           summary,
           nextCommand,
+          tokenDiscoverySummary,
           recommendedCommands
         }
       );

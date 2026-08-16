@@ -104,6 +104,7 @@ The current prototype now makes its storage and restart contract explicit:
 - `stateBackend = local-filesystem`
 - `deploymentScope = single-host`
 - `sameHostRestartPersists = true`
+- `deploymentSummary.singleHostFileState = true`
 
 Interpretation:
 
@@ -112,6 +113,9 @@ Interpretation:
 - tunnels and reverse proxies are fine when they keep routing to that same host
 - load-balanced or stateless multi-instance deployments are not supported by
   this prototype because relay state is not shared across instances
+- `relay serve` and `relay inspect` now also expose the same compressed
+  `deploymentSummary` payload so operators and harnesses can consume the
+  hosted-deployment contract without reverse-parsing the full raw response
 
 ### 3. Create or refresh the approval request
 
@@ -134,9 +138,17 @@ The relay should now provide:
 - a share URL for the browser operator
 - a status URL for polling
 - an approval code flow for finalization
+- the direct remote publish outputs from `wallet create --relay-url` and
+  `wallet reapprove --relay-url` now also expose the same compressed
+  `relayRecoverySummary` payload, so the main operator entrypoints and the
+  lower-level manual fallback share one recovery summary contract
 - the lower-level `wallet request relay-status` response now keeps
   `share_url`, `status_url`, and `approval_url` together so operators and
   harnesses do not have to reconstruct link bases from one field
+- `wallet request relay-publish`, `wallet request relay-status`, and the
+  timeout/expiry relay-approval errors now also expose the same compressed
+  `relayRecoverySummary` payload so recovery tooling can reuse one summary
+  contract across publish, poll, approve, and reissue decisions
 
 If you need the lower-level manual fallback:
 

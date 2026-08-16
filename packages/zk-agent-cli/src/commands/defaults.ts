@@ -14,9 +14,131 @@ import {
 
 import { printResult } from '../lib/io.js';
 import {
+  buildDefaultsRecommendedCommand,
+  buildPaymasterFeeTokenResolveRecommendedCommand,
+  buildPaymasterFeeTokensRecommendedCommand,
+  buildResolveTokenRecommendedCommand,
+  buildTokensRecommendedCommand
+} from '../lib/recommended-commands.js';
+import {
   loadValidatedDefaults,
   summarizeBridgeAssetConstraints
 } from '../lib/validated-defaults.js';
+
+function inferPrimaryDiscoveryChain(defaults: ValidatedDefaultsPayload): string {
+  return (
+    defaults.defaultSelections.paymaster.validatedDefault?.chain ||
+    defaults.defaultSelections.swap.validatedDefault?.chain ||
+    defaults.defaultSelections.bridge.validatedWithdraw?.fromChain ||
+    defaults.defaultSelections.bridge.validatedDeposit?.toChain ||
+    defaults.validated.feeTokenEraVm?.chain ||
+    defaults.builtinChains.find((chain) => chain.key === 'zksync-sepolia')?.key ||
+    defaults.builtinChains[0]?.key ||
+    'zksync-sepolia'
+  );
+}
+
+function inferExampleTokenSymbol(defaults: ValidatedDefaultsPayload): string {
+  return (
+    defaults.defaultSelections.swap.validatedDefault?.trackedTokenA.symbol ||
+    defaults.defaultSelections.paymaster.validatedApprovalBased?.feeTokenSymbol ||
+    defaults.validated.feeTokenEraVm?.symbol ||
+    defaults.registry.tokens.find((entry) => entry.symbol?.trim())?.symbol ||
+    'USDC'
+  );
+}
+
+function inferPaymasterFeeTokenSymbol(defaults: ValidatedDefaultsPayload): string | null {
+  return (
+    defaults.defaultSelections.paymaster.validatedApprovalBased?.feeTokenSymbol ||
+    defaults.validated.feeTokenEraVm?.symbol ||
+    null
+  );
+}
+
+function buildDefaultsRecommendedCommands(defaults: ValidatedDefaultsPayload) {
+  const primaryChain = inferPrimaryDiscoveryChain(defaults);
+  const exampleSymbol = inferExampleTokenSymbol(defaults);
+  const paymasterFeeTokenSymbol =
+    inferPaymasterFeeTokenSymbol(defaults) || exampleSymbol;
+
+  return {
+    inspectDefaults: buildDefaultsRecommendedCommand(),
+    discoverTokens: buildTokensRecommendedCommand(primaryChain),
+    inspectToken: buildResolveTokenRecommendedCommand(primaryChain, exampleSymbol),
+    discoverPaymasterTokens: buildPaymasterFeeTokensRecommendedCommand(primaryChain),
+    inspectPaymasterToken: buildPaymasterFeeTokenResolveRecommendedCommand(
+      primaryChain,
+      paymasterFeeTokenSymbol
+    )
+  };
+}
+
+function buildDefaultsSummary(input: {
+  defaults: ValidatedDefaultsPayload;
+  localTokenRegistry: TokenRegistryEntry[];
+  tokenRegistrySources: TokenRegistrySourceDescriptor[];
+  tokenDirectoryChains: TokenDirectoryIndexedChain[];
+}) {
+  const { defaults, localTokenRegistry, tokenRegistrySources, tokenDirectoryChains } = input;
+  const primaryChain = inferPrimaryDiscoveryChain(defaults);
+  const exampleTokenSymbol = inferExampleTokenSymbol(defaults);
+  const paymasterFeeTokenSymbol = inferPaymasterFeeTokenSymbol(defaults);
+
+  return {
+    primaryDiscoveryChain: primaryChain,
+    exampleTokenSymbol,
+    paymasterFeeTokenSymbol,
+    localTokenCount: localTokenRegistry.length,
+    tokenDirectoryChainCount: tokenDirectoryChains.length,
+    tokenRegistrySources: tokenRegistrySources.map((source) => ({
+      id: source.id,
+      enabled: source.enabled,
+      exists: source.exists
+    })),
+    resolvedDefaults: {
+      swap: defaults.defaultSelections.swap.validatedDefault
+        ? {
+            entryId: defaults.defaultSelections.swap.validatedDefault.entryId,
+            chain: defaults.defaultSelections.swap.validatedDefault.chain,
+            protocol: defaults.defaultSelections.swap.validatedDefault.protocol,
+            status: defaults.defaultSelections.swap.validatedDefault.status
+          }
+        : null,
+      bridgeDeposit: defaults.defaultSelections.bridge.validatedDeposit
+        ? {
+            entryId: defaults.defaultSelections.bridge.validatedDeposit.entryId,
+            fromChain: defaults.defaultSelections.bridge.validatedDeposit.fromChain,
+            toChain: defaults.defaultSelections.bridge.validatedDeposit.toChain,
+            status: defaults.defaultSelections.bridge.validatedDeposit.status
+          }
+        : null,
+      bridgeWithdraw: defaults.defaultSelections.bridge.validatedWithdraw
+        ? {
+            entryId: defaults.defaultSelections.bridge.validatedWithdraw.entryId,
+            fromChain: defaults.defaultSelections.bridge.validatedWithdraw.fromChain,
+            toChain: defaults.defaultSelections.bridge.validatedWithdraw.toChain,
+            status: defaults.defaultSelections.bridge.validatedWithdraw.status,
+            requiresFinalize: defaults.defaultSelections.bridge.validatedWithdraw.requiresFinalize
+          }
+        : null,
+      paymasterDefault: defaults.defaultSelections.paymaster.validatedDefault
+        ? {
+            entryId: defaults.defaultSelections.paymaster.validatedDefault.entryId,
+            chain: defaults.defaultSelections.paymaster.validatedDefault.chain,
+            mode: defaults.defaultSelections.paymaster.validatedDefault.mode,
+            status: defaults.defaultSelections.paymaster.validatedDefault.status
+          }
+        : null,
+      paymasterByMode: {
+        none: defaults.defaultSelections.paymaster.validatedNone?.entryId || null,
+        sponsored: defaults.defaultSelections.paymaster.validatedSponsored?.entryId || null,
+        approvalBased:
+          defaults.defaultSelections.paymaster.validatedApprovalBased?.entryId || null
+      }
+    }
+  };
+}
 
 function formatTrackedTokenSummary(token: {
   address: string | null;
@@ -566,6 +688,13 @@ export function createDefaultsCommand(): Command {
       const localTokenRegistry = listLocalTokenRegistryEntries();
       const tokenRegistrySources = describeDefaultTokenRegistrySources();
       const tokenDirectoryChains = await listTokenDirectoryIndexedChains();
+      const recommendedCommands = buildDefaultsRecommendedCommands(defaults);
+      const summary = buildDefaultsSummary({
+        defaults,
+        localTokenRegistry,
+        tokenRegistrySources,
+        tokenDirectoryChains
+      });
       const lines = buildDefaultsLines({
         defaults,
         localTokenRegistry,
@@ -573,8 +702,22 @@ export function createDefaultsCommand(): Command {
         tokenDirectoryChains
       });
 
+      lines.push([
+        'next discovery chain',
+        summary.primaryDiscoveryChain
+      ]);
+      lines.push([
+        'example token',
+        summary.exampleTokenSymbol
+      ]);
+      if (summary.paymasterFeeTokenSymbol) {
+        lines.push(['paymaster fee token symbol', summary.paymasterFeeTokenSymbol]);
+      }
+
       printResult(lines, {
         ok: true,
+        summary,
+        recommendedCommands,
         defaults,
         localTokenRegistry,
         tokenRegistrySources,

@@ -1168,6 +1168,16 @@ async function printWorkflowRunCommandResult(
         execution.walletApproval?.request.requestedPaymasterMode ??
         extractWorkflowGoalPaymasterMode(execution.goal)
     });
+    const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+      walletName: execution.result.walletName,
+      chain: execution.result.plan.chain,
+      intent: execution.result.intent,
+      nextAction: execution.result.nextCommand,
+      paymasterMode:
+        execution.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(execution.goal),
+      recommendedCommands
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -1193,6 +1203,7 @@ async function printWorkflowRunCommandResult(
         ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
         walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(execution.walletApproval),
+        tokenDiscoverySummary,
         recommendedCommands
       }
     );
@@ -1213,6 +1224,16 @@ async function printWorkflowRunCommandResult(
     paymasterMode:
       execution.walletApproval?.request.requestedPaymasterMode ??
       extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
+  });
+  const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+    walletName: execution.status.walletName,
+    chain: execution.status.plan.chain,
+    intent: execution.status.intent,
+    nextAction: execution.status.recommendedCommand,
+    paymasterMode:
+      execution.walletApproval?.request.requestedPaymasterMode ??
+      extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal),
+    recommendedCommands
   });
 
   printResult(
@@ -1240,6 +1261,7 @@ async function printWorkflowRunCommandResult(
       ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
       walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
       walletApproval: serializeWalletApproval(execution.walletApproval),
+      tokenDiscoverySummary,
       recommendedCommands
     }
   );
@@ -1574,6 +1596,17 @@ async function printWorkflowAutoCommandResult(
       extractWorkflowGoalPaymasterMode(execution.goal) ??
       extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
   });
+  const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+    walletName: execution.status.walletName,
+    chain: execution.status.plan.chain,
+    intent: execution.status.intent,
+    nextAction,
+    paymasterMode:
+      execution.walletApproval?.request.requestedPaymasterMode ??
+      extractWorkflowGoalPaymasterMode(execution.goal) ??
+      extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal),
+    recommendedCommands
+  });
   const summaryLines: Array<[string, string]> = [
     ['source', execution.source],
     ['action', execution.action],
@@ -1613,6 +1646,7 @@ async function printWorkflowAutoCommandResult(
       ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
       walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
       walletApproval: serializeWalletApproval(execution.walletApproval),
+      tokenDiscoverySummary,
       recommendedCommands
     }
   );
@@ -1752,6 +1786,79 @@ function workflowIntentSupportsTokenDiscovery(intent: WorkflowIntent): boolean {
   );
 }
 
+function buildWorkflowTokenDiscoverySummary(input: {
+  walletName?: string;
+  chain?: string;
+  intent?: WorkflowIntent;
+  paymasterMode?: PaymasterMode;
+  nextAction?: string;
+  recommendedCommands?: {
+    discoverAssets?: string;
+    discoverOwnedTokens?: string;
+    discoverPaymasterTokens?: string;
+    discoverTokens?: string;
+    inspectPaymasterToken?: string;
+    inspectToken?: string;
+  };
+}) {
+  if (!input.recommendedCommands) {
+    return undefined;
+  }
+
+  const hasTokenDiscovery =
+    Boolean(input.recommendedCommands.discoverAssets) ||
+    Boolean(input.recommendedCommands.discoverOwnedTokens) ||
+    Boolean(input.recommendedCommands.discoverTokens) ||
+    Boolean(input.recommendedCommands.inspectToken) ||
+    Boolean(input.recommendedCommands.discoverPaymasterTokens) ||
+    Boolean(input.recommendedCommands.inspectPaymasterToken);
+
+  if (!hasTokenDiscovery) {
+    return undefined;
+  }
+
+  return {
+    walletName: input.walletName || null,
+    chain: input.chain || null,
+    intent: input.intent || null,
+    nextAction: input.nextAction || null,
+    paymasterMode: input.paymasterMode || null,
+    tokenizedIntent: input.intent ? workflowIntentSupportsTokenDiscovery(input.intent) : false,
+    includesAssetDiscovery: Boolean(input.recommendedCommands.discoverAssets),
+    includesOwnedTokenDiscovery: Boolean(input.recommendedCommands.discoverOwnedTokens),
+    includesChainTokenDiscovery: Boolean(input.recommendedCommands.discoverTokens),
+    includesDirectTokenInspection: Boolean(input.recommendedCommands.inspectToken),
+    includesPaymasterTokenDiscovery: Boolean(
+      input.recommendedCommands.discoverPaymasterTokens
+    ),
+    includesPaymasterTokenInspection: Boolean(
+      input.recommendedCommands.inspectPaymasterToken
+    )
+  };
+}
+
+function buildWorkflowTokenInputErrorSummary(input: {
+  chain?: string;
+  symbol?: string;
+  tokenAddress?: string;
+  role?: string;
+  recommendedCommands: {
+    discoverTokens?: string;
+    inspectToken?: string;
+    workflowHelp: string;
+  };
+}) {
+  return {
+    chain: input.chain || null,
+    queryType: input.tokenAddress ? 'address' : input.symbol ? 'symbol' : null,
+    query: input.tokenAddress || input.symbol || null,
+    roleFilter: input.role || null,
+    includesChainTokenDiscovery: Boolean(input.recommendedCommands.discoverTokens),
+    includesDirectTokenInspection: Boolean(input.recommendedCommands.inspectToken),
+    workflowHelp: input.recommendedCommands.workflowHelp
+  };
+}
+
 function buildWorkflowPlanRecommendedCommands(plan: {
   walletName: string;
   chain: string;
@@ -1843,6 +1950,14 @@ function printWorkflowTokenInputError(
   error: AgentError
 ): void {
   const recommendedCommands = buildWorkflowTokenErrorRecommendedCommands(error);
+  const tokenDiscoverySummary = buildWorkflowTokenInputErrorSummary({
+    chain: typeof error.details?.chain === 'string' ? error.details.chain : undefined,
+    symbol: typeof error.details?.symbol === 'string' ? error.details.symbol : undefined,
+    tokenAddress:
+      typeof error.details?.tokenAddress === 'string' ? error.details.tokenAddress : undefined,
+    role: typeof error.details?.role === 'string' ? error.details.role : undefined,
+    recommendedCommands
+  });
   const lines: Array<[string, string]> = [['error', error.message], ['code', error.code]];
 
   if (typeof error.details?.suggestedAction === 'string' && error.details.suggestedAction.length > 0) {
@@ -1852,6 +1967,7 @@ function printWorkflowTokenInputError(
 
   printResult(lines, {
     ...formatErrorPayload(error),
+    tokenDiscoverySummary,
     recommendedCommands
   });
   process.exitCode = 1;
@@ -2448,6 +2564,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           ...plan,
           paymasterMode: paymasterInput?.mode
         });
+        const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+          walletName: plan.walletName,
+          chain: plan.chain,
+          intent: plan.intent,
+          paymasterMode: paymasterInput?.mode,
+          nextAction: plan.recommendedCommand,
+          recommendedCommands
+        });
         const agentProfile = await loadWorkflowAgentProfile(plan.walletName);
         const agentFollowup = buildAgentFollowup(agentProfile, {
           walletName: plan.walletName,
@@ -2466,6 +2590,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
             agentFollowup,
             inspection,
             plan,
+            tokenDiscoverySummary,
             recommendedCommands
           }
         );
@@ -2750,6 +2875,16 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         inspection.walletApproval?.request.requestedPaymasterMode ??
         extractWorkflowGoalPaymasterMode(inspection.checkpoint?.goal)
     });
+    const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+      walletName: inspection.result.walletName,
+      chain: inspection.result.plan.chain,
+      intent: inspection.result.intent,
+      nextAction: inspection.result.recommendedCommand,
+      paymasterMode:
+        inspection.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(inspection.checkpoint?.goal),
+      recommendedCommands
+    });
     const agentProfile = await loadWorkflowAgentProfile(inspection.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {
       walletName: inspection.result.walletName,
@@ -2781,6 +2916,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ...workflowWalletApprovalRelayAliases(inspection.walletApproval?.relay),
         walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(inspection.walletApproval),
+        tokenDiscoverySummary,
         recommendedCommands
       }
     );
@@ -2811,6 +2947,16 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       paymasterMode:
         inspection.walletApproval?.request.requestedPaymasterMode ??
         extractWorkflowGoalPaymasterMode(inspection.checkpoint?.goal)
+    });
+    const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+      walletName: inspection.result.walletName,
+      chain: inspection.result.plan.chain,
+      intent: inspection.result.intent,
+      nextAction: nextCommand,
+      paymasterMode:
+        inspection.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(inspection.checkpoint?.goal),
+      recommendedCommands
     });
     const agentProfile = await loadWorkflowAgentProfile(inspection.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2858,6 +3004,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ...workflowWalletApprovalRelayAliases(inspection.walletApproval?.relay),
         walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(inspection.walletApproval),
+        tokenDiscoverySummary,
         recommendedCommands
       }
     );
@@ -2887,6 +3034,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         chain: inspection.result.plan.chain,
         intent: inspection.result.intent,
         paymasterMode: inspection.walletApproval.request.requestedPaymasterMode
+      });
+      const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+        walletName: inspection.result.walletName,
+        chain: inspection.result.plan.chain,
+        intent: inspection.result.intent,
+        nextAction: inspection.result.recommendedCommand,
+        paymasterMode: inspection.walletApproval.request.requestedPaymasterMode,
+        recommendedCommands
       });
       const agentProfile = await loadWorkflowAgentProfile(inspection.result.walletName);
       const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2919,6 +3074,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           ...workflowWalletApprovalRelayAliases(inspection.walletApproval.relay),
           walletApprovalRecommendedCommands: inspection.walletApproval.recommendedCommands,
           walletApproval: serializeWalletApproval(inspection.walletApproval),
+          tokenDiscoverySummary,
           recommendedCommands
         }
       );
@@ -2945,6 +3101,16 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         paymasterMode:
           execution.walletApproval?.request.requestedPaymasterMode ??
           extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
+      });
+      const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+        walletName: execution.status.walletName,
+        chain: execution.status.plan.chain,
+        intent: execution.status.intent,
+        nextAction: execution.status.recommendedCommand,
+        paymasterMode:
+          execution.walletApproval?.request.requestedPaymasterMode ??
+          extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal),
+        recommendedCommands
       });
       const agentProfile = await loadWorkflowAgentProfile(execution.status.walletName);
       const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -2977,6 +3143,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
           walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
           walletApproval: serializeWalletApproval(execution.walletApproval),
+          tokenDiscoverySummary,
           recommendedCommands
         }
       );
@@ -2992,6 +3159,16 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       paymasterMode:
         execution.walletApproval?.request.requestedPaymasterMode ??
         extractWorkflowGoalPaymasterMode(execution.goal)
+    });
+    const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
+      walletName: execution.result.walletName,
+      chain: execution.result.plan.chain,
+      intent: execution.result.intent,
+      nextAction: execution.result.nextCommand,
+      paymasterMode:
+        execution.walletApproval?.request.requestedPaymasterMode ??
+        extractWorkflowGoalPaymasterMode(execution.goal),
+      recommendedCommands
     });
     const agentProfile = await loadWorkflowAgentProfile(execution.result.walletName);
     const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -3024,6 +3201,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ...workflowWalletApprovalRelayAliases(inspection.walletApproval?.relay),
         walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
         walletApproval: serializeWalletApproval(inspection.walletApproval),
+        tokenDiscoverySummary,
         recommendedCommands
       }
     );

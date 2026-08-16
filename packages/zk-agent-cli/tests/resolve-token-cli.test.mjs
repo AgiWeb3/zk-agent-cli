@@ -112,6 +112,43 @@ test('resolve-token returns local-first matches before token-directory matches o
     assert.equal(result.chainKey, 'zksync-sepolia');
     assert.equal(result.matchCount, 2);
     assert.equal(result.ambiguous, true);
+    assert.deepEqual(result.discoverySummary, {
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      queryType: 'symbol',
+      query: 'USDC',
+      roleFilter: null,
+      sourceFilter: null,
+      matchCount: 2,
+      ambiguous: true,
+      primarySymbol: 'USDC',
+      primaryAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+      primaryDecimals: 6,
+      primarySource: 'local-deployments',
+      sourceCounts: {
+        localDeployments: 1,
+        tokenDirectory: 1,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 1,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 1
+      },
+      currentDefaultEntryCount: 1,
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC'
@@ -215,6 +252,43 @@ test('resolve-token can restrict matches to one defaults-registry role', async (
     assert.equal(result.matchCount, 1);
     assert.equal(result.ambiguous, false);
     assert.equal(result.primaryMatch.address, '0xa0e40024ac1ec50416ab539ab533ce582080b885');
+    assert.deepEqual(result.discoverySummary, {
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      queryType: 'symbol',
+      query: 'USDC',
+      roleFilter: 'paymaster-fee-token',
+      sourceFilter: null,
+      matchCount: 1,
+      ambiguous: false,
+      primarySymbol: 'USDC',
+      primaryAddress: '0xa0e40024ac1ec50416ab539ab533ce582080b885',
+      primaryDecimals: 6,
+      primarySource: 'local-deployments',
+      sourceCounts: {
+        localDeployments: 1,
+        tokenDirectory: 0,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 1,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 1
+      },
+      currentDefaultEntryCount: 1,
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC --role paymaster-fee-token'
@@ -292,6 +366,43 @@ test('resolve-token can restrict matches to one registry source and preserve tha
     assert.equal(result.matchCount, 1);
     assert.equal(result.primaryMatch.address, '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
     assert.equal(result.primaryMatch.source, 'token-directory');
+    assert.deepEqual(result.discoverySummary, {
+      chain: 'zksync-sepolia',
+      chainId: 300,
+      queryType: 'symbol',
+      query: 'USDC',
+      roleFilter: null,
+      sourceFilter: 'token-directory',
+      matchCount: 1,
+      ambiguous: false,
+      primarySymbol: 'USDC',
+      primaryAddress: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      primaryDecimals: 6,
+      primarySource: 'token-directory',
+      sourceCounts: {
+        localDeployments: 0,
+        tokenDirectory: 1,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 0,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 0
+      },
+      currentDefaultEntryCount: 0,
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC --source token-directory'

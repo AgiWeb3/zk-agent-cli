@@ -26,10 +26,13 @@ The project is intentionally modeled after the real architecture of `polygon-age
 
 ## Public Entry Points
 
-There are now three explicit public entry points:
+There are now four explicit public entry points:
 
 - agent-harness skill install for compatible runtimes:
   - `npx skills add https://github.com/AgiWeb3/zk-agent-cli`
+- native Codex/ChatGPT plugin source in this repository:
+  - `.codex-plugin/plugin.json`
+  - `skills/`
 - packaged CLI for public/operator use:
   - `npx zk-agent-cli --help`
   - `npm install -g zk-agent-cli`
@@ -39,18 +42,19 @@ There are now three explicit public entry points:
   - `pnpm zk-agent --help`
 
 Use the skill install when the operator is adding this repo to a compatible
-agent harness. Use the packaged CLI when the operator wants a direct terminal
-tool. Keep the repo-local wrapper for contributors and source-checkout smoke
-work only.
+agent harness. Use the native plugin files when the target product expects a
+Codex/ChatGPT plugin source tree. Use the packaged CLI when the operator wants
+a direct terminal tool. Keep the repo-local wrapper for contributors and
+source-checkout smoke work only.
 
 Release snapshot:
 
-- the current public beta is `zk-agent-cli@0.1.0-beta.8`
+- the current public beta is `zk-agent-cli@0.1.0-beta.9`
 - that release was published on `2026-08-15`
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the public npm dist-tags are currently aligned:
-  `beta -> 0.1.0-beta.8`, `latest -> 0.1.0-beta.8`
+  `beta -> 0.1.0-beta.9`, `latest -> 0.1.0-beta.9`
 - public agent-harness docs now default to
   `npx skills add https://github.com/AgiWeb3/zk-agent-cli`
 - public operator docs now default to the packaged `zk-agent ...` surface
@@ -62,6 +66,8 @@ Release snapshot:
 The product baseline is already in place:
 
 - the public npm package is live and installable
+- the repo now also ships a native `.codex-plugin/plugin.json` manifest for
+  the maintained `skills/` bundle
 - the local-first wallet/session lifecycle is implemented
 - hosted relay approval is proven end to end
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
@@ -293,9 +299,24 @@ The repo now includes an agent-facing skills surface:
 
 These files are the shortest maintained entrypoint for agent harnesses that
 need the current canonical CLI path without reading the entire repository.
-They are the repo skill bundle for compatible harnesses, not a native
-ChatGPT/Codex plugin package. This repo does not yet ship
-`.codex-plugin/plugin.json`.
+The same bundle is now also exposed through the native plugin manifest at
+`.codex-plugin/plugin.json`. `npx skills add ...` remains the direct repo-skill
+install path for compatible external harnesses.
+
+For local Codex plugin onboarding from this repository:
+
+- inspect the current local plugin wiring with
+  `pnpm codex:plugin:doctor`
+- wire the repo into the default personal marketplace with
+  `pnpm codex:plugin:install-local`
+- if your Codex build exposes `codex plugin add`, install with
+  `codex plugin add zk-agent-cli@personal`
+- if it does not, open Codex or the desktop app, enter `/plugins`, install
+  `zk-agent-cli` from the Personal marketplace, and start a new session
+
+Detailed notes:
+
+- [docs/15-codex-plugin-onboarding.md](./docs/15-codex-plugin-onboarding.md)
 
 ## Development Environment Strategy
 

@@ -118,6 +118,43 @@ test('tokens command lists local-first discoverable entries for one chain', asyn
     assert.equal(result.ok, true);
     assert.equal(result.entryCount, 2);
     assert.equal(result.chainFilter.chainKey, 'zksync-sepolia');
+    assert.deepEqual(result.discoverySummary, {
+      mode: 'discoverable',
+      walletName: null,
+      chainScope: 'zksync-sepolia',
+      chainCount: 1,
+      entryCount: 2,
+      symbolFilter: null,
+      roleFilter: null,
+      sourceFilter: null,
+      primarySymbol: 'USDC',
+      primarySource: 'local-deployments',
+      sourceCounts: {
+        localDeployments: 1,
+        tokenDirectory: 1,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 1,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 1
+      },
+      currentDefaultEntryCount: 1,
+      probeFailureCount: null,
+      bridgeMappingCounts: null,
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
@@ -226,6 +263,43 @@ test('tokens command can restrict discoverable entries to one defaults-registry 
     assert.equal(result.ok, true);
     assert.equal(result.role, 'paymaster-fee-token');
     assert.equal(result.entryCount, 1);
+    assert.deepEqual(result.discoverySummary, {
+      mode: 'discoverable',
+      walletName: null,
+      chainScope: 'zksync-sepolia',
+      chainCount: 1,
+      entryCount: 1,
+      symbolFilter: null,
+      roleFilter: 'paymaster-fee-token',
+      sourceFilter: null,
+      primarySymbol: 'USDC',
+      primarySource: 'local-deployments',
+      sourceCounts: {
+        localDeployments: 1,
+        tokenDirectory: 0,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 1,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 1
+      },
+      currentDefaultEntryCount: 1,
+      probeFailureCount: null,
+      bridgeMappingCounts: null,
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
@@ -307,6 +381,43 @@ test('tokens command preserves a source filter in recommended discovery follow-u
     assert.equal(result.ok, true);
     assert.equal(result.source, 'token-directory');
     assert.equal(result.entryCount, 1);
+    assert.deepEqual(result.discoverySummary, {
+      mode: 'discoverable',
+      walletName: null,
+      chainScope: 'zksync-sepolia',
+      chainCount: 1,
+      entryCount: 1,
+      symbolFilter: 'USDC',
+      roleFilter: null,
+      sourceFilter: 'token-directory',
+      primarySymbol: 'USDC',
+      primarySource: 'token-directory',
+      sourceCounts: {
+        localDeployments: 0,
+        tokenDirectory: 1,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 0,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 0
+      },
+      currentDefaultEntryCount: 0,
+      probeFailureCount: null,
+      bridgeMappingCounts: null,
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia --symbol USDC --source token-directory',
@@ -402,6 +513,48 @@ test('tokens command can restrict output to registry-backed ERC-20 balances held
     assert.equal(result.ownedOnly, true);
     assert.equal(result.entryCount, 1);
     assert.equal(result.probeFailureCount, 0);
+    assert.deepEqual(result.discoverySummary, {
+      mode: 'owned-registry-erc20',
+      walletName: 'main',
+      chainScope: 'zksync-sepolia',
+      chainCount: 1,
+      entryCount: 1,
+      symbolFilter: null,
+      roleFilter: null,
+      sourceFilter: null,
+      primarySymbol: 'USDC',
+      primarySource: 'local-deployments',
+      sourceCounts: {
+        localDeployments: 1,
+        tokenDirectory: 0,
+        unknown: 0
+      },
+      roleMatchCounts: {
+        'swap-token-a': 0,
+        'swap-token-b': 0,
+        'paymaster-fee-token': 0
+      },
+      currentDefaultEntryCount: 0,
+      probeFailureCount: 0,
+      bridgeMappingCounts: {
+        canonicalL1: 1,
+        localOnlyOrUnmapped: 0,
+        lookupFailed: 0,
+        unavailable: 0
+      },
+      tokenRegistrySources: [
+        {
+          id: 'local-deployments',
+          enabled: true,
+          exists: true
+        },
+        {
+          id: 'token-directory',
+          enabled: true,
+          exists: true
+        }
+      ]
+    });
     assert.deepEqual(result.summary, {
       sourceCounts: {
         localDeployments: 1,

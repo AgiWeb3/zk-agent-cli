@@ -174,11 +174,72 @@ function assertOwnedBalancesResult(result) {
 test('balances command can include registry-backed ERC-20 holdings on the single-chain path', async () => {
   const result = await runOwnedBalancesFixture(['balances', '--wallet', 'main', '--owned-tokens']);
   assertOwnedBalancesResult(result);
+  assert.deepEqual(result.discoverySummary, {
+    walletName: 'main',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    assetCount: 2,
+    nativeAssetSymbol: 'ETH',
+    nativeAssetBalance: '1.0',
+    ownedTokenCount: 1,
+    primaryOwnedTokenSymbol: 'USDC',
+    ownedTokenSymbols: ['USDC'],
+    ownedTokenSourceCounts: {
+      localDeployments: 1,
+      tokenDirectory: 0,
+      unknown: 0
+    },
+    ownedBridgeMappingCounts: {
+      canonicalL1: 1,
+      localOnlyOrUnmapped: 0,
+      lookupFailed: 0,
+      unavailable: 0
+    },
+    ownedRegistryRoleCounts: {
+      'swap-token-a': 0,
+      'swap-token-b': 0,
+      'paymaster-fee-token': 0
+    }
+  });
+  assert.deepEqual(result.recommendedCommands, {
+    inspectDefaults: 'zk-agent defaults',
+    discoverAssets: 'zk-agent assets --wallet main',
+    discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+    discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+    inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
+  });
 });
 
 test('assets command returns the owned-token asset view without extra flags', async () => {
   const result = await runOwnedBalancesFixture(['assets', '--wallet', 'main']);
   assertOwnedBalancesResult(result);
+  assert.deepEqual(result.discoverySummary, {
+    walletName: 'main',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    assetCount: 2,
+    nativeAssetSymbol: 'ETH',
+    nativeAssetBalance: '1.0',
+    ownedTokenCount: 1,
+    primaryOwnedTokenSymbol: 'USDC',
+    ownedTokenSymbols: ['USDC'],
+    ownedTokenSourceCounts: {
+      localDeployments: 1,
+      tokenDirectory: 0,
+      unknown: 0
+    },
+    ownedBridgeMappingCounts: {
+      canonicalL1: 1,
+      localOnlyOrUnmapped: 0,
+      lookupFailed: 0,
+      unavailable: 0
+    },
+    ownedRegistryRoleCounts: {
+      'swap-token-a': 0,
+      'swap-token-b': 0,
+      'paymaster-fee-token': 0
+    }
+  });
   assert.deepEqual(result.recommendedCommands, {
     inspectDefaults: 'zk-agent defaults',
     discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',

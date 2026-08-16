@@ -7,11 +7,19 @@ import {
   loadWalletSession,
   resolveChain,
   type RegistryTokenRole,
+  type TokenRegistryInspectionResult,
   type TokenRegistrySourceDescriptor,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
 
 import { printResult } from '../lib/io.js';
+import {
+  countCurrentValidatedDefaultEntries,
+  firstDiscoverySource,
+  summarizeDiscoveryEntrySources,
+  summarizeDiscoveryRoleMatches,
+  summarizeTokenRegistrySources
+} from '../lib/discovery-summary.js';
 import { buildDiscoveryRecommendedCommands } from '../lib/recommended-commands.js';
 import { workflowFollowupLines } from '../lib/workflow.js';
 
@@ -73,6 +81,29 @@ async function resolveActiveChain(
       suggestedAction: 'Pass --chain <chain> or --wallet <name>.'
     }
   );
+}
+
+function buildResolveTokenDiscoverySummary(
+  result: TokenRegistryInspectionResult
+) {
+  return {
+    chain: result.chainKey,
+    chainId: result.chainId,
+    queryType: result.queryType,
+    query: result.queryType === 'symbol' ? result.symbol || null : result.address || null,
+    roleFilter: result.role || null,
+    sourceFilter: result.source || null,
+    matchCount: result.matchCount,
+    ambiguous: result.ambiguous,
+    primarySymbol: result.primaryMatch?.symbol || null,
+    primaryAddress: result.primaryMatch?.address || null,
+    primaryDecimals: result.primaryMatch?.decimals ?? null,
+    primarySource: result.primaryMatch?.source || (result.primaryMatch ? 'unknown' : null),
+    sourceCounts: summarizeDiscoveryEntrySources(result.matches),
+    roleMatchCounts: summarizeDiscoveryRoleMatches(result.matches),
+    currentDefaultEntryCount: countCurrentValidatedDefaultEntries(result.matches),
+    tokenRegistrySources: summarizeTokenRegistrySources(result.tokenRegistrySources)
+  };
 }
 
 export function createResolveTokenCommand(
@@ -203,6 +234,7 @@ export function createResolveTokenCommand(
 
       printResult(lines, {
         ok: true,
+        discoverySummary: buildResolveTokenDiscoverySummary(result),
         recommendedCommands,
         ...result
       });

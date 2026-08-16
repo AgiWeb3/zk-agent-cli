@@ -113,6 +113,20 @@ The repo is already past scaffolding. The current stable baseline is:
      same discovery/defaults contract:
      `defaults`, `assets`, `tokens`, `resolve-token`, and the matching
      `workflow --help` token-recovery path
+   - current baseline improvement:
+     `assets`, `tokens`, and `resolve-token` now also expose compressed
+     operator-facing `discoverySummary` payloads, while `smoke:discovery` and
+     the operator JSON doc/release gate validate that contract directly
+   - current baseline improvement:
+     `balances --owned-tokens` and tokenized workflow follow-up/error surfaces
+     now also expose compressed discovery summaries, so operators and harnesses
+     no longer need to infer the recovery shape only from raw follow-up command
+     strings
+   - current baseline improvement:
+     top-level `next`, `wallet next`, and workflow checkpoint restore now all
+     expose the same compressed `tokenDiscoverySummary` contract for
+     wallet-scoped or tokenized recovery paths, instead of forcing operators
+     to reverse-parse discovery intent from raw command strings
 
 4. Zero-setup onboarding and public install entrypoint are materially better,
    but still need maintenance discipline.
@@ -134,9 +148,10 @@ The repo is already past scaffolding. The current stable baseline is:
      surfaces, and the machine-readable `agent status --json` contract so
      those public entrypoints do not drift after publish
    - current baseline improvement:
-     the repo docs now also say explicitly that `npx skills add ...` is the
-     repo skill path for compatible harnesses only, while native
-     ChatGPT/Codex plugin packaging is still a separate future surface
+     the repo now ships a native ChatGPT/Codex plugin manifest at
+     `.codex-plugin/plugin.json` for the maintained `skills/` bundle, while
+     `npx skills add ...` remains the direct compatible-harness repo-skill
+     install path
    - current baseline improvement:
      a real external `skills` CLI parse smoke now works against the repo on a
      clean Node 24 path:
@@ -150,13 +165,31 @@ The repo is already past scaffolding. The current stable baseline is:
      `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --skill '*' --agent codex --copy -y`
      installs the 4 expected skills into the temporary project's
      `./.agents/skills/` tree for Codex only
+   - current baseline improvement:
+     the repo now also includes `pnpm codex:plugin:doctor` and
+     `pnpm codex:plugin:install-local` so a checked-out repo can be wired into
+     the default personal Codex marketplace without manual JSON edits
+   - current baseline improvement:
+     on `2026-08-15`, after upgrading to `codex-cli 0.147.0`, a real native
+     plugin install smoke also succeeded on this machine:
+     `codex plugin marketplace list --json` recognized `personal`,
+     `codex plugin add zk-agent-cli@personal --json` installed the plugin, and
+     `codex plugin list --json` now reports
+     `zk-agent-cli@personal` as installed and enabled from
+     `~/plugins/zk-agent-cli`
    - current caution:
      `--all --agent codex` is not a safe equivalent for single-agent smoke,
      because the external `skills` CLI currently expands `--all` broadly and
      installs to every detected agent target
-   - the remaining gap is one real compatible-harness install smoke before the
-     repo skill surface can be called fully install-ready outside the
-     repository
+   - current caution:
+     older Codex CLI builds may not expose the `codex plugin` top-level
+     subcommand even when newer builds do; keep `/plugins` documented as the
+     fallback install surface rather than assuming CLI parity everywhere
+   - current baseline improvement:
+     on `2026-08-15`, a fresh `codex exec --ephemeral` session outside the
+     repository also picked up the installed native plugin and read both the
+     top-level `zk-agent-cli` skill and the split `zk-aa` skill from the
+     personal plugin cache
 
 5. Ecosystem integrations are still intentionally behind.
    - the local Polygon reference ships explicit product verticals such as
@@ -195,12 +228,15 @@ This final productization closeout is done when all of the following are true:
 Completed work is intentionally compressed here. The important closed baseline
 for the next stage is:
 
-- the public npm package is live at `zk-agent-cli@0.1.0-beta.8`
+- the public npm package is live at `zk-agent-cli@0.1.0-beta.9`
 - the install surface works as a packaged CLI, a repo skill surface, and a
   source-checkout wrapper
-- the repo skill surface is ready for compatible harnesses, but native
-  ChatGPT/Codex plugin packaging remains a separate future surface because the
-  repo does not yet ship `.codex-plugin/plugin.json`
+- the repo now ships both the compatible-harness skill surface and the native
+  `.codex-plugin/plugin.json` manifest for the same maintained skill bundle
+- native plugin onboarding now has repo-owned doctor/install helpers for the
+  default personal marketplace path
+- native plugin install validation now includes one real successful
+  `codex plugin add zk-agent-cli@personal` smoke on this machine
 - hosted relay approval is proven end to end, including real public hosted
   proof
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
@@ -261,6 +297,11 @@ Unless priorities change, the next concrete slices should be:
      fields, so operators can read the final hosted link bases directly
      instead of inferring them from one sample request URL
    - current baseline improvement:
+     `relay serve` and `relay inspect` now also expose the same compressed
+     `deploymentSummary` contract for hosted deployment state, so operators
+     and harnesses can consume the public-origin/readiness/single-host-state
+     boundary without reverse-parsing the full raw payload
+   - current baseline improvement:
      `relay serve` / `relay inspect` follow-up commands now prefer the
      one-shot remote-approval path with `--wait-relay --prompt-code`, and the
      agent-tool registry metadata now matches that hosted reapproval story
@@ -272,6 +313,18 @@ Unless priorities change, the next concrete slices should be:
      the concrete `relay-status` / `approve` follow-up commands with stable
      error codes and detail fields, instead of leaving the operator in a dead
      end or forcing JSON consumers to parse concatenated strings
+   - current baseline improvement:
+     `wallet request relay-publish`, `wallet request relay-status`, and the
+     timeout/expiry relay-approval errors now also expose one shared
+     `relayRecoverySummary` contract, so manual relay fallback tooling can
+     consume the publish/poll/approve/reissue state machine without reverse-
+     parsing raw relay fields and follow-up command maps separately
+   - current baseline improvement:
+     the higher-frequency direct remote publish surfaces now match that same
+     summary contract too: `wallet create --relay-url` and
+     `wallet reapprove --relay-url` now emit `relayRecoverySummary` instead of
+     leaving operators and harnesses to infer recovery state only from raw
+     relay fields plus `recommendedCommands`
    - current baseline improvement:
      root help, `next --help`, `wallet --help`, the root README, the packaged
      CLI README, and the primary repo skills now all describe the same

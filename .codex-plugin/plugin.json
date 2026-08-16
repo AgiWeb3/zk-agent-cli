@@ -1,0 +1,40 @@
+{
+  "name": "zk-agent-cli",
+  "version": "0.1.0-beta.9",
+  "description": "Local-first zkSync Era and ZK Stack agent plugin with wallet-session recovery, hosted relay approval, workflow guidance, and SED smart-account operations.",
+  "author": {
+    "name": "AgiWeb3",
+    "url": "https://github.com/AgiWeb3"
+  },
+  "homepage": "https://github.com/AgiWeb3/zk-agent-cli",
+  "repository": "https://github.com/AgiWeb3/zk-agent-cli",
+  "license": "MIT",
+  "keywords": [
+    "zksync",
+    "zksync-era",
+    "agent",
+    "cli",
+    "wallet",
+    "workflow",
+    "relay",
+    "sed-lite"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "zk-agent-cli",
+    "shortDescription": "Operate zkSync wallets and workflows from Codex or ChatGPT.",
+    "longDescription": "Adds the maintained zk-agent-cli skill bundle for local-first wallet setup, session recovery, hosted relay approval, and workflow-first zkSync execution.",
+    "developerName": "AgiWeb3",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Run"
+    ],
+    "defaultPrompt": [
+      "Set up the shortest zk-agent-cli wallet approval path.",
+      "Recover a zk-agent-cli wallet session or signer state.",
+      "Plan the next zk-agent-cli workflow step on zkSync."
+    ]
+  }
+}

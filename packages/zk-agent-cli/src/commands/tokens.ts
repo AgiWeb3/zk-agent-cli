@@ -4,11 +4,13 @@ import {
   discoverOwnedDefaultTokenRegistry,
   discoverDefaultTokenRegistry,
   type OwnedTokenDiscoverySummary,
+  type OwnedTokenRegistryDiscoveryResult,
   REGISTRY_TOKEN_ROLES,
   isRegistryTokenRole,
   loadWalletSession,
   resolveChain,
   type RegistryTokenRole,
+  type TokenRegistryDiscoveryResult,
   type TokenRegistrySourceDescriptor,
   type WalletProvider,
   type WalletSessionRecord
@@ -16,6 +18,15 @@ import {
 import { ZkSyncWalletProvider } from '@zk-agent/provider-zksync-wallet';
 
 import { printResult } from '../lib/io.js';
+import {
+  countCurrentValidatedDefaultEntries,
+  firstDiscoverySource,
+  firstDiscoverySymbol,
+  listUniqueDiscoveryChains,
+  summarizeDiscoveryEntrySources,
+  summarizeDiscoveryRoleMatches,
+  summarizeTokenRegistrySources
+} from '../lib/discovery-summary.js';
 import {
   buildDefaultsRecommendedCommand,
   buildDiscoveryRecommendedCommands
@@ -157,6 +168,52 @@ function ownedTokenSummaryLines(summary: OwnedTokenDiscoverySummary): Array<[str
   }
 
   return lines;
+}
+
+function buildOwnedTokensDiscoverySummary(
+  result: OwnedTokenRegistryDiscoveryResult
+) {
+  return {
+    mode: 'owned-registry-erc20',
+    walletName: result.walletName,
+    chainScope: result.chainFilter.chainKey,
+    chainCount: 1,
+    entryCount: result.entryCount,
+    symbolFilter: result.symbol || null,
+    roleFilter: result.role || null,
+    sourceFilter: result.source || null,
+    primarySymbol: firstDiscoverySymbol(result.entries),
+    primarySource: firstDiscoverySource(result.entries),
+    sourceCounts: result.summary.sourceCounts,
+    roleMatchCounts: result.summary.registryRoleCounts,
+    currentDefaultEntryCount: countCurrentValidatedDefaultEntries(result.entries),
+    probeFailureCount: result.probeFailureCount,
+    bridgeMappingCounts: result.summary.bridgeMappingCounts,
+    tokenRegistrySources: summarizeTokenRegistrySources(result.tokenRegistrySources)
+  };
+}
+
+function buildTokenDiscoverySummary(
+  result: TokenRegistryDiscoveryResult
+) {
+  return {
+    mode: 'discoverable',
+    walletName: null,
+    chainScope: result.chainFilter?.chainKey || 'all-built-in-chains',
+    chainCount: result.chainFilter ? 1 : listUniqueDiscoveryChains(result.entries).length,
+    entryCount: result.entryCount,
+    symbolFilter: result.symbol || null,
+    roleFilter: result.role || null,
+    sourceFilter: result.source || null,
+    primarySymbol: firstDiscoverySymbol(result.entries),
+    primarySource: firstDiscoverySource(result.entries),
+    sourceCounts: summarizeDiscoveryEntrySources(result.entries),
+    roleMatchCounts: summarizeDiscoveryRoleMatches(result.entries),
+    currentDefaultEntryCount: countCurrentValidatedDefaultEntries(result.entries),
+    probeFailureCount: null,
+    bridgeMappingCounts: null,
+    tokenRegistrySources: summarizeTokenRegistrySources(result.tokenRegistrySources)
+  };
 }
 
 export function createTokensCommand(
@@ -320,6 +377,7 @@ export function createTokensCommand(
 
         printResult(lines, {
           ok: true,
+          discoverySummary: buildOwnedTokensDiscoverySummary(result),
           recommendedCommands,
           ...result
         });
@@ -388,6 +446,7 @@ export function createTokensCommand(
 
       printResult(lines, {
         ok: true,
+        discoverySummary: buildTokenDiscoverySummary(result),
         recommendedCommands,
         ...result
       });

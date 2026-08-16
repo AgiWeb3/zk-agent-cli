@@ -53,6 +53,20 @@ test('workflow next returns token discovery commands for tokenized ready checkpo
     assert.equal(result.ok, true);
     assert.equal(result.summary.status, 'ready');
     assert.equal(result.result.intent, 'send-token');
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: 'send-token',
+      nextAction: result.summary.nextCommand,
+      paymasterMode: null,
+      tokenizedIntent: true,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: false,
+      includesPaymasterTokenInspection: false
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',

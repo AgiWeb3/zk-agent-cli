@@ -233,9 +233,10 @@ each other.
 - [ ] the root README install/run paths match the package README
 - [ ] `skills/SKILL.md` and `skills/QUICKSTART.md` use the same canonical path
       as CLI help
-- [ ] README/skills say clearly that `npx skills add ...` is the repo skill
-      path for compatible harnesses, not proof of native ChatGPT/Codex plugin
-      packaging
+- [ ] README/skills keep the install boundary honest:
+      `npx skills add ...` is still the repo-skill path for compatible
+      harnesses, and native plugin packaging is only claimed through the real
+      `.codex-plugin/plugin.json` manifest now shipped by the repo
 - [ ] `zk-agent --help` exposes the same main capability surface claimed by the
       README
 - [ ] docs no longer imply that an unpublished install surface is already live
@@ -243,6 +244,7 @@ each other.
 Suggested checks:
 
 ```bash
+pnpm codex:plugin:doctor
 npx zk-agent-cli --help
 npx zk-agent-cli wallet --help
 npx zk-agent-cli workflow --help
@@ -260,12 +262,13 @@ Pass criteria:
   - packaged help entrypoints reached through `npx zk-agent-cli ...` or the
     installed `zk-agent` / `zksync-agent` binaries
 - the same docs also keep the install boundary honest:
-  - `npx skills add ...` is described only as the repo skill surface for
+  - `npx skills add ...` is described as the repo skill surface for
     compatible harnesses
-  - native ChatGPT/Codex plugin packaging is not implied unless the repo
+  - native ChatGPT/Codex plugin packaging is only claimed because the repo
     actually ships `.codex-plugin/plugin.json`
 - the current `release:check` script now also machine-checks that contract
   across:
+  - root `.codex-plugin/plugin.json` version and skill-path alignment
   - package README public entrypoints
   - root README public entrypoints
   - `skills/SKILL.md` and `skills/QUICKSTART.md`
@@ -284,8 +287,8 @@ Blockers:
 - the README claims one default path while CLI help claims another
 - the root docs still default to the repo-local wrapper while the packaged
   install surface is already the public promise
-- docs imply native ChatGPT/Codex plugin distribution even though the repo
-  only ships repo-local skills
+- docs deny native ChatGPT/Codex plugin packaging even though the repo now
+  ships `.codex-plugin/plugin.json`
 - deferred capability is described as stable and shipped
 
 ## Gate 7: public promise boundary must stay clear
@@ -318,6 +321,8 @@ Even after automation passes, complete one short manual path.
 - [ ] `npx zk-agent-cli --help` behaves as expected
 - [ ] `npm install -g zk-agent-cli` then `zk-agent --help` behaves correctly
 - [ ] `npm install -g zk-agent-cli` then `zksync-agent --help` behaves correctly
+- [ ] `pnpm codex:plugin:doctor` reports the current local Codex plugin
+      readiness without mismatched marketplace/link state
 - [ ] `PATH=/Users/mac/.nvm/versions/node/v24.14.1/bin:$PATH npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list`
       recognizes the repo and shows the expected skill names before any real
       install attempt
@@ -336,6 +341,8 @@ Notes:
   stage, at minimum complete the help, setup, next, and preview path
 - for a single-agent install smoke, do not use `--all --agent codex`:
   the external `skills` CLI currently treats `--all` as `--skill '*' --agent '*'`
+- if the local Codex build does not expose `codex plugin add`, use `/plugins`
+  after marketplace wiring instead of guessing unsupported CLI flags
   and installs broadly; use `--skill '*' --agent codex -y` instead
 
 Blockers:
@@ -381,12 +388,12 @@ npm dist-tag add zk-agent-cli@<version> latest
 ## Current published baseline
 
 - current public beta completed on `2026-08-15`:
-  `zk-agent-cli@0.1.0-beta.8`
+  `zk-agent-cli@0.1.0-beta.9`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.8`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.8`
-  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.8`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.8","beta":"0.1.0-beta.8"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.9`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.9`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.9`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.9","beta":"0.1.0-beta.9"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted

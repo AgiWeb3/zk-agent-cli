@@ -91,6 +91,20 @@ test('workflow plan returns explicit token discovery commands for tokenized inte
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
     });
+    assert.deepEqual(result.tokenDiscoverySummary, {
+      walletName: 'main',
+      chain: 'zksync-sepolia',
+      intent: 'swap',
+      nextAction: result.plan.recommendedCommand,
+      paymasterMode: null,
+      tokenizedIntent: true,
+      includesAssetDiscovery: true,
+      includesOwnedTokenDiscovery: true,
+      includesChainTokenDiscovery: true,
+      includesDirectTokenInspection: true,
+      includesPaymasterTokenDiscovery: false,
+      includesPaymasterTokenInspection: false
+    });
     assert.equal(result.agentProfile.profileExists, true);
     assert.equal(result.agentProfile.agentId, 'sed-plan');
     assert.equal(result.agentProfile.walletRelation, 'linked-active-wallet');

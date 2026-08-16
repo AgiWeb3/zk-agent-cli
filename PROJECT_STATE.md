@@ -2,17 +2,17 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-14
-- Latest commit at write time: `ac54000`
+- Last updated: 2026-08-15
+- Latest commit at write time: `2f7561f`
 - Current branch: `main`
-- Working tree status when this document was written: dirty with the
-  current release-gate automation and productization-priority refresh
+- Working tree status when this document was written: dirty with the native
+  plugin-packaging baseline and productization follow-up edits
 
 ## Current status
 
 The product baseline is already closed for the core zkSync-native path:
 
-- `zk-agent-cli@0.1.0-beta.8` is live and both npm dist-tags `beta` and
+- `zk-agent-cli@0.1.0-beta.9` is live and both npm dist-tags `beta` and
   `latest` point there
 - the public package, local-first wallet/session lifecycle, hosted relay path,
   and flagship `workflow pay` AA flow all exist and have real validation proof
@@ -66,6 +66,11 @@ Architecture baseline to keep in mind:
      path now all point at the one-shot remote-approval path with
      `--wait-relay --prompt-code`
    - current baseline improvement:
+     `relay serve` and `relay inspect` now also emit the same compressed
+     `deploymentSummary` payload for hosted deployment state, so public-origin
+     readiness and the current single-host filesystem-state contract stay
+     machine-readable without re-parsing the full raw relay response
+   - current baseline improvement:
      relay/manual approval no longer self-loops on stale hosted requests:
      `wallet request relay-status` now returns explicit `share_url` /
      `status_url` / `approval_url`, expired relay states now point at
@@ -73,6 +78,16 @@ Architecture baseline to keep in mind:
      recovery guidance now also appears on `wallet create|reapprove --wait-relay`
      with stable `RELAY_APPROVAL_*` error codes and detail fields for JSON
      consumers
+   - current baseline improvement:
+     `wallet request relay-publish`, `wallet request relay-status`, and the
+     timeout/expiry relay-approval errors now also emit one shared
+     `relayRecoverySummary` payload, so manual relay fallback state stays
+     machine-readable across publish, poll, approve, and remote reissue paths
+   - current baseline improvement:
+     direct `wallet create --relay-url` and `wallet reapprove --relay-url`
+     publish outputs now also emit that same `relayRecoverySummary` contract,
+     so the high-frequency remote-approval entrypoints no longer diverge from
+     the lower-level manual relay fallback surface
    - current baseline improvement:
      root help, `next --help`, `wallet --help`, the root README, the packaged
      CLI README, and the primary repo skills now all describe the same
@@ -118,6 +133,19 @@ Architecture baseline to keep in mind:
      now all point at the same discovery and token-recovery path, so the
      operator can stay inside CLI help instead of falling back to repo prose
    - current baseline improvement:
+     `assets`, `tokens`, and `resolve-token` now also expose compressed
+     operator-facing `discoverySummary` payloads, and `smoke:discovery` plus
+     the operator JSON doc/release gate now validate that discovery contract
+   - current baseline improvement:
+     `balances --owned-tokens` and tokenized workflow follow-up/error surfaces
+     now also expose compressed discovery summaries, so the workflow recovery
+     path stays machine-readable without reverse-parsing raw command strings
+   - current baseline improvement:
+     top-level `next`, `wallet next`, and workflow follow-up restore now also
+     emit the same compressed `tokenDiscoverySummary` contract for
+     wallet-scoped or tokenized recovery paths, so discovery routing stays
+     machine-readable across the operator handoff surfaces that matter most
+   - current baseline improvement:
      the `approval-based` flagship pay path now surfaces paymaster fee-token
      discovery commands directly in `next` and workflow follow-ups, so the
      operator gets `tokens --role paymaster-fee-token` and the matching
@@ -139,9 +167,10 @@ Architecture baseline to keep in mind:
      the hosted remote-approval fallback, direct-command escape hatches, and
      the optional local operator-identity path directly on the public surface
    - current baseline improvement:
-     the docs now also say explicitly that `npx skills add ...` is the repo
-     skill path for compatible harnesses only; the repo still does not ship a
-     native ChatGPT/Codex plugin bundle such as `.codex-plugin/plugin.json`
+     the repo now ships a native ChatGPT/Codex plugin manifest at
+     `.codex-plugin/plugin.json` for the maintained `skills/` bundle, while
+     `npx skills add ...` remains the direct compatible-harness repo-skill
+     install path
    - current baseline improvement:
      on `2026-08-14`, the external `skills` CLI successfully parsed this repo
      from a clean Node 24 path with
@@ -154,13 +183,35 @@ Architecture baseline to keep in mind:
      `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --skill '*' --agent codex --copy -y`
      and installed the 4 expected skills into a temporary project's
      `./.agents/skills/` tree for Codex
+   - current baseline improvement:
+     the repo now also ships a local Codex plugin bootstrap helper:
+     `pnpm codex:plugin:doctor` inspects the local plugin state, and
+     `pnpm codex:plugin:install-local` wires this checkout into the default
+     personal marketplace plus `~/plugins/zk-agent-cli`
+   - current baseline improvement:
+     on `2026-08-15`, after upgrading to `codex-cli 0.147.0`, a real native
+     plugin install smoke also succeeded on this machine:
+     `codex plugin marketplace list --json` recognized `personal`,
+     `codex plugin add zk-agent-cli@personal --json` installed the plugin into
+     `/Users/mac/.codex/plugins/cache/personal/zk-agent-cli/0.1.0-beta.9`,
+     and `codex plugin list --json` now reports
+     `zk-agent-cli@personal` as installed and enabled from
+     `~/plugins/zk-agent-cli`
    - current caution:
      `--all --agent codex` is not a safe equivalent for single-agent smoke:
      the external `skills` CLI currently broadens that combination and
      installs to every detected agent target
-   - the remaining work here is contract maintenance after future releases
-     plus one real external harness install smoke before the skill surface can
-     be called install-ready
+   - current caution:
+     older Codex CLI builds may not expose the `codex plugin` top-level
+     subcommand even when newer builds do; keep `/plugins` documented as the
+     fallback install surface rather than assuming CLI parity everywhere
+   - current baseline improvement:
+     on `2026-08-15`, a fresh `codex exec --ephemeral` session outside the
+     repository also picked up the installed native plugin and read both the
+     top-level `zk-agent-cli` skill and the split `zk-aa` skill from the
+     personal plugin cache
+   - the remaining work here is contract maintenance after future releases,
+     not missing native-plugin pickup proof on this machine
 5. DeFi breadth only on explicit restart
    - do not let broader swap/deposit/withdraw breadth silently reclaim the
      default roadmap without a deliberate product decision

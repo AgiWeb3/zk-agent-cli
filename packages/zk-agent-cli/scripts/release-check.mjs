@@ -44,6 +44,12 @@ function readRootReadme() {
   return readFileSync(join(workspaceRoot, 'README.md'), 'utf8');
 }
 
+function readPluginManifest() {
+  return JSON.parse(
+    readFileSync(join(workspaceRoot, '.codex-plugin', 'plugin.json'), 'utf8')
+  );
+}
+
 function readPlans() {
   return readFileSync(join(workspaceRoot, 'PLANS.md'), 'utf8');
 }
@@ -116,6 +122,41 @@ function assertVersionAlignment(workspacePkg, packagePkg) {
     packagePkg.version,
     'Workspace root version and published package version must stay aligned.'
   );
+}
+
+function assertPluginManifest(pluginManifest, packagePkg) {
+  assert.equal(pluginManifest.name, packagePkg.name);
+  assert.equal(
+    pluginManifest.version,
+    packagePkg.version,
+    'Root plugin manifest version must stay aligned with the published package version.'
+  );
+  assert.equal(typeof pluginManifest.description, 'string');
+  assert.equal(Boolean(pluginManifest.description?.trim()), true);
+  assert.equal(pluginManifest.skills, './skills/');
+  assert.equal(typeof pluginManifest.homepage, 'string');
+  assert.equal(Boolean(pluginManifest.homepage?.trim()), true);
+  assert.equal(typeof pluginManifest.repository, 'string');
+  assert.equal(Boolean(pluginManifest.repository?.trim()), true);
+  assert.equal(pluginManifest.license, packagePkg.license);
+  assert.equal(Array.isArray(pluginManifest.keywords), true);
+  assert.equal(pluginManifest.keywords.length > 0, true);
+  assert.equal(typeof pluginManifest.author?.name, 'string');
+  assert.equal(Boolean(pluginManifest.author?.name?.trim()), true);
+  assert.equal(typeof pluginManifest.interface?.displayName, 'string');
+  assert.equal(Boolean(pluginManifest.interface?.displayName?.trim()), true);
+  assert.equal(typeof pluginManifest.interface?.shortDescription, 'string');
+  assert.equal(Boolean(pluginManifest.interface?.shortDescription?.trim()), true);
+  assert.equal(typeof pluginManifest.interface?.longDescription, 'string');
+  assert.equal(Boolean(pluginManifest.interface?.longDescription?.trim()), true);
+  assert.equal(typeof pluginManifest.interface?.developerName, 'string');
+  assert.equal(Boolean(pluginManifest.interface?.developerName?.trim()), true);
+  assert.equal(typeof pluginManifest.interface?.category, 'string');
+  assert.equal(Boolean(pluginManifest.interface?.category?.trim()), true);
+  assert.equal(Array.isArray(pluginManifest.interface?.capabilities), true);
+  assert.equal(pluginManifest.interface.capabilities.length > 0, true);
+  assert.equal(Array.isArray(pluginManifest.interface?.defaultPrompt), true);
+  assert.equal(pluginManifest.interface.defaultPrompt.length > 0, true);
 }
 
 function assertPackageReadme(readme) {
@@ -825,12 +866,76 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the wallet-scope discovery recommendedCommands contract.'
     ],
     [
+      /### `scope = "wallet"`[\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "wallet-scope token recovery summary"\s*\}[\s\S]*When the wallet scope exposes token\/discovery follow-ups[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      'Operator JSON contract doc must describe the top-level wallet tokenDiscoverySummary contract.'
+    ],
+    [
+      /### `scope = "workflow"`[\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "workflow-scope token recovery summary"\s*\}[\s\S]*When the restored workflow intent is tokenized[\s\S]*the same field set described for wallet scope/,
+      'Operator JSON contract doc must describe the top-level workflow tokenDiscoverySummary contract.'
+    ],
+    [
+      /## `zk-agent wallet next`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`inspection`[\s\S]*`summary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When wallet-scoped discovery follow-ups are present[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      'Operator JSON contract doc must describe the wallet next tokenDiscoverySummary contract.'
+    ],
+    [
       /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`/,
       'Operator JSON contract doc must describe the tokenized workflow discovery follow-up contract.'
     ],
     [
-      /## `zk-agent wallet request relay-status`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`relay`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*Current stable `relay` fields:[\s\S]*`request_id`[\s\S]*`status`[\s\S]*`approval_ready`[\s\S]*`share_url`[\s\S]*`status_url`[\s\S]*`approval_url`[\s\S]*`expires_at`[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"reissueRemoteApproval": "zk-agent wallet reapprove --name main --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"/,
-      'Operator JSON contract doc must describe the wallet request relay-status recovery contract.'
+      /### `workflow plan`[\s\S]*`inspection`[\s\S]*`plan`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When the current intent is tokenized[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      'Operator JSON contract doc must describe the workflow plan tokenDiscoverySummary contract.'
+    ],
+    [
+      /### `workflow auto`[\s\S]*`walletApproval`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      'Operator JSON contract doc must describe the workflow runtime tokenDiscoverySummary contract.'
+    ],
+    [
+      /### Token-input workflow errors[\s\S]*`recommendedCommands`[\s\S]*`tokenDiscoverySummary`[\s\S]*Current stable `tokenDiscoverySummary` fields on that error path:[\s\S]*`chain`[\s\S]*`queryType`[\s\S]*`query`[\s\S]*`roleFilter`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`workflowHelp`/,
+      'Operator JSON contract doc must describe the workflow token-input error discovery summary contract.'
+    ],
+    [
+      /## `zk-agent defaults`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`recommendedCommands`[\s\S]*`defaults`[\s\S]*`localTokenRegistry`[\s\S]*`tokenRegistrySources`[\s\S]*`tokenDirectoryChains`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token"[\s\S]*The current stable `summary` fields are:[\s\S]*`primaryDiscoveryChain`[\s\S]*`exampleTokenSymbol`[\s\S]*`paymasterFeeTokenSymbol`[\s\S]*`localTokenCount`[\s\S]*`tokenDirectoryChainCount`[\s\S]*`tokenRegistrySources`[\s\S]*`resolvedDefaults`/,
+      'Operator JSON contract doc must describe the defaults discovery contract.'
+    ],
+    [
+      /## `zk-agent assets`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`balances`[\s\S]*`ownedTokenRegistry`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*Current stable fields:[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`assetCount`[\s\S]*`nativeAssetSymbol`[\s\S]*`nativeAssetBalance`[\s\S]*`ownedTokenCount`[\s\S]*`primaryOwnedTokenSymbol`[\s\S]*`ownedTokenSymbols`[\s\S]*`ownedTokenSourceCounts`[\s\S]*`ownedBridgeMappingCounts`[\s\S]*`ownedRegistryRoleCounts`/,
+      'Operator JSON contract doc must describe the assets discoverySummary contract.'
+    ],
+    [
+      /## `zk-agent balances --owned-tokens`[\s\S]*Current stable top-level fields on that path:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`balances`[\s\S]*`ownedTokenRegistry`[\s\S]*Same compressed single-chain owned-token summary contract as `zk-agent assets`\.[\s\S]*Same local-first discovery follow-up contract as `zk-agent assets`\./,
+      'Operator JSON contract doc must describe the balances --owned-tokens discovery contract.'
+    ],
+    [
+      /## `zk-agent tokens`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`tokenRegistrySources`[\s\S]*`entries`[\s\S]*`entryCount`[\s\S]*Important current distinction:[\s\S]*`discoverySummary`[\s\S]*`summary`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*Current stable fields:[\s\S]*`mode`[\s\S]*`walletName`[\s\S]*`chainScope`[\s\S]*`chainCount`[\s\S]*`entryCount`[\s\S]*`symbolFilter`[\s\S]*`roleFilter`[\s\S]*`sourceFilter`[\s\S]*`primarySymbol`[\s\S]*`primarySource`[\s\S]*`sourceCounts`[\s\S]*`roleMatchCounts`[\s\S]*`currentDefaultEntryCount`[\s\S]*`probeFailureCount`[\s\S]*`bridgeMappingCounts`[\s\S]*`tokenRegistrySources`/,
+      'Operator JSON contract doc must describe the tokens discoverySummary contract.'
+    ],
+    [
+      /## `zk-agent resolve-token`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`chainId`[\s\S]*`chainKey`[\s\S]*`queryType`[\s\S]*`symbol`[\s\S]*`address`[\s\S]*`role`[\s\S]*`source`[\s\S]*`matchCount`[\s\S]*`ambiguous`[\s\S]*`primaryMatch`[\s\S]*`matches`[\s\S]*`tokenRegistrySources`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia --symbol USDC"[\s\S]*Current stable fields:[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`queryType`[\s\S]*`query`[\s\S]*`roleFilter`[\s\S]*`sourceFilter`[\s\S]*`matchCount`[\s\S]*`ambiguous`[\s\S]*`primarySymbol`[\s\S]*`primaryAddress`[\s\S]*`primaryDecimals`[\s\S]*`primarySource`[\s\S]*`sourceCounts`[\s\S]*`roleMatchCounts`[\s\S]*`currentDefaultEntryCount`[\s\S]*`tokenRegistrySources`/,
+      'Operator JSON contract doc must describe the resolve-token discoverySummary contract.'
+    ],
+    [
+      /## `zk-agent relay serve`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`status`[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`stateBackend`[\s\S]*`deploymentScope`[\s\S]*`sameHostRestartPersists`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`publicOriginLooksLocal`[\s\S]*`deploymentSummary`[\s\S]*`healthUrl`[\s\S]*`publicHealthUrl`[\s\S]*`relayMode`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`capabilities`[\s\S]*`recommendedCommands`[\s\S]*`notes`[\s\S]*When present, `deploymentSummary` compresses the hosted deployment contract[\s\S]*into:[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`singleHostFileState`/,
+      'Operator JSON contract doc must describe the relay serve deploymentSummary contract.'
+    ],
+    [
+      /## `zk-agent relay inspect`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`status`[\s\S]*`relayUrl`[\s\S]*`compatible`[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`stateBackend`[\s\S]*`deploymentScope`[\s\S]*`sameHostRestartPersists`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`relayUrlMatchesOrigin`[\s\S]*`relayUrlMatchesPublicOrigin`[\s\S]*`publicOriginLooksLocal`[\s\S]*`deploymentSummary`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`capabilities`[\s\S]*`recommendedCommands`[\s\S]*`notes`[\s\S]*Current stable `deploymentSummary` fields on this surface:[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`singleHostFileState`/,
+      'Operator JSON contract doc must describe the relay inspect deploymentSummary contract.'
+    ],
+    [
+      /## `zk-agent wallet create --relay-url <url>`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletName`[\s\S]*`requestId`[\s\S]*`walletRequestId`[\s\S]*`approvalUrl`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`expiresAt`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`paymasterMode`[\s\S]*`capabilities`[\s\S]*`sessionScope`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`awaitLocal`[\s\S]*`relayStatus`[\s\S]*`relayApprove`[\s\S]*`approve`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`[\s\S]*Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`/,
+      'Operator JSON contract doc must describe the wallet create --relay-url recovery summary contract.'
+    ],
+    [
+      /## `zk-agent wallet reapprove --name <name> --relay-url <url>`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`wallet`[\s\S]*`request`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`awaitLocal`[\s\S]*`relayStatus`[\s\S]*`relayApprove`[\s\S]*`approve`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`[\s\S]*Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`/,
+      'Operator JSON contract doc must describe the wallet reapprove --relay-url recovery summary contract.'
+    ],
+    [
+      /## `zk-agent wallet request relay-publish`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`request`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`/,
+      'Operator JSON contract doc must describe the wallet request relay-publish recovery summary contract.'
+    ],
+    [
+      /## `zk-agent wallet request relay-status`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*Current stable `relay` fields:[\s\S]*`request_id`[\s\S]*`status`[\s\S]*`approval_ready`[\s\S]*`share_url`[\s\S]*`status_url`[\s\S]*`approval_url`[\s\S]*`expires_at`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"reissueRemoteApproval": "zk-agent wallet reapprove --name main --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"[\s\S]*The same `relayRecoverySummary` field set now also appears in:[\s\S]*`wallet create --relay-url <url>`[\s\S]*`wallet reapprove --name <name> --relay-url <url>`[\s\S]*`wallet request relay-publish`[\s\S]*`RELAY_APPROVAL_TIMEOUT` error details[\s\S]*`RELAY_APPROVAL_EXPIRED` error details/,
+      'Operator JSON contract doc must describe the wallet request relay-status recovery summary contract.'
     ],
     [
       /## `zk-agent agent \*`[\s\S]*### `agent status\|show`[\s\S]*`ok`[\s\S]*`plugin`[\s\S]*`profileExists`[\s\S]*`profile`[\s\S]*`recommendedCommands`[\s\S]*"status": "zk-agent agent status"[\s\S]*"show": "zk-agent agent show"[\s\S]*"export": "zk-agent agent export"[\s\S]*"import": "zk-agent agent import --payload @agent-profile\.json"[\s\S]*"set": "zk-agent agent set --name <name> --wallet main"/,
@@ -1905,6 +2010,7 @@ async function main() {
   const pkg = readPackageJson();
   const readme = readPackageReadme();
   const rootReadme = readRootReadme();
+  const pluginManifest = readPluginManifest();
   const plans = readPlans();
   const projectState = readProjectState();
   const releaseGateDoc = readReleaseGateDoc();
@@ -1913,6 +2019,7 @@ async function main() {
   const skillGuide = readSkillGuide();
   assertVersionAlignment(workspacePkg, pkg);
   assertReleaseMetadata(pkg);
+  assertPluginManifest(pluginManifest, pkg);
   assertPackageReadme(readme);
   assertRepositoryDocs(rootReadme, quickstart, skillGuide);
   assertOperatorJsonContract(operatorJsonContractDoc);

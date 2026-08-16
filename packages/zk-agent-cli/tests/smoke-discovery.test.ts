@@ -56,13 +56,28 @@ test('runSmokeDiscovery validates the CLI discovery path and infers symbol from 
         invocations.push(args);
 
         if (args[0] === 'defaults') {
-          return { ok: true };
+          return {
+            ok: true,
+            summary: {
+              primaryDiscoveryChain: 'zksync-sepolia'
+            },
+            recommendedCommands: {
+              inspectDefaults: 'zk-agent defaults',
+              discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+              inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol USDC'
+            }
+          };
         }
 
         if (args[0] === 'assets') {
           return {
             ok: true,
             chain: 'zksync-sepolia',
+            discoverySummary: {
+              chain: 'zksync-sepolia',
+              ownedTokenCount: 1,
+              primaryOwnedTokenSymbol: 'USDC'
+            },
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
             },
@@ -77,6 +92,11 @@ test('runSmokeDiscovery validates the CLI discovery path and infers symbol from 
           return {
             ok: true,
             chain: 'zksync-sepolia',
+            discoverySummary: {
+              chain: 'zksync-sepolia',
+              ownedTokenCount: 1,
+              primaryOwnedTokenSymbol: 'USDC'
+            },
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
             },
@@ -94,6 +114,12 @@ test('runSmokeDiscovery validates the CLI discovery path and infers symbol from 
               chainKey: 'zksync-sepolia'
             },
             entryCount: 1,
+            discoverySummary: {
+              mode: 'owned-registry-erc20',
+              chainScope: 'zksync-sepolia',
+              entryCount: 1,
+              primarySymbol: 'USDC'
+            },
             entries: [{ symbol: 'USDC' }],
             summary: ownedSummary,
             recommendedCommands: {
@@ -106,6 +132,12 @@ test('runSmokeDiscovery validates the CLI discovery path and infers symbol from 
           return {
             ok: true,
             entryCount: 2,
+            discoverySummary: {
+              mode: 'discoverable',
+              chainScope: 'zksync-sepolia',
+              entryCount: 2,
+              primarySymbol: 'USDC'
+            },
             entries: [{ symbol: 'USDC' }, { symbol: 'USDT' }],
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
@@ -117,6 +149,10 @@ test('runSmokeDiscovery validates the CLI discovery path and infers symbol from 
           return {
             ok: true,
             matchCount: 1,
+            discoverySummary: {
+              matchCount: 1,
+              primarySymbol: 'USDC'
+            },
             primaryMatch: {
               symbol: 'USDC'
             },
@@ -150,6 +186,11 @@ test('runSmokeDiscovery validates the CLI discovery path and infers symbol from 
     chainTokenCount: 2,
     assetOwnedTokenCount: 1,
     balanceOwnedTokenCount: 1,
+    defaultsPrimaryDiscoveryChain: 'zksync-sepolia',
+    assetsPrimaryOwnedTokenSymbol: 'USDC',
+    balancesPrimaryOwnedTokenSymbol: 'USDC',
+    chainTokensPrimarySymbol: 'USDC',
+    resolvedPrimarySymbol: 'USDC',
     ownedTokenSummary: ownedSummary
   });
   assert.deepEqual(invocations, [
@@ -175,13 +216,28 @@ test('runSmokeDiscovery falls back to the first chain token symbol when no owned
         invocations.push(args);
 
         if (args[0] === 'defaults') {
-          return { ok: true };
+          return {
+            ok: true,
+            summary: {
+              primaryDiscoveryChain: 'zksync-sepolia'
+            },
+            recommendedCommands: {
+              inspectDefaults: 'zk-agent defaults',
+              discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+              inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol TKA'
+            }
+          };
         }
 
         if (args[0] === 'assets') {
           return {
             ok: true,
             chain: 'zksync-sepolia',
+            discoverySummary: {
+              chain: 'zksync-sepolia',
+              ownedTokenCount: 0,
+              primaryOwnedTokenSymbol: null
+            },
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
             },
@@ -195,6 +251,11 @@ test('runSmokeDiscovery falls back to the first chain token symbol when no owned
           return {
             ok: true,
             chain: 'zksync-sepolia',
+            discoverySummary: {
+              chain: 'zksync-sepolia',
+              ownedTokenCount: 0,
+              primaryOwnedTokenSymbol: null
+            },
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
             },
@@ -211,6 +272,12 @@ test('runSmokeDiscovery falls back to the first chain token symbol when no owned
               chainKey: 'zksync-sepolia'
             },
             entryCount: 0,
+            discoverySummary: {
+              mode: 'owned-registry-erc20',
+              chainScope: 'zksync-sepolia',
+              entryCount: 0,
+              primarySymbol: null
+            },
             entries: [],
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
@@ -222,6 +289,12 @@ test('runSmokeDiscovery falls back to the first chain token symbol when no owned
           return {
             ok: true,
             entryCount: 1,
+            discoverySummary: {
+              mode: 'discoverable',
+              chainScope: 'zksync-sepolia',
+              entryCount: 1,
+              primarySymbol: 'TKA'
+            },
             entries: [{ symbol: 'TKA' }],
             recommendedCommands: {
               inspectDefaults: 'zk-agent defaults'
@@ -233,6 +306,10 @@ test('runSmokeDiscovery falls back to the first chain token symbol when no owned
           return {
             ok: true,
             matchCount: 1,
+            discoverySummary: {
+              matchCount: 1,
+              primarySymbol: 'TKA'
+            },
             primaryMatch: {
               symbol: 'TKA'
             },
@@ -250,6 +327,10 @@ test('runSmokeDiscovery falls back to the first chain token symbol when no owned
   assert.equal(result.symbol, 'TKA');
   assert.equal(result.summary.ownedTokenCount, 0);
   assert.equal(result.summary.chainTokenCount, 1);
+  assert.equal(result.summary.assetsPrimaryOwnedTokenSymbol, null);
+  assert.equal(result.summary.balancesPrimaryOwnedTokenSymbol, null);
+  assert.equal(result.summary.chainTokensPrimarySymbol, 'TKA');
+  assert.equal(result.summary.resolvedPrimarySymbol, 'TKA');
   assert.deepEqual(invocations.at(-1), [
     'resolve-token',
     '--chain',

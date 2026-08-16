@@ -145,6 +145,8 @@ import {
 import {
   buildWalletNextRecommendedCommands,
   buildWalletNextSummary,
+  buildWalletTokenDiscoverySummary,
+  resolveEffectivePaymasterSelection,
   walletNextLines
 } from '../lib/wallet-next.js';
 
@@ -265,6 +267,77 @@ function relayOutputAliases(relay: RelayCreateResponse | RelayStatusResponse | u
     relayApprovalUrl: approvalUrl,
     relayShareLinkBaseUrl: shareLinkBaseUrl,
     relayStatusApiBaseUrl: statusApiBaseUrl
+  };
+}
+
+type RelayRecoveryMode =
+  | 'status-poll'
+  | 'approve'
+  | 'reissue-remote-approval'
+  | 'inspect-relay';
+
+function determineRelayRecoveryMode(options: {
+  nextAction: string;
+  recommendedCommands: Record<string, string>;
+}): RelayRecoveryMode {
+  if (
+    options.recommendedCommands.reissueRemoteApproval &&
+    options.nextAction === options.recommendedCommands.reissueRemoteApproval
+  ) {
+    return 'reissue-remote-approval';
+  }
+
+  if (
+    options.recommendedCommands.relayInspect &&
+    options.nextAction === options.recommendedCommands.relayInspect
+  ) {
+    return 'inspect-relay';
+  }
+
+  if (
+    options.recommendedCommands.approve &&
+    options.nextAction === options.recommendedCommands.approve
+  ) {
+    return 'approve';
+  }
+
+  return 'status-poll';
+}
+
+function buildRelayRecoverySummary(options: {
+  requestId: string;
+  walletName?: string;
+  relayUrl: string;
+  relayStatus?: string | null;
+  approvalReady?: boolean | null;
+  nextAction: string;
+  recommendedCommands: Record<string, string>;
+  relay?: RelayCreateResponse | RelayStatusResponse;
+}) {
+  const aliases = relayOutputAliases(options.relay);
+
+  return {
+    requestId: options.requestId,
+    walletName: options.walletName || null,
+    relayUrl: options.relayUrl,
+    relayStatus: options.relayStatus ?? options.relay?.status ?? null,
+    approvalReady:
+      typeof options.approvalReady === 'boolean'
+        ? options.approvalReady
+        : options.relay && 'approval_ready' in options.relay
+          ? options.relay.approval_ready
+          : null,
+    nextAction: options.nextAction,
+    shareLinkBaseUrl: aliases.relayShareLinkBaseUrl || null,
+    statusApiBaseUrl: aliases.relayStatusApiBaseUrl || null,
+    recoveryMode: determineRelayRecoveryMode({
+      nextAction: options.nextAction,
+      recommendedCommands: options.recommendedCommands
+    }),
+    includesStatusPoll: Boolean(options.recommendedCommands.status),
+    includesApprove: Boolean(options.recommendedCommands.approve),
+    includesRelayInspect: Boolean(options.recommendedCommands.relayInspect),
+    includesRemoteReissue: Boolean(options.recommendedCommands.reissueRemoteApproval)
   };
 }
 
@@ -2306,6 +2379,7 @@ async function buildRelayExpiredRecoveryCommands(options: {
 
 function buildRelayApprovalTimeoutError(options: {
   requestId: string;
+  walletName?: string;
   relayUrl: string;
   timeoutMs: number;
   intervalMs: number;
@@ -2330,6 +2404,18 @@ function buildRelayApprovalTimeoutError(options: {
       retryable: true,
       statusCommand,
       approveCommand,
+      relayRecoverySummary: buildRelayRecoverySummary({
+        requestId: options.requestId,
+        walletName: options.walletName,
+        relayUrl: options.relayUrl,
+        relayStatus: null,
+        approvalReady: null,
+        nextAction: statusCommand,
+        recommendedCommands: {
+          status: statusCommand,
+          approve: approveCommand
+        }
+      }),
       suggestedAction:
         'Check the current relay status, then finalize the wallet approval once approval_ready=true.'
     }
@@ -2360,6 +2446,15 @@ async function buildRelayApprovalExpiredError(options: {
       note: recovery.note,
       relayInspectCommand: recovery.recommendedCommands.relayInspect,
       reissueRemoteApprovalCommand: recovery.recommendedCommands.reissueRemoteApproval,
+      relayRecoverySummary: buildRelayRecoverySummary({
+        requestId: options.requestId,
+        walletName: options.walletName,
+        relayUrl: options.relayUrl,
+        relayStatus: 'expired',
+        approvalReady: false,
+        nextAction: recovery.nextAction,
+        recommendedCommands: recovery.recommendedCommands
+      }),
       suggestedAction:
         'Inspect the hosted relay, then reissue the remote approval request.'
     }
@@ -2392,6 +2487,17 @@ function buildRelayApprovalNotReadyError(options: {
       retryable: true,
       statusCommand,
       approveCommand,
+      relayRecoverySummary: buildRelayRecoverySummary({
+        requestId: options.requestId,
+        relayUrl: options.relayUrl,
+        relayStatus: options.status,
+        approvalReady: options.approvalReady,
+        nextAction: statusCommand,
+        recommendedCommands: {
+          status: statusCommand,
+          approve: approveCommand
+        }
+      }),
       suggestedAction:
         'Check the current relay status, then retry approval once approval_ready=true.'
     }
@@ -2665,6 +2771,7 @@ async function finalizePublishedRelayWalletRequest(options: {
     ) {
       throw buildRelayApprovalTimeoutError({
         requestId: options.walletRequest.requestId,
+        walletName: options.walletRequest.walletName,
         relayUrl: options.relayUrl,
         timeoutMs: options.timeoutMs,
         intervalMs: options.intervalMs
@@ -3446,6 +3553,23 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         options.relayUrl,
         request.requestedPaymasterMode
       );
+      const nextAction = buildPendingRequestNextAction(recommendedCommands);
+      const relayRecoverySummary =
+        relay && recommendedCommands.relayStatus && recommendedCommands.relayApprove
+          ? buildRelayRecoverySummary({
+              requestId: request.requestId,
+              walletName: request.walletName,
+              relayUrl: options.relayUrl as string,
+              relayStatus: relay.status,
+              approvalReady: null,
+              nextAction,
+              recommendedCommands: {
+                status: recommendedCommands.relayStatus,
+                approve: recommendedCommands.relayApprove
+              },
+              relay
+            })
+          : undefined;
 
       printResult(
         [
@@ -3495,6 +3619,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           approvalUrl: request.approvalUrl,
           relay,
           ...relayOutputAliases(relay),
+          relayRecoverySummary,
           expiresAt: request.expiresAt,
           chain: request.chain,
           chainId: request.chainId,
@@ -3502,7 +3627,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           paymasterMode: request.requestedPaymasterMode,
           capabilities: request.requestedCapabilities,
           sessionScope: request.requestedSessionScope,
-          nextAction: buildPendingRequestNextAction(recommendedCommands),
+          nextAction,
           recommendedCommands
         }
       );
@@ -3666,6 +3791,23 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         options.relayUrl,
         request.requestedPaymasterMode
       );
+      const nextAction = buildPendingRequestNextAction(recommendedCommands);
+      const relayRecoverySummary =
+        relay && recommendedCommands.relayStatus && recommendedCommands.relayApprove
+          ? buildRelayRecoverySummary({
+              requestId: request.requestId,
+              walletName: request.walletName,
+              relayUrl: options.relayUrl as string,
+              relayStatus: relay.status,
+              approvalReady: null,
+              nextAction,
+              recommendedCommands: {
+                status: recommendedCommands.relayStatus,
+                approve: recommendedCommands.relayApprove
+              },
+              relay
+            })
+          : undefined;
 
       printResult(
         [
@@ -3717,7 +3859,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           request: sanitizeWalletRequestRecord(request),
           relay,
           ...relayOutputAliases(relay),
-          nextAction: buildPendingRequestNextAction(recommendedCommands),
+          relayRecoverySummary,
+          nextAction,
           recommendedCommands
         }
       );
@@ -3932,6 +4075,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         walletRecord.walletName,
         summary
       );
+      const tokenDiscoverySummary = buildWalletTokenDiscoverySummary({
+        walletName: walletRecord.walletName,
+        chain: summary.chain,
+        nextAction: summary.recommendedCommand,
+        paymasterMode: resolveEffectivePaymasterSelection(walletRecord)?.mode,
+        recommendedCommands
+      });
 
       printResult(
         [
@@ -3946,6 +4096,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ok: true,
           inspection,
           summary,
+          tokenDiscoverySummary,
           recommendedCommands
         }
       );
@@ -4187,32 +4338,54 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .action(async (options: { requestId: string; relayUrl: string }) => {
       const walletRequest = await requireActiveWalletRequest(options.requestId);
       const relay = await publishWalletRequestToRelay(walletRequest, options.relayUrl);
+      const nextAction = buildWalletRequestRelayStatusRecommendedCommand(
+        relay.request_id,
+        options.relayUrl
+      );
+      const recommendedCommands = {
+        status: buildWalletRequestRelayStatusRecommendedCommand(
+          relay.request_id,
+          options.relayUrl
+        ),
+        approve: buildWalletRequestRelayApproveRecommendedCommand(
+          relay.request_id,
+          options.relayUrl
+        )
+      };
+      const relayRecoverySummary = buildRelayRecoverySummary({
+        requestId: relay.request_id,
+        walletName: walletRequest.walletName,
+        relayUrl: options.relayUrl,
+        relayStatus: relay.status,
+        approvalReady: null,
+        nextAction,
+        recommendedCommands,
+        relay
+      });
 
-        printResult(
-          [
-            ['status', relay.status],
-            ['request', relay.request_id],
-            ['share url', relay.share_url],
-            ['status url', relay.status_url],
-            ['share-link base', relay.share_url.replace(/\/[^/]+$/, '')],
-            ['status api base', relay.status_url.replace(/\/[^/]+$/, '')],
-            ['next status', buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl)],
-            ['next approve', buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)]
-          ],
+      printResult(
+        [
+          ['status', relay.status],
+          ['request', relay.request_id],
+          ['share url', relay.share_url],
+          ['status url', relay.status_url],
+          ['share-link base', relay.share_url.replace(/\/[^/]+$/, '')],
+          ['status api base', relay.status_url.replace(/\/[^/]+$/, '')],
+          ['next status', recommendedCommands.status],
+          ['next approve', recommendedCommands.approve]
+        ],
         {
           ok: true,
           walletRequestId: walletRequest.requestId,
           relay,
           ...relayOutputAliases(relay),
+          relayRecoverySummary,
           request: sanitizeWalletRequestRecord(walletRequest),
-          nextAction: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
-          recommendedCommands: {
-            status: buildWalletRequestRelayStatusRecommendedCommand(relay.request_id, options.relayUrl),
-            approve: buildWalletRequestRelayApproveRecommendedCommand(relay.request_id, options.relayUrl)
-            }
-          }
-        );
-      });
+          nextAction,
+          recommendedCommands
+        }
+      );
+    });
 
   request
     .command('relay-status')
@@ -4225,6 +4398,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .action(async (options: { requestId: string; relayUrl: string; wait?: boolean; timeoutSeconds?: string; intervalMs?: string }) => {
       const timeoutMs = parsePositiveIntegerOption(options.timeoutSeconds, '--timeout-seconds', 600) * 1000;
       const intervalMs = parsePositiveIntegerOption(options.intervalMs, '--interval-ms', 2000);
+      const walletRequest = await loadWalletRequest(options.requestId);
       let relay: RelayStatusResponse;
       try {
         relay = options.wait
@@ -4241,6 +4415,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         ) {
           throw buildRelayApprovalTimeoutError({
             requestId: options.requestId,
+            walletName: walletRequest?.walletName,
             relayUrl: options.relayUrl,
             timeoutMs,
             intervalMs
@@ -4251,6 +4426,16 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       const followUp = await buildRelayStatusFollowUp({
         relay,
         relayUrl: options.relayUrl
+      });
+      const relayRecoverySummary = buildRelayRecoverySummary({
+        requestId: relay.request_id,
+        walletName: relay.request?.walletName || walletRequest?.walletName,
+        relayUrl: options.relayUrl,
+        relayStatus: relay.status,
+        approvalReady: relay.approval_ready,
+        nextAction: followUp.nextAction,
+        recommendedCommands: followUp.recommendedCommands,
+        relay
       });
 
       printResult(
@@ -4274,6 +4459,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           walletRequestId: relay.request_id,
           relay,
           ...relayOutputAliases(relay),
+          relayRecoverySummary,
           nextAction: followUp.nextAction,
           recommendedCommands: followUp.recommendedCommands,
           ...(followUp.note ? { note: followUp.note } : {})
