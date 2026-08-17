@@ -244,6 +244,16 @@ export interface WorkflowWalletApprovalResult {
   approvalUrl?: string;
 }
 
+interface WorkflowWalletApprovalSummary {
+  status: 'await-local' | 'relay-pending' | 'approved';
+  walletRequestId: string;
+  reusedRequest: boolean;
+  relayPublished: boolean;
+  nextAction: string;
+  afterApproval: string | null;
+  afterApprovalStatus: string | null;
+}
+
 export interface WorkflowSessionResolution {
   wallet: WalletSessionRecord;
   status: WorkflowStatusResult;
@@ -1198,11 +1208,7 @@ async function printWorkflowRunCommandResult(
         agentProfile,
         agentFollowup,
         result: execution.result,
-        walletRequestId: execution.walletApproval?.request.requestId,
-        walletApprovalRelay: execution.walletApproval?.relay,
-        ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
-        walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
-        walletApproval: serializeWalletApproval(execution.walletApproval),
+        ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
         tokenDiscoverySummary,
         recommendedCommands
       }
@@ -1256,11 +1262,7 @@ async function printWorkflowRunCommandResult(
       agentFollowup,
       status: execution.status,
       checkpoint: execution.checkpoint,
-      walletRequestId: execution.walletApproval?.request.requestId,
-      walletApprovalRelay: execution.walletApproval?.relay,
-      ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
-      walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
-      walletApproval: serializeWalletApproval(execution.walletApproval),
+      ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
       tokenDiscoverySummary,
       recommendedCommands
     }
@@ -1641,11 +1643,7 @@ async function printWorkflowAutoCommandResult(
       status: execution.status,
       result: execution.result,
       checkpoint: execution.checkpoint,
-      walletRequestId: execution.walletApproval?.request.requestId,
-      walletApprovalRelay: execution.walletApproval?.relay,
-      ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
-      walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
-      walletApproval: serializeWalletApproval(execution.walletApproval),
+      ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
       tokenDiscoverySummary,
       recommendedCommands
     }
@@ -1995,6 +1993,7 @@ function serializeWalletApproval(walletApproval: WorkflowWalletApprovalResult | 
 
   return {
     ...walletApproval,
+    summary: buildWorkflowWalletApprovalSummary(walletApproval),
     ...workflowWalletApprovalRelayAliases(walletApproval.relay, {
       shareLinkBaseField: 'relayShareLinkBaseUrl',
       statusApiBaseField: 'relayStatusApiBaseUrl'
@@ -2002,6 +2001,45 @@ function serializeWalletApproval(walletApproval: WorkflowWalletApprovalResult | 
     walletRequestId: walletApproval.request.requestId,
     request: sanitizeWalletRequestRecord(walletApproval.request),
     wallet: walletApproval.wallet ? sanitizeWalletRecord(walletApproval.wallet) : undefined
+  };
+}
+
+function buildWorkflowWalletApprovalSummary(
+  walletApproval: WorkflowWalletApprovalResult | undefined
+): WorkflowWalletApprovalSummary | undefined {
+  if (!walletApproval) return undefined;
+
+  let status: WorkflowWalletApprovalSummary['status'] = 'await-local';
+  if (walletApproval.stage === 'approved') {
+    status = 'approved';
+  } else if (
+    walletApproval.recommendedCommands?.relayStatus &&
+    walletApproval.nextCommand === walletApproval.recommendedCommands.relayStatus
+  ) {
+    status = 'relay-pending';
+  }
+
+  return {
+    status,
+    walletRequestId: walletApproval.request.requestId,
+    reusedRequest: walletApproval.reusedRequest,
+    relayPublished: Boolean(walletApproval.relay),
+    nextAction: walletApproval.nextCommand,
+    afterApproval: walletApproval.recommendedCommands?.afterApproval || null,
+    afterApprovalStatus: walletApproval.recommendedCommands?.afterApprovalStatus || null
+  };
+}
+
+function serializeWorkflowWalletApprovalOutput(
+  walletApproval: WorkflowWalletApprovalResult | undefined
+) {
+  return {
+    walletRequestId: walletApproval?.request.requestId,
+    walletApprovalRelay: walletApproval?.relay,
+    ...workflowWalletApprovalRelayAliases(walletApproval?.relay),
+    walletApprovalRecommendedCommands: walletApproval?.recommendedCommands,
+    walletApprovalSummary: buildWorkflowWalletApprovalSummary(walletApproval),
+    walletApproval: serializeWalletApproval(walletApproval)
   };
 }
 
@@ -2911,11 +2949,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         agentFollowup,
         result: inspection.result,
         checkpoint: inspection.checkpoint,
-        walletRequestId: inspection.walletApproval?.request.requestId,
-        walletApprovalRelay: inspection.walletApproval?.relay,
-        ...workflowWalletApprovalRelayAliases(inspection.walletApproval?.relay),
-        walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
-        walletApproval: serializeWalletApproval(inspection.walletApproval),
+        ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
         tokenDiscoverySummary,
         recommendedCommands
       }
@@ -2999,11 +3033,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         },
         result: inspection.result,
         checkpoint: inspection.checkpoint,
-        walletRequestId: inspection.walletApproval?.request.requestId,
-        walletApprovalRelay: inspection.walletApproval?.relay,
-        ...workflowWalletApprovalRelayAliases(inspection.walletApproval?.relay),
-        walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
-        walletApproval: serializeWalletApproval(inspection.walletApproval),
+        ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
         tokenDiscoverySummary,
         recommendedCommands
       }
@@ -3069,11 +3099,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           agentFollowup,
           status: inspection.result,
           checkpoint: inspection.checkpoint,
-          walletRequestId: inspection.walletApproval.request.requestId,
-          walletApprovalRelay: inspection.walletApproval.relay,
-          ...workflowWalletApprovalRelayAliases(inspection.walletApproval.relay),
-          walletApprovalRecommendedCommands: inspection.walletApproval.recommendedCommands,
-          walletApproval: serializeWalletApproval(inspection.walletApproval),
+          ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
           tokenDiscoverySummary,
           recommendedCommands
         }
@@ -3138,11 +3164,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           agentFollowup,
           status: execution.status,
           checkpoint: execution.checkpoint,
-          walletRequestId: execution.walletApproval?.request.requestId,
-          walletApprovalRelay: execution.walletApproval?.relay,
-          ...workflowWalletApprovalRelayAliases(execution.walletApproval?.relay),
-          walletApprovalRecommendedCommands: execution.walletApproval?.recommendedCommands,
-          walletApproval: serializeWalletApproval(execution.walletApproval),
+          ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
           tokenDiscoverySummary,
           recommendedCommands
         }
@@ -3196,11 +3218,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         agentFollowup,
         status: inspection.result,
         result: execution.result,
-        walletRequestId: inspection.walletApproval?.request.requestId,
-        walletApprovalRelay: inspection.walletApproval?.relay,
-        ...workflowWalletApprovalRelayAliases(inspection.walletApproval?.relay),
-        walletApprovalRecommendedCommands: inspection.walletApproval?.recommendedCommands,
-        walletApproval: serializeWalletApproval(inspection.walletApproval),
+        ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
         tokenDiscoverySummary,
         recommendedCommands
       }

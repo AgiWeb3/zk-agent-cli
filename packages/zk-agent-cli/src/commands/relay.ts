@@ -11,14 +11,111 @@ import type {
 import { humanLine, jsonOut, shouldJsonOutput } from '../lib/io.js';
 import { fetchRelayHealth, startRelayServer } from '../lib/relay.js';
 
-function buildRelayServeRecommendedCommands(relayUrl: string): {
+function buildRelayServeRecommendedCommands(options: {
+  relayUrl: string;
+  publicOriginLooksLocal: boolean;
+}): {
+  inspectRelay: string;
   createWallet: string;
   reapproveWallet: string;
+  restartWithPublicOrigin?: string;
 } {
-  return {
-    createWallet: `zk-agent wallet create --relay-url ${relayUrl} --wait-relay --prompt-code`,
+  const commands = {
+    inspectRelay: `zk-agent relay inspect --relay-url ${options.relayUrl}`,
+    createWallet:
+      `zk-agent wallet create --relay-url ${options.relayUrl} --wait-relay --prompt-code`,
     reapproveWallet:
-      `zk-agent wallet reapprove --name main --relay-url ${relayUrl} --wait-relay --prompt-code`
+      `zk-agent wallet reapprove --name main --relay-url ${options.relayUrl} --wait-relay --prompt-code`
+  };
+
+  if (options.publicOriginLooksLocal) {
+    return {
+      ...commands,
+      restartWithPublicOrigin:
+        'zk-agent relay serve --public-origin https://relay.example.com'
+    };
+  }
+
+  return commands;
+}
+
+function buildRelayInspectRecommendedCommands(options: {
+  publicOrigin: string;
+  compatible: boolean;
+  publicOriginLooksLocal: boolean;
+}): {
+  createWallet?: string;
+  reapproveWallet?: string;
+  restartWithPublicOrigin?: string;
+} {
+  const commands: {
+    createWallet?: string;
+    reapproveWallet?: string;
+    restartWithPublicOrigin?: string;
+  } = {};
+
+  if (options.compatible) {
+    commands.createWallet =
+      `zk-agent wallet create --relay-url ${options.publicOrigin} --wait-relay --prompt-code`;
+    commands.reapproveWallet =
+      `zk-agent wallet reapprove --name main --relay-url ${options.publicOrigin} --wait-relay --prompt-code`;
+  }
+
+  if (options.publicOriginLooksLocal) {
+    commands.restartWithPublicOrigin =
+      'zk-agent relay serve --public-origin https://relay.example.com';
+  }
+
+  return commands;
+}
+
+type RelayHostedReadinessStatus =
+  | 'ready'
+  | 'needs-public-origin'
+  | 'needs-connector-ui'
+  | 'needs-public-origin-and-ui'
+  | 'incompatible';
+
+interface RelayHostedReadinessSummary {
+  status: RelayHostedReadinessStatus;
+  compatible: boolean;
+  hostedApprovalReady: boolean;
+  publicOriginConfigured: boolean;
+  publicOriginLooksLocal: boolean;
+  connectorUiAvailable: boolean | null;
+  singleHostFileState: boolean;
+}
+
+function buildRelayHostedReadinessSummary(options: {
+  compatible: boolean;
+  publicOriginSource: RelayPublicOriginSource | null;
+  publicOriginLooksLocal: boolean;
+  connectorUiAvailable: boolean | null;
+  hostedShareRedirectReady: boolean;
+  deploymentSummary: RelayDeploymentSummary;
+}): RelayHostedReadinessSummary {
+  let status: RelayHostedReadinessStatus;
+
+  if (!options.compatible) {
+    status = 'incompatible';
+  } else if (options.publicOriginLooksLocal && options.connectorUiAvailable !== true) {
+    status = 'needs-public-origin-and-ui';
+  } else if (options.publicOriginLooksLocal) {
+    status = 'needs-public-origin';
+  } else if (options.connectorUiAvailable !== true) {
+    status = 'needs-connector-ui';
+  } else {
+    status = 'ready';
+  }
+
+  return {
+    status,
+    compatible: options.compatible,
+    hostedApprovalReady: options.hostedShareRedirectReady,
+    publicOriginConfigured: options.publicOriginSource === 'configured',
+    publicOriginLooksLocal: options.publicOriginLooksLocal,
+    connectorUiAvailable: options.connectorUiAvailable,
+    singleHostFileState: options.deploymentSummary.singleHostFileState
   };
 }
 
@@ -271,11 +368,13 @@ interface RelayInspectPayload {
   publicOriginLooksLocal: boolean;
   connectorUiAvailable: boolean | null;
   hostedShareRedirectReady: boolean;
+  hostedReadinessSummary: RelayHostedReadinessSummary;
   deploymentSummary: RelayDeploymentSummary;
   capabilities: RelayCapability[];
   recommendedCommands: {
     createWallet?: string;
     reapproveWallet?: string;
+    restartWithPublicOrigin?: string;
   };
   notes: string[];
 }
@@ -365,6 +464,14 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     deploymentScope,
     sameHostRestartPersists
   });
+  const hostedReadinessSummary = buildRelayHostedReadinessSummary({
+    compatible,
+    publicOriginSource,
+    publicOriginLooksLocal,
+    connectorUiAvailable,
+    hostedShareRedirectReady,
+    deploymentSummary
+  });
   const notes = [
     ...relayHostedReadinessNotes({
       compatible,
@@ -407,9 +514,14 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     publicOriginLooksLocal,
     connectorUiAvailable,
     hostedShareRedirectReady,
+    hostedReadinessSummary,
     deploymentSummary,
     capabilities: health?.capabilities || [],
-    recommendedCommands: compatible ? buildRelayServeRecommendedCommands(publicOrigin) : {},
+    recommendedCommands: buildRelayInspectRecommendedCommands({
+      publicOrigin,
+      compatible,
+      publicOriginLooksLocal
+    }),
     notes
   };
 }
@@ -464,7 +576,10 @@ export function createRelayCommand(): Command {
       const connectorUiAvailable = server.connectorUiAvailable;
       const hostedShareRedirectReady = connectorUiAvailable && !publicOriginLooksLocal;
       const { shareLinkBaseUrl, statusApiBaseUrl } = buildAdvertisedRelayBases(publicOrigin);
-      const recommendedCommands = buildRelayServeRecommendedCommands(publicOrigin);
+      const recommendedCommands = buildRelayServeRecommendedCommands({
+        relayUrl: publicOrigin,
+        publicOriginLooksLocal
+      });
       const deploymentSummary = buildRelayDeploymentSummary({
         origin: server.origin,
         publicOrigin,
@@ -477,6 +592,14 @@ export function createRelayCommand(): Command {
         stateBackend: 'local-filesystem',
         deploymentScope: 'single-host',
         sameHostRestartPersists: true
+      });
+      const hostedReadinessSummary = buildRelayHostedReadinessSummary({
+        compatible: true,
+        publicOriginSource,
+        publicOriginLooksLocal,
+        connectorUiAvailable,
+        hostedShareRedirectReady,
+        deploymentSummary
       });
       const notes = relayHostedReadinessNotes({
         compatible: true,
@@ -497,6 +620,7 @@ export function createRelayCommand(): Command {
         shareLinkBaseUrl,
         statusApiBaseUrl,
         publicOriginLooksLocal,
+        hostedReadinessSummary,
         deploymentSummary,
         port: server.port,
         healthUrl: `${server.origin}/health`,
@@ -534,12 +658,17 @@ export function createRelayCommand(): Command {
         humanLine('share-link base', shareLinkBaseUrl);
         humanLine('status api base', statusApiBaseUrl);
         humanLine('health', `${server.origin}/health`);
+        humanLine('hosted readiness', hostedReadinessSummary.status);
         humanLine('hosted ready', hostedShareRedirectReady ? 'yes' : 'no');
         if (connectorUiAvailable !== null) {
           humanLine('connector ui', connectorUiAvailable ? 'available' : 'missing');
         }
+        humanLine('inspect relay', recommendedCommands.inspectRelay);
         humanLine('create wallet', recommendedCommands.createWallet);
         humanLine('reapprove wallet', recommendedCommands.reapproveWallet);
+        if (recommendedCommands.restartWithPublicOrigin) {
+          humanLine('restart with public origin', recommendedCommands.restartWithPublicOrigin);
+        }
         for (const note of notes) {
           humanLine('note', note);
         }
@@ -609,6 +738,7 @@ export function createRelayCommand(): Command {
       }
       humanLine('share-link base', payload.shareLinkBaseUrl);
       humanLine('status api base', payload.statusApiBaseUrl);
+      humanLine('hosted readiness', payload.hostedReadinessSummary.status);
       if (payload.relayUrlMatchesOrigin !== null) {
         humanLine('relay url matches origin', payload.relayUrlMatchesOrigin ? 'yes' : 'no');
       }
@@ -633,6 +763,12 @@ export function createRelayCommand(): Command {
         if (payload.recommendedCommands.reapproveWallet) {
           humanLine('reapprove wallet', payload.recommendedCommands.reapproveWallet);
         }
+      }
+      if (payload.recommendedCommands.restartWithPublicOrigin) {
+        humanLine(
+          'restart with public origin',
+          payload.recommendedCommands.restartWithPublicOrigin
+        );
       }
       for (const note of payload.notes) {
         humanLine('note', note);

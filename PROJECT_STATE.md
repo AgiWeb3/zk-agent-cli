@@ -2,11 +2,11 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-15
-- Latest commit at write time: `2f7561f`
+- Last updated: 2026-08-17
+- Latest commit at write time: `82fc5bf`
 - Current branch: `main`
-- Working tree status when this document was written: dirty with the native
-  plugin-packaging baseline and productization follow-up edits
+- Working tree status when this document was written: dirty with hosted-relay
+  readiness and workflow approval-summary productization follow-up edits
 
 ## Current status
 
@@ -100,6 +100,10 @@ Architecture baseline to keep in mind:
    - version bumps, npm publish, dist-tag alignment, and repo-doc refresh are
      still too manual compared with the reference repo
    - current baseline improvement:
+     the repo now ships `pnpm release:sync-version`, which syncs the workspace
+     version, published package version, plugin manifest version, and the
+     current public-version references in the root state docs before publish
+   - current baseline improvement:
      `release:check` now rejects drift across package/root README, `skills/`,
      current-version references in `README.md` / `PLANS.md` /
      `PROJECT_STATE.md` / `docs/11-npm-release-gate.md`, and the packed or
@@ -150,6 +154,12 @@ Architecture baseline to keep in mind:
      discovery commands directly in `next` and workflow follow-ups, so the
      operator gets `tokens --role paymaster-fee-token` and the matching
      role-scoped `resolve-token` without having to infer that recovery path
+   - current baseline improvement:
+     `workflow auto`, `workflow status`, `workflow next`, and `workflow resume`
+     now also expose one compressed `walletApprovalSummary` contract alongside
+     the full `walletApproval` payload, so automation can distinguish
+     `await-local`, `relay-pending`, and `approved` without reverse-parsing
+     request metadata, relay fields, and next-step command maps separately
    - the remaining gap is making those surfaces require less local knowledge
      about tokens, validated defaults, and which discovery command should come
      next
@@ -166,6 +176,11 @@ Architecture baseline to keep in mind:
      the top-level `doctor` command now compresses local config, wallet
      approval metadata, and signer readiness into one local-only diagnostic,
      and the public docs/release gate now keep that recovery surface aligned
+   - current baseline improvement:
+     `relay serve` and `relay inspect` now also expose one shared
+     `hostedReadinessSummary` plus an explicit
+     `recommendedCommands.restartWithPublicOrigin` repair path, so hosted
+     readiness no longer depends on operators reverse-parsing multiple booleans
    - current baseline improvement:
      `relay --help`, `agent --help`, and the package/root README now surface
      the hosted remote-approval fallback, direct-command escape hatches, and

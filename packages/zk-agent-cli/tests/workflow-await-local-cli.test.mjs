@@ -483,6 +483,12 @@ test('workflow pay creates a flagship reapproval request with paymaster-aware de
       result.walletApproval.recommendedCommands.afterApproval,
       'zk-agent next --paymaster-mode approval-based'
     );
+    assert.equal(result.walletApprovalSummary.status, 'await-local');
+    assert.equal(result.walletApprovalSummary.walletRequestId, result.walletRequestId);
+    assert.equal(result.walletApprovalSummary.nextAction, result.status.recommendedCommand);
+    assert.equal(result.walletApprovalSummary.relayPublished, false);
+    assert.equal(result.walletApproval.summary.status, 'await-local');
+    assert.equal(result.walletApproval.summary.walletRequestId, result.walletRequestId);
 
     const walletRequestId = result.walletRequestId;
     assert.equal(typeof walletRequestId, 'string');
@@ -640,6 +646,10 @@ test('workflow status can await local approval through commander with injected p
     assert.equal(result.walletApproval.walletRequestId, 'wr-reuse-001');
     assert.equal(result.walletApproval.wallet.walletName, 'main');
     assert.equal(result.walletApproval.wallet.sessionPayload.sessionPrivateKey, undefined);
+    assert.equal(result.walletApprovalSummary.status, 'approved');
+    assert.equal(result.walletApprovalSummary.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.walletApproval.summary.status, 'approved');
+    assert.equal(result.walletApproval.summary.walletRequestId, 'wr-reuse-001');
     assert.equal(result.checkpoint.requestId, 'wf-await-001');
     assert.equal(result.checkpoint.walletRequestId, undefined);
     assert.match(result.result.recommendedCommand, /zk-agent workflow send-native --wallet main/);
@@ -787,6 +797,14 @@ test('workflow status can emit relay follow-up commands through commander when r
       result.walletApprovalRelayStatusApiBaseUrl,
       'http://127.0.0.1:4445/api/requests'
     );
+    assert.equal(result.walletApprovalSummary.status, 'relay-pending');
+    assert.equal(result.walletApprovalSummary.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.walletApprovalSummary.relayPublished, true);
+    assert.equal(
+      result.walletApprovalSummary.nextAction,
+      'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    );
+    assert.equal(result.walletApproval.summary.status, 'relay-pending');
     assert.deepEqual(result.walletApproval.recommendedCommands, {
       awaitLocal: 'zk-agent wallet request await-local --request-id wr-reuse-001',
       approve: 'zk-agent wallet request approve --request-id wr-reuse-001 --payload @approved-session.json',
@@ -865,6 +883,13 @@ test('workflow next can emit relay follow-up commands through commander when rel
       result.summary.nextCommand,
       'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
     );
+    assert.equal(result.walletApprovalSummary.status, 'relay-pending');
+    assert.equal(result.walletApprovalSummary.walletRequestId, 'wr-reuse-001');
+    assert.equal(
+      result.walletApprovalSummary.nextAction,
+      'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    );
+    assert.equal(result.walletApproval.summary.status, 'relay-pending');
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',
@@ -1040,6 +1065,9 @@ test('workflow next can await local approval through commander and return the go
     assert.equal(result.summary.status, 'ready');
     assert.equal(result.summary.readyForGoal, true);
     assert.match(result.summary.nextCommand, /zk-agent workflow send-native --wallet main/);
+    assert.equal(result.walletApprovalSummary.status, 'approved');
+    assert.equal(result.walletApprovalSummary.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.walletApproval.summary.status, 'approved');
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       list: 'zk-agent workflow list',

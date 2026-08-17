@@ -80,6 +80,7 @@ Current success signals:
 - `statusApiBaseUrl` is the `/api/requests` base that generated status URLs will use
 - `hostedShareRedirectReady` is `true`
 - `connectorUiAvailable` is `true`
+- `hostedReadinessSummary.status` is `ready`
 
 If `hostedShareRedirectReady` is `false`, read the returned notes before moving
 on.
@@ -105,6 +106,7 @@ The current prototype now makes its storage and restart contract explicit:
 - `deploymentScope = single-host`
 - `sameHostRestartPersists = true`
 - `deploymentSummary.singleHostFileState = true`
+- `hostedReadinessSummary.singleHostFileState = true`
 
 Interpretation:
 
@@ -116,6 +118,10 @@ Interpretation:
 - `relay serve` and `relay inspect` now also expose the same compressed
   `deploymentSummary` payload so operators and harnesses can consume the
   hosted-deployment contract without reverse-parsing the full raw response
+- the same surfaces now also expose `hostedReadinessSummary`, so harnesses can
+  branch on `ready`, `needs-public-origin`, `needs-connector-ui`,
+  `needs-public-origin-and-ui`, or `incompatible` without recomputing hosted
+  readiness from multiple booleans
 
 ### 3. Create or refresh the approval request
 
@@ -178,6 +184,8 @@ Meaning:
 Fix:
 
 - restart `relay serve` with the real external URL in `--public-origin`
+- `recommendedCommands.restartWithPublicOrigin` now returns the placeholder
+  restart command directly on `relay serve` and `relay inspect`
 
 ### `connectorUiAvailable = false`
 

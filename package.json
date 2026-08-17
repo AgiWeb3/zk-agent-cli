@@ -28,6 +28,7 @@
     "smoke:broadcast": "pnpm --filter @zk-agent/agent-tools smoke:broadcast --",
     "codex:plugin:doctor": "node ./scripts/codex-plugin-local.mjs --json",
     "codex:plugin:install-local": "node ./scripts/codex-plugin-local.mjs --install --json",
+    "release:sync-version": "node ./scripts/sync-release-version.mjs",
     "release:check": "pnpm --filter zk-agent-cli release:check",
     "validate:release": "pnpm run release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
     "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",

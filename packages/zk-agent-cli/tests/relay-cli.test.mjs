@@ -235,6 +235,15 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(result.shareLinkBaseUrl, `${result.origin}/r`);
     assert.equal(result.statusApiBaseUrl, `${result.origin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, true);
+    assert.deepEqual(result.hostedReadinessSummary, {
+      status: 'needs-public-origin',
+      compatible: true,
+      hostedApprovalReady: false,
+      publicOriginConfigured: false,
+      publicOriginLooksLocal: true,
+      connectorUiAvailable: result.connectorUiAvailable,
+      singleHostFileState: true
+    });
     assert.deepEqual(result.deploymentSummary, {
       origin: result.origin,
       publicOrigin: result.origin,
@@ -252,9 +261,12 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, false);
     assert.deepEqual(result.recommendedCommands, {
+      inspectRelay: `zk-agent relay inspect --relay-url ${result.origin}`,
       createWallet: `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
       reapproveWallet:
-        `zk-agent wallet reapprove --name main --relay-url ${result.origin} --wait-relay --prompt-code`
+        `zk-agent wallet reapprove --name main --relay-url ${result.origin} --wait-relay --prompt-code`,
+      restartWithPublicOrigin:
+        'zk-agent relay serve --public-origin https://relay.example.com'
     });
     assert.equal(Array.isArray(result.notes), true);
     assert.equal(
@@ -306,6 +318,15 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, true);
     assert.equal(inspected.publicOriginLooksLocal, true);
+    assert.deepEqual(inspected.hostedReadinessSummary, {
+      status: 'needs-public-origin',
+      compatible: true,
+      hostedApprovalReady: false,
+      publicOriginConfigured: false,
+      publicOriginLooksLocal: true,
+      connectorUiAvailable: inspected.connectorUiAvailable,
+      singleHostFileState: true
+    });
     assert.deepEqual(inspected.deploymentSummary, {
       origin: result.origin,
       publicOrigin: result.origin,
@@ -331,6 +352,14 @@ test('relay serve returns operator follow-up commands and serves health endpoint
       ),
       true
     );
+    assert.deepEqual(inspected.recommendedCommands, {
+      createWallet:
+        `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
+      reapproveWallet:
+        `zk-agent wallet reapprove --name main --relay-url ${result.origin} --wait-relay --prompt-code`,
+      restartWithPublicOrigin:
+        'zk-agent relay serve --public-origin https://relay.example.com'
+    });
 
     await stopChild(child, 5000);
     const exitCode = child.exitCode;
@@ -375,6 +404,15 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(result.shareLinkBaseUrl, `${publicOrigin}/r`);
     assert.equal(result.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, false);
+    assert.deepEqual(result.hostedReadinessSummary, {
+      status: result.connectorUiAvailable === true ? 'ready' : 'needs-connector-ui',
+      compatible: true,
+      hostedApprovalReady: result.connectorUiAvailable === true,
+      publicOriginConfigured: true,
+      publicOriginLooksLocal: false,
+      connectorUiAvailable: result.connectorUiAvailable,
+      singleHostFileState: true
+    });
     assert.deepEqual(result.deploymentSummary, {
       origin: result.origin,
       publicOrigin,
@@ -390,6 +428,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, result.connectorUiAvailable === true);
     assert.deepEqual(result.recommendedCommands, {
+      inspectRelay: `zk-agent relay inspect --relay-url ${publicOrigin}`,
       createWallet:
         `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
       reapproveWallet:
@@ -470,6 +509,15 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, false);
     assert.equal(inspected.publicOriginLooksLocal, false);
+    assert.deepEqual(inspected.hostedReadinessSummary, {
+      status: inspected.connectorUiAvailable === true ? 'ready' : 'needs-connector-ui',
+      compatible: true,
+      hostedApprovalReady: inspected.connectorUiAvailable === true,
+      publicOriginConfigured: true,
+      publicOriginLooksLocal: false,
+      connectorUiAvailable: inspected.connectorUiAvailable,
+      singleHostFileState: true
+    });
     assert.deepEqual(inspected.deploymentSummary, {
       origin: result.origin,
       publicOrigin,

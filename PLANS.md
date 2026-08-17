@@ -147,6 +147,11 @@ The repo is already past scaffolding. The current stable baseline is:
      approval metadata, and signer readiness into one local-only diagnostic,
      and the public docs/release gate now lock that recovery contract
    - current baseline improvement:
+     `relay serve` and `relay inspect` now also expose one shared
+     `hostedReadinessSummary` plus an explicit
+     `recommendedCommands.restartWithPublicOrigin` repair path, so hosted
+     readiness no longer depends on operators reinterpreting multiple booleans
+   - current baseline improvement:
      the release gate now also locks the hosted relay fallback, optional local
      `agent` profile path, nested wallet help surfaces, direct-command help
      surfaces, and the machine-readable `agent status --json` contract so
@@ -344,6 +349,10 @@ Unless priorities change, the next concrete slices should be:
    - reduce manual release steps that can still drift after version bumps and
      publish
    - current baseline improvement:
+     the repo now ships `pnpm release:sync-version`, which syncs the workspace
+     version, published package version, plugin manifest version, and the
+     current public-version references in the root state docs before publish
+   - current baseline improvement:
      `release:check` now rejects drift across the package README, root README,
      `skills/`, packed top-level help, packed `wallet --help`, and packed
      `workflow --help`
@@ -365,6 +374,12 @@ Unless priorities change, the next concrete slices should be:
      `tokens --role paymaster-fee-token` plus the matching role-scoped
      `resolve-token`, instead of leaving paymaster token recovery buried in
      generic token discovery or docs
+   - current baseline improvement:
+     `workflow auto`, `workflow status`, `workflow next`, and `workflow resume`
+     now also expose one compressed `walletApprovalSummary` contract alongside
+     the full `walletApproval` payload, so wrappers can distinguish
+     `await-local`, `relay-pending`, and `approved` without re-parsing raw
+     request, relay, and follow-up-command fields
    - expected observable result:
      the shortest path becomes easier to follow without reading long docs or
      knowing local deployment metadata

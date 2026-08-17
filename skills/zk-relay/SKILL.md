@@ -93,6 +93,7 @@ What to rely on:
 - `sameHostRestartPersists = true`
 - `connectorUiAvailable = true`
 - `hostedShareRedirectReady = true`
+- `hostedReadinessSummary.status = ready`
 
 If any of those fail, do not treat the relay as hosted-ready yet.
 
@@ -221,6 +222,8 @@ Meaning:
 Fix:
 
 - restart `relay serve` with the real external URL in `--public-origin`
+- `recommendedCommands.restartWithPublicOrigin` returns the placeholder restart
+  command directly on `relay serve` and `relay inspect`
 
 ### `connectorUiAvailable = false`
 
@@ -247,6 +250,14 @@ Most common causes:
 
 - local-only `publicOrigin`
 - missing connector UI bundle
+
+Stable summary values now exposed on `relay serve` and `relay inspect`:
+
+- `ready`
+- `needs-public-origin`
+- `needs-connector-ui`
+- `needs-public-origin-and-ui`
+- `incompatible`
 
 ### No real public URL exists yet
 

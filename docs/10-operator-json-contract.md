@@ -550,6 +550,7 @@ Key fields:
 - `result`
 - `checkpoint`
 - `walletApproval`
+- `walletApprovalSummary`
 - `tokenDiscoverySummary`
 - `recommendedCommands`
 - `agentProfile`
@@ -568,6 +569,7 @@ These surfaces currently all include:
 
 - `agentProfile`
 - `agentFollowup`
+- `walletApprovalSummary`
 - `tokenDiscoverySummary`
 - `recommendedCommands`
 
@@ -607,6 +609,17 @@ Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:
 
 When the current workflow intent is not tokenized, `tokenDiscoverySummary` may
 be absent.
+
+Current stable `walletApprovalSummary` fields on workflow runtime surfaces when
+wallet approval context is present:
+
+- `status`
+- `walletRequestId`
+- `reusedRequest`
+- `relayPublished`
+- `nextAction`
+- `afterApproval`
+- `afterApprovalStatus`
 
 ### Token-input workflow errors
 
@@ -653,6 +666,7 @@ Current stable top-level fields:
 - `shareLinkBaseUrl`
 - `statusApiBaseUrl`
 - `publicOriginLooksLocal`
+- `hostedReadinessSummary`
 - `deploymentSummary`
 - `healthUrl`
 - `publicHealthUrl`
@@ -662,6 +676,24 @@ Current stable top-level fields:
 - `capabilities`
 - `recommendedCommands`
 - `notes`
+
+Current stable `hostedReadinessSummary` fields on this surface:
+
+- `status`
+- `compatible`
+- `hostedApprovalReady`
+- `publicOriginConfigured`
+- `publicOriginLooksLocal`
+- `connectorUiAvailable`
+- `singleHostFileState`
+
+Current stable `status` values on this summary:
+
+- `ready`
+- `needs-public-origin`
+- `needs-connector-ui`
+- `needs-public-origin-and-ui`
+- `incompatible`
 
 When present, `deploymentSummary` compresses the hosted deployment contract
 into:
@@ -676,6 +708,15 @@ into:
 - `connectorUiAvailable`
 - `hostedShareRedirectReady`
 - `singleHostFileState`
+
+Current stable `recommendedCommands` shape on this surface:
+
+- `inspectRelay`
+- `createWallet`
+- `reapproveWallet`
+- `restartWithPublicOrigin`
+  appears selectively when the relay is still advertising a local-only public
+  origin
 
 ## `zk-agent relay inspect`
 
@@ -698,12 +739,31 @@ Current stable top-level fields:
 - `relayUrlMatchesOrigin`
 - `relayUrlMatchesPublicOrigin`
 - `publicOriginLooksLocal`
+- `hostedReadinessSummary`
 - `deploymentSummary`
 - `connectorUiAvailable`
 - `hostedShareRedirectReady`
 - `capabilities`
 - `recommendedCommands`
 - `notes`
+
+Current stable `hostedReadinessSummary` fields on this surface:
+
+- `status`
+- `compatible`
+- `hostedApprovalReady`
+- `publicOriginConfigured`
+- `publicOriginLooksLocal`
+- `connectorUiAvailable`
+- `singleHostFileState`
+
+Current stable `status` values on this summary:
+
+- `ready`
+- `needs-public-origin`
+- `needs-connector-ui`
+- `needs-public-origin-and-ui`
+- `incompatible`
 
 Current stable `deploymentSummary` fields on this surface:
 
@@ -717,6 +777,14 @@ Current stable `deploymentSummary` fields on this surface:
 - `connectorUiAvailable`
 - `hostedShareRedirectReady`
 - `singleHostFileState`
+
+Current stable `recommendedCommands` shape on this surface:
+
+- `createWallet`
+- `reapproveWallet`
+- `restartWithPublicOrigin`
+  appears selectively when the relay is still advertising a local-only public
+  origin
 
 ## `zk-agent wallet create --relay-url <url>`
 

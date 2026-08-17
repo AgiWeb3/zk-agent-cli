@@ -35,6 +35,13 @@ npm view zk-agent-cli version
 npm publish --dry-run
 ```
 
+Before a new version or tag is prepared in the repo docs, sync the local
+version references first:
+
+```bash
+pnpm release:sync-version --version <version> --date <YYYY-MM-DD> --latest-tag <version> --beta-tag <version>
+```
+
 Pass criteria:
 
 - `npm whoami` returns the expected account
