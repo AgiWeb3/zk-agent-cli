@@ -532,6 +532,12 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
     assert.equal(result.scope, 'workflow');
     assert.equal(result.workflowRequestId, 'wf-next-001');
     assert.equal(result.nextCommand, 'zk-agent wallet signer attach --name main --private-key <hex>');
+    assert.deepEqual(result.summary, {
+      status: 'blocked',
+      readyForGoal: false,
+      nextCommand: 'zk-agent wallet signer attach --name main --private-key <hex>',
+      blockingActionIds: ['attach-signer']
+    });
     assert.equal(result.result.status, 'blocked');
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
     assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name> --wallet main');
@@ -567,6 +573,12 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
     assert.equal(result.workflowRequestId, 'wf-next-token-001');
     assert.equal(result.result.intent, 'send-token');
     assert.equal(result.result.status, 'ready');
+    assert.deepEqual(result.summary, {
+      status: 'ready',
+      readyForGoal: true,
+      nextCommand: result.nextCommand,
+      blockingActionIds: []
+    });
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
     assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name> --wallet main');
     assert.deepEqual(result.recommendedCommands, {

@@ -951,12 +951,12 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the top-level wallet tokenDiscoverySummary contract.'
     ],
     [
-      /### `scope = "workflow"`[\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "workflow-scope token recovery summary"\s*\}[\s\S]*When the restored workflow intent is tokenized[\s\S]*the same field set described for wallet scope/,
+      /### `scope = "workflow"`[\s\S]*"summary": \{[\s\S]*"status": "blocked"[\s\S]*"readyForGoal": false[\s\S]*"nextCommand": "zk-agent workflow resume --request-id wf123456"[\s\S]*"blockingActionIds": \["reapprove"\][\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "workflow-scope token recovery summary"\s*\}[\s\S]*Current stable `summary` fields on this surface:[\s\S]*`status`[\s\S]*`readyForGoal`[\s\S]*`nextCommand`[\s\S]*`blockingActionIds`[\s\S]*`fundingProgress`[\s\S]*When the restored workflow intent is tokenized[\s\S]*the same field set described for wallet scope/,
       'Operator JSON contract doc must describe the top-level workflow tokenDiscoverySummary contract.'
     ],
     [
-      /## `zk-agent wallet next`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`inspection`[\s\S]*`summary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When wallet-scoped discovery follow-ups are present[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
-      'Operator JSON contract doc must describe the wallet next tokenDiscoverySummary contract.'
+      /## `zk-agent wallet status\|next`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`inspection`[\s\S]*`summary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When the effective wallet paymaster mode is `approval-based`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`[\s\S]*When wallet-scoped discovery follow-ups are present[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      'Operator JSON contract doc must describe the wallet status/next tokenDiscoverySummary contract.'
     ],
     [
       /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`/,

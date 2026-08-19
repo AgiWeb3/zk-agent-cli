@@ -442,20 +442,34 @@ Key fields:
   "workflowRequestId": "wf123456",
   "walletName": "main",
   "nextCommand": "zk-agent workflow resume --request-id wf123456",
+  "summary": {
+    "status": "blocked",
+    "readyForGoal": false,
+    "nextCommand": "zk-agent workflow resume --request-id wf123456",
+    "blockingActionIds": ["reapprove"]
+  },
   "tokenDiscoverySummary": { "...": "workflow-scope token recovery summary" },
   "result": { "...": "workflow status payload" },
   "checkpoint": { "...": "stored checkpoint payload" }
 }
 ```
 
+Current stable `summary` fields on this surface:
+
+- `status`
+- `readyForGoal`
+- `nextCommand`
+- `blockingActionIds`
+- `fundingProgress`
+
 When the restored workflow intent is tokenized, `tokenDiscoverySummary` uses
 the same field set described for wallet scope.
 
-## `zk-agent wallet next`
+## `zk-agent wallet status|next`
 
-`zk-agent wallet next` is the wallet-layer remediation and routing contract
-that top-level `zk-agent next` reuses after local setup and wallet bootstrap
-are already complete.
+`zk-agent wallet status` and `zk-agent wallet next` now share the same
+machine-readable wallet-layer remediation and routing contract after local
+setup and wallet bootstrap are already complete.
 
 Current stable top-level fields:
 
@@ -476,6 +490,12 @@ Within that set:
 - `recommendedCommands`
   The wallet-scoped remediation and discovery follow-up contract that can also
   point onward into the flagship workflow path.
+
+When the effective wallet paymaster mode is `approval-based`,
+`recommendedCommands` can also include:
+
+- `discoverPaymasterTokens`
+- `inspectPaymasterToken`
 
 When wallet-scoped discovery follow-ups are present, `tokenDiscoverySummary`
 uses the same field set described for top-level `zk-agent next` wallet scope:

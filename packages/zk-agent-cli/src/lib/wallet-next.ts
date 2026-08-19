@@ -11,6 +11,8 @@ import type { WalletNextSummary } from '@zk-agent/agent-core';
 import {
   buildAssetsRecommendedCommand,
   buildOwnedTokensRecommendedCommand,
+  buildPaymasterFeeTokenResolveRecommendedCommand,
+  buildPaymasterFeeTokensRecommendedCommand,
   buildResolveTokenRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletStatusRecommendedCommand
@@ -18,11 +20,14 @@ import {
 
 export function buildWalletNextRecommendedCommands(
   walletName: string,
-  summary: WalletNextSummary
+  summary: WalletNextSummary,
+  paymasterMode?: PaymasterMode
 ): {
   discoverAssets: string;
   discoverOwnedTokens: string;
+  discoverPaymasterTokens?: string;
   discoverTokens: string;
+  inspectPaymasterToken?: string;
   inspectToken: string;
   walletStatus: string;
   nextAction?: string;
@@ -30,6 +35,12 @@ export function buildWalletNextRecommendedCommands(
   return {
     discoverAssets: buildAssetsRecommendedCommand(walletName),
     discoverOwnedTokens: buildOwnedTokensRecommendedCommand(walletName),
+    ...(paymasterMode === 'approval-based'
+      ? {
+          discoverPaymasterTokens: buildPaymasterFeeTokensRecommendedCommand(summary.chain),
+          inspectPaymasterToken: buildPaymasterFeeTokenResolveRecommendedCommand(summary.chain)
+        }
+      : {}),
     discoverTokens: buildTokensRecommendedCommand(summary.chain),
     inspectToken: buildResolveTokenRecommendedCommand(summary.chain),
     walletStatus: buildWalletStatusRecommendedCommand(walletName),

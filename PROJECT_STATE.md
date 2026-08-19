@@ -3,10 +3,11 @@
 ## Snapshot
 
 - Last updated: 2026-08-17
-- Latest commit at write time: `82fc5bf`
+- Latest commit at write time: `dacc5e0`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with hosted-relay
-  readiness and workflow approval-summary productization follow-up edits
+  readiness, workflow approval-summary, and next/wallet productization
+  follow-up edits
 
 ## Current status
 
@@ -160,6 +161,17 @@ Architecture baseline to keep in mind:
      the full `walletApproval` payload, so automation can distinguish
      `await-local`, `relay-pending`, and `approved` without reverse-parsing
      request metadata, relay fields, and next-step command maps separately
+   - current baseline improvement:
+     `wallet status` and `wallet next` now also expose the same approval-based
+     paymaster fee-token discovery follow-ups as top-level `next`, so
+     wallet-layer recovery no longer loses the canonical
+     `tokens --role paymaster-fee-token` and matching role-scoped
+     `resolve-token` path
+   - current baseline improvement:
+     top-level `next --request-id` now also exposes a compressed workflow
+     `summary` contract alongside the full restored workflow `result`, so
+     wrappers can consume readiness, next action, blockers, and funding state
+     without parsing the entire workflow status payload first
    - the remaining gap is making those surfaces require less local knowledge
      about tokens, validated defaults, and which discovery command should come
      next

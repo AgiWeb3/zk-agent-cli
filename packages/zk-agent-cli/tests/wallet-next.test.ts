@@ -192,6 +192,31 @@ test('wallet next recommended commands include assets discovery even when no rem
   });
 });
 
+test('wallet next recommended commands include paymaster token discovery on approval-based wallets', () => {
+  const summary = buildWalletNextSummary({
+    wallet: {
+      ...sampleWallet,
+      syncedAt: '2026-06-23T01:00:00.000Z',
+      paymasterMode: 'approval-based'
+    },
+    inspection: sampleInspection(),
+    nativeBalance: '1.25',
+    nativeSymbol: 'ETH'
+  });
+
+  assert.deepEqual(buildWalletNextRecommendedCommands('main', summary, 'approval-based'), {
+    discoverAssets: 'zk-agent assets --wallet main',
+    discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
+    discoverPaymasterTokens:
+      'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
+    discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
+    inspectPaymasterToken:
+      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token',
+    inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+    walletStatus: 'zk-agent wallet status --name main'
+  });
+});
+
 test('wallet token discovery summary compresses the wallet routing contract', () => {
   const summary = buildWalletNextSummary({
     wallet: {
@@ -203,13 +228,11 @@ test('wallet token discovery summary compresses the wallet routing contract', ()
     nativeBalance: '1.25',
     nativeSymbol: 'ETH'
   });
-  const recommendedCommands = {
-    ...buildWalletNextRecommendedCommands('main', summary),
-    discoverPaymasterTokens:
-      'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
-    inspectPaymasterToken:
-      'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token'
-  };
+  const recommendedCommands = buildWalletNextRecommendedCommands(
+    'main',
+    summary,
+    'approval-based'
+  );
 
   assert.deepEqual(
     buildWalletTokenDiscoverySummary({

@@ -4061,7 +4061,42 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       if (!walletRecord) throw new Error(`Wallet not found: ${options.name}`);
 
       const { inspection, summary } = await loadWalletStatusSummary(walletRecord, resolvedDeps);
-      printResult(walletStatusLines(inspection, summary), { ok: true, inspection, summary });
+      const recommendedCommands = buildWalletNextRecommendedCommands(
+        walletRecord.walletName,
+        summary,
+        resolveEffectivePaymasterSelection(walletRecord)?.mode
+      );
+      const tokenDiscoverySummary = buildWalletTokenDiscoverySummary({
+        walletName: walletRecord.walletName,
+        chain: summary.chain,
+        nextAction: summary.recommendedCommand,
+        paymasterMode: resolveEffectivePaymasterSelection(walletRecord)?.mode,
+        recommendedCommands
+      });
+
+      printResult(
+        [
+          ...walletStatusLines(inspection, summary),
+          ['discover assets', recommendedCommands.discoverAssets],
+          ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
+          ...(recommendedCommands.discoverPaymasterTokens
+            ? [['discover paymaster tokens', recommendedCommands.discoverPaymasterTokens] as [string, string]]
+            : []),
+          ['discover tokens', recommendedCommands.discoverTokens],
+          ...(recommendedCommands.inspectPaymasterToken
+            ? [['inspect paymaster token', recommendedCommands.inspectPaymasterToken] as [string, string]]
+            : []),
+          ['inspect token', recommendedCommands.inspectToken],
+          ['wallet next', buildWalletNextRecommendedCommand(walletRecord.walletName)]
+        ],
+        {
+          ok: true,
+          inspection,
+          summary,
+          tokenDiscoverySummary,
+          recommendedCommands
+        }
+      );
     });
 
   wallet
@@ -4073,7 +4108,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       const { inspection, summary } = await loadWalletStatusSummary(walletRecord, resolvedDeps);
       const recommendedCommands = buildWalletNextRecommendedCommands(
         walletRecord.walletName,
-        summary
+        summary,
+        resolveEffectivePaymasterSelection(walletRecord)?.mode
       );
       const tokenDiscoverySummary = buildWalletTokenDiscoverySummary({
         walletName: walletRecord.walletName,
@@ -4088,7 +4124,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ...walletNextLines(summary),
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
+          ...(recommendedCommands.discoverPaymasterTokens
+            ? [['discover paymaster tokens', recommendedCommands.discoverPaymasterTokens] as [string, string]]
+            : []),
           ['discover tokens', recommendedCommands.discoverTokens],
+          ...(recommendedCommands.inspectPaymasterToken
+            ? [['inspect paymaster token', recommendedCommands.inspectPaymasterToken] as [string, string]]
+            : []),
           ['inspect token', recommendedCommands.inspectToken],
           ['status command', recommendedCommands.walletStatus]
         ],

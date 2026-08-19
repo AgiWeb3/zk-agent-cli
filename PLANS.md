@@ -380,6 +380,17 @@ Unless priorities change, the next concrete slices should be:
      the full `walletApproval` payload, so wrappers can distinguish
      `await-local`, `relay-pending`, and `approved` without re-parsing raw
      request, relay, and follow-up-command fields
+   - current baseline improvement:
+     `wallet status` and `wallet next` now also expose the same
+     approval-based paymaster fee-token discovery follow-ups as top-level
+     `next`, so wallet-layer remediation no longer drops the canonical
+     `tokens --role paymaster-fee-token` and matching role-scoped
+     `resolve-token` path
+   - current baseline improvement:
+     top-level `next --request-id` now also exposes one compressed workflow
+     `summary` contract alongside the restored workflow `result`, so wrappers
+     can read readiness, blockers, next action, and funding state without
+     depending on the full workflow status payload shape
    - expected observable result:
      the shortest path becomes easier to follow without reading long docs or
      knowing local deployment metadata

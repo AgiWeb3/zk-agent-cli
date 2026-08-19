@@ -8,6 +8,7 @@ import {
   loadWorkflowCheckpoint,
   saveWorkflowCheckpoint,
   type DefiProvider,
+  type WorkflowStatusResult,
   type WorkflowCheckpointRecord,
   type WalletProvider
 } from '@zk-agent/agent-core';
@@ -129,6 +130,27 @@ function buildSetupCommand(): string {
 
 function buildTopLevelNextRecommendedCommand(requestId?: string): string {
   return requestId ? `zk-agent next --request-id ${requestId}` : 'zk-agent next';
+}
+
+function buildTopLevelWorkflowSummary(
+  result: WorkflowStatusResult,
+  nextCommand: string | undefined
+) {
+  return {
+    status: result.status,
+    readyForGoal: result.readyForGoal,
+    nextCommand,
+    blockingActionIds: result.blockingActionIds,
+    fundingProgress: result.fundingProgress
+      ? {
+          kind: result.fundingProgress.kind,
+          txHash: result.fundingProgress.txHash,
+          status: result.fundingProgress.status,
+          terminal: result.fundingProgress.terminal,
+          finalized: result.fundingProgress.finalized
+        }
+      : undefined
+  };
 }
 
 function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): string {
@@ -273,6 +295,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             nextCommand,
             agentProfile: workflowAgentProfile,
             agentFollowup,
+            summary: buildTopLevelWorkflowSummary(result, nextCommand),
             result,
             checkpoint: updatedCheckpoint,
             tokenDiscoverySummary,
