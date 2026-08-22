@@ -86,6 +86,20 @@ interface RelayHostedReadinessSummary {
   singleHostFileState: boolean;
 }
 
+type RelayApprovalEndpointStatus =
+  | 'local-public-origin'
+  | 'hosted-public-origin'
+  | 'hosted-public-origin-via-proxy';
+
+interface RelayApprovalEndpointSummary {
+  status: RelayApprovalEndpointStatus;
+  publicOriginConfigured: boolean;
+  publicOriginLooksLocal: boolean;
+  relayUrlMatchesPublicOrigin: boolean | null;
+  shareLinkBaseUrl: string;
+  statusApiBaseUrl: string;
+}
+
 function buildRelayHostedReadinessSummary(options: {
   compatible: boolean;
   publicOriginSource: RelayPublicOriginSource | null;
@@ -126,6 +140,33 @@ function buildAdvertisedRelayBases(publicOrigin: string): {
   return {
     shareLinkBaseUrl: `${publicOrigin}/r`,
     statusApiBaseUrl: `${publicOrigin}/api/requests`
+  };
+}
+
+function buildRelayApprovalEndpointSummary(options: {
+  publicOriginSource: RelayPublicOriginSource | null;
+  publicOriginLooksLocal: boolean;
+  relayUrlMatchesPublicOrigin: boolean | null;
+  shareLinkBaseUrl: string;
+  statusApiBaseUrl: string;
+}): RelayApprovalEndpointSummary {
+  let status: RelayApprovalEndpointStatus;
+
+  if (options.publicOriginLooksLocal) {
+    status = 'local-public-origin';
+  } else if (options.relayUrlMatchesPublicOrigin === false) {
+    status = 'hosted-public-origin-via-proxy';
+  } else {
+    status = 'hosted-public-origin';
+  }
+
+  return {
+    status,
+    publicOriginConfigured: options.publicOriginSource === 'configured',
+    publicOriginLooksLocal: options.publicOriginLooksLocal,
+    relayUrlMatchesPublicOrigin: options.relayUrlMatchesPublicOrigin,
+    shareLinkBaseUrl: options.shareLinkBaseUrl,
+    statusApiBaseUrl: options.statusApiBaseUrl
   };
 }
 
@@ -366,6 +407,7 @@ interface RelayInspectPayload {
   relayUrlMatchesOrigin: boolean | null;
   relayUrlMatchesPublicOrigin: boolean | null;
   publicOriginLooksLocal: boolean;
+  approvalEndpointSummary: RelayApprovalEndpointSummary;
   connectorUiAvailable: boolean | null;
   hostedShareRedirectReady: boolean;
   hostedReadinessSummary: RelayHostedReadinessSummary;
@@ -464,6 +506,13 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     deploymentScope,
     sameHostRestartPersists
   });
+  const approvalEndpointSummary = buildRelayApprovalEndpointSummary({
+    publicOriginSource,
+    publicOriginLooksLocal,
+    relayUrlMatchesPublicOrigin,
+    shareLinkBaseUrl,
+    statusApiBaseUrl
+  });
   const hostedReadinessSummary = buildRelayHostedReadinessSummary({
     compatible,
     publicOriginSource,
@@ -512,6 +561,7 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
     relayUrlMatchesOrigin,
     relayUrlMatchesPublicOrigin,
     publicOriginLooksLocal,
+    approvalEndpointSummary,
     connectorUiAvailable,
     hostedShareRedirectReady,
     hostedReadinessSummary,
@@ -601,6 +651,13 @@ export function createRelayCommand(): Command {
         hostedShareRedirectReady,
         deploymentSummary
       });
+      const approvalEndpointSummary = buildRelayApprovalEndpointSummary({
+        publicOriginSource,
+        publicOriginLooksLocal,
+        relayUrlMatchesPublicOrigin: null,
+        shareLinkBaseUrl,
+        statusApiBaseUrl
+      });
       const notes = relayHostedReadinessNotes({
         compatible: true,
         publicOrigin,
@@ -620,6 +677,7 @@ export function createRelayCommand(): Command {
         shareLinkBaseUrl,
         statusApiBaseUrl,
         publicOriginLooksLocal,
+        approvalEndpointSummary,
         hostedReadinessSummary,
         deploymentSummary,
         port: server.port,
@@ -657,6 +715,7 @@ export function createRelayCommand(): Command {
         );
         humanLine('share-link base', shareLinkBaseUrl);
         humanLine('status api base', statusApiBaseUrl);
+        humanLine('approval endpoint', approvalEndpointSummary.status);
         humanLine('health', `${server.origin}/health`);
         humanLine('hosted readiness', hostedReadinessSummary.status);
         humanLine('hosted ready', hostedShareRedirectReady ? 'yes' : 'no');
@@ -738,6 +797,7 @@ export function createRelayCommand(): Command {
       }
       humanLine('share-link base', payload.shareLinkBaseUrl);
       humanLine('status api base', payload.statusApiBaseUrl);
+      humanLine('approval endpoint', payload.approvalEndpointSummary.status);
       humanLine('hosted readiness', payload.hostedReadinessSummary.status);
       if (payload.relayUrlMatchesOrigin !== null) {
         humanLine('relay url matches origin', payload.relayUrlMatchesOrigin ? 'yes' : 'no');

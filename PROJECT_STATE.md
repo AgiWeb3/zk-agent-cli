@@ -2,12 +2,11 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-17
-- Latest commit at write time: `dacc5e0`
+- Last updated: 2026-08-22
+- Latest commit at write time: `b1c6743`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with hosted-relay
-  readiness, workflow approval-summary, and next/wallet productization
-  follow-up edits
+  approval-endpoint summary and state/doc productization follow-up edits
 
 ## Current status
 
@@ -71,6 +70,11 @@ Architecture baseline to keep in mind:
      `deploymentSummary` payload for hosted deployment state, so public-origin
      readiness and the current single-host filesystem-state contract stay
      machine-readable without re-parsing the full raw relay response
+   - current baseline improvement:
+     `relay serve` and `relay inspect` now also emit one shared
+     `approvalEndpointSummary` payload, so local-only, direct-hosted, and
+     proxy-hosted approval entrypoint modes stay explicit for operators and
+     harnesses
    - current baseline improvement:
      relay/manual approval no longer self-loops on stale hosted requests:
      `wallet request relay-status` now returns explicit `share_url` /

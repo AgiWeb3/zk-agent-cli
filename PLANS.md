@@ -311,6 +311,11 @@ Unless priorities change, the next concrete slices should be:
      and harnesses can consume the public-origin/readiness/single-host-state
      boundary without reverse-parsing the full raw payload
    - current baseline improvement:
+     `relay serve` and `relay inspect` now also expose one shared
+     `approvalEndpointSummary` contract, so the hosted approval entrypoint
+     mode stays machine-readable under local, direct-hosted, and proxy-hosted
+     inspection paths
+   - current baseline improvement:
      `relay serve` / `relay inspect` follow-up commands now prefer the
      one-shot remote-approval path with `--wait-relay --prompt-code`, and the
      agent-tool registry metadata now matches that hosted reapproval story

@@ -686,6 +686,7 @@ Current stable top-level fields:
 - `shareLinkBaseUrl`
 - `statusApiBaseUrl`
 - `publicOriginLooksLocal`
+- `approvalEndpointSummary`
 - `hostedReadinessSummary`
 - `deploymentSummary`
 - `healthUrl`
@@ -707,7 +708,21 @@ Current stable `hostedReadinessSummary` fields on this surface:
 - `connectorUiAvailable`
 - `singleHostFileState`
 
-Current stable `status` values on this summary:
+Current stable `approvalEndpointSummary` fields on this surface:
+
+- `status`
+- `publicOriginConfigured`
+- `publicOriginLooksLocal`
+- `relayUrlMatchesPublicOrigin`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+
+Current stable approval-endpoint `status` values on this surface:
+
+- `local-public-origin`
+- `hosted-public-origin`
+
+Current stable hosted-readiness `status` values on this surface:
 
 - `ready`
 - `needs-public-origin`
@@ -759,6 +774,7 @@ Current stable top-level fields:
 - `relayUrlMatchesOrigin`
 - `relayUrlMatchesPublicOrigin`
 - `publicOriginLooksLocal`
+- `approvalEndpointSummary`
 - `hostedReadinessSummary`
 - `deploymentSummary`
 - `connectorUiAvailable`
@@ -777,7 +793,22 @@ Current stable `hostedReadinessSummary` fields on this surface:
 - `connectorUiAvailable`
 - `singleHostFileState`
 
-Current stable `status` values on this summary:
+Current stable `approvalEndpointSummary` fields on this surface:
+
+- `status`
+- `publicOriginConfigured`
+- `publicOriginLooksLocal`
+- `relayUrlMatchesPublicOrigin`
+- `shareLinkBaseUrl`
+- `statusApiBaseUrl`
+
+Current stable approval-endpoint `status` values on this surface:
+
+- `local-public-origin`
+- `hosted-public-origin`
+- `hosted-public-origin-via-proxy`
+
+Current stable hosted-readiness `status` values on this surface:
 
 - `ready`
 - `needs-public-origin`

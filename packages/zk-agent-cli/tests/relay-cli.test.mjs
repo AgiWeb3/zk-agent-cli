@@ -235,6 +235,14 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(result.shareLinkBaseUrl, `${result.origin}/r`);
     assert.equal(result.statusApiBaseUrl, `${result.origin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, true);
+    assert.deepEqual(result.approvalEndpointSummary, {
+      status: 'local-public-origin',
+      publicOriginConfigured: false,
+      publicOriginLooksLocal: true,
+      relayUrlMatchesPublicOrigin: null,
+      shareLinkBaseUrl: `${result.origin}/r`,
+      statusApiBaseUrl: `${result.origin}/api/requests`
+    });
     assert.deepEqual(result.hostedReadinessSummary, {
       status: 'needs-public-origin',
       compatible: true,
@@ -318,6 +326,14 @@ test('relay serve returns operator follow-up commands and serves health endpoint
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, true);
     assert.equal(inspected.publicOriginLooksLocal, true);
+    assert.deepEqual(inspected.approvalEndpointSummary, {
+      status: 'local-public-origin',
+      publicOriginConfigured: false,
+      publicOriginLooksLocal: true,
+      relayUrlMatchesPublicOrigin: true,
+      shareLinkBaseUrl: `${result.origin}/r`,
+      statusApiBaseUrl: `${result.origin}/api/requests`
+    });
     assert.deepEqual(inspected.hostedReadinessSummary, {
       status: 'needs-public-origin',
       compatible: true,
@@ -404,6 +420,14 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(result.shareLinkBaseUrl, `${publicOrigin}/r`);
     assert.equal(result.statusApiBaseUrl, `${publicOrigin}/api/requests`);
     assert.equal(result.publicOriginLooksLocal, false);
+    assert.deepEqual(result.approvalEndpointSummary, {
+      status: 'hosted-public-origin',
+      publicOriginConfigured: true,
+      publicOriginLooksLocal: false,
+      relayUrlMatchesPublicOrigin: null,
+      shareLinkBaseUrl: `${publicOrigin}/r`,
+      statusApiBaseUrl: `${publicOrigin}/api/requests`
+    });
     assert.deepEqual(result.hostedReadinessSummary, {
       status: result.connectorUiAvailable === true ? 'ready' : 'needs-connector-ui',
       compatible: true,
@@ -509,6 +533,14 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(inspected.relayUrlMatchesOrigin, true);
     assert.equal(inspected.relayUrlMatchesPublicOrigin, false);
     assert.equal(inspected.publicOriginLooksLocal, false);
+    assert.deepEqual(inspected.approvalEndpointSummary, {
+      status: 'hosted-public-origin-via-proxy',
+      publicOriginConfigured: true,
+      publicOriginLooksLocal: false,
+      relayUrlMatchesPublicOrigin: false,
+      shareLinkBaseUrl: `${publicOrigin}/r`,
+      statusApiBaseUrl: `${publicOrigin}/api/requests`
+    });
     assert.deepEqual(inspected.hostedReadinessSummary, {
       status: inspected.connectorUiAvailable === true ? 'ready' : 'needs-connector-ui',
       compatible: true,
