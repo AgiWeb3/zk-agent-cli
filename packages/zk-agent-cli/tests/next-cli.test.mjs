@@ -77,7 +77,7 @@ async function loadAgentCoreStorage(homeDir) {
 
 function sampleConfig() {
   return {
-    defaultChain: 'zksync-era',
+    defaultChain: 'zksync-sepolia',
     connectorUrl: 'http://localhost:4444',
     provider: 'zksync-sso',
     createdAt: '2026-07-02T00:00:00.000Z',
@@ -255,6 +255,23 @@ test('top-level next recommends setup when local config is missing', async () =>
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'setup');
     assert.equal(result.nextCommand, 'zk-agent setup');
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'setup',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: false,
+      walletExists: false,
+      approvalReady: null,
+      localExecutionKeyStored: null,
+      defaultChain: null,
+      connectorUrl: null,
+      relayUrl: null,
+      nextAction: 'zk-agent setup',
+      notes: [
+        'No local config was found, so setup is still the first required onboarding step.',
+        'This scope is local-only and does not require live RPC reads.'
+      ]
+    });
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
     assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name>');
     assert.equal(result.agentFollowup.nextAction, 'zk-agent agent set --name <name>');
@@ -282,6 +299,23 @@ test('top-level next recommends wallet creation when config exists but the walle
     assert.equal(result.scope, 'wallet-bootstrap');
     assert.equal(result.walletName, 'main');
     assert.equal(result.nextCommand, 'zk-agent wallet create --await-local');
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'wallet-bootstrap',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: true,
+      walletExists: false,
+      approvalReady: null,
+      localExecutionKeyStored: null,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: null,
+      nextAction: 'zk-agent wallet create --await-local',
+      notes: [
+        'Config exists, but no saved wallet record was found for this name yet.',
+        'Use the remote approval fallback only when the browser is not colocated with this terminal.'
+      ]
+    });
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
     assert.equal(result.agentFollowup.set, 'zk-agent agent set --name <name>');
     assert.deepEqual(result.recommendedCommands, {
@@ -309,6 +343,7 @@ test('top-level next preserves an explicit paymaster override in wallet-bootstra
 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet-bootstrap');
+    assert.equal(result.onboardingSummary.nextAction, 'zk-agent wallet create --await-local --paymaster-mode sponsored');
     assert.deepEqual(result.recommendedCommands, {
       createWallet: 'zk-agent wallet create --await-local --paymaster-mode sponsored',
       relayInspect: 'zk-agent relay inspect --relay-url <url>',
@@ -338,6 +373,23 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.equal(result.scope, 'wallet');
     assert.equal(result.walletName, 'main');
     assert.equal(result.summary.status, 'ready');
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'wallet-ready',
+      baseline: 'local-first',
+      localOnly: false,
+      configExists: true,
+      walletExists: true,
+      approvalReady: true,
+      localExecutionKeyStored: true,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: null,
+      nextAction: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      notes: [
+        'Wallet approval and local signer state are present.',
+        'Top-level next also inspects live deployment and balance state before recommending the workflow step.'
+      ]
+    });
     assert.equal(
       result.nextCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
@@ -397,6 +449,8 @@ test('top-level next treats a stored local execution authority as writable even 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
     assert.equal(result.summary.status, 'ready');
+    assert.equal(result.onboardingSummary.stage, 'wallet-ready');
+    assert.equal(result.onboardingSummary.localExecutionKeyStored, true);
     assert.equal(
       result.nextCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
@@ -404,6 +458,46 @@ test('top-level next treats a stored local execution authority as writable even 
     assert.equal(
       result.recommendedCommands.nextAction,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    );
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('top-level next exposes wallet-recovery onboarding guidance when approval exists but no local signer is stored', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-recovery-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveProjectConfig(sampleConfig());
+    await storage.saveWalletSession(sampleWallet());
+
+    const result = await runNextCli([], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'wallet');
+    assert.equal(result.summary.status, 'action-required');
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'wallet-recovery',
+      baseline: 'local-first',
+      localOnly: false,
+      configExists: true,
+      walletExists: true,
+      approvalReady: true,
+      localExecutionKeyStored: false,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: null,
+      nextAction: 'zk-agent wallet signer attach --name main --private-key <hex>',
+      notes: [
+        'Approved session metadata exists, but no local execution signer is stored yet.',
+        'Top-level next returns to live workflow guidance after the signer is attached.'
+      ]
+    });
+    assert.equal(
+      result.nextCommand,
+      'zk-agent wallet signer attach --name main --private-key <hex>'
     );
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -423,6 +517,7 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
+    assert.equal(result.onboardingSummary.nextAction, 'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored');
     assert.equal(
       result.nextCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored'
@@ -475,6 +570,7 @@ test('top-level next adds paymaster fee-token discovery commands for approval-ba
 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
+    assert.equal(result.onboardingSummary.nextAction, 'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based');
     assert.equal(
       result.nextCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based'

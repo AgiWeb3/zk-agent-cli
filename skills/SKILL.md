@@ -73,6 +73,9 @@ pnpm zk-agent <command>
 
 - `pnpm` and a repository checkout are only required for source development or
   when you intentionally run the repo-local wrapper
+- the validated first-run baseline uses `zksync-sepolia` as the default chain;
+  override it with `zk-agent setup --default-chain <chain>` only when you
+  intentionally target a different chain
 - the default local approval path expects the connector UI at
   `http://localhost:4444`; override it with
   `zk-agent setup --connector-url <url>` when needed
@@ -107,6 +110,8 @@ zk-agent setup
 ```
 
 This creates local config and records the default chain and connector URL.
+On the current baseline, `setup` defaults to `zksync-sepolia` plus the local
+connector at `http://localhost:4444`.
 
 ### 2. Ask for the shortest valid next step
 

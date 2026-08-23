@@ -44,6 +44,10 @@ function readRootReadme() {
   return readFileSync(join(workspaceRoot, 'README.md'), 'utf8');
 }
 
+function readChangelog() {
+  return readFileSync(join(workspaceRoot, 'CHANGELOG.md'), 'utf8');
+}
+
 function readPluginManifest() {
   return JSON.parse(
     readFileSync(join(workspaceRoot, '.codex-plugin', 'plugin.json'), 'utf8')
@@ -64,6 +68,17 @@ function readReleaseGateDoc() {
 
 function readOperatorJsonContractDoc() {
   return readFileSync(join(workspaceRoot, 'docs', '10-operator-json-contract.md'), 'utf8');
+}
+
+function readHostedApprovalBaselineDoc() {
+  return readFileSync(
+    join(workspaceRoot, 'docs', '16-hosted-approval-operated-baseline.md'),
+    'utf8'
+  );
+}
+
+function readReleaseNotes(version) {
+  return readFileSync(join(workspaceRoot, 'docs', 'releases', `${version}.md`), 'utf8');
 }
 
 function readSkillQuickstart() {
@@ -227,6 +242,10 @@ function assertPackageReadme(readme) {
       /zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code/,
       'Package README must document the shortest relay-backed approval path.'
     ],
+    [
+      /docs\/16-hosted-approval-operated-baseline\.md/,
+      'Package README must link to the current hosted-approval operated baseline doc.'
+    ],
     [/workflows\/\*\.json/, 'Package README must document the workflows storage path correctly.'],
     [/## Common Failures/, 'Package README must include a Common Failures section.'],
     [
@@ -290,6 +309,16 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       rootReadme,
       /If the browser is not colocated with the terminal[\s\S]*zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent next/,
       'Root README must keep the remote-browser wallet-create fallback visible.'
+    ],
+    [
+      rootReadme,
+      /Release-stage judgment:[\s\S]*the project should remain on `beta` today[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
+      'Root README must keep the current beta-stage judgment and release-stage doc links visible.'
+    ],
+    [
+      rootReadme,
+      /release notes live in \[CHANGELOG\.md\]\(\.\/CHANGELOG\.md\) and \[docs\/releases\/[^)]+\]\(\.\/docs\/releases\/[^)]+\)/,
+      'Root README must point at the changelog and versioned release notes.'
     ],
     [
       quickstart,
@@ -366,6 +395,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
 function assertCurrentVersionDocs({
   version,
   rootReadme,
+  changelog,
+  releaseNotes,
   plans,
   projectState,
   releaseGateDoc
@@ -386,6 +417,32 @@ function assertCurrentVersionDocs({
       rootReadme,
       new RegExp(`latest -> ${escapedVersion}`),
       'Root README must show the current latest dist-tag target.'
+    ],
+    [
+      rootReadme,
+      new RegExp(`docs/releases/${escapedVersion}\\.md`),
+      'Root README must point at the current versioned release notes.'
+    ],
+    [
+      changelog,
+      new RegExp('- `' + escapedVersion + '`'),
+      'CHANGELOG.md must point at the current release version.'
+    ],
+    [
+      changelog,
+      new RegExp(`- notes: \\[${escapedVersion}\\]\\(\\.\\/docs\\/releases\\/${escapedVersion}\\.md\\)`),
+      'CHANGELOG.md must point at the current versioned release-notes file.'
+    ],
+    [
+      changelog,
+      new RegExp(
+        '- `' +
+          escapedVersion +
+          '` \\(\\`[^\\`]+\\`\\) - \\[release notes\\]\\(\\.\\/docs\\/releases\\/' +
+          escapedVersion +
+          '\\.md\\)'
+      ),
+      'CHANGELOG.md history must include the current release.'
     ],
     [
       plans,
@@ -418,12 +475,129 @@ function assertCurrentVersionDocs({
         `npm view zk-agent-cli dist-tags --json -> \\{"latest":"${escapedVersion}","beta":"${escapedVersion}"\\}`
       ),
       'Release gate doc must record the current dist-tag alignment.'
+    ],
+    [
+      releaseNotes,
+      new RegExp(`# zk-agent-cli ${escapedVersion}`),
+      'Versioned release notes must use the current version in the title.'
+    ],
+    [
+      releaseNotes,
+      new RegExp('- \\`beta -> ' + escapedVersion + '\\`'),
+      'Versioned release notes must record the current beta dist-tag target.'
+    ],
+    [
+      releaseNotes,
+      new RegExp('- \\`latest -> ' + escapedVersion + '\\`'),
+      'Versioned release notes must record the current latest dist-tag target.'
     ]
   ];
 
   for (const [source, pattern, message] of requiredChecks) {
     assert.match(source, pattern, message);
   }
+}
+
+function assertReleaseStageDocs({
+  packageReadme,
+  rootReadme,
+  plans,
+  projectState,
+  releaseGateDoc,
+  hostedBaselineDoc
+}) {
+  const requiredChecks = [
+    [
+      releaseGateDoc,
+      /## Release-stage progression[\s\S]*`zk-agent-cli` should remain on `beta`[\s\S]*the project is not ready to claim `rc` yet[\s\S]*the project is not ready to claim `1\.0\.0` yet/,
+      'Release gate doc must keep the current beta-stage judgment explicit.'
+    ],
+    [
+      releaseGateDoc,
+      /### Gate: `beta -> rc`[\s\S]*canonical operator path[\s\S]*hosted approval is documented and exercised as an operated product contract[\s\S]*release flow is repeatable[\s\S]*`onboardingSummary`, `workflowEntrySummary`, `walletApprovalSummary`[\s\S]*local and hosted recovery semantics are stable/,
+      'Release gate doc must keep the beta-to-rc gate explicit.'
+    ],
+    [
+      releaseGateDoc,
+      /### Gate: `rc -> 1\.0\.0`[\s\S]*every `rc` gate remains closed[\s\S]*one additional zkSync-native product slice[\s\S]*two consecutive end-to-end release rehearsals[\s\S]*no known release-blocking issue remains/,
+      'Release gate doc must keep the rc-to-1.0.0 gate explicit.'
+    ],
+    [
+      releaseGateDoc,
+      /### Not required for `1\.0\.0`[\s\S]*broad DeFi breadth[\s\S]*Polygon feature-count parity[\s\S]*broader AA profile expansion beyond the current `sed-lite` default path/,
+      'Release gate doc must keep the non-blocking scope boundary explicit.'
+    ],
+    [
+      hostedBaselineDoc,
+      /## Current Supported Deployment Profile[\s\S]*one relay process[\s\S]*one host[\s\S]*one persistent local filesystem view[\s\S]*same-origin for relay API and approval UI[\s\S]*It is not currently:[\s\S]*horizontally scaled[\s\S]*multi-instance active\/active[\s\S]*stateless/,
+      'Hosted baseline doc must describe the current supported single-host deployment profile.'
+    ],
+    [
+      hostedBaselineDoc,
+      /## Required Readiness Checks[\s\S]*`relay inspect` returns `compatible = true`[\s\S]*`publicOriginLooksLocal = false`[\s\S]*`connectorUiAvailable = true`[\s\S]*`hostedShareRedirectReady = true`[\s\S]*`hostedReadinessSummary\.status = ready`[\s\S]*`deploymentSummary\.singleHostFileState = true`/,
+      'Hosted baseline doc must describe the required hosted readiness checks.'
+    ],
+    [
+      hostedBaselineDoc,
+      /## Release-stage Meaning[\s\S]*not, by itself, enough to justify `rc`[\s\S]*real smoke coverage on this exact operated mode[\s\S]*relay\/UI\/package contract synchronized[\s\S]*stable recovery semantics/,
+      'Hosted baseline doc must keep the rc blocker explicit.'
+    ],
+    [
+      packageReadme,
+      /docs\/16-hosted-approval-operated-baseline\.md/,
+      'Package README must keep the hosted baseline doc link visible.'
+    ],
+    [
+      rootReadme,
+      /Release-stage judgment:[\s\S]*the project should remain on `beta` today[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
+      'Root README must keep the release-stage judgment visible.'
+    ],
+    [
+      plans,
+      /### Release-stage gates[\s\S]*`beta`\s*->\s*`rc`\s*->\s*`1\.0\.0`[\s\S]*remain on `beta`[\s\S]*Gate: `beta`\s*->\s*`rc`[\s\S]*Gate: `rc`\s*->\s*`1\.0\.0`/,
+      'PLANS.md must keep the release-stage gates explicit.'
+    ],
+    [
+      projectState,
+      /### Release-stage assessment[\s\S]*stay on `beta`[\s\S]*do not claim `rc` readiness yet[\s\S]*do not move to `1\.0\.0` yet[\s\S]*Gate to move from `beta` to `rc`[\s\S]*Gate to move from `rc` to `1\.0\.0`/,
+      'PROJECT_STATE.md must keep the release-stage assessment explicit.'
+    ]
+  ];
+
+  for (const [source, pattern, message] of requiredChecks) {
+    assert.match(source, pattern, message);
+  }
+}
+
+function assertReleaseArtifact(changelog, releaseNotes) {
+  assert.match(
+    changelog,
+    /# Changelog[\s\S]*## Current Release[\s\S]*<!-- release-current:start -->[\s\S]*<!-- release-current:end -->[\s\S]*## History[\s\S]*<!-- release-history:start -->[\s\S]*<!-- release-history:end -->/,
+    'CHANGELOG.md must keep the managed current/history marker blocks.'
+  );
+
+  const requiredReleaseNotesSections = [
+    /<!-- release-meta:start -->[\s\S]*Release date: `[^`]+`[\s\S]*Dist-tags:[\s\S]*Release stage: `[^`]+`[\s\S]*<!-- release-meta:end -->/,
+    /## Summary/,
+    /## Highlights/,
+    /## Validation/,
+    /## Known Limits/,
+    /## References/
+  ];
+
+  for (const pattern of requiredReleaseNotesSections) {
+    assert.match(
+      releaseNotes,
+      pattern,
+      `Versioned release notes are missing required structure: ${pattern}`
+    );
+  }
+
+  assert.doesNotMatch(
+    releaseNotes,
+    /Fill in the public-facing summary|Fill in the most important operator-visible|^TODO\b/im,
+    'Versioned release notes must be filled in before release; placeholder text is not allowed.'
+  );
 }
 
 function assertTopLevelHelpContract(helpOutput) {
@@ -435,6 +609,7 @@ function assertTopLevelHelpContract(helpOutput) {
     'One-shot CLI: npx zk-agent-cli --help',
     'Global CLI: npm install -g zk-agent-cli',
     'Canonical terminal path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    'Validated first-run baseline: setup defaults to zksync-sepolia and the local connector at http://localhost:4444',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
     'Add RPC env vars later, before live reads or broadcasts.',
     'If local setup or wallet state is unclear: zk-agent doctor',
@@ -457,6 +632,7 @@ function assertSetupHelpContract(helpOutput) {
   const requiredSnippets = [
     'What setup does:',
     'Writes the local default chain and connector URL used by the first-run path.',
+    'Validated first-run baseline: Default chain: zksync-sepolia Connector URL: http://localhost:4444 Override --default-chain or --connector-url only when you intentionally deviate from that path.',
     'After setup, stay on the canonical local-first path: zk-agent next zk-agent wallet create --await-local zk-agent next',
     'If the browser is not colocated with this terminal, switch at the wallet step: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
     'Environment note: No custom .env is required for setup, next, or wallet request creation. Add RPC env vars later, before live reads or broadcasts.'
@@ -475,8 +651,10 @@ function assertNextHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
     'Use `next` as the product entrypoint:',
+    'Stay on `next` until it points you at a wallet-specific or workflow-specific blocker.',
     'Fresh local-first routing: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next',
     'If the browser is remote, switch at the wallet step instead of waiting for a local callback: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'If setup has not run yet, `next` will send you back to `zk-agent setup` first.',
     'Continue a stored workflow checkpoint: zk-agent next --request-id <id>',
     'Stay on the wallet layer only when you need wallet-specific remediation: zk-agent wallet next --name main',
     'Switch to the hosted remote-approval path only when the browser is not colocated: zk-agent wallet --help',
@@ -500,6 +678,7 @@ function assertDoctorHelpContract(helpOutput) {
     'zk-agent doctor --wallet main',
     'zk-agent doctor --wallet main --relay-url https://relay.example.com',
     'Default behavior: Inspects saved config, local wallet approval metadata, local signer state, and the shortest next command without requiring live RPC reads.',
+    'Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
     'Remote-browser recovery path: Pass --relay-url when you want the remote approval fallback commands to use a concrete relay URL instead of a placeholder.'
   ];
 
@@ -593,10 +772,11 @@ function assertWalletHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
     'Local-first wallet path:',
+    'Use this layer when the blocker is specifically about wallet approval or signer state. Otherwise start with `zk-agent next` or `zk-agent doctor`.',
     'First bootstrap: zk-agent wallet create --await-local zk-agent next',
     'Restore approval metadata for an existing wallet: zk-agent wallet reapprove --name main --await-local zk-agent next',
     'Attach a local signer when approval is still present: zk-agent wallet signer attach --name main --private-key <hex> zk-agent next',
-    'Hosted remote approval path: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent next'
+    'Hosted remote approval path: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent next Use this only when the browser is not colocated with the terminal.'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -890,12 +1070,121 @@ function assertAgentStatusPayload(payload) {
   );
 }
 
+function assertSetupPayload(payload) {
+  assert.equal(payload.ok, true);
+  assert.equal(payload.config?.defaultChain, 'zksync-sepolia');
+  assert.equal(payload.config?.connectorUrl, 'http://localhost:4444');
+  assert.equal(payload.config?.provider, 'zksync-sso');
+  assert.deepEqual(payload.onboardingSummary, {
+    stage: 'wallet-bootstrap',
+    baseline: 'local-first',
+    localOnly: true,
+    configExists: true,
+    walletExists: null,
+    approvalReady: null,
+    localExecutionKeyStored: null,
+    defaultChain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    relayUrl: null,
+    nextAction: 'zk-agent next',
+    notes: [
+      'Setup only writes local defaults and does not inspect wallet state.',
+      'Stay on zk-agent next so the product entrypoint can decide between wallet bootstrap and workflow guidance.'
+    ]
+  });
+  assert.deepEqual(payload.recommendedCommands, {
+    next: 'zk-agent next',
+    inspectDefaults: 'zk-agent defaults',
+    createWallet: 'zk-agent wallet create --await-local',
+    relayInspect: 'zk-agent relay inspect --relay-url <url>',
+    createWalletRemote: 'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+    afterWalletApproval: 'zk-agent next'
+  });
+}
+
+function assertNextSetupPayload(payload) {
+  assert.equal(payload.ok, true);
+  assert.equal(payload.scope, 'setup');
+  assert.equal(payload.nextCommand, 'zk-agent setup');
+  assert.deepEqual(payload.onboardingSummary, {
+    stage: 'setup',
+    baseline: 'local-first',
+    localOnly: true,
+    configExists: false,
+    walletExists: false,
+    approvalReady: null,
+    localExecutionKeyStored: null,
+    defaultChain: null,
+    connectorUrl: null,
+    relayUrl: null,
+    nextAction: 'zk-agent setup',
+    notes: [
+      'No local config was found, so setup is still the first required onboarding step.',
+      'This scope is local-only and does not require live RPC reads.'
+    ]
+  });
+  assert.deepEqual(payload.recommendedCommands, {
+    setup: 'zk-agent setup',
+    afterSetup: 'zk-agent next',
+    inspectDefaults: 'zk-agent defaults'
+  });
+}
+
+function assertNextWalletBootstrapPayload(payload) {
+  assert.equal(payload.ok, true);
+  assert.equal(payload.scope, 'wallet-bootstrap');
+  assert.equal(payload.walletName, 'main');
+  assert.equal(payload.nextCommand, 'zk-agent wallet create --await-local');
+  assert.deepEqual(payload.onboardingSummary, {
+    stage: 'wallet-bootstrap',
+    baseline: 'local-first',
+    localOnly: true,
+    configExists: true,
+    walletExists: false,
+    approvalReady: null,
+    localExecutionKeyStored: null,
+    defaultChain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    relayUrl: null,
+    nextAction: 'zk-agent wallet create --await-local',
+    notes: [
+      'Config exists, but no saved wallet record was found for this name yet.',
+      'Use the remote approval fallback only when the browser is not colocated with this terminal.'
+    ]
+  });
+  assert.deepEqual(payload.recommendedCommands, {
+    createWallet: 'zk-agent wallet create --await-local',
+    relayInspect: 'zk-agent relay inspect --relay-url <url>',
+    createWalletRemote:
+      'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+    afterApproval: 'zk-agent next',
+    inspectDefaults: 'zk-agent defaults'
+  });
+}
+
 function assertDoctorSetupPayload(payload) {
   assert.equal(payload.ok, true);
   assert.equal(payload.scope, 'setup');
   assert.equal(payload.walletName, 'main');
   assert.deepEqual(payload.config, { exists: false });
   assert.equal(payload.wallet, null);
+  assert.deepEqual(payload.onboardingSummary, {
+    stage: 'setup',
+    baseline: 'local-first',
+    localOnly: true,
+    configExists: false,
+    walletExists: false,
+    approvalReady: null,
+    localExecutionKeyStored: null,
+    defaultChain: null,
+    connectorUrl: null,
+    relayUrl: null,
+    nextAction: 'zk-agent setup',
+    notes: [
+      'Local config is missing, so the canonical operator path should start with setup.',
+      'Doctor is local-only by default and does not require live RPC reads.'
+    ]
+  });
   assert.equal(payload.summary?.stage, 'setup');
   assert.equal(payload.summary?.configExists, false);
   assert.equal(payload.summary?.walletExists, false);
@@ -915,7 +1204,15 @@ function assertDoctorSetupPayload(payload) {
 function assertOperatorJsonContract(doc) {
   const requiredChecks = [
     [
-      /## `zk-agent doctor`[\s\S]*local-only onboarding and wallet-recovery diagnostic[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`scope`[\s\S]*`walletName`[\s\S]*`config`[\s\S]*`wallet`[\s\S]*`summary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `scope` values:[\s\S]*`setup`[\s\S]*`wallet-bootstrap`[\s\S]*`wallet-recovery`[\s\S]*`wallet-ready`[\s\S]*Current stable `config` fields:[\s\S]*`exists`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`provider`[\s\S]*Current stable `wallet` fields when present:[\s\S]*`exists`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`smartAccountProfileId`[\s\S]*`syncedAt`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`legacySessionKeyStored`[\s\S]*`signerType`[\s\S]*`signerAddress`[\s\S]*`signerSource`[\s\S]*Current stable `summary` fields:[\s\S]*`stage`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`localOnly`[\s\S]*`notes`/,
+      /### `onboardingSummary`[\s\S]*Current stable fields:[\s\S]*`stage`[\s\S]*`baseline`[\s\S]*`localOnly`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`notes`/,
+      'Operator JSON contract doc must describe the shared onboardingSummary contract.'
+    ],
+    [
+      /## `zk-agent setup`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`config`[\s\S]*`onboardingSummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable baseline defaults on the validated first-run path:[\s\S]*`defaultChain = "zksync-sepolia"`[\s\S]*`connectorUrl = "http:\/\/localhost:4444"`/,
+      'Operator JSON contract doc must describe the setup onboarding contract.'
+    ],
+    [
+      /## `zk-agent doctor`[\s\S]*local-only onboarding and wallet-recovery diagnostic[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`scope`[\s\S]*`walletName`[\s\S]*`config`[\s\S]*`wallet`[\s\S]*`onboardingSummary`[\s\S]*`summary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `scope` values:[\s\S]*`setup`[\s\S]*`wallet-bootstrap`[\s\S]*`wallet-recovery`[\s\S]*`wallet-ready`[\s\S]*Current stable `config` fields:[\s\S]*`exists`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`provider`[\s\S]*Current stable `wallet` fields when present:[\s\S]*`exists`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`smartAccountProfileId`[\s\S]*`syncedAt`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`legacySessionKeyStored`[\s\S]*`signerType`[\s\S]*`signerAddress`[\s\S]*`signerSource`[\s\S]*Current stable `summary` fields:[\s\S]*`stage`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`localOnly`[\s\S]*`notes`/,
       'Operator JSON contract doc must describe the doctor top-level contract.'
     ],
     [
@@ -935,15 +1232,19 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the doctor wallet-ready contract.'
     ],
     [
-      /"scope": "setup"[\s\S]*"nextCommand": "zk-agent setup"[\s\S]*"recommendedCommands": \{[\s\S]*"setup": "zk-agent setup"[\s\S]*"afterSetup": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      /## `zk-agent next`[\s\S]*### Shared fields[\s\S]*`scope`[\s\S]*`nextCommand`[\s\S]*`onboardingSummary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`recommendedCommands`/,
+      'Operator JSON contract doc must describe the shared next onboardingSummary contract.'
+    ],
+    [
+      /"scope": "setup"[\s\S]*"nextCommand": "zk-agent setup"[\s\S]*"onboardingSummary": \{[\s\S]*"stage": "setup"[\s\S]*"baseline": "local-first"[\s\S]*"localOnly": true[\s\S]*"nextAction": "zk-agent setup"[\s\S]*"recommendedCommands": \{[\s\S]*"setup": "zk-agent setup"[\s\S]*"afterSetup": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
       'Operator JSON contract doc must describe the setup-scope recommendedCommands contract.'
     ],
     [
-      /"scope": "wallet-bootstrap"[\s\S]*"nextCommand": "zk-agent wallet create --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"createWallet": "zk-agent wallet create --await-local"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url <url>"[\s\S]*"createWalletRemote": "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code"[\s\S]*"afterApproval": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      /"scope": "wallet-bootstrap"[\s\S]*"nextCommand": "zk-agent wallet create --await-local"[\s\S]*"onboardingSummary": \{[\s\S]*"stage": "wallet-bootstrap"[\s\S]*"baseline": "local-first"[\s\S]*"defaultChain": "zksync-sepolia"[\s\S]*"connectorUrl": "http:\/\/localhost:4444"[\s\S]*"nextAction": "zk-agent wallet create --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"createWallet": "zk-agent wallet create --await-local"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url <url>"[\s\S]*"createWalletRemote": "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code"[\s\S]*"afterApproval": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
       'Operator JSON contract doc must describe the wallet-bootstrap recommendedCommands contract.'
     ],
     [
-      /"scope": "wallet"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
+      /"scope": "wallet"[\s\S]*"onboardingSummary": \{[\s\S]*"stage": "wallet-ready"[\s\S]*"baseline": "local-first"[\s\S]*"localOnly": false[\s\S]*"defaultChain": "zksync-sepolia"[\s\S]*"connectorUrl": "http:\/\/localhost:4444"[\s\S]*"nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
       'Operator JSON contract doc must describe the wallet-scope discovery recommendedCommands contract.'
     ],
     [
@@ -963,16 +1264,20 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the tokenized workflow discovery follow-up contract.'
     ],
     [
-      /### `workflow plan`[\s\S]*`inspection`[\s\S]*`plan`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When the current intent is tokenized[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      /### `workflow plan`[\s\S]*`inspection`[\s\S]*`plan`[\s\S]*`workflowEntrySummary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When the current intent is tokenized[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
       'Operator JSON contract doc must describe the workflow plan tokenDiscoverySummary contract.'
     ],
     [
-      /### `workflow auto`[\s\S]*`walletApproval`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      /### `workflow auto`[\s\S]*`walletApproval`[\s\S]*`workflowEntrySummary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`workflowEntrySummary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
       'Operator JSON contract doc must describe the workflow runtime tokenDiscoverySummary contract.'
     ],
     [
       /### `workflow auto`[\s\S]*`walletApprovalSummary`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`walletApprovalSummary`[\s\S]*Current stable `walletApprovalSummary` fields on workflow runtime surfaces when[\s\S]*`status`[\s\S]*`walletRequestId`[\s\S]*`reusedRequest`[\s\S]*`relayPublished`[\s\S]*`nextAction`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`/,
       'Operator JSON contract doc must describe the workflow walletApprovalSummary contract.'
+    ],
+    [
+      /`workflowEntrySummary` now provides the entrypoint-level compatibility contract[\s\S]*Current stable `workflowEntrySummary` fields:[\s\S]*`entrypoint`[\s\S]*`command`[\s\S]*`source`[\s\S]*`workflowRequestId`[\s\S]*`walletName`[\s\S]*`intent`[\s\S]*`runtimeStatus`[\s\S]*`readyForGoal`[\s\S]*`walletApprovalStatus`[\s\S]*`checkpointPersisted`[\s\S]*`nextAction`[\s\S]*### `workflowEntrySummary` examples[\s\S]*"command": "plan"[\s\S]*"command": "next"[\s\S]*"walletApprovalStatus": "relay-pending"/,
+      'Operator JSON contract doc must describe the shared workflowEntrySummary contract.'
     ],
     [
       /### `workflow auto`[\s\S]*`summary`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`summary`[\s\S]*Current stable `summary` fields on workflow runtime surfaces:[\s\S]*`status`[\s\S]*`readyForGoal`[\s\S]*`nextCommand`[\s\S]*`blockingActionIds`[\s\S]*`fundingProgress`[\s\S]*On `workflow auto\|run\|resume`, `summary\.status` mirrors `result\.stage`[\s\S]*workflow readiness status/,
@@ -1741,10 +2046,28 @@ function assertStandaloneSmoke(extractedPackageDir) {
     const agentStatusPayload = JSON.parse(agentStatusOutput);
     assertAgentStatusPayload(agentStatusPayload);
 
+    const nextSetupOutput = runPackedCliJson(extractedPackageDir, homeDir, ['next', '--json']);
+    assertNoWorkspaceLeak(nextSetupOutput);
+    const nextSetupPayload = JSON.parse(nextSetupOutput);
+    assertNextSetupPayload(nextSetupPayload);
+
     const doctorOutput = runPackedCliJson(extractedPackageDir, homeDir, ['doctor', '--json']);
     assertNoWorkspaceLeak(doctorOutput);
     const doctorPayload = JSON.parse(doctorOutput);
     assertDoctorSetupPayload(doctorPayload);
+
+    const setupOutput = runPackedCliJson(extractedPackageDir, homeDir, ['setup', '--json']);
+    assertNoWorkspaceLeak(setupOutput);
+    const setupPayload = JSON.parse(setupOutput);
+    assertSetupPayload(setupPayload);
+
+    const nextWalletBootstrapOutput = runPackedCliJson(extractedPackageDir, homeDir, [
+      'next',
+      '--json'
+    ]);
+    assertNoWorkspaceLeak(nextWalletBootstrapOutput);
+    const nextWalletBootstrapPayload = JSON.parse(nextWalletBootstrapOutput);
+    assertNextWalletBootstrapPayload(nextWalletBootstrapPayload);
 
     const importOutput = runPackedCliJson(extractedPackageDir, homeDir, [
       'wallet',
@@ -2125,11 +2448,14 @@ async function main() {
   const pkg = readPackageJson();
   const readme = readPackageReadme();
   const rootReadme = readRootReadme();
+  const changelog = readChangelog();
   const pluginManifest = readPluginManifest();
   const plans = readPlans();
   const projectState = readProjectState();
   const releaseGateDoc = readReleaseGateDoc();
   const operatorJsonContractDoc = readOperatorJsonContractDoc();
+  const hostedBaselineDoc = readHostedApprovalBaselineDoc();
+  const releaseNotes = readReleaseNotes(pkg.version);
   const quickstart = readSkillQuickstart();
   const skillGuide = readSkillGuide();
   assertVersionAlignment(workspacePkg, pkg);
@@ -2137,10 +2463,21 @@ async function main() {
   assertPluginManifest(pluginManifest, pkg);
   assertPackageReadme(readme);
   assertRepositoryDocs(rootReadme, quickstart, skillGuide);
+  assertReleaseStageDocs({
+    packageReadme: readme,
+    rootReadme,
+    plans,
+    projectState,
+    releaseGateDoc,
+    hostedBaselineDoc
+  });
+  assertReleaseArtifact(changelog, releaseNotes);
   assertOperatorJsonContract(operatorJsonContractDoc);
   assertCurrentVersionDocs({
     version: pkg.version,
     rootReadme,
+    changelog,
+    releaseNotes,
     plans,
     projectState,
     releaseGateDoc

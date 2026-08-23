@@ -2,17 +2,17 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-22
-- Latest commit at write time: `2a084c1`
+- Last updated: 2026-08-23
+- Latest commit at write time: `411504b`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with workflow
-  runtime summary and state/doc productization follow-up edits
+  state/plan refresh based on the latest `polygon-agent-cli` comparison
 
 ## Current status
 
 The product baseline is already closed for the core zkSync-native path:
 
-- `zk-agent-cli@0.1.0-beta.9` is live and both npm dist-tags `beta` and
+- `zk-agent-cli@0.1.0-beta.10` is live and both npm dist-tags `beta` and
   `latest` point there
 - the public package, local-first wallet/session lifecycle, hosted relay path,
   and flagship `workflow pay` AA flow all exist and have real validation proof
@@ -20,242 +20,148 @@ The product baseline is already closed for the core zkSync-native path:
   missing chain mechanics
 - broader DeFi breadth remains deferred unless explicitly resumed
 
+### Release-stage assessment
+
+Current judged release stage:
+
+- stay on `beta`
+- do not claim `rc` readiness yet
+- do not move to `1.0.0` yet
+
+Why the project is still `beta`:
+
+- the core chain path is proven, but the product contract is not fully closed
+- the main remaining gaps are productization gaps, not missing zkSync
+  execution mechanics
+- the biggest blockers are still:
+  - hosted approval is validated, but not yet specified and exercised as an
+    operated product contract
+  - release/version/doc discipline is still too manual for a formal release
+  - the public machine-readable contract is much better now, but it is not yet
+    frozen as a formal compatibility surface
+
+Gate to move from `beta` to `rc`:
+
+1. one canonical operator path is fully aligned across root README, package
+   README, CLI help, skills, and runtime JSON contracts
+2. hosted approval has an explicit operated contract:
+   supported deployment shape, `publicOrigin`, persistence model, TTL/expiry,
+   restart behavior, and approval/status URL semantics
+3. release flow is repeatable without relying on operator memory:
+   packaged install, version sync, dist-tag behavior, README/help sync, and
+   release validation all run as one stable gate
+4. public machine-readable contracts are intentionally frozen for the main
+   operator path:
+   `onboardingSummary`, `workflowEntrySummary`, `walletApprovalSummary`, and
+   the corresponding next-step command surfaces are treated as compatibility
+   boundaries
+5. local recovery and hosted recovery semantics are stable:
+   no known state-confusion bug around approval readiness, local signer
+   readiness, relay-pending state, or expired requests on the default path
+
+Gate to move from `rc` to `1.0.0`:
+
+1. all `rc` gates stay closed under repeated real release validation
+2. at least one additional zkSync-native product slice beyond flagship
+   `workflow pay` is packaged as a real surface, most likely discovery,
+   funding, or paymaster readiness
+3. two consecutive end-to-end release rehearsals complete without contract
+   churn on the public default path
+4. no known release-blocking issue remains on:
+   packaged install, local-first wallet bootstrap/recovery, hosted approval,
+   or flagship `workflow pay`
+
+Not required for `1.0.0`:
+
+- broad DeFi feature-count parity with Polygon
+- full ecosystem/app parity
+- broad AA profile expansion beyond the current `sed-lite` default path
+- resuming the deferred DeFi backlog by default
+
 ### Current priorities
+
+This repository is now in a product-shell phase, not a chain-mechanics phase.
 
 Current ordered priorities:
 
-1. hosted remote approval hardening beyond the current file-backed prototype
-2. release/version/doc alignment automation
-3. operator-informed discovery and flagship UX polish
-4. public install/onboarding maintenance
-5. broader DeFi breadth only when it is explicitly resumed
+1. simplify the public shell and onboarding around one obvious operator path
+2. define an operated hosted-approval baseline beyond the current prototype
+3. reduce release/version/doc drift through stronger automation
+4. package the next zkSync-native product vertical after `workflow pay`
+5. keep broader DeFi breadth deferred unless it is deliberately resumed
 
-Current concrete interpretation and constraints:
+Current interpretation after the latest `polygon-agent-cli` comparison:
 
-Architecture baseline to keep in mind:
+- the remaining gap is mostly public-facing productization, not missing core
+  execution capability
+- the strongest current assets are still:
+  - local-first wallet/session lifecycle
+  - signer/session separation
+  - zkSync-native AA/paymaster depth on `sed-lite`
+  - workflow-first operator recovery
+- the biggest remaining weakness is that the repo still exposes too much
+  internal complexity at the public surface compared with the Polygon
+  reference
 
-- signer/session separation is now landed end to end for the current product
-  path:
-  - wallet storage separates approval metadata from local execution authority
-  - `wallet status|next` and workflow remediation distinguish `reapprove` from
-    `wallet signer attach`
-  - relay/browser approval can restore approval metadata without claiming local
-    write readiness
-  - the CLI has explicit `wallet signer show|attach|remove` management commands
-- the intended long-term end-state is still documented in
-  `docs/14-best-session-model.md`, but the current baseline no longer treats
-  signer/session separation as an open blocking architecture thread
-- the legacy `sessionPayload.sessionPrivateKey` mirror remains intentionally
-  for compatibility; removing it entirely is optional cleanup, not the active
-  product priority
+Architecture baseline to keep fixed:
 
-1. hosted relay hardening
-   - reduce ambiguity around reported `origin` vs `publicOrigin` under
-     reverse-proxy or tunnel deployments
-   - tighten the deployment contract shared by `/health`, `relay inspect`,
-     and share-link generation
+- signer/session separation is landed end to end for the current product path
+- relay/browser approval can restore approval metadata without claiming local
+  write readiness
+- the legacy `sessionPayload.sessionPrivateKey` mirror remains compatibility
+  baggage, not an active roadmap item
+- `docs/14-best-session-model.md` still describes the longer-term design
+  direction, but that architecture question is no longer blocking release work
+
+Current workstreams:
+
+1. public shell and onboarding
+   - keep the root README short and front-door-oriented
+   - keep the package README as the canonical operator manual
+   - keep `setup`, `next`, `doctor`, and `wallet create|reapprove` aligned on
+     one first-run story
    - current baseline improvement:
-     `relay serve` / `relay inspect` / `/health` now expose the hosted-relay
-     contract directly:
-     `origin`, `publicOrigin`, `publicOriginSource`, `stateBackend`,
-     `deploymentScope`, `sameHostRestartPersists`, `shareLinkBaseUrl`, and
-     `statusApiBaseUrl`
+     `setup` now defaults the validated first-run path to `zksync-sepolia`
+     plus the local connector at `http://localhost:4444`, and the CLI help,
+     root README, package README, and primary skills now all say that
+     explicitly
+   - runtime contract improvement:
+     `setup`, `next`, and `doctor` now emit a shared machine-readable
+     `onboardingSummary`, while the runtime `workflow` entry commands now emit
+     a shared `workflowEntrySummary` across `plan/start/pay/auto/run/status/
+     next/resume` so the public operator path stays stable for both humans and
+     agent wrappers
+   - preserve the current public default:
+     no custom `.env` is normally required until the operator intentionally
+     switches to custom live infrastructure
+2. hosted approval productization
+   - keep the validated hosted path, but move past single-host/file-backed
+     assumptions
+   - make `publicOrigin`, deployment scope, state backend, and approval URL
+     behavior an explicit operated contract
+   - keep real hosted smoke coverage on the intended deployment mode, not only
+     local prototype semantics
+3. release/version/doc discipline
+   - keep `release:sync-version` and `release:check`
+   - reduce the remaining manual publish, dist-tag, changelog, and repo-doc
+     sync steps
+   - keep the release-stage docs, hosted operated-baseline doc, and packaged
+     onboarding JSON contract under the same machine-checked release gate
    - current baseline improvement:
-     relay-backed wallet create/reapprove outputs, workflow approval outputs,
-     agent-tool workflow wrappers, and the manual `smoke:remote-approval`
-     path now all point at the one-shot remote-approval path with
-     `--wait-relay --prompt-code`
-   - current baseline improvement:
-     `relay serve` and `relay inspect` now also emit the same compressed
-     `deploymentSummary` payload for hosted deployment state, so public-origin
-     readiness and the current single-host filesystem-state contract stay
-     machine-readable without re-parsing the full raw relay response
-   - current baseline improvement:
-     `relay serve` and `relay inspect` now also emit one shared
-     `approvalEndpointSummary` payload, so local-only, direct-hosted, and
-     proxy-hosted approval entrypoint modes stay explicit for operators and
-     harnesses
-   - current baseline improvement:
-     relay/manual approval no longer self-loops on stale hosted requests:
-     `wallet request relay-status` now returns explicit `share_url` /
-     `status_url` / `approval_url`, expired relay states now point at
-     `relay inspect` plus remote request reissue, and the same timeout/expiry
-     recovery guidance now also appears on `wallet create|reapprove --wait-relay`
-     with stable `RELAY_APPROVAL_*` error codes and detail fields for JSON
-     consumers
-   - current baseline improvement:
-     `wallet request relay-publish`, `wallet request relay-status`, and the
-     timeout/expiry relay-approval errors now also emit one shared
-     `relayRecoverySummary` payload, so manual relay fallback state stays
-     machine-readable across publish, poll, approve, and remote reissue paths
-   - current baseline improvement:
-     direct `wallet create --relay-url` and `wallet reapprove --relay-url`
-     publish outputs now also emit that same `relayRecoverySummary` contract,
-     so the high-frequency remote-approval entrypoints no longer diverge from
-     the lower-level manual relay fallback surface
-   - current baseline improvement:
-     root help, `next --help`, `wallet --help`, the root README, the packaged
-     CLI README, and the primary repo skills now all describe the same
-     local-first baseline, with hosted relay approval positioned explicitly as
-     the fallback rather than the default
-2. release/version/doc discipline
-   - the product now has the public package, public beta line, hosted relay
-     proof, and flagship AA proof; the remaining release risk is operational
-     drift rather than missing package code
-   - version bumps, npm publish, dist-tag alignment, and repo-doc refresh are
-     still too manual compared with the reference repo
-   - current baseline improvement:
-     the repo now ships `pnpm release:sync-version`, which syncs the workspace
-     version, published package version, plugin manifest version, and the
-     current public-version references in the root state docs before publish
-   - current baseline improvement:
-     `release:check` now rejects drift across package/root README, `skills/`,
-     current-version references in `README.md` / `PLANS.md` /
-     `PROJECT_STATE.md` / `docs/11-npm-release-gate.md`, and the packed or
-     installed top-level/public help surfaces
-   - current baseline improvement:
-     the same gate now also locks the discovery/defaults/workflow recovery
-     contract across README, skills, operator JSON docs, and packed help:
-     `defaults`, `assets`, `tokens`, `resolve-token`, and `workflow --help`
-   - current baseline improvement:
-     the same gate now also locks hosted relay, optional local identity, and
-     lower-level recovery surfaces on the published CLI:
-     `relay --help`, `agent --help`, `wallet request --help`,
-     `wallet signer --help`, `wallet smart-account --help`, `bridge`,
-     `send-token`, `swap`, `fund`, `deposit`, `withdraw`, and
-     `agent status --json`
-3. packaged flagship and discovery UX polish
-   - the real-user proof is no longer pending on the current baseline:
-     on `2026-08-10`, a real browser-mediated hosted reapproval completed for
-     `sed-lite-sa-v2` on a public frp-backed relay request
-     `53328a56`, and the same wallet then completed an approval-based flagship
-     native-send broadcast with tx hash
-     `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`
-   - the persisted workflow record for that execution is request
-     `d5181c7e`, which now reports `lastRun.stage = goal-executed`,
-     `lastRun.mode = broadcast`, and `status = ready`
-   - narrow the top-level operator surfaces that matter most in real usage:
-     `next`, `wallet create|reapprove`, `relay serve`, `workflow pay`, and the
-     surrounding token/asset discovery path
-   - current baseline improvement:
-     `defaults`, `assets`, `tokens`, `resolve-token`, and `workflow --help`
-     now all point at the same discovery and token-recovery path, so the
-     operator can stay inside CLI help instead of falling back to repo prose
-   - current baseline improvement:
-     `assets`, `tokens`, and `resolve-token` now also expose compressed
-     operator-facing `discoverySummary` payloads, and `smoke:discovery` plus
-     the operator JSON doc/release gate now validate that discovery contract
-   - current baseline improvement:
-     `balances --owned-tokens` and tokenized workflow follow-up/error surfaces
-     now also expose compressed discovery summaries, so the workflow recovery
-     path stays machine-readable without reverse-parsing raw command strings
-   - current baseline improvement:
-     top-level `next`, `wallet next`, and workflow follow-up restore now also
-     emit the same compressed `tokenDiscoverySummary` contract for
-     wallet-scoped or tokenized recovery paths, so discovery routing stays
-     machine-readable across the operator handoff surfaces that matter most
-   - current baseline improvement:
-     the `approval-based` flagship pay path now surfaces paymaster fee-token
-     discovery commands directly in `next` and workflow follow-ups, so the
-     operator gets `tokens --role paymaster-fee-token` and the matching
-     role-scoped `resolve-token` without having to infer that recovery path
-   - current baseline improvement:
-     `workflow auto`, `workflow status`, `workflow next`, and `workflow resume`
-     now also expose one compressed `walletApprovalSummary` contract alongside
-     the full `walletApproval` payload, so automation can distinguish
-     `await-local`, `relay-pending`, and `approved` without reverse-parsing
-     request metadata, relay fields, and next-step command maps separately
-   - current baseline improvement:
-     `workflow auto`, `workflow status`, `workflow run`, `workflow resume`,
-     and `workflow next` now also expose one shared runtime `summary`
-     contract, so wrappers can read readiness, blockers, next command, and the
-     current executed-vs-pending state without re-parsing the larger
-     `status` / `result` payloads first
-   - current baseline improvement:
-     `wallet status` and `wallet next` now also expose the same approval-based
-     paymaster fee-token discovery follow-ups as top-level `next`, so
-     wallet-layer recovery no longer loses the canonical
-     `tokens --role paymaster-fee-token` and matching role-scoped
-     `resolve-token` path
-   - current baseline improvement:
-     top-level `next --request-id` now also exposes a compressed workflow
-     `summary` contract alongside the full restored workflow `result`, so
-     wrappers can consume readiness, next action, blockers, and funding state
-     without parsing the entire workflow status payload first
-   - the remaining gap is making those surfaces require less local knowledge
-     about tokens, validated defaults, and which discovery command should come
-     next
-4. public install/onboarding maintenance
-   - the public entrypoint story is now substantially aligned across the root
-     README, package README, CLI help, and primary skills
-   - current baseline improvement:
-     `setup`, top-level `next`, root help, the packaged README, and the main
-     skills now all show the same first-run fork between local
-     `--await-local` approval and relay-backed remote approval, and now say
-     explicitly that a custom `.env` is usually not required until live reads
-     or broadcasts
-   - current baseline improvement:
-     the top-level `doctor` command now compresses local config, wallet
-     approval metadata, and signer readiness into one local-only diagnostic,
-     and the public docs/release gate now keep that recovery surface aligned
-   - current baseline improvement:
-     `relay serve` and `relay inspect` now also expose one shared
-     `hostedReadinessSummary` plus an explicit
-     `recommendedCommands.restartWithPublicOrigin` repair path, so hosted
-     readiness no longer depends on operators reverse-parsing multiple booleans
-   - current baseline improvement:
-     `relay --help`, `agent --help`, and the package/root README now surface
-     the hosted remote-approval fallback, direct-command escape hatches, and
-     the optional local operator-identity path directly on the public surface
-   - current baseline improvement:
-     the repo now ships a native ChatGPT/Codex plugin manifest at
-     `.codex-plugin/plugin.json` for the maintained `skills/` bundle, while
-     `npx skills add ...` remains the direct compatible-harness repo-skill
-     install path
-   - current baseline improvement:
-     on `2026-08-14`, the external `skills` CLI successfully parsed this repo
-     from a clean Node 24 path with
-     `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list`
-     and recognized the 4 expected skills:
-     `zk-agent-cli`, `zk-aa`, `zk-defi`, and `zk-relay`
-   - current baseline improvement:
-     on `2026-08-15`, a real project-scoped install smoke also succeeded from
-     a clean Node 24 path with
-     `npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --skill '*' --agent codex --copy -y`
-     and installed the 4 expected skills into a temporary project's
-     `./.agents/skills/` tree for Codex
-   - current baseline improvement:
-     the repo now also ships a local Codex plugin bootstrap helper:
-     `pnpm codex:plugin:doctor` inspects the local plugin state, and
-     `pnpm codex:plugin:install-local` wires this checkout into the default
-     personal marketplace plus `~/plugins/zk-agent-cli`
-   - current baseline improvement:
-     on `2026-08-15`, after upgrading to `codex-cli 0.147.0`, a real native
-     plugin install smoke also succeeded on this machine:
-     `codex plugin marketplace list --json` recognized `personal`,
-     `codex plugin add zk-agent-cli@personal --json` installed the plugin into
-     `/Users/mac/.codex/plugins/cache/personal/zk-agent-cli/0.1.0-beta.9`,
-     and `codex plugin list --json` now reports
-     `zk-agent-cli@personal` as installed and enabled from
-     `~/plugins/zk-agent-cli`
-   - current caution:
-     `--all --agent codex` is not a safe equivalent for single-agent smoke:
-     the external `skills` CLI currently broadens that combination and
-     installs to every detected agent target
-   - current caution:
-     older Codex CLI builds may not expose the `codex plugin` top-level
-     subcommand even when newer builds do; keep `/plugins` documented as the
-     fallback install surface rather than assuming CLI parity everywhere
-   - current baseline improvement:
-     on `2026-08-15`, a fresh `codex exec --ephemeral` session outside the
-     repository also picked up the installed native plugin and read both the
-     top-level `zk-agent-cli` skill and the split `zk-aa` skill from the
-     personal plugin cache
-   - the remaining work here is contract maintenance after future releases,
-     not missing native-plugin pickup proof on this machine
-5. DeFi breadth only on explicit restart
-   - do not let broader swap/deposit/withdraw breadth silently reclaim the
-     default roadmap without a deliberate product decision
+     `release:sync-version` now also maintains `CHANGELOG.md` plus a
+     versioned `docs/releases/<version>.md` release artifact scaffold, and
+     `release:draft-notes` can upsert the repo-owned `Draft Input` block for
+     that version from a chosen git range
+   - target one repeatable release flow that does not rely on hand-auditing
+     version references after publish
+4. post-flagship product slice
+   - do not chase Polygon feature count directly
+   - choose one real zkSync-native vertical after `workflow pay`, most likely
+     around discovery, funding, or paymaster readiness rather than generic DeFi
+     sprawl
+5. DeFi breadth remains explicit backlog only
+   - broader swap/deposit/withdraw coverage should not silently take back the
+     main roadmap without an explicit product decision
 
 ### Current validated product baseline
 
@@ -271,6 +177,15 @@ Architecture baseline to keep in mind:
 - release discipline is real:
   - `release:check` covers packaged install, hosted relay entrypoint, runtime
     floor, and package README contract
+  - `release:check` now also enforces the release-stage docs, the hosted
+    operated-baseline doc, and the packaged `setup/next/doctor`
+    `onboardingSummary` contract
+  - `release:check` now also rejects missing or placeholder-filled current
+    release notes, so changelog/release artifact drift is no longer only a
+    manual review concern
+  - `release:draft-notes` has been validated on `0.1.0-beta.9` and can
+    refresh the versioned release note's git-derived draft block without
+    manual copy/paste
   - `pnpm validate:release` has passed on the supported host runtime
 - the managed sandbox can still produce false negatives for local relay listen
   or DNS, so real release/runtime checks should continue to be verified from
@@ -645,21 +560,30 @@ Important rule:
 ## Main gap versus `polygon-agent-cli`
 
 The remaining gap versus the local `../polygon-agent-cli` reference is no
-longer raw chain mechanics. The shortfalls that still matter are:
+longer raw chain mechanics. After re-reading the reference repo's root README,
+package README, release setup, and skill split, the shortfalls that still
+matter are:
 
-1. public install and onboarding clarity:
-   the product still asks the operator to understand more about package vs
-   repo vs skill entrypoints, connector assumptions, and when `.env` matters
-   than the reference repo asks of its users
-2. hosted relay productization:
-   the path is proven, but the current relay remains a file-backed prototype
-   instead of a clearly operated service baseline
-3. release/version/doc discipline:
-   package publishing works, but the release path is still manual enough to
-   let version/tag/document drift slip through after publish
-4. discovery and asset abstraction polish:
-   the defaults/token-registry structure is real, but the product still needs
-   easier token/asset/position discovery around the canonical validated paths
+1. public shell simplicity:
+   the Polygon root README is a thin front door and its package README is the
+   obvious public manual; `zk-agent-cli` still exposes more root-level process
+   and state detail than a first-time user should need
+2. zero-setup onboarding tightness:
+   the Polygon reference gets closer to install -> login -> fund -> operate,
+   while `zk-agent-cli` still surfaces more early decisions around setup,
+   local-vs-hosted approval, and custom environment expectations
+3. operated hosted-approval baseline:
+   the reference has a clearer hosted login UI + relay deployment shape;
+   `zk-agent-cli` has validation proof but still behaves more like a validated
+   prototype than a well-defined operated service
+4. release/changelog discipline:
+   the reference already has repo-level changeset workflow and changelog
+   output; `zk-agent-cli` has runtime validation gates, but the overall
+   release path is still more manual
+5. post-flagship product slices:
+   the reference exposes distinct verticals such as discovery and polymarket;
+   `zk-agent-cli` intentionally should not copy those, but it still needs one
+   clearer zkSync-native vertical beyond the current flagship pay path
 
 Important counterpoint:
 
@@ -668,8 +592,8 @@ Important counterpoint:
 - zkSync-native AA/paymaster/policy handling is richer than the Polygon
   reference
 
-So the remaining work is the public-facing product shell, not missing core
-execution capability.
+So the remaining work is the public-facing product shell plus one more real
+product slice, not missing core execution capability.
 
 ## Deferred product areas
 

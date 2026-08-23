@@ -47,6 +47,7 @@ import {
   workflowStatusLines,
   type WorkflowFundingStatusCheck,
   type WorkflowIntent,
+  type WorkflowPlan,
   type WorkflowStatusResult,
   type WorkflowSwapProtocol
 } from '../lib/workflow.js';
@@ -266,6 +267,33 @@ interface WorkflowRuntimeSummary {
     terminal: boolean;
     finalized: boolean;
   };
+}
+
+type WorkflowEntryRuntimeStatus = WorkflowPlan['status'] | WorkflowRuntimeSummary['status'];
+
+type WorkflowEntryCommand =
+  | 'plan'
+  | 'start'
+  | 'auto'
+  | 'pay'
+  | 'run'
+  | 'status'
+  | 'next'
+  | 'resume'
+  | WorkflowIntent;
+
+interface WorkflowEntrySummary {
+  entrypoint: 'workflow';
+  command: WorkflowEntryCommand;
+  source: 'input' | 'checkpoint' | null;
+  workflowRequestId: string | null;
+  walletName: string;
+  intent: WorkflowIntent;
+  runtimeStatus: WorkflowEntryRuntimeStatus;
+  readyForGoal: boolean;
+  walletApprovalStatus: WorkflowWalletApprovalSummary['status'] | null;
+  checkpointPersisted: boolean | null;
+  nextAction: string | null;
 }
 
 export interface WorkflowSessionResolution {
@@ -1213,8 +1241,65 @@ function buildWorkflowRuntimeSummary(options: {
   };
 }
 
+function buildWorkflowEntrySummary(input: {
+  command: WorkflowEntryCommand;
+  source?: 'input' | 'checkpoint';
+  requestId?: string;
+  checkpointPersisted?: boolean;
+  plan?: WorkflowPlan;
+  status?: WorkflowStatusResult;
+  result?: WorkflowRunResult;
+  walletApproval?: WorkflowWalletApprovalResult;
+  nextCommand?: string;
+}): WorkflowEntrySummary {
+  if (input.plan) {
+    return {
+      entrypoint: 'workflow',
+      command: input.command,
+      source: input.source || null,
+      workflowRequestId: input.requestId || null,
+      walletName: input.plan.walletName,
+      intent: input.plan.intent,
+      runtimeStatus: input.plan.status,
+      readyForGoal: input.plan.readyForGoal,
+      walletApprovalStatus: null,
+      checkpointPersisted:
+        typeof input.checkpointPersisted === 'boolean' ? input.checkpointPersisted : null,
+      nextAction: input.nextCommand || input.plan.recommendedCommand || null
+    };
+  }
+
+  const runtimeSummary = buildWorkflowRuntimeSummary({
+    status: input.status,
+    result: input.result,
+    nextCommand: input.nextCommand
+  });
+  const walletName = input.result?.walletName ?? input.status?.walletName;
+  const intent = input.result?.intent ?? input.status?.intent;
+
+  if (!walletName || !intent) {
+    throw new Error('Workflow entry summary requires workflow status or execution metadata.');
+  }
+
+  return {
+    entrypoint: 'workflow',
+    command: input.command,
+    source: input.source || null,
+    workflowRequestId: input.requestId || null,
+    walletName,
+    intent,
+    runtimeStatus: runtimeSummary.status,
+    readyForGoal: runtimeSummary.readyForGoal,
+    walletApprovalStatus: buildWorkflowWalletApprovalSummary(input.walletApproval)?.status || null,
+    checkpointPersisted:
+      typeof input.checkpointPersisted === 'boolean' ? input.checkpointPersisted : null,
+    nextAction: runtimeSummary.nextCommand || null
+  };
+}
+
 async function printWorkflowRunCommandResult(
-  execution: WorkflowRunCommandResult
+  execution: WorkflowRunCommandResult,
+  command: WorkflowEntryCommand
 ): Promise<void> {
   if (execution.result) {
     const agentProfile = await loadWorkflowAgentProfile(execution.result.walletName);
@@ -1247,6 +1332,16 @@ async function printWorkflowRunCommandResult(
       result: execution.result,
       nextCommand: execution.result.nextCommand
     });
+    const workflowEntrySummary = buildWorkflowEntrySummary({
+      command,
+      source: execution.requestId ? 'checkpoint' : 'input',
+      requestId: execution.requestId,
+      checkpointPersisted: Boolean(execution.checkpoint || execution.requestId),
+      status: execution.status,
+      result: execution.result,
+      walletApproval: execution.walletApproval,
+      nextCommand: execution.result.nextCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -1264,6 +1359,7 @@ async function printWorkflowRunCommandResult(
       {
         ok: true,
         ...serializeWorkflowRequestMeta(execution.requestId),
+        workflowEntrySummary,
         agentProfile,
         agentFollowup,
         summary,
@@ -1310,6 +1406,15 @@ async function printWorkflowRunCommandResult(
     status,
     nextCommand: status.recommendedCommand
   });
+  const workflowEntrySummary = buildWorkflowEntrySummary({
+    command,
+    source: execution.requestId ? 'checkpoint' : 'input',
+    requestId: execution.requestId,
+    checkpointPersisted: Boolean(execution.checkpoint || execution.requestId),
+    status,
+    walletApproval: execution.walletApproval,
+    nextCommand: status.recommendedCommand
+  });
 
   printResult(
     prependWorkflowRequestId(
@@ -1327,6 +1432,7 @@ async function printWorkflowRunCommandResult(
     {
         ok: true,
         ...serializeWorkflowRequestMeta(execution.requestId),
+        workflowEntrySummary,
         agentProfile,
         agentFollowup,
         summary,
@@ -1656,7 +1762,8 @@ async function executeWorkflowAutoCommand(
 }
 
 async function printWorkflowAutoCommandResult(
-  execution: WorkflowAutoCommandResult
+  execution: WorkflowAutoCommandResult,
+  command: 'auto' | 'pay'
 ): Promise<void> {
   const agentProfile = await loadWorkflowAgentProfile(execution.status.walletName);
   const agentFollowup = buildAgentFollowup(agentProfile, {
@@ -1693,6 +1800,16 @@ async function printWorkflowAutoCommandResult(
     result: execution.result,
     nextCommand: nextAction
   });
+  const workflowEntrySummary = buildWorkflowEntrySummary({
+    command,
+    source: execution.source,
+    requestId: execution.requestId,
+    checkpointPersisted: execution.checkpointPersisted,
+    status: execution.status,
+    result: execution.result,
+    walletApproval: execution.walletApproval,
+    nextCommand: nextAction
+  });
   const summaryLines: Array<[string, string]> = [
     ['source', execution.source],
     ['action', execution.action],
@@ -1722,6 +1839,7 @@ async function printWorkflowAutoCommandResult(
       action: execution.action,
       checkpointPersisted: execution.checkpointPersisted,
       ...serializeWorkflowRequestMeta(execution.requestId),
+      workflowEntrySummary,
       agentProfile,
       agentFollowup,
       summary,
@@ -2700,6 +2818,13 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           walletName: plan.walletName,
           walletExists: true
         });
+        const workflowEntrySummary = buildWorkflowEntrySummary({
+          command: 'plan',
+          source: 'input',
+          checkpointPersisted: false,
+          plan,
+          nextCommand: plan.recommendedCommand
+        });
 
         printResult(
           withAgentProfileLines(
@@ -2709,6 +2834,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           ),
           {
             ok: true,
+            workflowEntrySummary,
             agentProfile,
             agentFollowup,
             inspection,
@@ -2900,6 +3026,14 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       {
         ok: true,
         ...serializeWorkflowRequestMeta(started.requestId),
+        workflowEntrySummary: buildWorkflowEntrySummary({
+          command: 'start',
+          source: 'input',
+          requestId: started.requestId,
+          checkpointPersisted: true,
+          status: started.status,
+          nextCommand: started.status.recommendedCommand
+        }),
         agentProfile,
         agentFollowup,
         checkpoint: started.checkpoint,
@@ -2928,7 +3062,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeLocalApproval: true
   }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const execution = await executeWorkflowAutoCommand(options, resolvedDeps);
-    await printWorkflowAutoCommandResult(execution);
+    await printWorkflowAutoCommandResult(execution, 'auto');
   }));
 
   const pay = workflow
@@ -2951,7 +3085,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       applyWorkflowPayDefaults(options),
       resolvedDeps
     );
-    await printWorkflowAutoCommandResult(execution);
+    await printWorkflowAutoCommandResult(execution, 'pay');
   }));
 
   const run = workflow
@@ -2970,7 +3104,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     includeLocalApproval: true
   }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
     const execution = await executeWorkflowRunCommand(options, resolvedDeps);
-    await printWorkflowRunCommandResult(execution);
+    await printWorkflowRunCommandResult(execution, 'run');
   }));
 
   const status = workflow
@@ -3017,6 +3151,15 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       status: inspection.result,
       nextCommand: inspection.result.recommendedCommand
     });
+    const workflowEntrySummary = buildWorkflowEntrySummary({
+      command: 'status',
+      source: options.requestId?.trim() ? 'checkpoint' : 'input',
+      requestId: inspection.requestId,
+      checkpointPersisted: Boolean(inspection.checkpoint),
+      status: inspection.result,
+      walletApproval: inspection.walletApproval,
+      nextCommand: inspection.result.recommendedCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -3034,6 +3177,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       {
         ok: true,
         ...serializeWorkflowRequestMeta(inspection.requestId),
+        workflowEntrySummary,
         agentProfile,
         agentFollowup,
         summary,
@@ -3091,6 +3235,15 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       status: inspection.result,
       nextCommand
     });
+    const workflowEntrySummary = buildWorkflowEntrySummary({
+      command: 'next',
+      source: options.requestId?.trim() ? 'checkpoint' : 'input',
+      requestId: inspection.requestId,
+      checkpointPersisted: Boolean(inspection.checkpoint),
+      status: inspection.result,
+      walletApproval: inspection.walletApproval,
+      nextCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -3108,6 +3261,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       {
         ok: true,
         ...serializeWorkflowRequestMeta(inspection.requestId),
+        workflowEntrySummary,
         agentProfile,
         agentFollowup,
         summary,
@@ -3162,6 +3316,15 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         status: inspection.result,
         nextCommand: inspection.result.recommendedCommand
       });
+      const workflowEntrySummary = buildWorkflowEntrySummary({
+        command: 'resume',
+        source: options.requestId?.trim() ? 'checkpoint' : 'input',
+        requestId: inspection.requestId,
+        checkpointPersisted: Boolean(inspection.checkpoint),
+        status: inspection.result,
+        walletApproval: inspection.walletApproval,
+        nextCommand: inspection.result.recommendedCommand
+      });
 
       printResult(
         prependWorkflowRequestId(
@@ -3179,6 +3342,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         {
           ok: true,
           ...serializeWorkflowRequestMeta(inspection.requestId),
+          workflowEntrySummary,
           agentProfile,
           agentFollowup,
           summary,
@@ -3237,6 +3401,15 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         status,
         nextCommand: status.recommendedCommand
       });
+      const workflowEntrySummary = buildWorkflowEntrySummary({
+        command: 'resume',
+        source: options.requestId?.trim() ? 'checkpoint' : 'input',
+        requestId: execution.requestId,
+        checkpointPersisted: Boolean(execution.checkpoint || execution.requestId),
+        status,
+        walletApproval: execution.walletApproval,
+        nextCommand: status.recommendedCommand
+      });
 
       printResult(
         prependWorkflowRequestId(
@@ -3254,6 +3427,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         {
           ok: true,
           ...serializeWorkflowRequestMeta(execution.requestId),
+          workflowEntrySummary,
           agentProfile,
           agentFollowup,
           summary,
@@ -3297,6 +3471,16 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       result: execution.result,
       nextCommand: execution.result.nextCommand ?? inspection.result.recommendedCommand
     });
+    const workflowEntrySummary = buildWorkflowEntrySummary({
+      command: 'resume',
+      source: options.requestId?.trim() ? 'checkpoint' : 'input',
+      requestId: execution.requestId,
+      checkpointPersisted: Boolean(execution.checkpoint || execution.requestId),
+      status: inspection.result,
+      result: execution.result,
+      walletApproval: inspection.walletApproval,
+      nextCommand: execution.result.nextCommand ?? inspection.result.recommendedCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -3314,6 +3498,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       {
         ok: true,
         ...serializeWorkflowRequestMeta(execution.requestId),
+        workflowEntrySummary,
         agentProfile,
         agentFollowup,
         summary,
@@ -3345,7 +3530,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         resolvedDeps
       );
 
-      await printWorkflowRunCommandResult(execution);
+      await printWorkflowRunCommandResult(execution, intent);
     }));
   }
 

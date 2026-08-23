@@ -190,6 +190,23 @@ test('doctor returns setup guidance when local config is missing', async () => {
     assert.equal(result.scope, 'setup');
     assert.equal(result.config.exists, false);
     assert.equal(result.wallet, null);
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'setup',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: false,
+      walletExists: false,
+      approvalReady: null,
+      localExecutionKeyStored: null,
+      defaultChain: null,
+      connectorUrl: null,
+      relayUrl: null,
+      nextAction: 'zk-agent setup',
+      notes: [
+        'Local config is missing, so the canonical operator path should start with setup.',
+        'Doctor is local-only by default and does not require live RPC reads.'
+      ]
+    });
     assert.equal(result.summary.stage, 'setup');
     assert.equal(result.summary.configExists, false);
     assert.equal(result.summary.walletExists, false);
@@ -221,6 +238,23 @@ test('doctor returns wallet bootstrap guidance when config exists but the wallet
     assert.equal(result.scope, 'wallet-bootstrap');
     assert.equal(result.config.exists, true);
     assert.equal(result.summary.walletExists, false);
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'wallet-bootstrap',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: true,
+      walletExists: false,
+      approvalReady: null,
+      localExecutionKeyStored: null,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: 'https://relay.example.com',
+      nextAction: 'zk-agent wallet create --await-local',
+      notes: [
+        'Local config exists, but no saved wallet record was found for this name yet.',
+        'Use the remote relay path only when the browser is not colocated with this terminal.'
+      ]
+    });
     assert.equal(result.nextAction, 'zk-agent wallet create --await-local');
     assert.equal(
       result.recommendedCommands.createWalletRemote,
@@ -252,6 +286,9 @@ test('doctor returns reapprove guidance when the wallet exists but approval meta
     assert.equal(result.scope, 'wallet-recovery');
     assert.equal(result.wallet.approvalReady, false);
     assert.equal(result.wallet.localExecutionKeyStored, false);
+    assert.equal(result.onboardingSummary.stage, 'wallet-recovery');
+    assert.equal(result.onboardingSummary.approvalReady, false);
+    assert.equal(result.onboardingSummary.localExecutionKeyStored, false);
     assert.equal(
       result.nextAction,
       'zk-agent wallet reapprove --name main --await-local'
@@ -279,6 +316,9 @@ test('doctor returns attach-signer guidance when approval exists but no local si
     assert.equal(result.scope, 'wallet-recovery');
     assert.equal(result.wallet.approvalReady, true);
     assert.equal(result.wallet.localExecutionKeyStored, false);
+    assert.equal(result.onboardingSummary.stage, 'wallet-recovery');
+    assert.equal(result.onboardingSummary.approvalReady, true);
+    assert.equal(result.onboardingSummary.localExecutionKeyStored, false);
     assert.equal(
       result.nextAction,
       'zk-agent wallet signer attach --name main --private-key <hex>'
@@ -306,6 +346,23 @@ test('doctor returns zk-agent next when local config, approval, and signer state
     assert.equal(result.scope, 'wallet-ready');
     assert.equal(result.wallet.approvalReady, true);
     assert.equal(result.wallet.localExecutionKeyStored, true);
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'wallet-ready',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: true,
+      walletExists: true,
+      approvalReady: true,
+      localExecutionKeyStored: true,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: null,
+      nextAction: 'zk-agent next',
+      notes: [
+        'Local config, approval metadata, and a local execution signer are all present.',
+        'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
+      ]
+    });
     assert.equal(result.nextAction, 'zk-agent next');
     assert.equal(
       result.recommendedCommands.workflowPay,
@@ -328,6 +385,7 @@ test('doctor help explains the local-only boundary and relay-url override', asyn
     assert.match(help, /zk-agent doctor --wallet main/);
     assert.match(help, /zk-agent doctor --wallet main --relay-url https:\/\/relay\.example\.com/);
     assert.match(help, /without requiring live RPC reads/);
+    assert.match(help, /Run this before guessing whether the blocker is setup, wallet approval, or local signer state/);
     assert.match(help, /Pass --relay-url when you want the remote approval fallback commands/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });

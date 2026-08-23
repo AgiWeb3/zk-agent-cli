@@ -13,6 +13,10 @@ import { buildAgentFollowup, agentFollowupLines } from '../lib/agent-followup.js
 import { agentProfileLines } from '../lib/agent-profile.js';
 import { printResult } from '../lib/io.js';
 import {
+  buildOnboardingSummary,
+  onboardingSummaryLines
+} from '../lib/onboarding-summary.js';
+import {
   buildDefaultsRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
@@ -62,6 +66,7 @@ function buildDoctorHelpText(): string {
     'Default behavior:',
     '  Inspects saved config, local wallet approval metadata, local signer state,',
     '  and the shortest next command without requiring live RPC reads.',
+    '  Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
     '',
     'Remote-browser recovery path:',
     '  Pass --relay-url when you want the remote approval fallback commands',
@@ -161,9 +166,24 @@ function buildDoctorResult(options: {
 }) {
   if (!options.config) {
     const recommendedCommands = buildSetupRecommendedCommands();
+    const onboardingSummary = buildOnboardingSummary({
+      stage: 'setup',
+      localOnly: true,
+      configExists: false,
+      walletExists: Boolean(options.wallet),
+      approvalReady: options.wallet?.approvalReady ?? null,
+      localExecutionKeyStored: options.wallet?.localExecutionKeyStored ?? null,
+      relayUrl: options.relayUrl || null,
+      nextAction: recommendedCommands.setup,
+      notes: [
+        'Local config is missing, so the canonical operator path should start with setup.',
+        'Doctor is local-only by default and does not require live RPC reads.'
+      ]
+    });
     return {
       scope: 'setup' as const,
       nextAction: recommendedCommands.setup,
+      onboardingSummary,
       summary: {
         stage: 'setup' as const,
         configExists: false,
@@ -187,9 +207,24 @@ function buildDoctorResult(options: {
       options.walletName,
       options.relayUrl
     );
+    const onboardingSummary = buildOnboardingSummary({
+      stage: 'wallet-bootstrap',
+      localOnly: true,
+      configExists: true,
+      walletExists: false,
+      defaultChain: options.config.defaultChain,
+      connectorUrl: options.config.connectorUrl,
+      relayUrl: options.relayUrl || null,
+      nextAction: recommendedCommands.createWallet,
+      notes: [
+        'Local config exists, but no saved wallet record was found for this name yet.',
+        'Use the remote relay path only when the browser is not colocated with this terminal.'
+      ]
+    });
     return {
       scope: 'wallet-bootstrap' as const,
       nextAction: recommendedCommands.createWallet,
+      onboardingSummary,
       summary: {
         stage: 'wallet-bootstrap' as const,
         configExists: true,
@@ -213,9 +248,26 @@ function buildDoctorResult(options: {
       options.wallet,
       options.relayUrl
     );
+    const onboardingSummary = buildOnboardingSummary({
+      stage: 'wallet-recovery',
+      localOnly: true,
+      configExists: true,
+      walletExists: true,
+      approvalReady: false,
+      localExecutionKeyStored: options.wallet.localExecutionKeyStored,
+      defaultChain: options.config.defaultChain,
+      connectorUrl: options.config.connectorUrl,
+      relayUrl: options.relayUrl || null,
+      nextAction: recommendedCommands.reapprove,
+      notes: [
+        'A local wallet record exists, but approved session metadata is missing.',
+        'Use the remote reapproval path only when the browser cannot return directly to this terminal.'
+      ]
+    });
     return {
       scope: 'wallet-recovery' as const,
       nextAction: recommendedCommands.reapprove,
+      onboardingSummary,
       summary: {
         stage: 'wallet-recovery' as const,
         configExists: true,
@@ -240,9 +292,26 @@ function buildDoctorResult(options: {
       ...buildWalletRecoveryRecommendedCommands(options.wallet, options.relayUrl),
       attachSigner
     };
+    const onboardingSummary = buildOnboardingSummary({
+      stage: 'wallet-recovery',
+      localOnly: true,
+      configExists: true,
+      walletExists: true,
+      approvalReady: true,
+      localExecutionKeyStored: false,
+      defaultChain: options.config.defaultChain,
+      connectorUrl: options.config.connectorUrl,
+      relayUrl: options.relayUrl || null,
+      nextAction: attachSigner,
+      notes: [
+        'Approved session metadata exists, but no local execution signer is stored yet.',
+        'Doctor is local-only: it confirms stored signer state, not live chain deployment or gas balance.'
+      ]
+    });
     return {
       scope: 'wallet-recovery' as const,
       nextAction: attachSigner,
+      onboardingSummary,
       summary: {
         stage: 'wallet-recovery' as const,
         configExists: true,
@@ -262,9 +331,26 @@ function buildDoctorResult(options: {
   }
 
   const recommendedCommands = buildWalletReadyRecommendedCommands(options.wallet);
+  const onboardingSummary = buildOnboardingSummary({
+    stage: 'wallet-ready',
+    localOnly: true,
+    configExists: true,
+    walletExists: true,
+    approvalReady: true,
+    localExecutionKeyStored: true,
+    defaultChain: options.config.defaultChain,
+    connectorUrl: options.config.connectorUrl,
+    relayUrl: options.relayUrl || null,
+    nextAction: recommendedCommands.next,
+    notes: [
+      'Local config, approval metadata, and a local execution signer are all present.',
+      'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
+    ]
+  });
   return {
     scope: 'wallet-ready' as const,
     nextAction: recommendedCommands.next,
+    onboardingSummary,
     summary: {
       stage: 'wallet-ready' as const,
       configExists: true,
@@ -288,12 +374,14 @@ function buildDoctorLines(input: {
   walletName: string;
   config: Awaited<ReturnType<typeof loadProjectConfig>>;
   wallet: LocalWalletDoctorState | null;
+  onboardingSummary: ReturnType<typeof buildOnboardingSummary>;
   summary: ReturnType<typeof buildDoctorResult>['summary'];
   recommendedCommands: Record<string, string>;
   nextAction: string;
 }) {
   const lines: Array<[string, string]> = [
     ['scope', input.scope],
+    ...onboardingSummaryLines(input.onboardingSummary),
     ['config', input.config ? 'present' : 'missing']
   ];
 
@@ -365,7 +453,7 @@ function buildDoctorLines(input: {
 
 export function createDoctorCommand(): Command {
   return new Command('doctor')
-    .description('Inspect local setup, wallet approval metadata, and signer readiness for the default operator path')
+    .description('Local-only onboarding and wallet-recovery diagnostic for the default operator path')
     .addHelpText('after', buildDoctorHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option(
@@ -397,6 +485,7 @@ export function createDoctorCommand(): Command {
             walletName,
             config,
             wallet,
+            onboardingSummary: result.onboardingSummary,
             summary: result.summary,
             recommendedCommands: result.recommendedCommands,
             nextAction: result.nextAction
@@ -419,6 +508,7 @@ export function createDoctorCommand(): Command {
                 exists: false
               },
           wallet,
+          onboardingSummary: result.onboardingSummary,
           summary: result.summary,
           agentProfile,
           agentFollowup,

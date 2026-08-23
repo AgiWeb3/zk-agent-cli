@@ -77,10 +77,27 @@ test('setup command returns the default operator-path recommendations', async ()
 
   try {
     const env = createCliEnv(homeDir);
-    const result = await runCliJson(['setup', '--default-chain', 'zksync-sepolia'], env);
+    const result = await runCliJson(['setup'], env);
 
     assert.equal(result.ok, true);
     assert.equal(result.config.defaultChain, 'zksync-sepolia');
+    assert.deepEqual(result.onboardingSummary, {
+      stage: 'wallet-bootstrap',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: true,
+      walletExists: null,
+      approvalReady: null,
+      localExecutionKeyStored: null,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: null,
+      nextAction: 'zk-agent next',
+      notes: [
+        'Setup only writes local defaults and does not inspect wallet state.',
+        'Stay on zk-agent next so the product entrypoint can decide between wallet bootstrap and workflow guidance.'
+      ]
+    });
     assert.equal(result.recommendedCommands.next, 'zk-agent next');
     assert.equal(result.recommendedCommands.inspectDefaults, 'zk-agent defaults');
     assert.equal(result.recommendedCommands.createWallet, 'zk-agent wallet create --await-local');
@@ -94,6 +111,23 @@ test('setup command returns the default operator-path recommendations', async ()
     const second = await runCliJson(['setup'], env);
     assert.equal(second.ok, true);
     assert.match(second.message, /Config already exists/);
+    assert.deepEqual(second.onboardingSummary, {
+      stage: 'wallet-bootstrap',
+      baseline: 'local-first',
+      localOnly: true,
+      configExists: true,
+      walletExists: null,
+      approvalReady: null,
+      localExecutionKeyStored: null,
+      defaultChain: 'zksync-sepolia',
+      connectorUrl: 'http://localhost:4444',
+      relayUrl: null,
+      nextAction: 'zk-agent next',
+      notes: [
+        'Setup did not overwrite the existing local defaults.',
+        'Run zk-agent next so the CLI can choose wallet bootstrap or workflow follow-up from the current local state.'
+      ]
+    });
     assert.equal(second.recommendedCommands.next, 'zk-agent next');
     assert.equal(second.recommendedCommands.inspectDefaults, 'zk-agent defaults');
     assert.equal(second.recommendedCommands.createWallet, 'zk-agent wallet create --await-local');
@@ -117,6 +151,9 @@ test('setup help explains the local-first path, relay fallback, and env boundary
 
     assert.match(help, /What setup does:/);
     assert.match(help, /Writes the local default chain and connector URL/);
+    assert.match(help, /Validated first-run baseline:/);
+    assert.match(help, /Default chain:\s+zksync-sepolia/);
+    assert.match(help, /Connector URL:\s+http:\/\/localhost:4444/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
@@ -145,6 +182,8 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /npm install -g zk-agent-cli/);
     assert.match(help, /Canonical terminal path:/);
     assert.match(help, /zk-agent next/);
+    assert.match(help, /Validated first-run baseline:/);
+    assert.match(help, /setup defaults to zksync-sepolia and the local connector at http:\/\/localhost:4444/);
     assert.match(help, /If local setup or wallet state is unclear:/);
     assert.match(help, /zk-agent doctor/);
     assert.match(help, /zk-agent wallet create --await-local/);
@@ -183,6 +222,7 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     const help = await runCliText(['next', '--help'], env);
 
     assert.match(help, /Use `next` as the product entrypoint:/);
+    assert.match(help, /Stay on `next` until it points you at a wallet-specific or workflow-specific blocker/);
     assert.match(help, /Fresh local-first routing:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent wallet create --await-local/);
@@ -192,6 +232,7 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     );
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
+    assert.match(help, /If setup has not run yet, `next` will send you back to `zk-agent setup` first/);
     assert.match(help, /zk-agent next --request-id <id>/);
     assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent wallet next --name main/);
@@ -246,6 +287,8 @@ test('wallet help prints the default wallet path', async () => {
     const help = await runCliText(['wallet', '--help'], env);
 
     assert.match(help, /Local-first wallet path:/);
+    assert.match(help, /Use this layer when the blocker is specifically about wallet approval or signer state/);
+    assert.match(help, /Otherwise start with `zk-agent next` or `zk-agent doctor`/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(help, /zk-agent wallet reapprove --name main --await-local/);
     assert.match(help, /zk-agent wallet reapprove --name main --await-local\s+zk-agent next/);
@@ -254,6 +297,7 @@ test('wallet help prints the default wallet path', async () => {
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent wallet next --name main/);
     assert.match(help, /Hosted remote approval path:/);
+    assert.match(help, /Use this only when the browser is not colocated with the terminal/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(
       help,

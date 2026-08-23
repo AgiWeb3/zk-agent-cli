@@ -21,6 +21,9 @@ package, replace `zk-agent` with `pnpm zk-agent`.
 ## Prerequisites
 
 - Node.js `>=24`
+- the validated first-run baseline uses `zksync-sepolia` as the default chain;
+  override it with `zk-agent setup --default-chain <chain>` only when you
+  intentionally target a different chain
 - the default local approval path expects the connector UI at
   `http://localhost:4444`; override it with
   `zk-agent setup --connector-url <url>` when needed
@@ -81,6 +84,8 @@ zk-agent setup
 Expected result:
 
 - local config is saved under `~/.zk-agent/config.json`
+- the saved first-run baseline defaults to `zksync-sepolia` plus the local
+  connector at `http://localhost:4444`
 - the CLI prints the default operator-path follow-ups:
   - `zk-agent defaults`
   - `zk-agent wallet create --await-local`

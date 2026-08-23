@@ -81,6 +81,19 @@ test('workflow plan returns explicit token discovery commands for tokenized inte
     });
 
     assert.equal(result.ok, true);
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'plan',
+      source: 'input',
+      workflowRequestId: null,
+      walletName: 'main',
+      intent: 'swap',
+      runtimeStatus: result.plan.status,
+      readyForGoal: result.plan.readyForGoal,
+      walletApprovalStatus: null,
+      checkpointPersisted: false,
+      nextAction: result.plan.recommendedCommand
+    });
     assert.deepEqual(result.recommendedCommands, {
       inspectDefaults: 'zk-agent defaults',
       next: result.plan.recommendedCommand,

@@ -3308,6 +3308,9 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     [
       '',
       'Local-first wallet path:',
+      '  Use this layer when the blocker is specifically about wallet approval or signer state.',
+      '  Otherwise start with `zk-agent next` or `zk-agent doctor`.',
+      '',
       '  First bootstrap:',
       '    zk-agent wallet create --await-local',
       '    zk-agent next',
@@ -3328,7 +3331,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '    zk-agent relay inspect --relay-url <url>',
       '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
       '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
-      '    zk-agent next'
+      '    zk-agent next',
+      '    Use this only when the browser is not colocated with the terminal.'
     ].join('\n')
   );
 

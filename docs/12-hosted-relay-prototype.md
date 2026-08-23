@@ -9,6 +9,10 @@ It is intentionally narrow:
 - it is suitable for operator testing and controlled deployments
 - it is not a production multi-tenant relay service
 
+If you need the currently supported hosted operating contract rather than the
+prototype-validation path, see
+[16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md).
+
 ## What This Prototype Can Prove
 
 Use this path when you need to prove:

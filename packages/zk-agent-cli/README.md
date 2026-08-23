@@ -3,6 +3,10 @@
 `zk-agent-cli` is the packaged `zk-agent-cli` command surface for zkSync Era
 and zkSync Sepolia.
 
+This README is the canonical operator manual for the packaged CLI. If you want
+repo architecture, contributor state, or project planning context, use the root
+repository docs instead of this package manual.
+
 Current strengths:
 
 - local-first wallet/session storage
@@ -80,6 +84,13 @@ Use:
   storage path
 
 ## Shortest Path
+
+Current validated first-run baseline:
+
+- `setup` defaults to `zksync-sepolia`
+- the local approval path expects the connector UI at `http://localhost:4444`
+- override `--default-chain` or `--connector-url` only when you intentionally
+  target another chain or connector deployment
 
 Fresh setup:
 
@@ -234,7 +245,9 @@ published package now also ships the bundled connector UI build used by
 source checkout just to serve the UI. `relay inspect` now also reports
 `stateBackend`, `deploymentScope`, and `sameHostRestartPersists` so the
 single-host local-filesystem constraint is explicit before you rely on a hosted
-URL.
+URL. For the current supported hosted operating contract and the remaining
+`beta -> rc` blocker on this path, see
+[`docs/16-hosted-approval-operated-baseline.md`](../../docs/16-hosted-approval-operated-baseline.md).
 
 ## Local Storage
 

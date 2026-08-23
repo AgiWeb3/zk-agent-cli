@@ -334,6 +334,19 @@ test('workflow start returns checkpoint follow-up commands through commander', a
     assert.equal(result.workflowRequestId, 'wf-start-001');
     assert.equal(result.requestId, 'wf-start-001');
     assert.equal(result.checkpoint.requestId, 'wf-start-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'start',
+      source: 'input',
+      workflowRequestId: 'wf-start-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: result.status.status,
+      readyForGoal: result.status.readyForGoal,
+      walletApprovalStatus: null,
+      checkpointPersisted: true,
+      nextAction: result.status.recommendedCommand
+    });
     assert.deepEqual(result.recommendedCommands, {
       show: 'zk-agent workflow show --request-id wf-start-001',
       status: 'zk-agent workflow status --request-id wf-start-001',
@@ -472,6 +485,19 @@ test('workflow pay creates a flagship reapproval request with paymaster-aware de
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-pay-001');
     assert.equal(result.requestId, 'wf-pay-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'pay',
+      source: 'input',
+      workflowRequestId: 'wf-pay-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'blocked',
+      readyForGoal: false,
+      walletApprovalStatus: 'await-local',
+      checkpointPersisted: true,
+      nextAction: result.status.recommendedCommand
+    });
     assert.equal(result.summary.status, 'blocked');
     assert.equal(result.summary.readyForGoal, false);
     assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
@@ -584,6 +610,19 @@ test('workflow pay executes the flagship native-send preview immediately when th
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-pay-ready-001');
     assert.equal(result.requestId, 'wf-pay-ready-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'pay',
+      source: 'input',
+      workflowRequestId: 'wf-pay-ready-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'goal-executed',
+      readyForGoal: true,
+      walletApprovalStatus: null,
+      checkpointPersisted: true,
+      nextAction: result.result.nextCommand || null
+    });
     assert.equal(result.summary.status, 'goal-executed');
     assert.equal(result.summary.readyForGoal, true);
     assert.equal(result.summary.nextCommand, result.result.nextCommand);
@@ -651,6 +690,19 @@ test('workflow status can await local approval through commander with injected p
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.requestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'status',
+      source: 'checkpoint',
+      workflowRequestId: 'wf-await-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'ready',
+      readyForGoal: true,
+      walletApprovalStatus: 'approved',
+      checkpointPersisted: true,
+      nextAction: result.result.recommendedCommand
+    });
     assert.equal(result.summary.status, 'ready');
     assert.equal(result.summary.readyForGoal, true);
     assert.equal(result.summary.nextCommand, result.result.recommendedCommand);
@@ -730,6 +782,19 @@ test('workflow send-native shortcut executes the same path as workflow run with 
 
     const result = JSON.parse(stdout);
     assert.equal(result.ok, true);
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'send-native',
+      source: 'input',
+      workflowRequestId: null,
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'goal-executed',
+      readyForGoal: true,
+      walletApprovalStatus: null,
+      checkpointPersisted: false,
+      nextAction: null
+    });
     assert.equal(result.summary.status, 'goal-executed');
     assert.equal(result.summary.readyForGoal, true);
     assert.equal(result.summary.nextCommand, undefined);
@@ -902,6 +967,20 @@ test('workflow next can emit relay follow-up commands through commander when rel
     const result = JSON.parse(stdout);
     assert.equal(result.ok, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'next',
+      source: 'checkpoint',
+      workflowRequestId: 'wf-await-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'blocked',
+      readyForGoal: false,
+      walletApprovalStatus: 'relay-pending',
+      checkpointPersisted: true,
+      nextAction:
+        'zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445'
+    });
     assert.equal(result.summary.status, 'blocked');
     assert.equal(
       result.summary.nextCommand,
@@ -964,6 +1043,19 @@ test('workflow resume can await local approval and continue to goal execution th
     assert.equal(result.ok, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'resume',
+      source: 'checkpoint',
+      workflowRequestId: 'wf-await-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'goal-executed',
+      readyForGoal: true,
+      walletApprovalStatus: 'approved',
+      checkpointPersisted: true,
+      nextAction: result.status.recommendedCommand
+    });
     assert.equal(result.summary.status, 'goal-executed');
     assert.equal(result.summary.readyForGoal, true);
     assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
@@ -1032,6 +1124,19 @@ test('workflow auto can await local approval and execute immediately when ready 
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'auto',
+      source: 'checkpoint',
+      workflowRequestId: 'wf-await-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'goal-executed',
+      readyForGoal: true,
+      walletApprovalStatus: 'approved',
+      checkpointPersisted: true,
+      nextAction: result.status.recommendedCommand || null
+    });
     assert.equal(result.summary.status, 'goal-executed');
     assert.equal(result.summary.readyForGoal, true);
     assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
@@ -1094,6 +1199,19 @@ test('workflow next can await local approval through commander and return the go
     const result = JSON.parse(stdout);
     assert.equal(result.ok, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'next',
+      source: 'checkpoint',
+      workflowRequestId: 'wf-await-001',
+      walletName: 'main',
+      intent: 'send-native',
+      runtimeStatus: 'ready',
+      readyForGoal: true,
+      walletApprovalStatus: 'approved',
+      checkpointPersisted: true,
+      nextAction: result.summary.nextCommand
+    });
     assert.equal(result.summary.status, 'ready');
     assert.equal(result.summary.readyForGoal, true);
     assert.match(result.summary.nextCommand, /zk-agent workflow send-native --wallet main/);

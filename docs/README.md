@@ -38,6 +38,7 @@ Recommended reading order:
 13. [13-session-key-separation.md](./13-session-key-separation.md)
 14. [14-best-session-model.md](./14-best-session-model.md)
 15. [15-codex-plugin-onboarding.md](./15-codex-plugin-onboarding.md)
+16. [16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md)
 
 Unless stated otherwise, these notes are derived from the local
 `../zksync-docs` mirror so the repository can keep moving even when external

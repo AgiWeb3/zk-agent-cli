@@ -11,6 +11,69 @@ prove that:
    and the README
 3. the publicly claimed capability surface is covered by local validation
 
+## Release-stage progression
+
+This gate now serves two related but distinct decisions:
+
+1. whether the next npm cut is safe to publish
+2. whether the project is ready to move from `beta` to `rc`, and later from
+   `rc` to `1.0.0`
+
+Current judgment:
+
+- `zk-agent-cli` should remain on `beta`
+- the project is not ready to claim `rc` yet
+- the project is not ready to claim `1.0.0` yet
+
+Why it is still `beta`:
+
+- the default hosted approval path is now validated, but its supportable
+  operated deployment contract still needs to be exercised and held stable
+- release/version/doc synchronization has improved, but it is still too easy to
+  rely on operator memory instead of a repeatable release contract
+- the public machine-readable JSON contracts are close to stable, but they
+  should be treated as frozen compatibility boundaries before `rc`
+
+For the current hosted deployment boundary, see
+[16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md).
+
+### Gate: `beta -> rc`
+
+Do not move from `beta` to `rc` until all of the following are true:
+
+- one canonical operator path is aligned across the root README, package README,
+  CLI help, skills, and machine-readable onboarding/output summaries
+- hosted approval is documented and exercised as an operated product contract,
+  not only as a prototype validation path
+- the release flow is repeatable without hidden operator memory
+- the public machine-readable contracts are frozen:
+  `onboardingSummary`, `workflowEntrySummary`, `walletApprovalSummary`, and the
+  recovery-focused next-step command surfaces
+- local and hosted recovery semantics are stable with no known blocker on the
+  default approval path
+
+### Gate: `rc -> 1.0.0`
+
+Do not move from `rc` to `1.0.0` until all of the following are true:
+
+- every `rc` gate remains closed under repeated real release validation
+- at least one additional zkSync-native product slice exists beyond the current
+  flagship `workflow pay` path
+- two consecutive end-to-end release rehearsals complete without public
+  contract churn
+- no known release-blocking issue remains on packaged install, local-first
+  wallet bootstrap/recovery, hosted approval, or flagship `workflow pay`
+
+### Not required for `1.0.0`
+
+The following are useful, but they are not release prerequisites for the first
+formal version:
+
+- broad DeFi breadth
+- Polygon feature-count parity
+- broad ecosystem integration breadth
+- broader AA profile expansion beyond the current `sed-lite` default path
+
 ## How to use this gate
 
 - Run it in order before each release.
@@ -40,6 +103,13 @@ version references first:
 
 ```bash
 pnpm release:sync-version --version <version> --date <YYYY-MM-DD> --latest-tag <version> --beta-tag <version>
+```
+
+Then refresh the versioned release-note draft input from the intended git
+range:
+
+```bash
+pnpm release:draft-notes --from <git-ref> [--to <git-ref>] [--version <version>] [--apply]
 ```
 
 Pass criteria:
@@ -103,6 +173,9 @@ Pass criteria:
   anchors for public entrypoints, shortest path, relay path, storage path,
   runtime floor, and common repair guidance so this gate is not purely manual
   anymore
+- the same gate also keeps the hosted operated-baseline link and the root
+  release-stage judgment visible instead of leaving them as manual doc review
+  items
 - the same gate now also rejects drift between the published package version
   and the current-version references kept in the repo-level public state docs
 
@@ -163,6 +236,9 @@ Pass criteria:
   repository with `pnpm add --offline <tarball>` and the installed
   `zk-agent` / `zksync-agent` binaries still start correctly, including the
   public-entrypoint and canonical-path help contract
+- that packaged runtime also keeps the default onboarding JSON contract stable:
+  `next --json`, `setup --json`, and `doctor --json` still emit the expected
+  shared `onboardingSummary` fields and first-run follow-up commands
 - that installed package can also start `relay serve --public-origin ...`,
   create a real relay request, redirect `/r/<id>` into the connector UI
   entrypoint, and still serve the bundled hashed frontend asset from the relay
@@ -371,6 +447,10 @@ Only after Gate 0-8 all pass should the actual release happen.
 - [ ] final version number confirmed
 - [ ] working tree is clean and only contains intended release changes
 - [ ] the release commit is recorded
+- [ ] `CHANGELOG.md` points at the current versioned release note
+- [ ] the versioned release note draft input has been regenerated from the
+      intended git range when release copy is being refreshed
+- [ ] `docs/releases/<version>.md` exists and is filled in without placeholder text
 - [ ] prerelease publishes use `npm publish --tag beta`
 - [ ] `latest` is only promoted after post-publish readback succeeds
 - [ ] real `npm publish` executed
@@ -400,13 +480,13 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current published baseline
 
-- current public beta completed on `2026-08-15`:
-  `zk-agent-cli@0.1.0-beta.9`
+- current public beta completed on `2026-08-23`:
+  `zk-agent-cli@0.1.0-beta.10`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.9`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.9`
-  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.9`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.9","beta":"0.1.0-beta.9"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.10`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.10`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.10`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.10","beta":"0.1.0-beta.10"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted
@@ -427,6 +507,13 @@ npm dist-tag add zk-agent-cli@<version> latest
   - `release:check` now also rejects drift across package README, root README,
     `skills/`, packed top-level help, packed `wallet --help`, packed
     `workflow --help`, and active-version references in the repo state docs
+  - `release:sync-version` now also keeps `CHANGELOG.md` and
+    `docs/releases/<version>.md` in sync with the current version metadata
+  - `release:draft-notes` can now upsert a repo-owned `Draft Input` block in
+    `docs/releases/<version>.md` from a chosen git range before the final
+    editor pass
+  - `release:check` now rejects a missing or placeholder-filled versioned
+    release note for the current package version
   - `release:check` also rejects Node `<24` and any `pnpm` version other than
     the workspace-declared `pnpm@10.30.3`
 

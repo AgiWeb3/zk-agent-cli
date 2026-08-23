@@ -1,7 +1,7 @@
 {
   "name": "zk-agent-cli-workspace",
   "private": true,
-  "version": "0.1.0-beta.9",
+  "version": "0.1.0-beta.10",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.30.3",
@@ -29,6 +29,7 @@
     "codex:plugin:doctor": "node ./scripts/codex-plugin-local.mjs --json",
     "codex:plugin:install-local": "node ./scripts/codex-plugin-local.mjs --install --json",
     "release:sync-version": "node ./scripts/sync-release-version.mjs",
+    "release:draft-notes": "node ./scripts/release-notes-draft.mjs",
     "release:check": "pnpm --filter zk-agent-cli release:check",
     "validate:release": "pnpm run release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
     "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",

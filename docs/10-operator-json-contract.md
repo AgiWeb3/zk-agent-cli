@@ -12,6 +12,7 @@ stabilize the most important contracts on the default product path.
 The following outputs should currently be treated as the default operator
 contract:
 
+- `zk-agent setup`
 - `zk-agent defaults`
 - `zk-agent assets`
 - `zk-agent balances --owned-tokens`
@@ -105,6 +106,109 @@ Notes:
 - `agentFollowup` does not replace `recommendedCommands`; it only describes the
   local agent-identity dimension.
 
+### `onboardingSummary`
+
+`setup`, `doctor`, and top-level `next` now return the same compressed
+onboarding contract so callers do not need to reverse-parse help text or
+stage-specific prose.
+
+Current stable fields:
+
+- `stage`
+- `baseline`
+- `localOnly`
+- `configExists`
+- `walletExists`
+- `approvalReady`
+- `localExecutionKeyStored`
+- `defaultChain`
+- `connectorUrl`
+- `relayUrl`
+- `nextAction`
+- `notes`
+
+Current stable `stage` values:
+
+- `setup`
+- `wallet-bootstrap`
+- `wallet-recovery`
+- `wallet-ready`
+- `workflow`
+
+Current stable `baseline` values:
+
+- `local-first`
+
+Current semantics:
+
+- `localOnly = true`
+  The current recommendation is purely local-state driven and does not require
+  live RPC inspection.
+- `localOnly = false`
+  The current recommendation depends on the live wallet/workflow path rather
+  than just stored setup state.
+
+## `zk-agent setup`
+
+`zk-agent setup` writes the validated first-run local defaults and returns the
+same onboarding contract used by the rest of the canonical path.
+
+Current stable top-level fields:
+
+- `ok`
+- `config`
+- `onboardingSummary`
+- `recommendedCommands`
+- `message`
+  Present when config already exists and setup did not overwrite it.
+
+Current stable `config` fields:
+
+- `defaultChain`
+- `connectorUrl`
+- `provider`
+- `createdAt`
+- `updatedAt`
+
+Current stable baseline defaults on the validated first-run path:
+
+- `defaultChain = "zksync-sepolia"`
+- `connectorUrl = "http://localhost:4444"`
+
+Key fields:
+
+```json
+{
+  "ok": true,
+  "config": {
+    "defaultChain": "zksync-sepolia",
+    "connectorUrl": "http://localhost:4444",
+    "provider": "zksync-sso"
+  },
+  "onboardingSummary": {
+    "stage": "wallet-bootstrap",
+    "baseline": "local-first",
+    "localOnly": true,
+    "configExists": true,
+    "walletExists": null,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "defaultChain": "zksync-sepolia",
+    "connectorUrl": "http://localhost:4444",
+    "relayUrl": null,
+    "nextAction": "zk-agent next"
+  },
+  "recommendedCommands": {
+    "next": "zk-agent next",
+    "inspectDefaults": "zk-agent defaults",
+    "createWallet": "zk-agent wallet create --await-local",
+    "relayInspect": "zk-agent relay inspect --relay-url <url>",
+    "createWalletRemote": "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code",
+    "afterWalletApproval": "zk-agent next"
+  }
+}
+```
+
 ## `zk-agent doctor`
 
 `zk-agent doctor` is the local-only onboarding and wallet-recovery diagnostic.
@@ -120,6 +224,7 @@ Current stable top-level fields:
 - `walletName`
 - `config`
 - `wallet`
+- `onboardingSummary`
 - `summary`
 - `agentProfile`
 - `agentFollowup`
@@ -170,6 +275,9 @@ Current stable `summary` fields:
 - `localOnly`
 - `notes`
 
+`onboardingSummary` uses the shared onboarding field set documented above.
+On `doctor`, its values are always local-state driven.
+
 ### `scope = "setup"`
 
 This means local config is missing.
@@ -184,6 +292,19 @@ Key fields:
     "exists": false
   },
   "wallet": null,
+  "onboardingSummary": {
+    "stage": "setup",
+    "baseline": "local-first",
+    "localOnly": true,
+    "configExists": false,
+    "walletExists": false,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "defaultChain": null,
+    "connectorUrl": null,
+    "relayUrl": null,
+    "nextAction": "zk-agent setup"
+  },
   "summary": {
     "stage": "setup",
     "configExists": false,
@@ -220,6 +341,19 @@ Key fields:
     "provider": "zksync-sso"
   },
   "wallet": null,
+  "onboardingSummary": {
+    "stage": "wallet-bootstrap",
+    "baseline": "local-first",
+    "localOnly": true,
+    "configExists": true,
+    "walletExists": false,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "defaultChain": "zksync-sepolia",
+    "connectorUrl": "http://localhost:4444",
+    "relayUrl": "https://relay.example.com",
+    "nextAction": "zk-agent wallet create --await-local"
+  },
   "summary": {
     "stage": "wallet-bootstrap",
     "configExists": true,
@@ -329,9 +463,16 @@ Key fields:
 
 - `scope`
 - `nextCommand`
+- `onboardingSummary`
 - `agentProfile`
 - `agentFollowup`
 - `recommendedCommands`
+
+`onboardingSummary` uses the shared onboarding field set documented above.
+On top-level `next`, `stage` usually stays on `setup` or `wallet-bootstrap`
+when the routing decision is still purely local, and flips to
+`wallet-recovery` or `wallet-ready` once the live wallet/workflow path is the
+active decision boundary.
 
 ### `scope = "setup"`
 
@@ -344,6 +485,19 @@ Key fields:
   "scope": "setup",
   "status": "action-required",
   "nextCommand": "zk-agent setup",
+  "onboardingSummary": {
+    "stage": "setup",
+    "baseline": "local-first",
+    "localOnly": true,
+    "configExists": false,
+    "walletExists": false,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "defaultChain": null,
+    "connectorUrl": null,
+    "relayUrl": null,
+    "nextAction": "zk-agent setup"
+  },
   "recommendedCommands": {
     "setup": "zk-agent setup",
     "afterSetup": "zk-agent next",
@@ -363,6 +517,19 @@ Key fields:
   "scope": "wallet-bootstrap",
   "walletName": "main",
   "nextCommand": "zk-agent wallet create --await-local",
+  "onboardingSummary": {
+    "stage": "wallet-bootstrap",
+    "baseline": "local-first",
+    "localOnly": true,
+    "configExists": true,
+    "walletExists": false,
+    "approvalReady": null,
+    "localExecutionKeyStored": null,
+    "defaultChain": "zksync-sepolia",
+    "connectorUrl": "http://localhost:4444",
+    "relayUrl": null,
+    "nextAction": "zk-agent wallet create --await-local"
+  },
   "recommendedCommands": {
     "createWallet": "zk-agent wallet create --await-local",
     "relayInspect": "zk-agent relay inspect --relay-url <url>",
@@ -397,6 +564,19 @@ Key fields:
   "summary": { "...": "wallet next summary payload" },
   "tokenDiscoverySummary": { "...": "wallet-scope token recovery summary" },
   "nextCommand": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+  "onboardingSummary": {
+    "stage": "wallet-ready",
+    "baseline": "local-first",
+    "localOnly": false,
+    "configExists": true,
+    "walletExists": true,
+    "approvalReady": true,
+    "localExecutionKeyStored": true,
+    "defaultChain": "zksync-sepolia",
+    "connectorUrl": "http://localhost:4444",
+    "relayUrl": null,
+    "nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+  },
   "recommendedCommands": {
     "walletNext": "zk-agent wallet next --name main",
     "walletStatus": "zk-agent wallet status --name main",
@@ -523,6 +703,7 @@ The most important fields in the current contract are:
 - `agentFollowup`
 - `inspection`
 - `plan`
+- `workflowEntrySummary`
 - `tokenDiscoverySummary`
 - `recommendedCommands`
 
@@ -552,6 +733,7 @@ Key fields:
 - `workflowRequestId`
 - `checkpoint`
 - `status`
+- `workflowEntrySummary`
 - `agentProfile`
 - `agentFollowup`
 - `recommendedCommands`
@@ -572,6 +754,7 @@ Key fields:
 - `checkpoint`
 - `walletApproval`
 - `walletApprovalSummary`
+- `workflowEntrySummary`
 - `tokenDiscoverySummary`
 - `recommendedCommands`
 - `agentProfile`
@@ -594,6 +777,34 @@ Current stable `summary` fields on workflow runtime surfaces:
 
 On `workflow auto|run|resume`, `summary.status` mirrors `result.stage` after a funding dispatch or goal execution, and otherwise mirrors the workflow readiness status.
 
+`workflowEntrySummary` now provides the entrypoint-level compatibility contract
+across `plan|start|auto|pay|run|status|next|resume` and the fixed-intent
+workflow shortcuts.
+
+Current stable `workflowEntrySummary` fields:
+
+- `entrypoint`
+- `command`
+- `source`
+- `workflowRequestId`
+- `walletName`
+- `intent`
+- `runtimeStatus`
+- `readyForGoal`
+- `walletApprovalStatus`
+- `checkpointPersisted`
+- `nextAction`
+
+Current stable `entrypoint` values:
+
+- `workflow`
+
+Current stable `source` values:
+
+- `input`
+- `checkpoint`
+- `null`
+
 ### `workflow status|next|run|resume`
 
 These surfaces currently all include:
@@ -601,6 +812,7 @@ These surfaces currently all include:
 - `summary`
 - `agentProfile`
 - `agentFollowup`
+- `workflowEntrySummary`
 - `walletApprovalSummary`
 - `tokenDiscoverySummary`
 - `recommendedCommands`
@@ -660,6 +872,48 @@ wallet approval context is present:
 - `nextAction`
 - `afterApproval`
 - `afterApprovalStatus`
+
+### `workflowEntrySummary` examples
+
+Plan-time example:
+
+```json
+{
+  "workflowEntrySummary": {
+    "entrypoint": "workflow",
+    "command": "plan",
+    "source": "input",
+    "workflowRequestId": null,
+    "walletName": "main",
+    "intent": "swap",
+    "runtimeStatus": "blocked",
+    "readyForGoal": false,
+    "walletApprovalStatus": null,
+    "checkpointPersisted": false,
+    "nextAction": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"
+  }
+}
+```
+
+Runtime example with checkpoint follow-up:
+
+```json
+{
+  "workflowEntrySummary": {
+    "entrypoint": "workflow",
+    "command": "next",
+    "source": "checkpoint",
+    "workflowRequestId": "wf-await-001",
+    "walletName": "main",
+    "intent": "send-native",
+    "runtimeStatus": "blocked",
+    "readyForGoal": false,
+    "walletApprovalStatus": "relay-pending",
+    "checkpointPersisted": true,
+    "nextAction": "zk-agent wallet request relay-status --request-id wr-reuse-001 --relay-url http://127.0.0.1:4445"
+  }
+}
+```
 
 ### Token-input workflow errors
 

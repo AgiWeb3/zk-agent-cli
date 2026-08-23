@@ -51,6 +51,19 @@ test('workflow next returns token discovery commands for tokenized ready checkpo
     });
 
     assert.equal(result.ok, true);
+    assert.deepEqual(result.workflowEntrySummary, {
+      entrypoint: 'workflow',
+      command: 'next',
+      source: 'checkpoint',
+      workflowRequestId: 'wf-token-runtime-001',
+      walletName: 'main',
+      intent: 'send-token',
+      runtimeStatus: 'ready',
+      readyForGoal: true,
+      walletApprovalStatus: null,
+      checkpointPersisted: true,
+      nextAction: result.summary.nextCommand
+    });
     assert.equal(result.summary.status, 'ready');
     assert.equal(result.result.intent, 'send-token');
     assert.deepEqual(result.tokenDiscoverySummary, {

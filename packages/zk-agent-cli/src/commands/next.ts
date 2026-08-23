@@ -21,6 +21,10 @@ import { agentFollowupLines, buildAgentFollowup } from '../lib/agent-followup.js
 import { agentProfileLines } from '../lib/agent-profile.js';
 import { printResult } from '../lib/io.js';
 import {
+  buildOnboardingSummary,
+  onboardingSummaryLines
+} from '../lib/onboarding-summary.js';
+import {
   buildWalletTokenDiscoverySummary,
   walletNextLines
 } from '../lib/wallet-next.js';
@@ -160,15 +164,22 @@ function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): st
 
 function topLevelNextLines(
   scope: 'setup' | 'wallet-bootstrap' | 'wallet' | 'workflow',
-  lines: Array<[string, string]>
+  lines: Array<[string, string]>,
+  onboardingSummary?: ReturnType<typeof buildOnboardingSummary>
 ): Array<[string, string]> {
-  return [['scope', scope], ...lines];
+  return [
+    ['scope', scope],
+    ...(onboardingSummary ? onboardingSummaryLines(onboardingSummary) : []),
+    ...lines
+  ];
 }
 
 function buildNextHelpText(): string {
   return [
     '',
     'Use `next` as the product entrypoint:',
+    '  Stay on `next` until it points you at a wallet-specific or workflow-specific blocker.',
+    '',
     '  Fresh local-first routing:',
     '    zk-agent setup',
     '    zk-agent next',
@@ -180,6 +191,8 @@ function buildNextHelpText(): string {
     '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
     '    zk-agent next',
     '',
+    '  If setup has not run yet, `next` will send you back to `zk-agent setup` first.',
+    '',
     '  Continue a stored workflow checkpoint:',
     '    zk-agent next --request-id <id>',
     '',
@@ -187,7 +200,10 @@ function buildNextHelpText(): string {
     '    zk-agent wallet next --name main',
     '',
     '  Switch to the hosted remote-approval path only when the browser is not colocated:',
-    '    zk-agent wallet --help',
+      '    zk-agent wallet --help',
+    '',
+    '  Use `wallet --help` when you already know the blocker is wallet-specific:',
+    '    zk-agent wallet next --name main',
     '',
     '  Stay on the workflow layer only when you already have an explicit workflow or checkpoint:',
     '    zk-agent workflow next --request-id <id>'
@@ -312,6 +328,17 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           afterSetup: buildTopLevelNextRecommendedCommand(),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
+        const onboardingSummary = buildOnboardingSummary({
+          stage: 'setup',
+          localOnly: true,
+          configExists: false,
+          walletExists: false,
+          nextAction: recommendedCommands.setup,
+          notes: [
+            'No local config was found, so setup is still the first required onboarding step.',
+            'This scope is local-only and does not require live RPC reads.'
+          ]
+        });
 
         printResult(
           topLevelNextLines('setup', [
@@ -321,12 +348,13 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['next', recommendedCommands.setup],
             ['after setup', recommendedCommands.afterSetup],
             ['inspect defaults', recommendedCommands.inspectDefaults]
-          ]),
+          ], onboardingSummary),
           {
             ok: true,
             scope: 'setup',
             status: 'action-required',
             nextCommand: recommendedCommands.setup,
+            onboardingSummary,
             agentProfile,
             agentFollowup: defaultAgentFollowup,
             recommendedCommands
@@ -350,6 +378,19 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           afterApproval: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
+        const onboardingSummary = buildOnboardingSummary({
+          stage: 'wallet-bootstrap',
+          localOnly: true,
+          configExists: true,
+          walletExists: false,
+          defaultChain: config.defaultChain,
+          connectorUrl: config.connectorUrl,
+          nextAction: recommendedCommands.createWallet,
+          notes: [
+            'Config exists, but no saved wallet record was found for this name yet.',
+            'Use the remote approval fallback only when the browser is not colocated with this terminal.'
+          ]
+        });
 
         printResult(
           topLevelNextLines('wallet-bootstrap', [
@@ -363,13 +404,14 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['remote fallback', recommendedCommands.createWalletRemote],
             ['after approval', recommendedCommands.afterApproval],
             ['inspect defaults', recommendedCommands.inspectDefaults]
-          ]),
+          ], onboardingSummary),
           {
             ok: true,
             scope: 'wallet-bootstrap',
             walletName,
             config,
             nextCommand: recommendedCommands.createWallet,
+            onboardingSummary,
             agentProfile,
             agentFollowup: defaultAgentFollowup,
             recommendedCommands
@@ -410,6 +452,35 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         paymasterMode
       );
       const nextCommand = summary.recommendedCommand || workflowPay;
+      const onboardingSummary = buildOnboardingSummary({
+        stage:
+          inspection.approvalReady && inspection.localExecutionKeyStored
+            ? 'wallet-ready'
+            : 'wallet-recovery',
+        localOnly: false,
+        configExists: true,
+        walletExists: true,
+        approvalReady: inspection.approvalReady,
+        localExecutionKeyStored: inspection.localExecutionKeyStored,
+        defaultChain: config.defaultChain,
+        connectorUrl: config.connectorUrl,
+        nextAction: nextCommand,
+        notes:
+          !inspection.approvalReady
+            ? [
+                'Wallet metadata exists, but approved session metadata is still missing.',
+                'Top-level next returns to live workflow guidance after wallet approval is restored.'
+              ]
+            : !inspection.localExecutionKeyStored
+              ? [
+                  'Approved session metadata exists, but no local execution signer is stored yet.',
+                  'Top-level next returns to live workflow guidance after the signer is attached.'
+                ]
+              : [
+                  'Wallet approval and local signer state are present.',
+                  'Top-level next also inspects live deployment and balance state before recommending the workflow step.'
+                ]
+      });
       const agentFollowup = buildAgentFollowup(agentProfile, {
         walletName: wallet.walletName,
         walletExists: true
@@ -457,11 +528,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             : []),
           ['inspect token', recommendedCommands.inspectToken],
           ['inspect defaults', recommendedCommands.inspectDefaults]
-        ]),
+        ], onboardingSummary),
         {
           ok: true,
           scope: 'wallet',
           walletName: wallet.walletName,
+          onboardingSummary,
           agentProfile,
           agentFollowup,
           inspection,
