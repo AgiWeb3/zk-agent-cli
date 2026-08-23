@@ -254,6 +254,20 @@ interface WorkflowWalletApprovalSummary {
   afterApprovalStatus: string | null;
 }
 
+interface WorkflowRuntimeSummary {
+  status: WorkflowStatusResult['status'] | WorkflowRunResult['stage'];
+  readyForGoal: boolean;
+  nextCommand?: string;
+  blockingActionIds: string[];
+  fundingProgress?: {
+    kind: NonNullable<WorkflowStatusResult['fundingProgress']>['kind'];
+    txHash: string;
+    status: NonNullable<WorkflowStatusResult['fundingProgress']>['status'];
+    terminal: boolean;
+    finalized: boolean;
+  };
+}
+
 export interface WorkflowSessionResolution {
   wallet: WalletSessionRecord;
   status: WorkflowStatusResult;
@@ -1159,8 +1173,48 @@ function withAgentProfileLines(
   ];
 }
 
+function serializeWorkflowFundingProgress(
+  fundingProgress: WorkflowStatusResult['fundingProgress']
+): WorkflowRuntimeSummary['fundingProgress'] {
+  return fundingProgress
+    ? {
+        kind: fundingProgress.kind,
+        txHash: fundingProgress.txHash,
+        status: fundingProgress.status,
+        terminal: fundingProgress.terminal,
+        finalized: fundingProgress.finalized
+      }
+    : undefined;
+}
+
+function buildWorkflowRuntimeSummary(options: {
+  status?: WorkflowStatusResult;
+  result?: WorkflowRunResult;
+  nextCommand?: string;
+}): WorkflowRuntimeSummary {
+  if (!options.status && !options.result) {
+    throw new Error('Workflow runtime summary requires a workflow status or execution result.');
+  }
+
+  const nextCommand =
+    options.nextCommand ??
+    options.result?.nextCommand ??
+    options.status?.fundingProgress?.nextCommand ??
+    options.status?.recommendedCommand;
+
+  return {
+    status: options.result?.stage ?? options.status?.status ?? 'blocked',
+    readyForGoal: options.result
+      ? options.result.stage === 'goal-executed'
+      : Boolean(options.status?.readyForGoal),
+    nextCommand,
+    blockingActionIds: options.status?.blockingActionIds ?? [],
+    fundingProgress: serializeWorkflowFundingProgress(options.status?.fundingProgress)
+  };
+}
+
 async function printWorkflowRunCommandResult(
-  execution: Awaited<ReturnType<typeof executeWorkflowRunCommand>>
+  execution: WorkflowRunCommandResult
 ): Promise<void> {
   if (execution.result) {
     const agentProfile = await loadWorkflowAgentProfile(execution.result.walletName);
@@ -1188,6 +1242,11 @@ async function printWorkflowRunCommandResult(
         extractWorkflowGoalPaymasterMode(execution.goal),
       recommendedCommands
     });
+    const summary = buildWorkflowRuntimeSummary({
+      status: execution.status,
+      result: execution.result,
+      nextCommand: execution.result.nextCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -1207,6 +1266,7 @@ async function printWorkflowRunCommandResult(
         ...serializeWorkflowRequestMeta(execution.requestId),
         agentProfile,
         agentFollowup,
+        summary,
         result: execution.result,
         ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
         tokenDiscoverySummary,
@@ -1216,55 +1276,65 @@ async function printWorkflowRunCommandResult(
     return;
   }
 
-  const agentProfile = await loadWorkflowAgentProfile(execution.status.walletName);
+  const status = execution.status;
+  if (!status) {
+    throw new Error('Workflow run result is missing both execution result and status.');
+  }
+
+  const agentProfile = await loadWorkflowAgentProfile(status.walletName);
   const agentFollowup = buildAgentFollowup(agentProfile, {
-    walletName: execution.status.walletName,
+    walletName: status.walletName,
     walletExists: true
   });
   const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
     requestId: execution.requestId,
-    walletName: execution.status.walletName,
-    nextAction: execution.status.recommendedCommand,
-    chain: execution.status.plan.chain,
-    intent: execution.status.intent,
+    walletName: status.walletName,
+    nextAction: status.recommendedCommand,
+    chain: status.plan.chain,
+    intent: status.intent,
     paymasterMode:
       execution.walletApproval?.request.requestedPaymasterMode ??
       extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
   });
   const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
-    walletName: execution.status.walletName,
-    chain: execution.status.plan.chain,
-    intent: execution.status.intent,
-    nextAction: execution.status.recommendedCommand,
+    walletName: status.walletName,
+    chain: status.plan.chain,
+    intent: status.intent,
+    nextAction: status.recommendedCommand,
     paymasterMode:
       execution.walletApproval?.request.requestedPaymasterMode ??
       extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal),
     recommendedCommands
   });
+  const summary = buildWorkflowRuntimeSummary({
+    status,
+    nextCommand: status.recommendedCommand
+  });
 
   printResult(
     prependWorkflowRequestId(
-      execution.requestId,
-      withAgentProfileLines(
-        [
-          ...workflowStatusLines(execution.status),
-          ...workflowWalletApprovalLines(execution.walletApproval),
-          ...workflowFollowupLines(recommendedCommands)
-        ],
+        execution.requestId,
+        withAgentProfileLines(
+          [
+            ...workflowStatusLines(status),
+            ...workflowWalletApprovalLines(execution.walletApproval),
+            ...workflowFollowupLines(recommendedCommands)
+          ],
         agentProfile,
         agentFollowup
       )
     ),
     {
-      ok: true,
-      ...serializeWorkflowRequestMeta(execution.requestId),
-      agentProfile,
-      agentFollowup,
-      status: execution.status,
-      checkpoint: execution.checkpoint,
-      ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
-      tokenDiscoverySummary,
-      recommendedCommands
+        ok: true,
+        ...serializeWorkflowRequestMeta(execution.requestId),
+        agentProfile,
+        agentFollowup,
+        summary,
+        status,
+        checkpoint: execution.checkpoint,
+        ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
+        tokenDiscoverySummary,
+        recommendedCommands
     }
   );
 }
@@ -1455,6 +1525,15 @@ interface WorkflowAutoCommandResult {
   walletApproval?: WorkflowWalletApprovalResult;
 }
 
+interface WorkflowRunCommandResult {
+  requestId?: string;
+  goal: WorkflowGoalInput;
+  status?: WorkflowStatusResult;
+  result?: WorkflowRunResult;
+  checkpoint?: WorkflowCheckpointRecord;
+  walletApproval?: WorkflowWalletApprovalResult;
+}
+
 function applyWorkflowPayDefaults(options: WorkflowCommandOptions): WorkflowCommandOptions {
   return {
     ...options,
@@ -1609,6 +1688,11 @@ async function printWorkflowAutoCommandResult(
       extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal),
     recommendedCommands
   });
+  const summary = buildWorkflowRuntimeSummary({
+    status: execution.status,
+    result: execution.result,
+    nextCommand: nextAction
+  });
   const summaryLines: Array<[string, string]> = [
     ['source', execution.source],
     ['action', execution.action],
@@ -1640,6 +1724,7 @@ async function printWorkflowAutoCommandResult(
       ...serializeWorkflowRequestMeta(execution.requestId),
       agentProfile,
       agentFollowup,
+      summary,
       status: execution.status,
       result: execution.result,
       checkpoint: execution.checkpoint,
@@ -2322,7 +2407,7 @@ async function executeWorkflowUpdateCommand(options: WorkflowUpdateOptions) {
 async function executeWorkflowRunCommand(
   options: WorkflowCommandOptions,
   deps: WorkflowCommandDeps = resolveWorkflowCommandDeps(undefined)
-) {
+): Promise<WorkflowRunCommandResult> {
   const { provider, defiProvider } = deps;
   const context = await resolveWorkflowExecutionContext(options);
   let wallet = context.wallet;
@@ -2928,6 +3013,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       walletName: inspection.result.walletName,
       walletExists: true
     });
+    const summary = buildWorkflowRuntimeSummary({
+      status: inspection.result,
+      nextCommand: inspection.result.recommendedCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -2947,6 +3036,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ...serializeWorkflowRequestMeta(inspection.requestId),
         agentProfile,
         agentFollowup,
+        summary,
         result: inspection.result,
         checkpoint: inspection.checkpoint,
         ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
@@ -2997,6 +3087,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       walletName: inspection.result.walletName,
       walletExists: true
     });
+    const summary = buildWorkflowRuntimeSummary({
+      status: inspection.result,
+      nextCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -3016,21 +3110,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ...serializeWorkflowRequestMeta(inspection.requestId),
         agentProfile,
         agentFollowup,
-        summary: {
-          status: inspection.result.status,
-          readyForGoal: inspection.result.readyForGoal,
-          nextCommand,
-          blockingActionIds: inspection.result.blockingActionIds,
-          fundingProgress: inspection.result.fundingProgress
-            ? {
-                kind: inspection.result.fundingProgress.kind,
-                txHash: inspection.result.fundingProgress.txHash,
-                status: inspection.result.fundingProgress.status,
-                terminal: inspection.result.fundingProgress.terminal,
-                finalized: inspection.result.fundingProgress.finalized
-              }
-            : undefined
-        },
+        summary,
         result: inspection.result,
         checkpoint: inspection.checkpoint,
         ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
@@ -3078,6 +3158,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         walletName: inspection.result.walletName,
         walletExists: true
       });
+      const summary = buildWorkflowRuntimeSummary({
+        status: inspection.result,
+        nextCommand: inspection.result.recommendedCommand
+      });
 
       printResult(
         prependWorkflowRequestId(
@@ -3097,6 +3181,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           ...serializeWorkflowRequestMeta(inspection.requestId),
           agentProfile,
           agentFollowup,
+          summary,
           status: inspection.result,
           checkpoint: inspection.checkpoint,
           ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
@@ -3118,30 +3203,39 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     );
 
     if (!execution.result) {
+      const status = execution.status;
+      if (!status) {
+        throw new Error('Workflow resume result is missing both execution result and status.');
+      }
+
       const recommendedCommands = buildWorkflowRuntimeRecommendedCommands({
         requestId: execution.requestId,
-        walletName: execution.status.walletName,
-        nextAction: execution.status.recommendedCommand,
-        chain: execution.status.plan.chain,
-        intent: execution.status.intent,
+        walletName: status.walletName,
+        nextAction: status.recommendedCommand,
+        chain: status.plan.chain,
+        intent: status.intent,
         paymasterMode:
           execution.walletApproval?.request.requestedPaymasterMode ??
           extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal)
       });
       const tokenDiscoverySummary = buildWorkflowTokenDiscoverySummary({
-        walletName: execution.status.walletName,
-        chain: execution.status.plan.chain,
-        intent: execution.status.intent,
-        nextAction: execution.status.recommendedCommand,
+        walletName: status.walletName,
+        chain: status.plan.chain,
+        intent: status.intent,
+        nextAction: status.recommendedCommand,
         paymasterMode:
           execution.walletApproval?.request.requestedPaymasterMode ??
           extractWorkflowGoalPaymasterMode(execution.checkpoint?.goal),
         recommendedCommands
       });
-      const agentProfile = await loadWorkflowAgentProfile(execution.status.walletName);
+      const agentProfile = await loadWorkflowAgentProfile(status.walletName);
       const agentFollowup = buildAgentFollowup(agentProfile, {
-        walletName: execution.status.walletName,
+        walletName: status.walletName,
         walletExists: true
+      });
+      const summary = buildWorkflowRuntimeSummary({
+        status,
+        nextCommand: status.recommendedCommand
       });
 
       printResult(
@@ -3149,7 +3243,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           execution.requestId,
           withAgentProfileLines(
             [
-              ...workflowStatusLines(execution.status),
+              ...workflowStatusLines(status),
               ...workflowWalletApprovalLines(execution.walletApproval),
               ...workflowFollowupLines(recommendedCommands)
             ],
@@ -3162,7 +3256,8 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           ...serializeWorkflowRequestMeta(execution.requestId),
           agentProfile,
           agentFollowup,
-          status: execution.status,
+          summary,
+          status,
           checkpoint: execution.checkpoint,
           ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
           tokenDiscoverySummary,
@@ -3197,6 +3292,11 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       walletName: execution.result.walletName,
       walletExists: true
     });
+    const summary = buildWorkflowRuntimeSummary({
+      status: inspection.result,
+      result: execution.result,
+      nextCommand: execution.result.nextCommand ?? inspection.result.recommendedCommand
+    });
 
     printResult(
       prependWorkflowRequestId(
@@ -3216,6 +3316,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         ...serializeWorkflowRequestMeta(execution.requestId),
         agentProfile,
         agentFollowup,
+        summary,
         status: inspection.result,
         result: execution.result,
         ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),

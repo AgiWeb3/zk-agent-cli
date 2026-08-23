@@ -386,6 +386,12 @@ Unless priorities change, the next concrete slices should be:
      `await-local`, `relay-pending`, and `approved` without re-parsing raw
      request, relay, and follow-up-command fields
    - current baseline improvement:
+     `workflow auto`, `workflow status`, `workflow run`, `workflow resume`,
+     and `workflow next` now also expose one shared workflow runtime `summary`
+     contract, so wrappers can read readiness, next command, blockers, and the
+     current executed-vs-pending state without re-parsing the larger
+     `status` / `result` payloads first
+   - current baseline improvement:
      `wallet status` and `wallet next` now also expose the same
      approval-based paymaster fee-token discovery follow-ups as top-level
      `next`, so wallet-layer remediation no longer drops the canonical

@@ -3,10 +3,10 @@
 ## Snapshot
 
 - Last updated: 2026-08-22
-- Latest commit at write time: `b1c6743`
+- Latest commit at write time: `2a084c1`
 - Current branch: `main`
-- Working tree status when this document was written: dirty with hosted-relay
-  approval-endpoint summary and state/doc productization follow-up edits
+- Working tree status when this document was written: dirty with workflow
+  runtime summary and state/doc productization follow-up edits
 
 ## Current status
 
@@ -165,6 +165,12 @@ Architecture baseline to keep in mind:
      the full `walletApproval` payload, so automation can distinguish
      `await-local`, `relay-pending`, and `approved` without reverse-parsing
      request metadata, relay fields, and next-step command maps separately
+   - current baseline improvement:
+     `workflow auto`, `workflow status`, `workflow run`, `workflow resume`,
+     and `workflow next` now also expose one shared runtime `summary`
+     contract, so wrappers can read readiness, blockers, next command, and the
+     current executed-vs-pending state without re-parsing the larger
+     `status` / `result` payloads first
    - current baseline improvement:
      `wallet status` and `wallet next` now also expose the same approval-based
      paymaster fee-token discovery follow-ups as top-level `next`, so

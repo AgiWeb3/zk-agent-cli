@@ -398,6 +398,10 @@ test('workflow auto can create a checkpoint from fresh goal input through comman
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-auto-001');
     assert.equal(result.requestId, 'wf-auto-001');
+    assert.equal(result.summary.status, 'blocked');
+    assert.equal(result.summary.readyForGoal, false);
+    assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
+    assert.deepEqual(result.summary.blockingActionIds, result.status.blockingActionIds);
     assert.equal(result.status.status, 'blocked');
     assert.equal(result.checkpoint.requestId, 'wf-auto-001');
     assert.deepEqual(result.recommendedCommands, {
@@ -468,6 +472,10 @@ test('workflow pay creates a flagship reapproval request with paymaster-aware de
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-pay-001');
     assert.equal(result.requestId, 'wf-pay-001');
+    assert.equal(result.summary.status, 'blocked');
+    assert.equal(result.summary.readyForGoal, false);
+    assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
+    assert.deepEqual(result.summary.blockingActionIds, result.status.blockingActionIds);
     assert.equal(result.status.status, 'blocked');
     assert.equal(result.walletApproval.stage, 'request-created');
     assert.equal(result.walletApproval.request.requestedPaymasterMode, 'approval-based');
@@ -576,6 +584,10 @@ test('workflow pay executes the flagship native-send preview immediately when th
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-pay-ready-001');
     assert.equal(result.requestId, 'wf-pay-ready-001');
+    assert.equal(result.summary.status, 'goal-executed');
+    assert.equal(result.summary.readyForGoal, true);
+    assert.equal(result.summary.nextCommand, result.result.nextCommand);
+    assert.deepEqual(result.summary.blockingActionIds, []);
     assert.equal(result.status.status, 'ready');
     assert.equal(result.result.stage, 'goal-executed');
     assert.equal(result.result.goal.mode, 'preview');
@@ -639,6 +651,10 @@ test('workflow status can await local approval through commander with injected p
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.requestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.summary.status, 'ready');
+    assert.equal(result.summary.readyForGoal, true);
+    assert.equal(result.summary.nextCommand, result.result.recommendedCommand);
+    assert.deepEqual(result.summary.blockingActionIds, result.result.blockingActionIds);
     assert.equal(result.result.status, 'ready');
     assert.equal(result.result.readyForGoal, true);
     assert.equal(result.walletApproval.stage, 'approved');
@@ -714,6 +730,10 @@ test('workflow send-native shortcut executes the same path as workflow run with 
 
     const result = JSON.parse(stdout);
     assert.equal(result.ok, true);
+    assert.equal(result.summary.status, 'goal-executed');
+    assert.equal(result.summary.readyForGoal, true);
+    assert.equal(result.summary.nextCommand, undefined);
+    assert.deepEqual(result.summary.blockingActionIds, []);
     assert.equal(result.result.stage, 'goal-executed');
     assert.equal(result.result.goal.mode, 'broadcast');
     assert.equal(result.result.goal.txHash, '0x' + '99'.repeat(32));
@@ -769,6 +789,10 @@ test('workflow status can emit relay follow-up commands through commander when r
     assert.equal(result.ok, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.summary.status, 'blocked');
+    assert.equal(result.summary.readyForGoal, false);
+    assert.equal(result.summary.nextCommand, result.result.recommendedCommand);
+    assert.deepEqual(result.summary.blockingActionIds, result.result.blockingActionIds);
     assert.equal(result.result.status, 'blocked');
     assert.equal(
       result.result.recommendedCommand,
@@ -940,6 +964,10 @@ test('workflow resume can await local approval and continue to goal execution th
     assert.equal(result.ok, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.summary.status, 'goal-executed');
+    assert.equal(result.summary.readyForGoal, true);
+    assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
+    assert.deepEqual(result.summary.blockingActionIds, []);
     assert.equal(result.status.status, 'ready');
     assert.equal(result.result.stage, 'goal-executed');
     assert.equal(result.result.goal.mode, 'broadcast');
@@ -1004,6 +1032,10 @@ test('workflow auto can await local approval and execute immediately when ready 
     assert.equal(result.checkpointPersisted, true);
     assert.equal(result.workflowRequestId, 'wf-await-001');
     assert.equal(result.walletRequestId, 'wr-reuse-001');
+    assert.equal(result.summary.status, 'goal-executed');
+    assert.equal(result.summary.readyForGoal, true);
+    assert.equal(result.summary.nextCommand, result.status.recommendedCommand);
+    assert.deepEqual(result.summary.blockingActionIds, []);
     assert.equal(result.status.status, 'ready');
     assert.equal(result.result.stage, 'goal-executed');
     assert.equal(result.result.goal.mode, 'broadcast');

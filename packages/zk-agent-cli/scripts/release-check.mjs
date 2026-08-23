@@ -975,6 +975,10 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the workflow walletApprovalSummary contract.'
     ],
     [
+      /### `workflow auto`[\s\S]*`summary`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`summary`[\s\S]*Current stable `summary` fields on workflow runtime surfaces:[\s\S]*`status`[\s\S]*`readyForGoal`[\s\S]*`nextCommand`[\s\S]*`blockingActionIds`[\s\S]*`fundingProgress`[\s\S]*On `workflow auto\|run\|resume`, `summary\.status` mirrors `result\.stage`[\s\S]*workflow readiness status/,
+      'Operator JSON contract doc must describe the workflow runtime summary contract.'
+    ],
+    [
       /### Token-input workflow errors[\s\S]*`recommendedCommands`[\s\S]*`tokenDiscoverySummary`[\s\S]*Current stable `tokenDiscoverySummary` fields on that error path:[\s\S]*`chain`[\s\S]*`queryType`[\s\S]*`query`[\s\S]*`roleFilter`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`workflowHelp`/,
       'Operator JSON contract doc must describe the workflow token-input error discovery summary contract.'
     ],

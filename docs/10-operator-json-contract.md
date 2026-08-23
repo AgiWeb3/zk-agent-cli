@@ -564,6 +564,7 @@ Key fields:
 
 - `source`
 - `action`
+- `summary`
 - `checkpointPersisted`
 - `workflowRequestId`
 - `status`
@@ -583,10 +584,21 @@ Two follow-up groups must be distinguished here:
 - `agentFollowup`
   The next step at the current local agent-identity layer.
 
+Current stable `summary` fields on workflow runtime surfaces:
+
+- `status`
+- `readyForGoal`
+- `nextCommand`
+- `blockingActionIds`
+- `fundingProgress`
+
+On `workflow auto|run|resume`, `summary.status` mirrors `result.stage` after a funding dispatch or goal execution, and otherwise mirrors the workflow readiness status.
+
 ### `workflow status|next|run|resume`
 
 These surfaces currently all include:
 
+- `summary`
 - `agentProfile`
 - `agentFollowup`
 - `walletApprovalSummary`
@@ -595,12 +607,20 @@ These surfaces currently all include:
 
 Within that set:
 
-- `workflow next`
-  additionally includes a simplified `summary`
 - `workflow run`
   includes `result` on successful execution
 - `workflow resume`
   first verifies whether the checkpoint can actually be resumed
+
+Current stable `summary` fields on workflow runtime surfaces:
+
+- `status`
+- `readyForGoal`
+- `nextCommand`
+- `blockingActionIds`
+- `fundingProgress`
+
+On `workflow auto|run|resume`, `summary.status` mirrors `result.stage` after a funding dispatch or goal execution, and otherwise mirrors the workflow readiness status.
 
 Tokenized workflow outputs should keep the same local-first recovery contract
 visible:
