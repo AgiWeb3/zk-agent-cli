@@ -380,11 +380,20 @@ function isDirectExecution(metaUrl: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
-  const payload = await runSmokeHostedRelay(options);
-  writeJson(payload);
+  try {
+    const options = parseArgs(process.argv.slice(2));
+    const payload = await runSmokeHostedRelay(options);
+    writeJson(payload);
 
-  if (!payload.ok) {
+    if (!payload.ok) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    writeJson({
+      ok: false,
+      phase: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error)
+    });
     process.exitCode = 1;
   }
 }

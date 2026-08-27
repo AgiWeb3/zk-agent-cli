@@ -337,8 +337,13 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
-      /zk-agent setup[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Quickstart must keep the canonical terminal path visible.'
+    ],
+    [
+      quickstart,
+      /If local setup or wallet readiness is unclear before you choose between the[\s\S]*local and hosted approval paths, start with:[\s\S]*zk-agent doctor/,
+      'Quickstart must keep the local-only doctor diagnostic visible.'
     ],
     [
       quickstart,
@@ -367,7 +372,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
-      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
       'Primary skill guide must keep the canonical operator path visible.'
     ],
     [
@@ -519,6 +524,11 @@ function assertReleaseStageDocs({
     ],
     [
       releaseGateDoc,
+      /### Machine-checkable RC subset[\s\S]*pnpm validate:rc[\s\S]*--report-file <path>[\s\S]*pnpm validate:release[\s\S]*smoke:hosted-operated-baseline[\s\S]*smoke:hosted-recovery[\s\S]*auto-detects the newest matching public hosted evidence report[\s\S]*~\/\.zk-agent\/reports\/hosted-operated-baseline\/[\s\S]*--report-file <path>[\s\S]*necessary, but not sufficient[\s\S]*does not replace the real public browser\/manual rehearsal[\s\S]*--save-report[\s\S]*~\/\.zk-agent\/reports\/hosted-operated-baseline\/[\s\S]*### RC review artifact[\s\S]*pnpm review:rc[\s\S]*repo-tracked file[\s\S]*does not promote the package to `rc` by itself[\s\S]*docs\/release-stage-reviews\/<YYYY-MM-DD>-<wallet>-rc\.md/,
+      'Release gate doc must keep the machine-checkable RC subset and its manual boundary explicit.'
+    ],
+    [
+      releaseGateDoc,
       /### Gate: `rc -> 1\.0\.0`[\s\S]*every `rc` gate remains closed[\s\S]*one additional zkSync-native product slice[\s\S]*two consecutive end-to-end release rehearsals[\s\S]*no known release-blocking issue remains/,
       'Release gate doc must keep the rc-to-1.0.0 gate explicit.'
     ],
@@ -534,8 +544,23 @@ function assertReleaseStageDocs({
     ],
     [
       hostedBaselineDoc,
+      /### URL contract[\s\S]*share links are emitted from:[\s\S]*`https:\/\/<publicOrigin>\/r\/<request-id>`[\s\S]*status URLs are emitted from:[\s\S]*`https:\/\/<publicOrigin>\/api\/requests\/<request-id>`[\s\S]*browser approval must complete on that same public origin[\s\S]*externally shared URL must come from `publicOrigin`, not the local bind[\s\S]*origin/,
+      'Hosted baseline doc must describe the hosted URL contract explicitly.'
+    ],
+    [
+      hostedBaselineDoc,
+      /## Request Lifecycle[\s\S]*create or reapprove emits a relay-backed request[\s\S]*relay status is `pending`[\s\S]*browser operator opens the share URL[\s\S]*terminal finalizes via:[\s\S]*zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait[\s\S]*If relay status becomes `expired`:[\s\S]*treat that as a reissue state, not a polling state[\s\S]*inspect the relay again if deployment readiness is in doubt[\s\S]*reissue `wallet create --relay-url \.\.\.` or[\s\S]*`wallet reapprove --relay-url \.\.\.`[\s\S]*if scoped session flags were used, reissue them on the new command/,
+      'Hosted baseline doc must describe the expired-request recovery lifecycle.'
+    ],
+    [
+      hostedBaselineDoc,
       /## Required Readiness Checks[\s\S]*`relay inspect` returns `compatible = true`[\s\S]*`publicOriginLooksLocal = false`[\s\S]*`connectorUiAvailable = true`[\s\S]*`hostedShareRedirectReady = true`[\s\S]*`hostedReadinessSummary\.status = ready`[\s\S]*`deploymentSummary\.singleHostFileState = true`/,
       'Hosted baseline doc must describe the required hosted readiness checks.'
+    ],
+    [
+      hostedBaselineDoc,
+      /## Standard Rehearsal Command[\s\S]*--repeat 2 --prompt-code --save-report[\s\S]*~\/\.zk-agent\/reports\/hosted-operated-baseline\/\*\.json/,
+      'Hosted baseline doc must describe the report-backed repeated rehearsal evidence path.'
     ],
     [
       hostedBaselineDoc,
@@ -549,8 +574,18 @@ function assertReleaseStageDocs({
     ],
     [
       rootReadme,
+      /Release snapshot:[\s\S]*pnpm validate:release[\s\S]*pnpm validate:rc[\s\S]*pnpm review:rc/,
+      'Root README must keep the release and RC validation entrypoints visible.'
+    ],
+    [
+      rootReadme,
       /Release-stage judgment:[\s\S]*the project should remain on `beta` today[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
       'Root README must keep the release-stage judgment visible.'
+    ],
+    [
+      rootReadme,
+      /Release-stage judgment:[\s\S]*`pnpm validate:rc` is necessary[\s\S]*real public hosted rehearsal[\s\S]*`pnpm review:rc`/,
+      'Root README must keep the validate:rc boundary honest.'
     ],
     [
       plans,
@@ -558,9 +593,29 @@ function assertReleaseStageDocs({
       'PLANS.md must keep the release-stage gates explicit.'
     ],
     [
+      plans,
+      /Release automation and changelog discipline[\s\S]*`pnpm validate:rc`[\s\S]*manual gate[\s\S]*newest matching hosted operated-baseline[\s\S]*`--report-file`[\s\S]*`pnpm review:rc`/,
+      'PLANS.md must keep the validate:rc wrapper explicit in the release-automation plan.'
+    ],
+    [
       projectState,
       /### Release-stage assessment[\s\S]*stay on `beta`[\s\S]*do not claim `rc` readiness yet[\s\S]*do not move to `1\.0\.0` yet[\s\S]*Gate to move from `beta` to `rc`[\s\S]*Gate to move from `rc` to `1\.0\.0`/,
       'PROJECT_STATE.md must keep the release-stage assessment explicit.'
+    ],
+    [
+      projectState,
+      /current RC-gate improvement:[\s\S]*`pnpm validate:rc`[\s\S]*real public hosted[\s\S]*rehearsal[\s\S]*final stage judgment explicit/,
+      'PROJECT_STATE.md must keep the validate:rc RC-gate improvement explicit.'
+    ],
+    [
+      projectState,
+      /current evidence-ingest improvement:[\s\S]*`pnpm validate:rc`[\s\S]*newest matching hosted[\s\S]*`~\/\.zk-agent\/reports\/hosted-operated-baseline\/`[\s\S]*`--report-file <path>`/,
+      'PROJECT_STATE.md must keep the validate:rc evidence-ingest improvement explicit.'
+    ],
+    [
+      projectState,
+      /current stage-review improvement:[\s\S]*`pnpm review:rc -- --wallet <name> --relay-url <url> --write`[\s\S]*repo-tracked markdown review artifact/,
+      'PROJECT_STATE.md must keep the RC stage-review artifact explicit.'
     ]
   ];
 
@@ -1204,6 +1259,10 @@ function assertDoctorSetupPayload(payload) {
 function assertOperatorJsonContract(doc) {
   const requiredChecks = [
     [
+      /## Compatibility Boundary[\s\S]*source of truth for the frozen machine-readable[\s\S]*operator contract on the default product path[\s\S]*Before `rc`, the intentionally frozen compatibility boundary is:[\s\S]*`onboardingSummary`[\s\S]*`workflowEntrySummary`[\s\S]*`walletApprovalSummary`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`[\s\S]*Fields and command surfaces that are not documented here as current[\s\S]*stable contract are not frozen by default[\s\S]*### Change policy[\s\S]*Removing, renaming, or repurposing[\s\S]*Changing the meaning or command shape[\s\S]*New fields may be added only when they are optional[\s\S]*breaking change is still required before `rc`/,
+      'Operator JSON contract doc must declare the frozen compatibility boundary and change policy for rc work.'
+    ],
+    [
       /### `onboardingSummary`[\s\S]*Current stable fields:[\s\S]*`stage`[\s\S]*`baseline`[\s\S]*`localOnly`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`notes`/,
       'Operator JSON contract doc must describe the shared onboardingSummary contract.'
     ],
@@ -1720,8 +1779,8 @@ function buildRelayCreateRequest(requestId) {
       chain: 'zksync-sepolia',
       chainId: 300,
       provider: 'zksync-sso',
-      createdAt: '2026-08-04T00:00:00.000Z',
-      expiresAt: '2026-08-10T00:00:00.000Z',
+      createdAt: '2099-08-04T00:00:00.000Z',
+      expiresAt: '2099-08-10T00:00:00.000Z',
       connectorUrl: 'https://connector.example.test',
       requestedAccountKind: 'smart-account',
       requestedPaymasterMode: 'none',
@@ -1755,6 +1814,31 @@ async function assertHostedShareLink(projectOrigin, publicOrigin, requestId) {
   assert.equal(createdPayload.status_url, `${publicOrigin}/api/requests/${requestId}`);
   assert.equal(createdPayload.approval_url, `${publicOrigin}/r/${requestId}`);
 
+  const shareResponse = await fetch(`${projectOrigin}/r/${requestId}`, {
+    redirect: 'manual'
+  });
+  assert.equal(shareResponse.status, 302);
+  const location = shareResponse.headers.get('location');
+  assert.equal(
+    location,
+    `/?relayRequestUrl=${encodeURIComponent(`${publicOrigin}/api/requests/${requestId}`)}`
+  );
+
+  const landingResponse = await fetch(`${projectOrigin}${location}`);
+  assert.equal(landingResponse.status, 200);
+  const landingHtml = await landingResponse.text();
+  assert.match(landingHtml, /<div id="root"><\/div>/);
+  const scriptMatch = landingHtml.match(/<script type="module" crossorigin src="([^"]+)"><\/script>/);
+  assert.notEqual(scriptMatch, null);
+  const scriptPath = scriptMatch?.[1];
+  assert.match(scriptPath, /^\/assets\/index-.*\.js$/);
+
+  const scriptResponse = await fetch(`${projectOrigin}${scriptPath}`);
+  assert.equal(scriptResponse.status, 200);
+  assert.match(scriptResponse.headers.get('content-type') || '', /text\/javascript/);
+}
+
+async function assertHostedShareLinkForExistingRequest(projectOrigin, publicOrigin, requestId) {
   const shareResponse = await fetch(`${projectOrigin}/r/${requestId}`, {
     redirect: 'manual'
   });
@@ -2114,27 +2198,40 @@ function assertStandaloneSmoke(extractedPackageDir) {
 async function assertInstalledRelayServe(projectRoot, homeDir) {
   const binaryPath = join(projectRoot, 'node_modules', '.bin', 'zk-agent');
   const relayEnv = createStandaloneEnv(homeDir);
-  const child = spawn(
-    binaryPath,
-    ['--json', 'relay', 'serve', '--port', '0', '--public-origin', 'https://relay.example.test'],
-    {
-      cwd: projectRoot,
-      env: relayEnv,
-      stdio: ['ignore', 'pipe', 'pipe']
-    }
-  );
+  const publicOrigin = 'https://relay.example.test';
+  const requestId = 'release-check-share-link';
+  let child = null;
 
-  const stderrChunks = [];
-  child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (chunk) => {
-    stderrChunks.push(chunk);
-  });
+  function spawnRelay(port) {
+    const spawned = spawn(
+      binaryPath,
+      ['--json', 'relay', 'serve', '--port', String(port), '--public-origin', publicOrigin],
+      {
+        cwd: projectRoot,
+        env: relayEnv,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const stderrChunks = [];
+    spawned.stderr.setEncoding('utf8');
+    spawned.stderr.on('data', (chunk) => {
+      stderrChunks.push(chunk);
+    });
+
+    return {
+      child: spawned,
+      readStderr: () => stderrChunks.join('').trim()
+    };
+  }
 
   try {
+    const firstRelay = spawnRelay(0);
+    child = firstRelay.child;
     const payload = await waitForJsonOutput(child.stdout);
     assert.equal(payload.ok, true);
     assert.equal(payload.status, 'relay-serving');
-    assert.equal(payload.publicOrigin, 'https://relay.example.test');
+    assert.equal(payload.publicOrigin, publicOrigin);
     assert.equal(payload.publicOriginLooksLocal, false);
     assert.equal(payload.connectorUiAvailable, true);
     assert.equal(payload.hostedShareRedirectReady, true);
@@ -2146,17 +2243,143 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
     const healthPayload = await healthResponse.json();
     assert.equal(healthPayload.connector_ui_available, true);
     assert.equal(healthPayload.capabilities.includes('connector-ui'), true);
-    assert.equal(healthPayload.public_origin, 'https://relay.example.test');
+    assert.equal(healthPayload.public_origin, publicOrigin);
     assert.equal(healthPayload.public_origin_source, 'configured');
     assert.equal(healthPayload.state_backend, 'local-filesystem');
     assert.equal(healthPayload.deployment_scope, 'single-host');
     assert.equal(healthPayload.same_host_restart_persists, true);
 
-    await assertHostedShareLink(payload.origin, payload.publicOrigin, 'release-check-share-link');
+    const createResponse = await fetch(`${payload.origin}/api/requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(buildRelayCreateRequest(requestId))
+    });
+    assert.equal(createResponse.status, 201);
+
+    const firstStatusResponse = await fetch(`${payload.origin}/api/requests/${requestId}`);
+    assert.equal(firstStatusResponse.status, 200);
+    const firstStatusPayload = await firstStatusResponse.json();
+    assert.equal(firstStatusPayload.request_id, requestId);
+    assert.equal(firstStatusPayload.status, 'pending');
+    assert.equal(firstStatusPayload.approval_ready, false);
+    assert.equal(firstStatusPayload.share_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(
+      firstStatusPayload.status_url,
+      `${publicOrigin}/api/requests/${requestId}`
+    );
+    assert.equal(firstStatusPayload.approval_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(firstStatusPayload.expires_at, '2099-08-10T00:00:00.000Z');
+    assert.equal(firstStatusPayload.request.expiresAt, '2099-08-10T00:00:00.000Z');
+
+    await assertHostedShareLinkForExistingRequest(payload.origin, payload.publicOrigin, requestId);
+
+    const relayPort = new URL(payload.origin).port;
+    await stopChild(child, 10000);
+    assert.equal(
+      child.exitCode,
+      0,
+      firstRelay.readStderr() || `relay exited with code ${child.exitCode}`
+    );
+    child = null;
+
+    const secondRelay = spawnRelay(relayPort);
+    child = secondRelay.child;
+    const restartedPayload = await waitForJsonOutput(child.stdout);
+    assert.equal(restartedPayload.ok, true);
+    assert.equal(restartedPayload.status, 'relay-serving');
+    assert.equal(restartedPayload.origin, payload.origin);
+    assert.equal(restartedPayload.publicOrigin, publicOrigin);
+    assert.equal(restartedPayload.publicOriginLooksLocal, false);
+    assert.equal(restartedPayload.stateBackend, 'local-filesystem');
+    assert.equal(restartedPayload.deploymentScope, 'single-host');
+    assert.equal(restartedPayload.sameHostRestartPersists, true);
+    assert.equal(restartedPayload.connectorUiAvailable, true);
+    assert.equal(restartedPayload.hostedShareRedirectReady, true);
+
+    const restartedStatusResponse = await fetch(
+      `${restartedPayload.origin}/api/requests/${requestId}`
+    );
+    assert.equal(restartedStatusResponse.status, 200);
+    const restartedStatusPayload = await restartedStatusResponse.json();
+    assert.equal(restartedStatusPayload.request_id, requestId);
+    assert.equal(restartedStatusPayload.status, 'pending');
+    assert.equal(restartedStatusPayload.approval_ready, false);
+    assert.equal(restartedStatusPayload.share_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(
+      restartedStatusPayload.status_url,
+      `${publicOrigin}/api/requests/${requestId}`
+    );
+    assert.equal(restartedStatusPayload.approval_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(restartedStatusPayload.expires_at, '2099-08-10T00:00:00.000Z');
+    assert.equal(restartedStatusPayload.request.expiresAt, '2099-08-10T00:00:00.000Z');
+    assert.equal(restartedStatusPayload.request.requestId, requestId);
+
+    const restartedHealthResponse = await fetch(restartedPayload.healthUrl);
+    assert.equal(restartedHealthResponse.status, 200);
+    const restartedHealthPayload = await restartedHealthResponse.json();
+    assert.equal(restartedHealthPayload.public_origin, publicOrigin);
+    assert.equal(restartedHealthPayload.state_backend, 'local-filesystem');
+    assert.equal(restartedHealthPayload.deployment_scope, 'single-host');
+    assert.equal(restartedHealthPayload.same_host_restart_persists, true);
+
+    await assertHostedShareLinkForExistingRequest(
+      restartedPayload.origin,
+      restartedPayload.publicOrigin,
+      requestId
+    );
+
+    const inspected = runInstalledCliJson(projectRoot, homeDir, [
+      'relay',
+      'inspect',
+      '--relay-url',
+      restartedPayload.origin
+    ]);
+    assertNoWorkspaceLeak(inspected);
+    const inspectedPayload = JSON.parse(inspected);
+    assert.equal(inspectedPayload.ok, true);
+    assert.equal(inspectedPayload.compatible, true);
+    assert.equal(inspectedPayload.publicOrigin, publicOrigin);
+    assert.equal(inspectedPayload.relayUrlMatchesOrigin, true);
+    assert.equal(inspectedPayload.relayUrlMatchesPublicOrigin, false);
+    assert.equal(inspectedPayload.publicOriginLooksLocal, false);
+    assert.equal(inspectedPayload.stateBackend, 'local-filesystem');
+    assert.equal(inspectedPayload.deploymentScope, 'single-host');
+    assert.equal(inspectedPayload.sameHostRestartPersists, true);
+    assert.deepEqual(inspectedPayload.approvalEndpointSummary, {
+      status: 'hosted-public-origin-via-proxy',
+      publicOriginConfigured: true,
+      publicOriginLooksLocal: false,
+      relayUrlMatchesPublicOrigin: false,
+      shareLinkBaseUrl: `${publicOrigin}/r`,
+      statusApiBaseUrl: `${publicOrigin}/api/requests`
+    });
+    assert.equal(inspectedPayload.hostedReadinessSummary?.singleHostFileState, true);
+    assert.equal(inspectedPayload.deploymentSummary?.origin, payload.origin);
+    assert.equal(inspectedPayload.deploymentSummary?.publicOrigin, publicOrigin);
+    assert.equal(inspectedPayload.deploymentSummary?.shareLinkBaseUrl, `${publicOrigin}/r`);
+    assert.equal(
+      inspectedPayload.deploymentSummary?.statusApiBaseUrl,
+      `${publicOrigin}/api/requests`
+    );
+    assert.equal(inspectedPayload.deploymentSummary?.singleHostFileState, true);
+    assert.equal(
+      inspectedPayload.notes?.some((note) =>
+        String(note).includes('Share links and wallet approval commands will use the public origin')
+      ),
+      true
+    );
+
+    await stopChild(child, 10000);
+    assert.equal(
+      child.exitCode,
+      0,
+      secondRelay.readStderr() || `relay exited with code ${child.exitCode}`
+    );
+    child = null;
   } finally {
     await stopChild(child, 10000);
-    const stderr = stderrChunks.join('').trim();
-    assert.equal(child.exitCode, 0, stderr || `relay exited with code ${child.exitCode}`);
   }
 }
 

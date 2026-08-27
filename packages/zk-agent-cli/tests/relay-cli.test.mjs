@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distEntry = path.join(packageRoot, 'dist', 'index.js');
+const RELAY_CLI_TIMEOUT_MS = 15_000;
 
 function createCliEnv(homeDir) {
   return {
@@ -119,7 +120,7 @@ async function fetchRelayHealthWithHostHeader(origin, hostHeader) {
   });
 }
 
-async function runCliJson(args, env, timeoutMs = 5000) {
+async function runCliJson(args, env, timeoutMs = RELAY_CLI_TIMEOUT_MS) {
   const child = spawn(process.execPath, [distEntry, '--json', ...args], {
     cwd: packageRoot,
     env,
@@ -138,7 +139,7 @@ async function runCliJson(args, env, timeoutMs = 5000) {
   return stdout;
 }
 
-async function waitForJsonOutput(stream, timeoutMs = 5000) {
+async function waitForJsonOutput(stream, timeoutMs = RELAY_CLI_TIMEOUT_MS) {
   return await new Promise((resolve, reject) => {
     let output = '';
     const timer = setTimeout(() => {
@@ -178,7 +179,7 @@ async function waitForJsonOutput(stream, timeoutMs = 5000) {
   });
 }
 
-async function waitForExit(child, timeoutMs = 5000) {
+async function waitForExit(child, timeoutMs = RELAY_CLI_TIMEOUT_MS) {
   return await Promise.race([
     new Promise((resolve, reject) => {
       child.once('error', reject);
@@ -190,7 +191,7 @@ async function waitForExit(child, timeoutMs = 5000) {
   ]);
 }
 
-async function stopChild(child, timeoutMs = 5000) {
+async function stopChild(child, timeoutMs = RELAY_CLI_TIMEOUT_MS) {
   if (!child || child.exitCode !== null || child.killed) {
     return;
   }
@@ -602,6 +603,130 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(exitCode, 0, stderrChunks.join('').trim() || `relay exited with code ${exitCode}`);
   } finally {
     await stopChild(child, 5000);
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('relay serve preserves pending request state across same-host restart on the file-backed baseline', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-relay-restart-'));
+  const publicOrigin = 'https://relay.example.test';
+  const requestId = 'relay-restart-persist-test';
+  let firstChild;
+  let secondChild;
+
+  try {
+    const env = createCliEnv(homeDir);
+    firstChild = spawn(
+      process.execPath,
+      [distEntry, '--json', 'relay', 'serve', '--port', '0', '--public-origin', publicOrigin],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const firstStderrChunks = [];
+    firstChild.stderr.setEncoding('utf8');
+    firstChild.stderr.on('data', (chunk) => {
+      firstStderrChunks.push(chunk);
+    });
+
+    const firstRelay = await waitForJsonOutput(firstChild.stdout);
+    const firstUrl = new URL(firstRelay.origin);
+    const restartPort = firstUrl.port;
+
+    const createResponse = await fetch(`${firstRelay.origin}/api/requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(buildRelayCreateRequest(requestId))
+    });
+    assert.equal(createResponse.status, 201);
+
+    const firstStatusResponse = await fetch(`${firstRelay.origin}/api/requests/${requestId}`);
+    assert.equal(firstStatusResponse.status, 200);
+    const firstStatus = await firstStatusResponse.json();
+    assert.equal(firstStatus.request_id, requestId);
+    assert.equal(firstStatus.status, 'pending');
+    assert.equal(firstStatus.approval_ready, false);
+    assert.equal(firstStatus.share_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(firstStatus.status_url, `${publicOrigin}/api/requests/${requestId}`);
+    assert.equal(firstStatus.approval_url, `${publicOrigin}/r/${requestId}`);
+
+    await stopChild(firstChild, 5000);
+    const firstExitCode = firstChild.exitCode;
+    assert.equal(
+      firstExitCode,
+      0,
+      firstStderrChunks.join('').trim() || `relay exited with code ${firstExitCode}`
+    );
+
+    secondChild = spawn(
+      process.execPath,
+      [distEntry, '--json', 'relay', 'serve', '--host', '127.0.0.1', '--port', restartPort, '--public-origin', publicOrigin],
+      {
+        cwd: packageRoot,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+
+    const secondStderrChunks = [];
+    secondChild.stderr.setEncoding('utf8');
+    secondChild.stderr.on('data', (chunk) => {
+      secondStderrChunks.push(chunk);
+    });
+
+    const restartedRelay = await waitForJsonOutput(secondChild.stdout);
+    assert.equal(restartedRelay.origin, firstRelay.origin);
+    assert.equal(restartedRelay.publicOrigin, publicOrigin);
+    assert.equal(restartedRelay.stateBackend, 'local-filesystem');
+    assert.equal(restartedRelay.deploymentScope, 'single-host');
+    assert.equal(restartedRelay.sameHostRestartPersists, true);
+
+    const restartedStatusResponse = await fetch(
+      `${restartedRelay.origin}/api/requests/${requestId}`
+    );
+    assert.equal(restartedStatusResponse.status, 200);
+    const restartedStatus = await restartedStatusResponse.json();
+    assert.equal(restartedStatus.request_id, requestId);
+    assert.equal(restartedStatus.status, 'pending');
+    assert.equal(restartedStatus.approval_ready, false);
+    assert.equal(restartedStatus.share_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(
+      restartedStatus.status_url,
+      `${publicOrigin}/api/requests/${requestId}`
+    );
+    assert.equal(restartedStatus.approval_url, `${publicOrigin}/r/${requestId}`);
+    assert.equal(restartedStatus.request.requestId, requestId);
+
+    const inspected = await runCliJson(
+      ['relay', 'inspect', '--relay-url', restartedRelay.origin],
+      env
+    );
+    assert.equal(inspected.ok, true);
+    assert.equal(inspected.compatible, true);
+    assert.equal(inspected.publicOrigin, publicOrigin);
+    assert.equal(inspected.stateBackend, 'local-filesystem');
+    assert.equal(inspected.deploymentScope, 'single-host');
+    assert.equal(inspected.sameHostRestartPersists, true);
+    assert.equal(inspected.hostedReadinessSummary.singleHostFileState, true);
+    assert.equal(inspected.deploymentSummary.singleHostFileState, true);
+
+    await assertHostedShareLinkServesUi(restartedRelay.origin, publicOrigin, requestId);
+
+    await stopChild(secondChild, 5000);
+    const secondExitCode = secondChild.exitCode;
+    assert.equal(
+      secondExitCode,
+      0,
+      secondStderrChunks.join('').trim() || `relay exited with code ${secondExitCode}`
+    );
+  } finally {
+    await stopChild(firstChild, 5000);
+    await stopChild(secondChild, 5000);
     await rm(homeDir, { recursive: true, force: true });
   }
 });

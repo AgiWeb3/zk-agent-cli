@@ -27,12 +27,15 @@ Current judgment:
 
 Why it is still `beta`:
 
-- the default hosted approval path is now validated, but its supportable
-  operated deployment contract still needs to be exercised and held stable
+- the default hosted approval path is now validated with repeated real public
+  operated rehearsal evidence, but that supportable deployment contract still
+  needs stable recovery evidence and broader product hardening
 - release/version/doc synchronization has improved, but it is still too easy to
   rely on operator memory instead of a repeatable release contract
 - the public machine-readable JSON contracts are close to stable, but they
   should be treated as frozen compatibility boundaries before `rc`
+- that freeze now needs to stay explicit in the operator-contract doc rather
+  than remaining an implied team convention
 
 For the current hosted deployment boundary, see
 [16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md).
@@ -45,12 +48,74 @@ Do not move from `beta` to `rc` until all of the following are true:
   CLI help, skills, and machine-readable onboarding/output summaries
 - hosted approval is documented and exercised as an operated product contract,
   not only as a prototype validation path
+  - repeated real public reapprove rehearsal now exists on the current hosted
+    path, but that still does not close the recovery-stability part of the RC
+    gate by itself
 - the release flow is repeatable without hidden operator memory
 - the public machine-readable contracts are frozen:
   `onboardingSummary`, `workflowEntrySummary`, `walletApprovalSummary`, and the
   recovery-focused next-step command surfaces
+- the freeze policy is declared in
+  [10-operator-json-contract.md](./10-operator-json-contract.md) and enforced
+  by `release:check`, not only by reviewer memory
 - local and hosted recovery semantics are stable with no known blocker on the
   default approval path
+
+### Machine-checkable RC subset
+
+Run:
+
+```bash
+pnpm validate:rc
+pnpm validate:rc -- --wallet <name> --relay-url <relay-url>
+pnpm validate:rc -- --wallet <name> --relay-url <relay-url> --report-file <path>
+pnpm review:rc -- --wallet <name> --relay-url <relay-url> --write
+pnpm review:rc -- --wallet <name> --relay-url <relay-url> --report-file <path> --write
+```
+
+This command currently reruns:
+
+- `pnpm validate:release`
+- `pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code --repeat 2 --plan`
+- `pnpm smoke:hosted-recovery -- --wallet <name> --plan`
+
+What it means:
+
+- it closes the machine-checkable RC subset on the supported host runtime
+- it keeps the standard hosted operated-baseline rehearsal command and the
+  deterministic hosted recovery rehearsal command from drifting out of the RC
+  contract
+- it auto-detects the newest matching public hosted evidence report under
+  `~/.zk-agent/reports/hosted-operated-baseline/` when one already exists
+- `--report-file <path>` can pin one exact public evidence artifact instead of
+  relying on newest-match discovery
+- it is necessary, but not sufficient, for `beta -> rc`
+- it does not replace the real public browser/manual rehearsal on the actual
+  hosted relay URL
+- the remaining public rehearsal should be run with `--save-report` so the
+  request ids, share URLs, and final series outcome are captured as local RC
+  evidence under `~/.zk-agent/reports/hosted-operated-baseline/`
+
+### RC review artifact
+
+After `pnpm validate:rc` is green, run:
+
+```bash
+pnpm review:rc -- --wallet <name> --relay-url <relay-url> --write
+pnpm review:rc -- --wallet <name> --relay-url <relay-url> --report-file <path> --write
+```
+
+What this adds:
+
+- it reruns `validate:rc` in JSON mode and preserves the current machine gate
+  result as one markdown review artifact
+- it records the accepted hosted-operated-baseline evidence summary and the
+  remaining explicit manual decision in one repo-tracked file
+- it still does not promote the package to `rc` by itself
+
+Default output path:
+
+- `docs/release-stage-reviews/<YYYY-MM-DD>-<wallet>-rc.md`
 
 ### Gate: `rc -> 1.0.0`
 
@@ -98,6 +163,13 @@ npm view zk-agent-cli version
 npm publish --dry-run
 ```
 
+Supported host wrapper:
+
+```bash
+pnpm release:publish --tag beta
+pnpm release:publish --tag beta --promote-latest
+```
+
 Before a new version or tag is prepared in the repo docs, sync the local
 version references first:
 
@@ -118,6 +190,8 @@ Pass criteria:
 - if the package has not been published yet, `npm view` should not return an
   already-published version that conflicts with the planned release
 - `npm publish --dry-run` does not fail with packaging or permission errors
+- the supported wrapper can do the same checks from a neutral temp directory,
+  so repo-root `devEngines` do not distort `npm view` or `npx` readback
 
 Blockers:
 
@@ -269,10 +343,16 @@ Notes:
   - `zk-agent-cli release:check`
   - `@zk-agent/agent-tools test`
   - `zk-agent-cli test`
+- `pnpm validate:rc` is the stricter RC-oriented wrapper above this release
+  gate; it keeps the machine-checkable RC subset explicit without pretending
+  that the public hosted rehearsal can be automated away
 
 Pass criteria:
 
 - all sub-checks are green
+- current baseline fact:
+  `pnpm validate:release` passed again on the supported host runtime on
+  `2026-08-27`
 
 Blockers:
 
@@ -302,6 +382,12 @@ Pass criteria:
   - the managed sandbox can fail with `listen EPERM 127.0.0.1`
   - the same `pnpm validate:release` gate was rerun successfully on the host
     environment on `2026-07-31`
+  - it was rerun again successfully on `2026-08-27` after extending the
+    listener/relay-heavy waits that were too tight at `5000ms` under host load
+  - `pnpm validate:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
+    --json` also passed on `2026-08-27`, consuming the saved repeated hosted
+    evidence report under
+    `~/.zk-agent/reports/hosted-operated-baseline/2026-08-27T14-10-33.792Z-main-reapprove.json`
 
 Blockers:
 
@@ -464,6 +550,17 @@ npm view zk-agent-cli dist-tags --json
 npx zk-agent-cli --help
 ```
 
+Prefer the supported wrapper for the actual post-publish path:
+
+```bash
+pnpm release:publish --tag beta --promote-latest
+```
+
+If you run the three manual readback commands yourself, run them from a
+neutral working directory rather than the repo root. The workspace root now
+declares `devEngines.packageManager = pnpm`, and that can make `npm view` or
+`npx` fail for the wrong reason when the current cwd is the repository.
+
 Dist-tag policy:
 
 - publish prereleases with `npm publish --tag beta`
@@ -480,13 +577,13 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current published baseline
 
-- current public beta completed on `2026-08-23`:
-  `zk-agent-cli@0.1.0-beta.10`
+- current public beta completed on `2026-08-27`:
+  `zk-agent-cli@0.1.0-beta.11`
 - post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.10`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.10`
-  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.10`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.10","beta":"0.1.0-beta.10"}`
+  - `npm view zk-agent-cli version -> 0.1.0-beta.11`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.11`
+  - `npm view zk-agent-cli@beta version -> 0.1.0-beta.11`
+  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.11","beta":"0.1.0-beta.11"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted
@@ -512,6 +609,9 @@ npm dist-tag add zk-agent-cli@<version> latest
   - `release:draft-notes` can now upsert a repo-owned `Draft Input` block in
     `docs/releases/<version>.md` from a chosen git range before the final
     editor pass
+  - `release:publish` now pins `npm` / `npx` resolution to the current Node
+    runtime, runs npm readback from a neutral temp directory, and can publish,
+    smoke, and optionally promote `latest` without repo-root cwd surprises
   - `release:check` now rejects a missing or placeholder-filled versioned
     release note for the current package version
   - `release:check` also rejects Node `<24` and any `pnpm` version other than

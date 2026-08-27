@@ -7,6 +7,38 @@ harnesses.
 The goal is not to restate every JSON payload field by field. The goal is to
 stabilize the most important contracts on the default product path.
 
+## Compatibility Boundary
+
+This document is now the source of truth for the frozen machine-readable
+operator contract on the default product path.
+
+Before `rc`, the intentionally frozen compatibility boundary is:
+
+- `onboardingSummary`
+- `workflowEntrySummary`
+- `walletApprovalSummary`
+- documented next-step command surfaces carried through:
+  `recommendedCommands`, `nextAction`, `afterApproval`, and
+  `afterApprovalStatus`
+
+This boundary is intentionally narrower than "every JSON field emitted by the
+CLI". Fields and command surfaces that are not documented here as current
+stable contract are not frozen by default.
+
+### Change policy
+
+For the frozen contract set above:
+
+1. Removing, renaming, or repurposing a documented stable field is a breaking
+   change.
+2. Changing the meaning or command shape of a documented stable follow-up
+   command is a breaking change.
+3. New fields may be added only when they are optional for existing callers,
+   documented in this file, and covered by the same change's validation/tests.
+4. If a breaking change is still required before `rc`, it must be called out
+   explicitly in release notes and updated across docs/tests in the same
+   changeset.
+
 ## Scope
 
 The following outputs should currently be treated as the default operator

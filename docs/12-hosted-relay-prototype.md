@@ -101,6 +101,12 @@ relay request, verifies that `/r/<id>` redirects to the connector UI entrypoint
 with the advertised public origin embedded in `relayRequestUrl`, and confirms
 that the bundled hashed frontend asset still serves from the relay.
 
+The current runtime relay coverage also exercises one operated-baseline
+property directly, and the packaged `release:check` now proves the same thing
+through a clean-machine installed tarball: when the relay restarts on the same
+host with the same filesystem-backed storage, an already-published pending
+request remains readable after restart.
+
 ## Deployment Contract Exposed by `/health` and `relay inspect`
 
 The current prototype now makes its storage and restart contract explicit:

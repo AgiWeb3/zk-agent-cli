@@ -1,6 +1,6 @@
 {
   "name": "zk-agent-cli",
-  "version": "0.1.0-beta.10",
+  "version": "0.1.0-beta.11",
   "description": "Local-first zkSync Era and ZK Stack agent CLI with wallet session recovery, workflow orchestration, relay-backed approval, and SED smart-account support.",
   "license": "MIT",
   "type": "module",
@@ -41,7 +41,9 @@
     "release:check": "node scripts/assert-release-runtime.mjs && pnpm run build && pnpm run typecheck && pnpm run pack:check",
     "prepublishOnly": "pnpm run release:check",
     "smoke:discovery": "node --import tsx ./src/smoke-discovery.ts",
+    "smoke:hosted-recovery": "node --import tsx ./src/smoke-hosted-recovery.ts",
     "smoke:hosted-relay": "node --import tsx ./src/smoke-hosted-relay.ts",
+    "smoke:hosted-operated-baseline": "node --import tsx ./src/smoke-hosted-operated-baseline.ts",
     "smoke:remote-approval": "node --import tsx ./src/smoke-remote-approval.ts",
     "typecheck": "tsc --noEmit",
     "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/*.test.mjs ./tests/*.test.ts"

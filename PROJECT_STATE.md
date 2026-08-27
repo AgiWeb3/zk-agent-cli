@@ -2,17 +2,17 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-23
-- Latest commit at write time: `411504b`
+- Last updated: 2026-08-27
+- Latest commit at write time: `973dc55`
 - Current branch: `main`
-- Working tree status when this document was written: dirty with workflow
-  state/plan refresh based on the latest `polygon-agent-cli` comparison
+- Working tree status when this document was written: dirty with post-beta.10
+  release-automation productization updates
 
 ## Current status
 
 The product baseline is already closed for the core zkSync-native path:
 
-- `zk-agent-cli@0.1.0-beta.10` is live and both npm dist-tags `beta` and
+- `zk-agent-cli@0.1.0-beta.11` is live and both npm dist-tags `beta` and
   `latest` point there
 - the public package, local-first wallet/session lifecycle, hosted relay path,
   and flagship `workflow pay` AA flow all exist and have real validation proof
@@ -34,8 +34,9 @@ Why the project is still `beta`:
 - the main remaining gaps are productization gaps, not missing zkSync
   execution mechanics
 - the biggest blockers are still:
-  - hosted approval is validated, but not yet specified and exercised as an
-    operated product contract
+  - hosted approval is now specified and exercised on repeated real public
+    reapprove runs, but stable recovery semantics still need to be treated as
+    an explicit RC gate rather than inferred from those successes alone
   - release/version/doc discipline is still too manual for a formal release
   - the public machine-readable contract is much better now, but it is not yet
     frozen as a formal compatibility surface
@@ -55,6 +56,9 @@ Gate to move from `beta` to `rc`:
    `onboardingSummary`, `workflowEntrySummary`, `walletApprovalSummary`, and
    the corresponding next-step command surfaces are treated as compatibility
    boundaries
+   - the freeze policy is now explicit in
+     `docs/10-operator-json-contract.md` and should be kept under the same
+     release gate as the rest of the public operator contract
 5. local recovery and hosted recovery semantics are stable:
    no known state-confusion bug around approval readiness, local signer
    readiness, relay-pending state, or expired requests on the default path
@@ -123,8 +127,14 @@ Current workstreams:
    - current baseline improvement:
      `setup` now defaults the validated first-run path to `zksync-sepolia`
      plus the local connector at `http://localhost:4444`, and the CLI help,
-     root README, package README, and primary skills now all say that
-     explicitly
+     root README, package README, `skills/QUICKSTART.md`, and the primary
+     `skills/SKILL.md` now all say that explicitly
+   - current tightening:
+     the human-facing happy path is now written in the same singular order
+     across docs and skills:
+     `setup -> next -> wallet create|reapprove -> next -> workflow pay`
+     and the quickstart/skill wording is now part of the `release:check`
+     contract instead of relying on manual review
    - runtime contract improvement:
      `setup`, `next`, and `doctor` now emit a shared machine-readable
      `onboardingSummary`, while the runtime `workflow` entry commands now emit
@@ -141,6 +151,48 @@ Current workstreams:
      behavior an explicit operated contract
    - keep real hosted smoke coverage on the intended deployment mode, not only
      local prototype semantics
+   - current baseline improvement:
+     runtime relay coverage now proves that a pending hosted request survives a
+     same-host relay restart when the storage backend remains the same local
+     filesystem view
+   - current gate improvement:
+     `release:check` now also enforces the hosted URL contract and
+     expired-request reissue lifecycle from `docs/16`, while the installed
+     relay smoke now proves the packaged CLI reports
+     `approvalEndpointSummary.status = hosted-public-origin-via-proxy` when
+     the relay bind origin differs from the advertised `publicOrigin`
+   - current rehearsal improvement:
+     a new source-checkout smoke entrypoint,
+     `pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url>
+     --reapprove --prompt-code`, now standardizes the real external hosted
+     relay validation path by running hosted share-link validation first and
+     then the browser/manual relay-backed approval loop on the same relay
+   - that rehearsal now also supports
+     `--repeat <count> --prompt-code`, so repeated operated-baseline
+     validation can be executed and summarized as one structured series
+   - current public evidence:
+     one real public operated sample completed on `2026-08-26` through
+     `https://zk.frp.meroar.fun/` for `sed-lite-sa-v2`, and two additional
+     consecutive public browser/manual reapprove runs succeeded on
+     `2026-08-27` through requests `10d5ce1e` and `f1ca1eb1`
+   - latest report-backed evidence:
+     one repeated public browser/manual reapprove series also completed on
+     `2026-08-27` for wallet `main` through requests `a479c4a3` and
+     `8122cdd5`, with the saved artifact at
+     `~/.zk-agent/reports/hosted-operated-baseline/2026-08-27T14-10-33.792Z-main-reapprove.json`
+   - repeated public operated rehearsal is now proven for the current hosted
+     reapprove path; the remaining relay-side RC gap is recovery stability, not
+     first proof or repeatability
+   - current recovery drill:
+     `pnpm smoke:hosted-recovery -- --wallet <name>` now standardizes the
+     deterministic local expired-request recovery rehearsal for the default
+     hosted reapprove path, including the expected inspect + reissue follow-up
+     contract
+   - current evidence-capture improvement:
+     `pnpm smoke:hosted-operated-baseline -- --save-report` now writes the
+     repeated public rehearsal result to a local report artifact under
+     `~/.zk-agent/reports/hosted-operated-baseline/`, so RC evidence is not
+     left in transient terminal history
 3. release/version/doc discipline
    - keep `release:sync-version` and `release:check`
    - reduce the remaining manual publish, dist-tag, changelog, and repo-doc
@@ -152,6 +204,24 @@ Current workstreams:
      versioned `docs/releases/<version>.md` release artifact scaffold, and
      `release:draft-notes` can upsert the repo-owned `Draft Input` block for
      that version from a chosen git range
+   - current follow-up improvement:
+     `release:publish` now wraps the supported host-runtime publish path,
+     including npm auth check, version-availability check, post-publish
+     readback, optional `latest` promotion, and the neutral-cwd workaround for
+     the repo-root `devEngines` boundary
+   - current RC-gate improvement:
+     `pnpm validate:rc` now collects the machine-checkable `beta -> rc` subset
+     into one host-side command, while still leaving the real public hosted
+     rehearsal and final stage judgment explicit
+   - current evidence-ingest improvement:
+     `pnpm validate:rc` now also auto-detects the newest matching hosted
+     operated-baseline report under
+     `~/.zk-agent/reports/hosted-operated-baseline/`, or accepts
+     `--report-file <path>` to pin one exact public evidence artifact
+   - current stage-review improvement:
+     `pnpm review:rc -- --wallet <name> --relay-url <url> --write` now turns
+     the remaining `beta -> rc` judgment into one repo-tracked markdown review artifact
+     instead of leaving that final decision only in terminal output
    - target one repeatable release flow that does not rely on hand-auditing
      version references after publish
 4. post-flagship product slice
@@ -167,26 +237,59 @@ Current workstreams:
 
 - hosted relay approval is proven end to end:
   - public hosted relay inspection and hosted share-link/UI validation passed
-  - real browser-mediated hosted approval completed for `sed-lite-sa-v2`
-    through request `53328a56`
+    on `https://zk.frp.meroar.fun/`
+  - real browser-mediated hosted reapprove completed for `sed-lite-sa-v2`
+    through request `623c2c5e`
+  - an earlier public request `0f5b7a93` expired and was successfully reissued
+  - two additional consecutive public browser/manual reapprove runs then
+    completed successfully through requests `10d5ce1e` and `f1ca1eb1`
+  - one report-backed repeated public reapprove series then completed for
+    wallet `main` through requests `a479c4a3` and `8122cdd5`
+  - the structured evidence artifact now lives at:
+    `~/.zk-agent/reports/hosted-operated-baseline/2026-08-27T14-10-33.792Z-main-reapprove.json`
+  - this now establishes repeated real public operated rehearsal on the
+    current hosted reapprove path
 - the flagship AA pay path is proven:
   - `workflow pay` is the canonical zkSync-native flagship path
   - approval-based broadcast succeeded on `sed-lite-sa-v2` with tx hash
     `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`
   - workflow request `d5181c7e` resolved back to `ready`
 - release discipline is real:
-  - `release:check` covers packaged install, hosted relay entrypoint, runtime
-    floor, and package README contract
+  - `release:check` covers packaged install, hosted relay entrypoint, the
+    single-host hosted relay restart-persistence proof, runtime floor, and
+    package README contract
   - `release:check` now also enforces the release-stage docs, the hosted
-    operated-baseline doc, and the packaged `setup/next/doctor`
-    `onboardingSummary` contract
+    operated-baseline doc, the quickstart/primary-skill first-run wording,
+    and the packaged `setup/next/doctor` `onboardingSummary` contract
+  - `release:check` now also enforces the hosted URL contract plus the
+    expired-request reissue semantics from `docs/16`, and proves the packaged
+    relay-inspect proxied/public-origin contract on install
+  - the repo now also has one standard source-checkout rehearsal command for
+    real external hosted approval instead of relying on an operator to stitch
+    together `smoke:hosted-relay` and `smoke:remote-approval` manually
   - `release:check` now also rejects missing or placeholder-filled current
     release notes, so changelog/release artifact drift is no longer only a
     manual review concern
   - `release:draft-notes` has been validated on `0.1.0-beta.9` and can
     refresh the versioned release note's git-derived draft block without
     manual copy/paste
-  - `pnpm validate:release` has passed on the supported host runtime
+  - `release:publish` now codifies the actual supported publish/readback path
+    used for `0.1.0-beta.10`, including the required neutral temp cwd for
+    npm readback when the repo root would otherwise trigger `devEngines`
+  - `pnpm validate:release` has passed again on the supported host runtime on
+    `2026-08-27` after raising the listener/relay-heavy host-side waits that
+    were too tight at `5000ms`
+  - `pnpm validate:rc` now provides the machine-checkable RC wrapper above
+    that release gate without collapsing the remaining public hosted rehearsal
+    into a fake automation claim
+  - `pnpm validate:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
+    --json` also passed on `2026-08-27`, auto-ingesting the saved repeated
+    hosted evidence report for requests `a479c4a3` and `8122cdd5` while
+    leaving only the explicit stage-promotion judgment as manual
+  - `pnpm review:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
+    --write` also passed on `2026-08-27`, writing the current beta-to-rc
+    review artifact to
+    `docs/release-stage-reviews/2026-08-27-main-rc.md`
 - the managed sandbox can still produce false negatives for local relay listen
   or DNS, so real release/runtime checks should continue to be verified from
   the host shell when needed
@@ -394,8 +497,10 @@ What has been validated:
   with tx hash:
   `0x2783de9185bcd6af21822c9c0ffa35e5329e96c8137ff41598d3cd001344ce8c`
 - real hosted relay reapprove is now validated on `sed-lite-sa-v2` through the
-  encrypted relay payload/browser path with request:
-  `53328a56`
+  public encrypted relay payload/browser path with request:
+  `623c2c5e`
+- an earlier public relay request expired and was then reissued successfully:
+  `0f5b7a93`
 - the latest flagship post-fix native-send write-path acceptance now also sits
   on `sed-lite-sa-v2`
   with tx hash:

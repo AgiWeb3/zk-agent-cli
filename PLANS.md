@@ -110,12 +110,13 @@ The repo is already past scaffolding. The current stable baseline is:
 3. Hosted approval is validated, but not yet operated like a product.
    - the Polygon reference has a dedicated hosted login UI and hosted relay
      with an explicit deployment shape
-   - `zk-agent-cli` has real public hosted proof, but the baseline still
-     assumes a single-host, file-backed relay and more operator awareness of
-     `publicOrigin` than a polished product should require
+   - `zk-agent-cli` now has repeated real public hosted operated rehearsal, but
+     the baseline still assumes a single-host, file-backed relay and more
+     operator awareness of `publicOrigin` than a polished product should
+     require
    - the remaining gap is a clear operated-relay contract:
-     deployment profile, durability expectations, public-origin behavior, and
-     supportable hosting guidance
+     deployment profile, durability expectations, public-origin behavior,
+     repeated rehearsal evidence, and supportable hosting guidance
 
 4. Release discipline is still more manual than the reference.
    - the Polygon reference uses a repo-level changeset/changelog workflow
@@ -149,6 +150,11 @@ The repo is already past scaffolding. The current stable baseline is:
    - tighten `setup`, `next`, `doctor`, and `wallet create|reapprove` messaging
    - keep "no custom `.env` required for first run" as the consistent public
      default
+   - current baseline improvement:
+     `skills/QUICKSTART.md` and the primary `skills/SKILL.md` now expose the
+     same singular first-run path as the README/help contract:
+     `setup -> next -> wallet create|reapprove -> next -> workflow pay`
+     and that alignment is now enforced through `release:check`
    - acceptance:
      both the local approval path and the hosted approval path have one exact
      happy-path sequence in help/docs with no ambiguous prerequisite wording
@@ -159,6 +165,47 @@ The repo is already past scaffolding. The current stable baseline is:
      explicit parts of the contract
    - add smoke coverage that matches the intended operated mode rather than
      only the current single-host prototype
+   - current baseline improvement:
+     runtime relay coverage and the packaged `release:check` installed-package
+     smoke now exercise same-host restart persistence for the single-host,
+     filesystem-backed hosted baseline
+   - current gate improvement:
+     `release:check` now also enforces the hosted URL contract and
+     expired-request reissue contract from `docs/16`, and the installed relay
+     smoke now proves the proxied/public-origin approval-endpoint summary on
+     the packaged CLI path
+   - current operator-rehearsal improvement:
+     `pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url>
+     --reapprove --prompt-code` now provides one repeatable source-checkout
+     command for the real external hosted relay path by composing
+     `smoke:hosted-relay` and the browser/manual `smoke:remote-approval`
+   - the same rehearsal now also supports
+     `--repeat <count> --prompt-code`, so repeated operated-baseline evidence
+     can be gathered with one structured command instead of manual command
+     stitching
+   - current evidence:
+     one real public run completed on `2026-08-26` through
+     `https://zk.frp.meroar.fun/` for `sed-lite-sa-v2`; one earlier request
+     expired and was then reissued successfully; two additional consecutive
+     public browser/manual reapprove runs then succeeded on `2026-08-27`
+     through requests `10d5ce1e` and `f1ca1eb1`
+   - latest report-backed evidence:
+     one repeated public browser/manual reapprove series also completed on
+     `2026-08-27` for wallet `main` through requests `a479c4a3` and
+     `8122cdd5`, with the saved artifact at
+     `~/.zk-agent/reports/hosted-operated-baseline/2026-08-27T14-10-33.792Z-main-reapprove.json`
+   - the remaining gap is now recovery confidence and broader operated
+     hardening rather than repeated rehearsal proof
+   - current recovery improvement:
+     `pnpm smoke:hosted-recovery -- --wallet <name>` now provides one
+     deterministic local rehearsal for the expired hosted reapprove path, so
+     inspect + reissue recovery semantics can be rechecked without waiting for
+     an accidental public expiry
+   - current evidence improvement:
+     the same public rehearsal now supports `--save-report`, so repeated
+     hosted RC evidence can be persisted under
+     `~/.zk-agent/reports/hosted-operated-baseline/` instead of depending on
+     terminal scrollback
    - acceptance:
      a standard hosted deployment no longer depends on FRP-style guesswork or
      hidden relay assumptions
@@ -173,6 +220,29 @@ The repo is already past scaffolding. The current stable baseline is:
    - keep `release:draft-notes` as the lightweight git-range seed for
      versioned release notes, then reduce the remaining editor and publish-step
      friction around it
+   - keep `release:publish` as the supported host wrapper for
+     `validate -> whoami -> version-availability -> publish -> readback ->
+     optional latest promotion`, including the neutral-cwd workaround for the
+     workspace `devEngines` boundary
+   - keep `pnpm validate:rc` as the explicit machine-checkable `beta -> rc`
+     wrapper, while preserving the real public hosted rehearsal as a separate
+     manual gate
+   - let that same wrapper ingest the newest matching hosted operated-baseline
+     evidence report, or one pinned `--report-file`, so repeated public proof
+     does not have to be manually re-declared on every RC pass
+   - keep `pnpm review:rc` as the explicit stage-review artifact generator so
+     the last `beta -> rc` decision is written back into repo memory instead
+     of disappearing with terminal history
+   - current gate status:
+     host-side `pnpm validate:release` and
+     `pnpm validate:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
+     --json` both passed on `2026-08-27`, with `validate:rc` consuming the
+     saved report for repeated public requests `a479c4a3` and `8122cdd5`
+   - current review status:
+     `pnpm review:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
+     --write` also passed on `2026-08-27`, producing
+     `docs/release-stage-reviews/2026-08-27-main-rc.md` as the current
+     repo-tracked beta-to-rc decision artifact
    - acceptance:
      one release checklist/command sequence produces a versioned package,
      synchronized docs, and a publish-ready changelog without hand-auditing the
@@ -249,6 +319,8 @@ All of the following must be true:
    - treat `onboardingSummary`, `workflowEntrySummary`,
      `walletApprovalSummary`, and the corresponding next-step command surfaces
      as compatibility boundaries
+   - keep the freeze policy explicit in `docs/10-operator-json-contract.md`
+     and machine-checked through `release:check`
    - further changes to those fields should be treated as intentional breaking
      changes rather than casual cleanup
 
@@ -288,7 +360,7 @@ All of the following must be true:
 Completed work is intentionally compressed here. The important closed baseline
 for the next stage is:
 
-- the public npm package is live at `zk-agent-cli@0.1.0-beta.10`
+- the public npm package is live at `zk-agent-cli@0.1.0-beta.11`
 - the install surface works as a packaged CLI, a repo skill surface, and a
   source-checkout wrapper
 - the repo now ships both the compatible-harness skill surface and the native
@@ -298,7 +370,7 @@ for the next stage is:
 - native plugin install validation now includes one real successful
   `codex plugin add zk-agent-cli@personal` smoke on this machine
 - hosted relay approval is proven end to end, including real public hosted
-  proof
+  proof, but repeated stable public rehearsal is still open
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
 - the skill surface is already split into stable product slices
 - signer/session separation is landed for the current local-first model

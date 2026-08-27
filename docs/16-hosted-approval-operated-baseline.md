@@ -119,6 +119,79 @@ Before calling the hosted path "supported", the following should all be true:
 - `hostedReadinessSummary.status = ready`
 - `deploymentSummary.singleHostFileState = true`
 
+## Standard Rehearsal Command
+
+When you have a real externally reachable relay URL and want one repeatable
+source-checkout validation path for this operated mode, use:
+
+```bash
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code
+```
+
+When you need repeated RC-style evidence instead of a single successful sample,
+run the same rehearsal as a short series:
+
+```bash
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --repeat 2 --prompt-code --save-report
+```
+
+What it does:
+
+1. runs `smoke:hosted-relay` against the supplied hosted relay URL
+2. runs `smoke:remote-approval` on the same relay in real browser/manual mode
+3. finishes only after the browser approval is ready and the CLI consumes the
+   6-digit approval code
+4. with `--repeat <count>`, repeats that full operated rehearsal serially and
+   returns one structured summary covering every run
+5. with `--save-report`, also writes that structured summary under:
+   `~/.zk-agent/reports/hosted-operated-baseline/*.json`
+
+Current evidence:
+
+- one public operated sample completed on `2026-08-26` through
+  `https://zk.frp.meroar.fun/` for `sed-lite-sa-v2`
+- two additional consecutive public browser/manual reapprove runs completed on
+  `2026-08-27` through requests `10d5ce1e` and `f1ca1eb1`
+- one report-backed repeated public browser/manual reapprove series then
+  completed on `2026-08-27` for wallet `main` through requests `a479c4a3` and
+  `8122cdd5`, with the structured evidence artifact saved at:
+  `~/.zk-agent/reports/hosted-operated-baseline/2026-08-27T14-10-33.792Z-main-reapprove.json`
+- one earlier public request expired and was reissued successfully before the
+  final approval completed
+- this is now enough to claim repeated real public rehearsal on the current
+  operated reapprove path, not generic recovery stability for every relay
+  failure mode
+
+If you only want the exact command sequence first, use:
+
+```bash
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --plan
+```
+
+If you want the create path instead of reapproval, omit `--reapprove`.
+
+## Standard Recovery Rehearsal Command
+
+When you want a deterministic recovery drill for the default hosted reapprove
+path, use:
+
+```bash
+pnpm smoke:hosted-recovery -- --wallet <name>
+```
+
+What it does:
+
+1. starts a local single-host relay server
+2. runs `wallet reapprove --wait-relay --prompt-code` against that relay
+3. forces the relay request into the `expired` state before approval is ready
+4. verifies the CLI returns `RELAY_APPROVAL_EXPIRED` plus the expected
+   `relayInspectCommand`, `reissueRemoteApprovalCommand`, and
+   `relayRecoverySummary`
+
+This drill is intentionally local and deterministic. It validates the recovery
+contract for the current hosted reapprove path without depending on a real
+public outage or timing accident.
+
 ## Unsupported Deployment Shapes
 
 The following shapes are outside the current supported baseline:
@@ -151,6 +224,13 @@ It is not, by itself, enough to justify `rc`.
 
 Moving to `rc` still requires:
 
-- real smoke coverage on this exact operated mode
+- repeated real smoke coverage on this exact operated mode
 - a release flow that keeps the relay/UI/package contract synchronized
 - stable recovery semantics with no known blocker on the default hosted path
+
+Interpretation after the latest public rehearsal:
+
+- repeated real smoke coverage on this exact operated mode now exists for the
+  browser/manual hosted reapprove path
+- this document is still not, by itself, enough to justify `rc`, because the
+  release-flow and recovery-stability gates remain separate

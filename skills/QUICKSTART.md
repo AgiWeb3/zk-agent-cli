@@ -91,7 +91,33 @@ Expected result:
   - `zk-agent wallet create --await-local`
   - `zk-agent next`
 
-## 3. Create a writable wallet session
+After `setup`, stay on the canonical local-first path:
+
+```bash
+zk-agent next
+zk-agent wallet create --await-local
+zk-agent next
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+```
+
+If local setup or wallet readiness is unclear before you choose between the
+local and hosted approval paths, start with:
+
+```bash
+zk-agent doctor
+```
+
+## 3. Ask for the shortest next step
+
+```bash
+zk-agent next
+```
+
+Use `next` immediately after `setup` so the CLI can keep you on the singular
+first-run path instead of guessing whether to jump straight into wallet,
+workflow, or relay commands.
+
+## 4. Create a writable wallet session
 
 ```bash
 zk-agent wallet create --await-local
@@ -199,7 +225,7 @@ Encrypted relay fallback:
 zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>
 ```
 
-## 4. Inspect readiness
+## 5. Inspect readiness
 
 Inspect the currently tracked validated Sepolia router / paymaster / fee-token
 defaults when you need the machine-readable baseline:
@@ -247,7 +273,7 @@ Full readiness inspection plus the same recommendation:
 zk-agent wallet status --name main
 ```
 
-## 5. Fund only if the CLI says funding is required
+## 6. Fund only if the CLI says funding is required
 
 Guidance only:
 
@@ -261,7 +287,7 @@ Dispatch the suggested funding route:
 zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
-## 6. Use workflow pay as the default flagship write path
+## 7. Use workflow pay as the default flagship write path
 
 Current flagship AA native-pay path:
 
@@ -335,7 +361,7 @@ zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount> -
 zk-agent workflow pay --wallet main --to <recipient-address> --amount <amount> --ensure-wallet-session --session-preset intent
 ```
 
-## 7. Resume blocked or long-running flows
+## 8. Resume blocked or long-running flows
 
 List stored checkpoints:
 
@@ -379,7 +405,7 @@ Resume when ready:
 zk-agent workflow resume --request-id <id> --broadcast
 ```
 
-## 8. Use direct commands only when you intentionally need them
+## 9. Use direct commands only when you intentionally need them
 
 Examples:
 
@@ -448,7 +474,7 @@ is omitted.
 
 The direct `bridge` command now follows the same rule.
 
-## 9. Smart-account path
+## 10. Smart-account path
 
 List built-in profiles:
 
@@ -478,7 +504,7 @@ and `wallet smart-account daily-spend-limit ...` now also return structured
 `recommendedCommands` in JSON mode, including the concrete preview rerun command
 when the current result is still a preview.
 
-## 10. Programmatic tool surface
+## 11. Programmatic tool surface
 
 List tools:
 

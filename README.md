@@ -3,23 +3,20 @@
 `zk-agent-cli` is a local-first monorepo for a zkSync-native agent CLI on top
 of `zkSync Era` and the wider `ZK Stack`.
 
-If you want the full terminal/operator manual, start here:
+## Start Here
 
-- [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
-
-If you want the maintained agent-facing quickstart, use:
-
-- [skills/QUICKSTART.md](./skills/QUICKSTART.md)
-- [skills/SKILL.md](./skills/SKILL.md)
-- [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md)
-- [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md)
-- [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
-
-Project memory for contributors lives here:
-
-- [PROJECT_STATE.md](./PROJECT_STATE.md)
-- [PLANS.md](./PLANS.md)
-- [AGENTS.md](./AGENTS.md)
+- terminal/operator manual:
+  [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
+- maintained agent-facing quickstart:
+  [skills/QUICKSTART.md](./skills/QUICKSTART.md),
+  [skills/SKILL.md](./skills/SKILL.md),
+  [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md),
+  [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md),
+  [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
+- contributor/project memory:
+  [PROJECT_STATE.md](./PROJECT_STATE.md),
+  [PLANS.md](./PLANS.md),
+  [AGENTS.md](./AGENTS.md)
 
 ## Public Entry Points
 
@@ -45,13 +42,17 @@ products that expect a plugin tree rather than an npm tarball.
 
 Release snapshot:
 
-- the current public beta is `zk-agent-cli@0.1.0-beta.10`
-- that release was published on `2026-08-23`
+- the current public beta is `zk-agent-cli@0.1.0-beta.11`
+- that release was published on `2026-08-27`
 - release validation remains local and explicit through
   `pnpm validate:release`
+- the machine-checkable `beta -> rc` subset is now collected under
+  `pnpm validate:rc`
+- the explicit repo-tracked `beta -> rc` review artifact can now be generated
+  with `pnpm review:rc -- --wallet <name> --relay-url <url> --write`
 - the public npm dist-tags are currently aligned:
-  `beta -> 0.1.0-beta.10`, `latest -> 0.1.0-beta.10`
-- release notes live in [CHANGELOG.md](./CHANGELOG.md) and [docs/releases/0.1.0-beta.10.md](./docs/releases/0.1.0-beta.10.md)
+  `beta -> 0.1.0-beta.11`, `latest -> 0.1.0-beta.11`
+- release notes live in [CHANGELOG.md](./CHANGELOG.md) and [docs/releases/0.1.0-beta.11.md](./docs/releases/0.1.0-beta.11.md)
 - the next versioned release note can be seeded from git with
   `pnpm release:draft-notes --from <git-ref> [--to <git-ref>] [--apply]`
 
@@ -79,6 +80,10 @@ Release-stage judgment:
 - the project should remain on `beta` today
 - `rc` requires a closed hosted-approval operating contract, repeatable release
   flow, and frozen public machine-readable contracts
+- `pnpm validate:rc` is necessary for that transition, but it still leaves the
+  real public hosted rehearsal and final stage judgment explicit
+- `pnpm review:rc` now turns that remaining judgment into one saved repo review
+  artifact instead of leaving it as purely verbal state
 - see [docs/11-npm-release-gate.md](./docs/11-npm-release-gate.md) and
   [docs/16-hosted-approval-operated-baseline.md](./docs/16-hosted-approval-operated-baseline.md)
 
@@ -219,6 +224,7 @@ pnpm test
 pnpm build
 pnpm release:check
 pnpm validate:release
+pnpm validate:rc
 ```
 
 Workspace shape:

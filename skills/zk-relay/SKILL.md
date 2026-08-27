@@ -120,6 +120,19 @@ This smoke:
 Use it before treating an externally supplied relay URL as trustworthy for the
 current flagship AA path.
 
+When you want the real repeated hosted rehearsal to leave a durable local
+artifact instead of only terminal output, add `--save-report`:
+
+```bash
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --repeat 2 --prompt-code --save-report
+```
+
+That writes the structured series result under:
+
+```text
+~/.zk-agent/reports/hosted-operated-baseline/
+```
+
 ## Local relay prototype behind a tunnel or reverse proxy
 
 Start the relay with the externally reachable URL:
@@ -182,6 +195,31 @@ Hosted relay path only:
 ```bash
 pnpm smoke:hosted-relay -- --relay-url <url>
 ```
+
+Standard operated-baseline rehearsal for a real external relay:
+
+```bash
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --repeat 2 --prompt-code
+pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --plan
+```
+
+Use this when you want one repeatable source-checkout command that first proves
+the hosted share-link/UI contract and then completes the real browser/manual
+relay-backed approval loop on the same external relay. Use `--repeat 2` when
+you want one command that produces repeated operated-baseline evidence for RC
+readiness instead of a single successful sample.
+
+Deterministic recovery rehearsal for the hosted reapprove path:
+
+```bash
+pnpm smoke:hosted-recovery -- --wallet <name>
+```
+
+Use this when you want to validate the current expired-request recovery
+contract locally: the smoke forces a relay-backed reapprove request to expire
+and checks that the CLI returns the expected inspect + reissue recovery
+commands instead of continuing to poll a dead request id.
 
 Relay-backed approval lifecycle only:
 

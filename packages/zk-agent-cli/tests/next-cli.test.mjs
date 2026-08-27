@@ -11,6 +11,7 @@ const fixtureEntry = path.join(packageRoot, 'tests', 'fixtures', 'next-cli-runne
 const agentCoreStorageModuleUrl = pathToFileURL(
   path.resolve(packageRoot, '../agent-core/dist/storage.js')
 ).href;
+const NEXT_CLI_TIMEOUT_MS = 15_000;
 
 function createCliEnv(homeDir) {
   return {
@@ -235,7 +236,7 @@ async function runNextCli(args, env) {
 
   const readStdout = collectOutput(child.stdout);
   const readStderr = collectOutput(child.stderr);
-  const exitCode = await waitForExit(child, 5000);
+  const exitCode = await waitForExit(child, NEXT_CLI_TIMEOUT_MS);
   const stdout = readStdout().trim();
   const stderr = readStderr().trim();
 

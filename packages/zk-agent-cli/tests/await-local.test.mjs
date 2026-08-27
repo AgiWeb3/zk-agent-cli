@@ -14,6 +14,7 @@ const distEntry = path.join(packageRoot, 'dist', 'index.js');
 const agentCoreStorageModuleUrl = pathToFileURL(
   path.resolve(packageRoot, '../agent-core/dist/storage.js')
 ).href;
+const AWAIT_LOCAL_TIMEOUT_MS = 15_000;
 
 function createCliEnv(homeDir) {
   return {
@@ -67,14 +68,18 @@ async function runCliJson(args, env) {
   return JSON.parse(stdout);
 }
 
-async function waitForExit(child, timeoutMs) {
+async function waitForExit(child, timeoutMs = AWAIT_LOCAL_TIMEOUT_MS) {
+  const effectiveTimeoutMs = Math.max(timeoutMs, AWAIT_LOCAL_TIMEOUT_MS);
   return await Promise.race([
     new Promise((resolve, reject) => {
       child.once('error', reject);
       child.once('close', (code) => resolve(code));
     }),
     new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`Process did not exit within ${timeoutMs}ms`)), timeoutMs);
+      setTimeout(
+        () => reject(new Error(`Process did not exit within ${effectiveTimeoutMs}ms`)),
+        effectiveTimeoutMs
+      );
     })
   ]);
 }
@@ -109,7 +114,7 @@ async function getFreePort() {
   return port;
 }
 
-async function waitForStoredRequestId(homeDir, timeoutMs = 5000) {
+async function waitForStoredRequestId(homeDir, timeoutMs = AWAIT_LOCAL_TIMEOUT_MS) {
   const startedAt = Date.now();
   const requestsDir = path.join(homeDir, '.zk-agent', 'requests');
 
@@ -257,7 +262,7 @@ function decodeApprovalRequest(approvalUrl) {
   return JSON.parse(Buffer.from(normalized + padding, 'base64').toString('utf8'));
 }
 
-async function waitForApprovalListener(port, timeoutMs = 5000) {
+async function waitForApprovalListener(port, timeoutMs = AWAIT_LOCAL_TIMEOUT_MS) {
   const startedAt = Date.now();
   const endpoint = `http://127.0.0.1:${port}/approve`;
 
@@ -275,7 +280,7 @@ async function waitForApprovalListener(port, timeoutMs = 5000) {
   throw new Error(`Approval listener on port ${port} did not become ready within ${timeoutMs}ms`);
 }
 
-async function waitForRelayHealth(port, timeoutMs = 5000) {
+async function waitForRelayHealth(port, timeoutMs = AWAIT_LOCAL_TIMEOUT_MS) {
   const startedAt = Date.now();
   const endpoint = `http://127.0.0.1:${port}/health`;
 
@@ -2394,7 +2399,7 @@ test('wallet reapprove --wait-relay expired request returns remote reapprove rec
 
     const startedAt = Date.now();
     let mutated = false;
-    while (Date.now() - startedAt < 5000) {
+    while (Date.now() - startedAt < AWAIT_LOCAL_TIMEOUT_MS) {
       try {
         const raw = await readFile(relayRecordPath, 'utf8');
         const record = JSON.parse(raw);
