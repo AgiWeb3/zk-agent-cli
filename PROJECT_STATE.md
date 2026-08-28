@@ -67,8 +67,8 @@ Gate to move from `rc` to `1.0.0`:
 
 1. all `rc` gates stay closed under repeated real release validation
 2. at least one additional zkSync-native product slice beyond flagship
-   `workflow pay` is packaged as a real surface, most likely discovery,
-   funding, or paymaster readiness
+   `workflow pay` is packaged as a real surface; the current baseline already
+   exceeds this with discovery/defaults, paymaster readiness, and funding
 3. two consecutive end-to-end release rehearsals complete without contract
    churn on the public default path
 4. no known release-blocking issue remains on:
@@ -91,7 +91,8 @@ Current ordered priorities:
 1. simplify the public shell and onboarding around one obvious operator path
 2. define an operated hosted-approval baseline beyond the current prototype
 3. reduce release/version/doc drift through stronger automation
-4. package the next zkSync-native product vertical after `workflow pay`
+4. keep the packaged post-flagship slices coherent and bounded after
+   `workflow pay`
 5. keep broader DeFi breadth deferred unless it is deliberately resumed
 
 Current interpretation after the latest `polygon-agent-cli` comparison:
@@ -226,19 +227,21 @@ Current workstreams:
      version references after publish
 4. post-flagship product slice
    - do not chase Polygon feature count directly
-   - current decision:
-     discovery/defaults is now the first explicit post-flagship slice after
-     `workflow pay`, because it already has one bounded smoke
+   - current packaged slices:
+     discovery/defaults remains explicit, with one bounded smoke
      (`smoke:discovery`), one stable summary family (`discoverySummary`), and
      one coherent command group (`assets`, `tokens`, `resolve-token`,
      `defaults`)
-   - current packaging improvement:
-     paymaster readiness is now the next explicit post-flagship slice, with a
-     focused skill surface at `skills/zk-paymaster/SKILL.md` anchored on
+   - current packaged slices:
+     paymaster readiness is explicit through `skills/zk-paymaster/SKILL.md`,
      `workflow pay`, `zk-agent defaults`, approval-based fee-token recovery,
-     and the bounded `smoke:paymaster-success` validation path
-   - keep funding as the likely next slice after discovery/defaults plus
-     paymaster readiness, instead of generic DeFi sprawl
+     and `smoke:paymaster-success`
+   - current packaged slices:
+     funding readiness is now explicit too, through
+     `skills/zk-funding/SKILL.md`, `workflow fund`, route-aware `FundingInfo`,
+     workflow `fundingProgress`, and `smoke:funding-readiness`
+   - keep broader DeFi breadth deferred instead of reopening generic swap
+     sprawl by default
 5. DeFi breadth remains explicit backlog only
    - broader swap/deposit/withdraw coverage should not silently take back the
      main roadmap without an explicit product decision
@@ -283,6 +286,15 @@ Current workstreams:
     that surface
   - this slice currently reuses the existing workflow/defaults JSON contracts
     instead of introducing a separate paymaster-only summary family
+- funding readiness is now explicit too:
+  - `skills/zk-funding/SKILL.md` is the focused guide for the funding surface
+  - the packaged CLI already exposes the corresponding README/help path
+    through `workflow fund`, `fund`, and checkpoint follow-up through
+    `workflow status|next|resume`
+  - `pnpm smoke:funding-readiness -- --wallet <name>` is the bounded smoke for
+    that surface
+  - this slice currently reuses `FundingInfo` plus workflow `fundingProgress`
+    instead of introducing a separate funding-only summary family
 - release discipline is real:
   - `release:check` covers packaged install, hosted relay entrypoint, the
     single-host hosted relay restart-persistence proof, runtime floor, and

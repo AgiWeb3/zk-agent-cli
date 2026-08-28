@@ -280,6 +280,10 @@ zk-agent wallet status --name main
 
 ## 6. Fund only if the CLI says funding is required
 
+For the focused funding-readiness slice, read:
+
+- [zk-funding/SKILL.md](./zk-funding/SKILL.md)
+
 Guidance only:
 
 ```bash
@@ -553,6 +557,7 @@ Preferred root wrappers for the validated product smokes:
 
 ```bash
 pnpm smoke:discovery -- --wallet <name> [--symbol <symbol>]
+pnpm smoke:funding-readiness -- --wallet <name> [--amount <amount>] [--execute]
 pnpm smoke:operator-path -- --wallet <name> [--paymaster-mode none|approval-based|sponsored]
 pnpm smoke:product-path -- --wallet <name> [--tx-hash <withdrawTxHash>] [--paymaster-mode approval-based|sponsored]
 pnpm smoke:paymaster-success -- --wallet <name>
@@ -564,6 +569,9 @@ Those smoke JSON responses now preserve structured workflow follow-ups:
 - `smoke:discovery` validates the real CLI discovery/default inspection path
   across `defaults`, `assets`, `balances --owned-tokens`, `tokens --owned`,
   `tokens --chain`, and `resolve-token`
+- `smoke:funding-readiness` validates the route-aware funding contract across
+  `getFundingInfoTool`, `workflowFundTool`, and optional workflow-funding
+  execution preview
 - `smoke:operator-path` includes `summary.topLevelRecommendedCommands` and
   `summary.workflowRecommendedCommands`, accepts an optional
   `--paymaster-mode` override for the previewed workflow guidance, plus
@@ -590,5 +598,6 @@ Those smoke JSON responses now preserve structured workflow follow-ups:
 For detailed action-path examples, read:
 
 - [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+- [zk-funding/SKILL.md](./zk-funding/SKILL.md)
 - [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)

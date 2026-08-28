@@ -12,6 +12,7 @@ of `zkSync Era` and the wider `ZK Stack`.
   [skills/SKILL.md](./skills/SKILL.md),
   [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md),
   [skills/zk-discovery/SKILL.md](./skills/zk-discovery/SKILL.md),
+  [skills/zk-funding/SKILL.md](./skills/zk-funding/SKILL.md),
   [skills/zk-paymaster/SKILL.md](./skills/zk-paymaster/SKILL.md),
   [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md),
   [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
@@ -67,7 +68,7 @@ The core zkSync-native product baseline is already real:
 - hosted relay approval is proven end to end
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
 - the maintained skill surface is split into `zk-aa`, `zk-discovery`,
-  `zk-paymaster`, `zk-relay`, and `zk-defi`
+  `zk-funding`, `zk-paymaster`, `zk-relay`, and `zk-defi`
 
 The active work is now productization:
 
@@ -75,8 +76,9 @@ The active work is now productization:
 - harden hosted approval from a validated prototype toward an operated
   baseline
 - reduce release/version/doc drift after publish
-- keep discovery/defaults explicit as the first post-flagship slice, and
-  package paymaster readiness as the next clear zkSync-native product slice
+- keep discovery/defaults, funding readiness, and paymaster readiness explicit
+  as bounded post-flagship product slices while closing the remaining shell,
+  hosted, and release gaps
 
 Release-stage judgment:
 
@@ -185,6 +187,19 @@ Paymaster readiness is also productized around one constrained path:
 - `pnpm smoke:paymaster-success -- --wallet <name>` is the bounded validation
   smoke for this slice
 
+Funding readiness is also productized around one route-aware path:
+
+- `workflow fund` is the canonical guided funding entrypoint
+- `fund` remains the lower-level escape hatch when the operator explicitly
+  wants the raw funding surface
+- on `zksync-sepolia`, the current validated guidance prefers `deposit` from
+  `ethereum-sepolia` and keeps the bridge metadata visible in the same
+  contract
+- on `zksync-era`, the current funding guidance still falls back to portal
+  guidance until an executable mainnet route is explicitly validated here
+- `pnpm smoke:funding-readiness -- --wallet <name>` is the bounded validation
+  smoke for this slice
+
 Direct-command escape hatches still follow that same product contract:
 
 - `send-token`, `fund`, `deposit`, and `withdraw` can resolve symbols locally,
@@ -222,6 +237,7 @@ This repository ships both a repo-skill surface and a native plugin source.
   [skills/QUICKSTART.md](./skills/QUICKSTART.md),
   [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md),
   [skills/zk-discovery/SKILL.md](./skills/zk-discovery/SKILL.md),
+  [skills/zk-funding/SKILL.md](./skills/zk-funding/SKILL.md),
   [skills/zk-paymaster/SKILL.md](./skills/zk-paymaster/SKILL.md),
   [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md),
   [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)

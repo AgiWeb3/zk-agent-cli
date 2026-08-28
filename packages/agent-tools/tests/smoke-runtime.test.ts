@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { loadValidatedDefaults } from '@zk-agent/agent-core';
 
+import { runSmokeFundingReadiness } from '../src/smoke-funding-readiness.js';
 import { runSmokeOperatorPath } from '../src/smoke-operator-path.js';
 import { runSmokePaymasterSuccess } from '../src/smoke-paymaster-success.js';
 import { runSmokeSwapSuccess } from '../src/smoke-swap-success.js';
@@ -520,6 +521,198 @@ test('runSmokePaymasterSuccess falls back to walletAddress when ownerAddress is 
 
   assert.equal(payload.ok, true);
   assert.equal(payload.inputs.to, '0xeoa');
+});
+
+test('runSmokeFundingReadiness returns normalized guidance and checks parity', async () => {
+  const invocations: Array<Record<string, unknown>> = [];
+
+  const fundingGuidance = {
+    walletName: 'main',
+    walletAddress: '0xwallet',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    fundingUrl: 'https://portal.zksync.io/bridge/',
+    route: 'ethereum-sepolia -> zksync-sepolia',
+    sourceChain: 'ethereum-sepolia',
+    sourceChainId: 11155111,
+    recommendedAction: 'deposit',
+    requestedAmount: '0.02',
+    token: {
+      address: '0xtoken',
+      symbol: 'USDC',
+      decimals: 6
+    },
+    suggestedCommands: [
+      'zk-agent workflow fund --wallet main --amount 0.02 --execute --symbol USDC'
+    ],
+    notes: ['funding guidance ok']
+  };
+
+  const payload = await runSmokeFundingReadiness(
+    {
+      walletName: 'main',
+      amount: '0.02',
+      symbol: 'USDC',
+      decimals: 6,
+      execute: false,
+      broadcast: false
+    },
+    {
+      tools: {
+        getFundingInfoTool: {
+          execute: async (input) => {
+            invocations.push({ tool: 'getFundingInfoTool', ...(input as Record<string, unknown>) });
+            return {
+              ok: true,
+              data: fundingGuidance
+            };
+          }
+        },
+        workflowFundTool: {
+          execute: async (input) => {
+            invocations.push({ tool: 'workflowFundTool', ...(input as Record<string, unknown>) });
+            return {
+              ok: true,
+              data: fundingGuidance
+            };
+          }
+        }
+      }
+    }
+  );
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'guidance');
+  assert.equal(payload.summary.guidanceParity, true);
+  assert.equal(payload.summary.recommendedAction, 'deposit');
+  assert.equal(
+    payload.summary.firstSuggestedCommand,
+    'zk-agent workflow fund --wallet main --amount 0.02 --execute --symbol USDC'
+  );
+  assert.deepEqual(invocations, [
+    {
+      tool: 'getFundingInfoTool',
+      walletName: 'main',
+      amount: '0.02',
+      symbol: 'USDC',
+      decimals: 6
+    },
+    {
+      tool: 'workflowFundTool',
+      walletName: 'main',
+      amount: '0.02',
+      symbol: 'USDC',
+      decimals: 6
+    }
+  ]);
+});
+
+test('runSmokeFundingReadiness returns normalized execution-preview payload', async () => {
+  const invocations: Array<Record<string, unknown>> = [];
+
+  const fundingGuidance = {
+    walletName: 'main',
+    walletAddress: '0xwallet',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    fundingUrl: 'https://portal.zksync.io/bridge/',
+    route: 'ethereum-sepolia -> zksync-sepolia',
+    sourceChain: 'ethereum-sepolia',
+    sourceChainId: 11155111,
+    recommendedAction: 'deposit',
+    requestedAmount: '0.02',
+    suggestedCommands: [
+      'zk-agent workflow fund --wallet main --amount 0.02 --execute'
+    ],
+    notes: ['funding guidance ok']
+  };
+
+  const payload = await runSmokeFundingReadiness(
+    {
+      walletName: 'main',
+      amount: '0.02',
+      execute: true,
+      broadcast: false
+    },
+    {
+      tools: {
+        getFundingInfoTool: {
+          execute: async (input) => {
+            invocations.push({ tool: 'getFundingInfoTool', ...(input as Record<string, unknown>) });
+            return {
+              ok: true,
+              data: fundingGuidance
+            };
+          }
+        },
+        workflowFundTool: {
+          execute: async (input) => {
+            invocations.push({ tool: 'workflowFundTool', ...(input as Record<string, unknown>) });
+            if ((input as { execute?: boolean }).execute) {
+              return {
+                ok: true,
+                data: {
+                  walletName: 'main',
+                  walletAddress: '0xwallet',
+                  chain: 'zksync-sepolia',
+                  chainId: 300,
+                  l1ChainId: 11155111,
+                  from: '0xsender',
+                  recipient: '0xwallet',
+                  bridgeAddresses: {
+                    sharedL1: '0xshared',
+                    erc20L1: '0xerc20'
+                  },
+                  estimatedGas: '123456',
+                  token: {
+                    address: '0x0000000000000000000000000000000000000000',
+                    symbol: 'ETH',
+                    amount: '0.02',
+                    decimals: 18,
+                    isNative: true
+                  },
+                  preview: {},
+                  notes: ['deposit preview ok'],
+                  mode: 'preview'
+                }
+              };
+            }
+
+            return {
+              ok: true,
+              data: fundingGuidance
+            };
+          }
+        }
+      }
+    }
+  );
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.phase, 'execution-preview');
+  assert.equal(payload.summary.executionKind, 'deposit');
+  assert.equal(payload.summary.executionMode, 'preview');
+  assert.equal(payload.result.executionKind, 'deposit');
+  assert.equal(payload.result.executionMode, 'preview');
+  assert.deepEqual(invocations, [
+    {
+      tool: 'getFundingInfoTool',
+      walletName: 'main',
+      amount: '0.02'
+    },
+    {
+      tool: 'workflowFundTool',
+      walletName: 'main',
+      amount: '0.02'
+    },
+    {
+      tool: 'workflowFundTool',
+      walletName: 'main',
+      amount: '0.02',
+      execute: true,
+      broadcast: false
+    }
+  ]);
 });
 
 test('runSmokeSwapSuccess returns the normalized preview payload', async () => {

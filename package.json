@@ -20,6 +20,7 @@
     "smoke:hosted-operated-baseline": "pnpm --filter zk-agent-cli smoke:hosted-operated-baseline --",
     "smoke:remote-approval": "pnpm --filter zk-agent-cli smoke:remote-approval --",
     "smoke:flagship-workflow": "pnpm --filter @zk-agent/agent-tools smoke:flagship-workflow --",
+    "smoke:funding-readiness": "pnpm --filter @zk-agent/agent-tools smoke:funding-readiness --",
     "smoke:operator-path": "pnpm --filter @zk-agent/agent-tools smoke:operator-path --",
     "smoke:product-path": "pnpm --filter @zk-agent/agent-tools smoke:product-path --",
     "smoke:lifecycle": "pnpm --filter @zk-agent/agent-tools smoke:lifecycle --",

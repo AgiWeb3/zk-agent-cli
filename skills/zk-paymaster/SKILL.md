@@ -33,6 +33,11 @@ use:
 
 - [../zk-aa/SKILL.md](../zk-aa/SKILL.md)
 
+If the paymaster-backed path falls back to a separate funding step, continue
+with:
+
+- [../zk-funding/SKILL.md](../zk-funding/SKILL.md)
+
 ## Current product boundary
 
 The current paymaster surface is intentionally narrower than a general fee

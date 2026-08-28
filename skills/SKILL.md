@@ -35,6 +35,7 @@ For detailed action-path reference, also read:
 
 - [zk-aa/SKILL.md](./zk-aa/SKILL.md)
 - [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+- [zk-funding/SKILL.md](./zk-funding/SKILL.md)
 - [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
 - [zk-relay/SKILL.md](./zk-relay/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)
@@ -253,6 +254,10 @@ when you need the same recommendation plus the underlying readiness details.
 
 ### 5. Fund only when the CLI says funding is required
 
+For the focused funding-readiness slice, also read:
+
+- [zk-funding/SKILL.md](./zk-funding/SKILL.md)
+
 ```bash
 zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
@@ -264,6 +269,12 @@ zk-agent workflow fund --wallet main
 ```
 
 Do not hardcode a funding path. Use the CLI-provided route and `next` command.
+
+Bounded funding-readiness smoke:
+
+```bash
+pnpm smoke:funding-readiness -- --wallet <name> [--amount <amount>] [--execute]
+```
 
 ### 6. Execute the real goal through workflow orchestration
 
@@ -650,5 +661,6 @@ Read:
 
 - [QUICKSTART.md](./QUICKSTART.md)
 - [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+- [zk-funding/SKILL.md](./zk-funding/SKILL.md)
 - [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)

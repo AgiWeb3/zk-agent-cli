@@ -292,8 +292,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /\[skills\/zk-aa\/SKILL\.md\][\s\S]*\[skills\/zk-discovery\/SKILL\.md\][\s\S]*\[skills\/zk-paymaster\/SKILL\.md\][\s\S]*\[skills\/zk-relay\/SKILL\.md\][\s\S]*\[skills\/zk-defi\/SKILL\.md\]/,
-      'Root README must keep the split product-skill surface visible, including discovery and paymaster readiness.'
+      /\[skills\/zk-aa\/SKILL\.md\][\s\S]*\[skills\/zk-discovery\/SKILL\.md\][\s\S]*\[skills\/zk-funding\/SKILL\.md\][\s\S]*\[skills\/zk-paymaster\/SKILL\.md\][\s\S]*\[skills\/zk-relay\/SKILL\.md\][\s\S]*\[skills\/zk-defi\/SKILL\.md\]/,
+      'Root README must keep the split product-skill surface visible, including discovery, funding, and paymaster readiness.'
     ],
     [
       rootReadme,
@@ -304,6 +304,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       rootReadme,
       /Paymaster readiness is also productized around one constrained path:[\s\S]*`workflow pay` is the canonical paymaster-backed execution entrypoint[\s\S]*`approval-based` and `sponsored` are the validated paymaster-backed modes;[\s\S]*`defaults` exposes the tracked paymaster paths and validated default[\s\S]*selections[\s\S]*`tokens --chain <chain> --role paymaster-fee-token`[\s\S]*`resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`[\s\S]*`pnpm smoke:paymaster-success -- --wallet <name>` is the bounded validation[\s\S]*smoke/,
       'Root README must keep the paymaster-readiness contract visible.'
+    ],
+    [
+      rootReadme,
+      /Funding readiness is also productized around one route-aware path:[\s\S]*`workflow fund` is the canonical guided funding entrypoint[\s\S]*`fund` remains the lower-level escape hatch[\s\S]*on `zksync-sepolia`, the current validated guidance prefers `deposit` from[\s\S]*`ethereum-sepolia`[\s\S]*on `zksync-era`, the current funding guidance still falls back to portal[\s\S]*guidance[\s\S]*`pnpm smoke:funding-readiness -- --wallet <name>` is the bounded validation[\s\S]*smoke/,
+      'Root README must keep the funding-readiness contract visible.'
     ],
     [
       rootReadme,
@@ -367,8 +372,18 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
+      /\[zk-funding\/SKILL\.md\]\(\.\/zk-funding\/SKILL\.md\)/,
+      'Quickstart must keep the focused funding skill visible.'
+    ],
+    [
+      quickstart,
       /\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)/,
       'Quickstart must keep the focused paymaster skill visible.'
+    ],
+    [
+      quickstart,
+      /pnpm smoke:discovery -- --wallet <name> \[--symbol <symbol>\][\s\S]*pnpm smoke:funding-readiness -- --wallet <name> \[--amount <amount>\] \[--execute\][\s\S]*pnpm smoke:operator-path -- --wallet <name>/,
+      'Quickstart must keep the funding-readiness smoke in the preferred root wrapper list.'
     ],
     [
       quickstart,
@@ -402,8 +417,13 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
-      /\[zk-aa\/SKILL\.md\]\(\.\/zk-aa\/SKILL\.md\)[\s\S]*\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)[\s\S]*\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)[\s\S]*\[zk-relay\/SKILL\.md\]\(\.\/zk-relay\/SKILL\.md\)[\s\S]*\[zk-defi\/SKILL\.md\]\(\.\/zk-defi\/SKILL\.md\)/,
-      'Primary skill guide must keep the split sub-skill surface visible, including paymaster readiness.'
+      /\[zk-aa\/SKILL\.md\]\(\.\/zk-aa\/SKILL\.md\)[\s\S]*\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)[\s\S]*\[zk-funding\/SKILL\.md\]\(\.\/zk-funding\/SKILL\.md\)[\s\S]*\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)[\s\S]*\[zk-relay\/SKILL\.md\]\(\.\/zk-relay\/SKILL\.md\)[\s\S]*\[zk-defi\/SKILL\.md\]\(\.\/zk-defi\/SKILL\.md\)/,
+      'Primary skill guide must keep the split sub-skill surface visible, including funding and paymaster readiness.'
+    ],
+    [
+      skillGuide,
+      /### 5\. Fund only when the CLI says funding is required[\s\S]*\[zk-funding\/SKILL\.md\]\(\.\/zk-funding\/SKILL\.md\)[\s\S]*zk-agent workflow fund --wallet main --amount <amount> --execute[\s\S]*zk-agent workflow fund --wallet main[\s\S]*pnpm smoke:funding-readiness -- --wallet <name> \[--amount <amount>\] \[--execute\]/,
+      'Primary skill guide must keep the funding-readiness contract visible.'
     ],
     [
       skillGuide,
