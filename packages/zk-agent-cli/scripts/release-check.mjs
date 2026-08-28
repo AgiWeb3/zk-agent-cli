@@ -292,8 +292,18 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
+      /\[skills\/zk-aa\/SKILL\.md\][\s\S]*\[skills\/zk-discovery\/SKILL\.md\][\s\S]*\[skills\/zk-paymaster\/SKILL\.md\][\s\S]*\[skills\/zk-relay\/SKILL\.md\][\s\S]*\[skills\/zk-defi\/SKILL\.md\]/,
+      'Root README must keep the split product-skill surface visible, including discovery and paymaster readiness.'
+    ],
+    [
+      rootReadme,
       /Discovery is also productized around one local-first path:[\s\S]*`assets` is the preferred single-chain asset view[\s\S]*`tokens --wallet <name> --owned` is the narrower ERC-20 holdings view[\s\S]*`tokens --chain <chain>` and `resolve-token` are the symbol-first discovery[\s\S]*surfaces[\s\S]*`tokens --chain <chain> --role paymaster-fee-token`[\s\S]*`resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`[\s\S]*`defaults` is the machine-readable registry escape hatch/,
       'Root README must keep the discovery/defaults contract visible.'
+    ],
+    [
+      rootReadme,
+      /Paymaster readiness is also productized around one constrained path:[\s\S]*`workflow pay` is the canonical paymaster-backed execution entrypoint[\s\S]*`approval-based` and `sponsored` are the validated paymaster-backed modes;[\s\S]*`defaults` exposes the tracked paymaster paths and validated default[\s\S]*selections[\s\S]*`tokens --chain <chain> --role paymaster-fee-token`[\s\S]*`resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`[\s\S]*`pnpm smoke:paymaster-success -- --wallet <name>` is the bounded validation[\s\S]*smoke/,
+      'Root README must keep the paymaster-readiness contract visible.'
     ],
     [
       rootReadme,
@@ -352,6 +362,16 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
+      /\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)/,
+      'Quickstart must keep the focused discovery skill visible.'
+    ],
+    [
+      quickstart,
+      /\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)/,
+      'Quickstart must keep the focused paymaster skill visible.'
+    ],
+    [
+      quickstart,
       /the CLI auto-loads `\.env`[\s\S]*wallet-request creation usually work without custom RPC values/,
       'Quickstart must keep the first-run .env boundary visible.'
     ],
@@ -382,8 +402,18 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
+      /\[zk-aa\/SKILL\.md\]\(\.\/zk-aa\/SKILL\.md\)[\s\S]*\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)[\s\S]*\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)[\s\S]*\[zk-relay\/SKILL\.md\]\(\.\/zk-relay\/SKILL\.md\)[\s\S]*\[zk-defi\/SKILL\.md\]\(\.\/zk-defi\/SKILL\.md\)/,
+      'Primary skill guide must keep the split sub-skill surface visible, including paymaster readiness.'
+    ],
+    [
+      skillGuide,
       /Use `zk-agent defaults` when you need the current token-registry source[\s\S]*order[\s\S]*Use `zk-agent tokens --chain zksync-sepolia`[\s\S]*Use `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`[\s\S]*Use `zk-agent tokens --wallet main --owned`[\s\S]*default asset view, start with `assets`\.[\s\S]*Use `zk-agent resolve-token --chain zksync-sepolia --symbol USDC`[\s\S]*Add `--role swap-token-a\|swap-token-b\|paymaster-fee-token`/,
       'Primary skill guide must keep the discovery/defaults contract visible.'
+    ],
+    [
+      skillGuide,
+      /## Paymaster guidance[\s\S]*\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)[\s\S]*Supported paymaster modes:[\s\S]*`none`[\s\S]*`sponsored`[\s\S]*`approval-based`[\s\S]*zk-agent send --wallet main --to <address> --amount <amount> --paymaster-mode none[\s\S]*pnpm smoke:paymaster-success -- --wallet <name> \[--execute\]/,
+      'Primary skill guide must keep the paymaster-readiness contract visible.'
     ],
     [
       skillGuide,

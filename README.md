@@ -11,6 +11,8 @@ of `zkSync Era` and the wider `ZK Stack`.
   [skills/QUICKSTART.md](./skills/QUICKSTART.md),
   [skills/SKILL.md](./skills/SKILL.md),
   [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md),
+  [skills/zk-discovery/SKILL.md](./skills/zk-discovery/SKILL.md),
+  [skills/zk-paymaster/SKILL.md](./skills/zk-paymaster/SKILL.md),
   [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md),
   [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
 - contributor/project memory:
@@ -64,8 +66,8 @@ The core zkSync-native product baseline is already real:
 - the local-first wallet/session lifecycle is implemented
 - hosted relay approval is proven end to end
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
-- the maintained skill surface is split into `zk-aa`, `zk-relay`, and
-  `zk-defi`
+- the maintained skill surface is split into `zk-aa`, `zk-discovery`,
+  `zk-paymaster`, `zk-relay`, and `zk-defi`
 
 The active work is now productization:
 
@@ -73,7 +75,8 @@ The active work is now productization:
 - harden hosted approval from a validated prototype toward an operated
   baseline
 - reduce release/version/doc drift after publish
-- package one clearer zkSync-native product slice after the flagship pay path
+- keep discovery/defaults explicit as the first post-flagship slice, and
+  package paymaster readiness as the next clear zkSync-native product slice
 
 Release-stage judgment:
 
@@ -168,6 +171,20 @@ Discovery is also productized around one local-first path:
 - `ZK_AGENT_TOKEN_DIRECTORY_ROOT` is the optional broader local token-directory
   input when repo-local deployment metadata is not enough
 
+Paymaster readiness is also productized around one constrained path:
+
+- `workflow pay` is the canonical paymaster-backed execution entrypoint
+- `approval-based` and `sponsored` are the validated paymaster-backed modes;
+  `none` is the diagnostic fallback that separates the base transaction path
+  from paymaster-specific compatibility issues
+- `defaults` exposes the tracked paymaster paths and validated default
+  selections
+- `tokens --chain <chain> --role paymaster-fee-token` and
+  `resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`
+  are the approval-based fee-token recovery surfaces
+- `pnpm smoke:paymaster-success -- --wallet <name>` is the bounded validation
+  smoke for this slice
+
 Direct-command escape hatches still follow that same product contract:
 
 - `send-token`, `fund`, `deposit`, and `withdraw` can resolve symbols locally,
@@ -204,6 +221,8 @@ This repository ships both a repo-skill surface and a native plugin source.
   [skills/SKILL.md](./skills/SKILL.md),
   [skills/QUICKSTART.md](./skills/QUICKSTART.md),
   [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md),
+  [skills/zk-discovery/SKILL.md](./skills/zk-discovery/SKILL.md),
+  [skills/zk-paymaster/SKILL.md](./skills/zk-paymaster/SKILL.md),
   [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md),
   [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
 

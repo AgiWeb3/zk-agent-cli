@@ -34,6 +34,8 @@ x402 surfaces.
 For detailed action-path reference, also read:
 
 - [zk-aa/SKILL.md](./zk-aa/SKILL.md)
+- [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+- [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
 - [zk-relay/SKILL.md](./zk-relay/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)
 
@@ -536,6 +538,10 @@ Validation-hook helpers are also implemented for:
 
 ## Paymaster guidance
 
+For the focused paymaster-readiness slice, also read:
+
+- [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
+
 Supported paymaster modes:
 
 - `none`
@@ -557,6 +563,12 @@ zk-agent send --wallet main --to <address> --amount <amount> --paymaster-mode no
 
 ```bash
 zk-agent swap --wallet main --protocol <protocol> ... --paymaster-mode none
+```
+
+Bounded paymaster-readiness smoke:
+
+```bash
+pnpm smoke:paymaster-success -- --wallet <name> [--execute]
 ```
 
 ## Tool surface
@@ -637,4 +649,6 @@ sandbox:
 Read:
 
 - [QUICKSTART.md](./QUICKSTART.md)
+- [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+- [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)

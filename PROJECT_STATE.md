@@ -226,9 +226,19 @@ Current workstreams:
      version references after publish
 4. post-flagship product slice
    - do not chase Polygon feature count directly
-   - choose one real zkSync-native vertical after `workflow pay`, most likely
-     around discovery, funding, or paymaster readiness rather than generic DeFi
-     sprawl
+   - current decision:
+     discovery/defaults is now the first explicit post-flagship slice after
+     `workflow pay`, because it already has one bounded smoke
+     (`smoke:discovery`), one stable summary family (`discoverySummary`), and
+     one coherent command group (`assets`, `tokens`, `resolve-token`,
+     `defaults`)
+   - current packaging improvement:
+     paymaster readiness is now the next explicit post-flagship slice, with a
+     focused skill surface at `skills/zk-paymaster/SKILL.md` anchored on
+     `workflow pay`, `zk-agent defaults`, approval-based fee-token recovery,
+     and the bounded `smoke:paymaster-success` validation path
+   - keep funding as the likely next slice after discovery/defaults plus
+     paymaster readiness, instead of generic DeFi sprawl
 5. DeFi breadth remains explicit backlog only
    - broader swap/deposit/withdraw coverage should not silently take back the
      main roadmap without an explicit product decision
@@ -254,6 +264,25 @@ Current workstreams:
   - approval-based broadcast succeeded on `sed-lite-sa-v2` with tx hash
     `0x7904ecaad5edfee1f84dbdc4f83aaf2d577b7875fab060e8e272d7aa2697e7e0`
   - workflow request `d5181c7e` resolved back to `ready`
+- the first post-flagship product slice is now explicit:
+  - discovery/defaults now has a focused skill surface at
+    `skills/zk-discovery/SKILL.md`
+  - the packaged CLI already exposes the corresponding README/help path through
+    `assets`, `tokens`, `resolve-token`, and `defaults`
+  - `pnpm smoke:discovery -- --wallet <name>` remains the bounded smoke for
+    that surface
+  - `discoverySummary` remains the machine-readable contract family for that
+    slice
+- paymaster readiness is now explicit too:
+  - `skills/zk-paymaster/SKILL.md` is the focused guide for the paymaster
+    surface
+  - the packaged CLI already exposes the corresponding README/help path
+    through `workflow pay`, `defaults`, and the `paymaster-fee-token`
+    discovery commands
+  - `pnpm smoke:paymaster-success -- --wallet <name>` is the bounded smoke for
+    that surface
+  - this slice currently reuses the existing workflow/defaults JSON contracts
+    instead of introducing a separate paymaster-only summary family
 - release discipline is real:
   - `release:check` covers packaged install, hosted relay entrypoint, the
     single-host hosted relay restart-persistence proof, runtime floor, and

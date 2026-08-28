@@ -239,6 +239,11 @@ Use `assets` as the default single-chain asset entrypoint. Keep
 for the narrower owned ERC-20 registry subset. `zk-agent defaults` now also
 shows that source order and token-directory chain coverage explicitly.
 
+If the task is primarily about discovery/defaults rather than wallet recovery
+or workflow execution, use the focused guide:
+
+- [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+
 When you need the broader symbol-first discovery path for a chain, start with:
 
 ```bash
@@ -584,4 +589,6 @@ Those smoke JSON responses now preserve structured workflow follow-ups:
 
 For detailed action-path examples, read:
 
+- [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
+- [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
 - [zk-defi/SKILL.md](./zk-defi/SKILL.md)

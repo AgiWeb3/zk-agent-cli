@@ -250,9 +250,22 @@ The repo is already past scaffolding. The current stable baseline is:
 
 5. Post-flagship vertical packaging
    - choose one zkSync-native vertical after `workflow pay`
-   - prefer repeated operator demand around discovery, funding, paymaster
-     readiness, or another genuinely zkSync-native slice over generic swap
-     sprawl
+   - current decision:
+     package discovery/defaults as the first explicit post-flagship slice,
+     because the CLI already has one bounded smoke (`smoke:discovery`), one
+     machine-readable summary contract (`discoverySummary`), and one coherent
+     command family (`assets`, `tokens`, `resolve-token`, `defaults`)
+   - current packaging improvement:
+     discovery/defaults now also has a focused skill surface at
+     `skills/zk-discovery/SKILL.md`, so the slice is no longer implied only by
+     scattered README/help text
+   - current packaging improvement:
+     paymaster readiness now also has a focused skill surface at
+     `skills/zk-paymaster/SKILL.md`, anchored on `workflow pay`,
+     `zk-agent defaults`, approval-based fee-token recovery, and the bounded
+     `smoke:paymaster-success` validation path
+   - keep funding as the likeliest next slice after discovery/defaults plus
+     paymaster readiness, rather than drifting back into generic swap sprawl
    - acceptance:
      the chosen vertical has one skill, one README/help path, one smoke, and
      one machine-readable contract
@@ -339,7 +352,7 @@ All of the following must be true:
 2. At least one additional zkSync-native product slice is packaged beyond
    flagship `workflow pay`.
    - preferred candidates:
-     discovery, funding, or paymaster readiness
+     funding, after discovery/defaults and paymaster readiness
 
 3. Two consecutive end-to-end release rehearsals complete without public
    contract churn on the default path.
