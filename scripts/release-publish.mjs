@@ -10,6 +10,8 @@ const workspaceRoot = resolve(rootDir, '..');
 const packageDir = join(workspaceRoot, 'packages', 'zk-agent-cli');
 const workspacePackagePath = join(workspaceRoot, 'package.json');
 const publishedPackagePath = join(packageDir, 'package.json');
+const DEFAULT_READBACK_ATTEMPTS = 6;
+const DEFAULT_READBACK_DELAY_MS = 5000;
 const preferredBinDir = dirname(process.execPath);
 const executionEnv = {
   ...process.env,
@@ -158,6 +160,160 @@ function summarizeFailure(result) {
   return [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
 }
 
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function isNotFoundReadbackFailure(result) {
+  if (!result || typeof result !== 'object') return false;
+  return /E404|404|No match found/i.test(summarizeFailure(result));
+}
+
+function retryLog(log, message) {
+  if (typeof log === 'function') {
+    log(message);
+  }
+}
+
+export function readNpmVersionWithRetry({
+  packageName,
+  spec,
+  expectedVersion,
+  cwd,
+  run = runCaptured,
+  attempts = DEFAULT_READBACK_ATTEMPTS,
+  delayMs = DEFAULT_READBACK_DELAY_MS,
+  log = (message) => process.stdout.write(`${message}\n`)
+}) {
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = run('npm', ['view', spec, 'version'], {
+      cwd,
+      allowFailure: true
+    });
+    lastResult = result;
+
+    if (typeof result === 'string' && result === expectedVersion) {
+      return result;
+    }
+
+    const retryable =
+      (typeof result === 'string' && Boolean(result) && result !== expectedVersion) ||
+      (typeof result !== 'string' && isNotFoundReadbackFailure(result));
+
+    if (!retryable || attempt === attempts) {
+      break;
+    }
+
+    const observed =
+      typeof result === 'string' && result
+        ? `observed ${result}`
+        : summarizeFailure(result) || 'empty readback';
+    retryLog(
+      log,
+      `Waiting for npm registry readback for ${packageName}@${spec} to converge (${attempt}/${attempts}): ${observed}`
+    );
+    sleepSync(delayMs);
+  }
+
+  if (typeof lastResult === 'string') {
+    throw new Error(
+      `npm view ${spec} version returned ${lastResult}; expected ${expectedVersion}.`
+    );
+  }
+
+  throw new Error(
+    `npm view ${spec} version did not converge to ${expectedVersion}.\n${summarizeFailure(lastResult)}`
+  );
+}
+
+export function readNpmDistTagsWithRetry({
+  packageName,
+  expectedTags,
+  cwd,
+  run = runCaptured,
+  attempts = DEFAULT_READBACK_ATTEMPTS,
+  delayMs = DEFAULT_READBACK_DELAY_MS,
+  log = (message) => process.stdout.write(`${message}\n`)
+}) {
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = run('npm', ['view', packageName, 'dist-tags', '--json'], {
+      cwd,
+      allowFailure: true
+    });
+    lastResult = result;
+
+    if (typeof result === 'string') {
+      try {
+        const parsed = JSON.parse(result);
+        const matches = Object.entries(expectedTags).every(([tag, version]) => parsed?.[tag] === version);
+        if (matches) {
+          return parsed;
+        }
+
+        if (attempt < attempts) {
+          retryLog(
+            log,
+            `Waiting for npm dist-tags for ${packageName} to converge (${attempt}/${attempts}): ${JSON.stringify(parsed)}`
+          );
+          sleepSync(delayMs);
+          continue;
+        }
+      } catch (error) {
+        if (attempt < attempts) {
+          retryLog(
+            log,
+            `Waiting for npm dist-tags for ${packageName} to become parseable (${attempt}/${attempts}).`
+          );
+          sleepSync(delayMs);
+          continue;
+        }
+
+        throw new Error(
+          `npm view ${packageName} dist-tags --json returned invalid JSON.\n${result}\n${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    } else if (isNotFoundReadbackFailure(result) && attempt < attempts) {
+      retryLog(
+        log,
+        `Waiting for npm dist-tags for ${packageName} to appear (${attempt}/${attempts}): ${summarizeFailure(result)}`
+      );
+      sleepSync(delayMs);
+      continue;
+    }
+
+    break;
+  }
+
+  if (typeof lastResult === 'string') {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(lastResult);
+    } catch {}
+
+    throw new Error(
+      `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.\nObserved: ${
+        parsed ? JSON.stringify(parsed) : lastResult
+      }`
+    );
+  }
+
+  throw new Error(
+    `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.\n${summarizeFailure(lastResult)}`
+  );
+}
+
+function isDirectExecution(metaUrl) {
+  const entryPath = process.argv[1];
+  if (!entryPath) return false;
+  return resolve(fileURLToPath(metaUrl)) === resolve(entryPath);
+}
+
 function main() {
   ensureNodeRuntime();
 
@@ -257,23 +413,21 @@ function main() {
     }
 
     process.stdout.write('Reading back published npm metadata...\n');
-    const versionReadback = runCaptured('npm', ['view', `${packageName}@${version}`, 'version'], {
+    const versionReadback = readNpmVersionWithRetry({
+      packageName,
+      spec: `${packageName}@${version}`,
+      expectedVersion: version,
       cwd: neutralDir
     });
-    assert.equal(
-      versionReadback,
-      version,
-      `Post-publish readback returned ${versionReadback}; expected ${version}.`
-    );
+    assert.equal(versionReadback, version, `Post-publish readback returned ${versionReadback}; expected ${version}.`);
 
-    const tagReadback = runCaptured('npm', ['view', `${packageName}@${tag}`, 'version'], {
+    const tagReadback = readNpmVersionWithRetry({
+      packageName,
+      spec: `${packageName}@${tag}`,
+      expectedVersion: version,
       cwd: neutralDir
     });
-    assert.equal(
-      tagReadback,
-      version,
-      `Dist-tag ${tag} points at ${tagReadback}; expected ${version}.`
-    );
+    assert.equal(tagReadback, version, `Dist-tag ${tag} points at ${tagReadback}; expected ${version}.`);
 
     if (!args.skipNpxSmoke) {
       process.stdout.write('Running clean npx help smoke...\n');
@@ -284,9 +438,13 @@ function main() {
 
     if (args.promoteLatest) {
       process.stdout.write(`Promoting latest -> ${packageName}@${version}...\n`);
-      const currentDistTags = JSON.parse(
-        runCaptured('npm', ['view', packageName, 'dist-tags', '--json'], { cwd: neutralDir })
-      );
+      const currentDistTags = readNpmDistTagsWithRetry({
+        packageName,
+        expectedTags: {
+          [tag]: version
+        },
+        cwd: neutralDir
+      });
 
       if (currentDistTags.latest === version) {
         process.stdout.write(`latest already points at ${version}; skipping dist-tag add.\n`);
@@ -299,9 +457,13 @@ function main() {
       }
     }
 
-    const finalDistTags = JSON.parse(
-      runCaptured('npm', ['view', packageName, 'dist-tags', '--json'], { cwd: neutralDir })
-    );
+    const finalDistTags = readNpmDistTagsWithRetry({
+      packageName,
+      expectedTags: args.promoteLatest
+        ? { [tag]: version, latest: version }
+        : { [tag]: version },
+      cwd: neutralDir
+    });
 
     if (args.promoteLatest) {
       assert.equal(
@@ -332,4 +494,6 @@ function main() {
   }
 }
 
-main();
+if (isDirectExecution(import.meta.url)) {
+  main();
+}
