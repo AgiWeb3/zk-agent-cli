@@ -1,4 +1,4 @@
-import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
+import type { PaymasterMode, SessionPolicies } from '@zk-agent/agent-session-protocol';
 import type { RegistryTokenRole, TokenRegistrySourceDescriptor } from '@zk-agent/agent-core';
 
 function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): string {
@@ -32,20 +32,88 @@ export function buildRelayInspectRecommendedCommand(relayUrl = '<url>'): string 
   return `zk-agent relay inspect --relay-url ${relayUrl}`;
 }
 
+interface RemoteApprovalPolicyCommandOptions {
+  sessionPolicies?: SessionPolicies;
+  requestCreatedAt?: string;
+}
+
+function inferSessionHours(
+  sessionPolicies?: SessionPolicies,
+  requestCreatedAt?: string
+): string | null {
+  const expiresAt = sessionPolicies?.expiresAt;
+  if (!expiresAt || !requestCreatedAt) return null;
+
+  const createdAtMs = Date.parse(requestCreatedAt);
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(createdAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs <= createdAtMs) {
+    return null;
+  }
+
+  const hours = (expiresAtMs - createdAtMs) / (60 * 60 * 1000);
+  if (!Number.isFinite(hours) || hours <= 0) return null;
+
+  const rounded = Math.round(hours * 1000) / 1000;
+  if (Math.abs(rounded - 24) < 0.0005) {
+    return null;
+  }
+
+  return Number.isInteger(rounded)
+    ? String(rounded)
+    : String(rounded).replace(/(?:\.0+|(\.\d*?)0+)$/, '$1');
+}
+
+function appendSessionPolicyFlags(
+  commandParts: string[],
+  options?: RemoteApprovalPolicyCommandOptions
+): void {
+  const sessionHours = inferSessionHours(options?.sessionPolicies, options?.requestCreatedAt);
+  if (sessionHours) {
+    commandParts.push(`--session-hours ${sessionHours}`);
+  }
+
+  const transfers = options?.sessionPolicies?.transfers;
+  if (Array.isArray(transfers)) {
+    if (transfers.length === 0) {
+      commandParts.push('--disallow-transfers');
+    } else {
+      for (const policy of transfers) {
+        if (policy?.to) {
+          commandParts.push(`--allow-transfer-to ${policy.to}`);
+        }
+      }
+    }
+  }
+
+  const contractCalls = options?.sessionPolicies?.contractCalls;
+  if (Array.isArray(contractCalls)) {
+    if (contractCalls.length === 0) {
+      commandParts.push('--disallow-contract-calls');
+    } else {
+      for (const policy of contractCalls) {
+        if (policy?.address) {
+          commandParts.push(`--allow-contract ${policy.address}`);
+        }
+      }
+    }
+  }
+}
+
 export function buildWalletCreateRemoteRecommendedCommand(
   relayUrl = '<url>',
   paymasterMode?: PaymasterMode,
   walletName = 'main',
-  accountKind: 'eoa' | 'smart-account' | 'session-key' = 'smart-account'
+  accountKind: 'eoa' | 'smart-account' | 'session-key' = 'smart-account',
+  options?: RemoteApprovalPolicyCommandOptions
 ): string {
-  const command = [
+  const commandParts = [
     'zk-agent wallet create',
     walletName !== 'main' ? `--name ${walletName}` : '',
-    accountKind !== 'smart-account' ? `--account-kind ${accountKind}` : '',
-    `--relay-url ${relayUrl} --wait-relay --prompt-code`
-  ]
-    .filter(Boolean)
-    .join(' ');
+    accountKind !== 'smart-account' ? `--account-kind ${accountKind}` : ''
+  ].filter(Boolean);
+  appendSessionPolicyFlags(commandParts, options);
+  commandParts.push(`--relay-url ${relayUrl} --wait-relay --prompt-code`);
+  const command = commandParts.join(' ');
   return appendPaymasterMode(command, paymasterMode);
 }
 
@@ -176,9 +244,13 @@ export function buildWalletReapproveRecommendedCommand(walletName: string): stri
 
 export function buildWalletReapproveRemoteRecommendedCommand(
   walletName: string,
-  relayUrl = '<url>'
+  relayUrl = '<url>',
+  options?: RemoteApprovalPolicyCommandOptions
 ): string {
-  return `zk-agent wallet reapprove --name ${walletName} --relay-url ${relayUrl} --wait-relay --prompt-code`;
+  const commandParts = [`zk-agent wallet reapprove --name ${walletName}`];
+  appendSessionPolicyFlags(commandParts, options);
+  commandParts.push(`--relay-url ${relayUrl} --wait-relay --prompt-code`);
+  return commandParts.join(' ');
 }
 
 export function buildWalletNextRecommendedCommand(walletName: string): string {

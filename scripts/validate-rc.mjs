@@ -26,7 +26,7 @@ function printHelp() {
       'Current automated steps:',
       '  1. pnpm validate:release',
       '  2. pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code --repeat 2 --plan',
-      '  3. pnpm smoke:hosted-recovery -- --wallet <name> --plan',
+      '  3. pnpm smoke:hosted-recovery -- --wallet <name> --save-report',
       '',
       'Public evidence:',
       '  If a valid hosted-operated-baseline report already exists under',
@@ -113,6 +113,10 @@ function formatCommand(command, args) {
   return [command, ...args].join(' ');
 }
 
+function workspaceScript(relativePath) {
+  return resolve(workspaceRoot, relativePath);
+}
+
 function normalizeUrl(value) {
   return String(value || '').replace(/\/+$/, '');
 }
@@ -145,6 +149,23 @@ function summarizeEvidence(reportFile, report) {
     repeatCount: report.repeatCount || 0,
     completedRuns: report.completedRuns || 0,
     requestIds
+  };
+}
+
+function summarizeHostedRecoveryEvidence(result) {
+  if (!result || typeof result !== 'object') {
+    return null;
+  }
+
+  return {
+    reportFile: typeof result.reportFile === 'string' ? result.reportFile : null,
+    reportGeneratedAt: typeof result.reportGeneratedAt === 'string' ? result.reportGeneratedAt : null,
+    walletName: typeof result.walletName === 'string' ? result.walletName : null,
+    phase: typeof result.phase === 'string' ? result.phase : null,
+    relayOrigin: typeof result.relayOrigin === 'string' ? result.relayOrigin : null,
+    requestId: typeof result.requestId === 'string' ? result.requestId : null,
+    errorCode: typeof result.errorCode === 'string' ? result.errorCode : null,
+    reportSaved: result.reportSaved === true
   };
 }
 
@@ -261,6 +282,16 @@ function locatePublicEvidence(options) {
   };
 }
 
+function parseJsonOutput(stdout) {
+  if (!stdout) return null;
+
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+}
+
 function runStep(step, jsonMode) {
   if (!jsonMode) {
     process.stdout.write(`Running ${step.id}: ${step.title}\n`);
@@ -270,24 +301,35 @@ function runStep(step, jsonMode) {
   const startedAt = Date.now();
 
   try {
-    execFileSync(step.command, step.args, {
+    const stdout = execFileSync(step.command, step.args, {
       cwd: workspaceRoot,
       encoding: 'utf8',
       env: executionEnv,
       stdio: ['ignore', 'pipe', 'pipe']
-    });
+    }).trim();
+    const result = step.jsonResult ? parseJsonOutput(stdout) : null;
+
+    if (step.jsonResult && !result) {
+      throw new Error(
+        [`Step failed: ${step.id}`, formatCommand(step.command, step.args), 'Expected JSON output, got empty or invalid stdout.'].join('\n')
+      );
+    }
 
     return {
       id: step.id,
       title: step.title,
       status: 'passed',
       command: formatCommand(step.command, step.args),
-      durationMs: Date.now() - startedAt
+      durationMs: Date.now() - startedAt,
+      result,
+      resultSummary: step.summarizeResult ? step.summarizeResult(result) : undefined
     };
   } catch (error) {
     const stdout = String(error.stdout || '').trim();
     const stderr = String(error.stderr || '').trim();
-    const message = [stdout, stderr].filter(Boolean).join('\n').trim();
+    const fallback =
+      error instanceof Error && !(error.stdout || error.stderr) ? error.message : '';
+    const message = [stdout, stderr, fallback].filter(Boolean).join('\n').trim();
     throw new Error(
       [`Step failed: ${step.id}`, formatCommand(step.command, step.args), message].filter(Boolean).join(
         '\n'
@@ -323,16 +365,19 @@ function buildSteps(options) {
       ]
     },
     {
-      id: 'hosted-recovery-plan',
-      title: 'Deterministic hosted recovery RC rehearsal plan',
-      command: 'pnpm',
+      id: 'hosted-recovery',
+      title: 'Deterministic hosted recovery RC rehearsal evidence',
+      command: process.execPath,
       args: [
-        'smoke:hosted-recovery',
-        '--',
+        '--import',
+        'tsx',
+        workspaceScript('packages/zk-agent-cli/src/smoke-hosted-recovery.ts'),
         '--wallet',
         options.walletName,
-        '--plan'
-      ]
+        '--save-report'
+      ],
+      jsonResult: true,
+      summarizeResult: summarizeHostedRecoveryEvidence
     }
   ];
 }
@@ -341,6 +386,8 @@ function main() {
   const options = parseArgs(process.argv.slice(2));
   const automatedSteps = buildSteps(options).map((step) => runStep(step, options.json));
   const publicHostedEvidence = locatePublicEvidence(options);
+  const hostedRecoveryEvidence =
+    automatedSteps.find((step) => step.id === 'hosted-recovery')?.resultSummary ?? null;
   const remainingManualChecks = [];
 
   if (!publicHostedEvidence.valid) {
@@ -375,6 +422,7 @@ function main() {
     walletName: options.walletName,
     relayUrl: options.relayUrl,
     automatedSteps,
+    hostedRecoveryEvidence,
     publicHostedEvidence,
     remainingManualChecks
   };
@@ -391,6 +439,11 @@ function main() {
     );
   } else {
     process.stdout.write('No valid saved public hosted evidence report was found.\n');
+  }
+  if (hostedRecoveryEvidence?.reportFile) {
+    process.stdout.write(
+      `Hosted recovery evidence: ${hostedRecoveryEvidence.reportFile}\n`
+    );
   }
   process.stdout.write('Remaining manual RC checks:\n');
   for (const item of remainingManualChecks) {

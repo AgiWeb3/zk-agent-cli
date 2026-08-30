@@ -1493,7 +1493,7 @@ test('relay status returns recovery commands instead of self-looping when the re
     );
     assert.equal(
       relayStatusExpired.note,
-      'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
+      'Relay approval expired. Reissue the remote request. The recovery command preserves any CLI-expressible session-policy flags from the expired request.'
     );
     assert.deepEqual(relayStatusExpired.relayRecoverySummary, {
       requestId: 'expired-relay-status',
@@ -1579,6 +1579,15 @@ test('relay status prefers remote reapprove recovery when the wallet already exi
             contractCall: true,
             paymaster: true
           },
+          policies: {
+            expiresAt: '2026-08-10T12:00:00.000Z',
+            transfers: [],
+            contractCalls: [
+              {
+                address: '0x4444444444444444444444444444444444444444'
+              }
+            ]
+          },
           sessionPublicKey: '0x' + '33'.repeat(32)
         }
       })
@@ -1602,7 +1611,11 @@ test('relay status prefers remote reapprove recovery when the wallet already exi
     assert.equal(relayStatusExpired.relay.status, 'expired');
     assert.equal(
       relayStatusExpired.nextAction,
-      `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+      `zk-agent wallet reapprove --name ops-wallet --session-hours 12 --disallow-transfers --allow-contract 0x4444444444444444444444444444444444444444 --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+    );
+    assert.equal(
+      relayStatusExpired.note,
+      'Relay approval expired. Reissue the remote request. The recovery command preserves any CLI-expressible session-policy flags from the expired request.'
     );
     assert.deepEqual(relayStatusExpired.relayRecoverySummary, {
       requestId: 'expired-relay-status-existing-wallet',
@@ -1611,7 +1624,7 @@ test('relay status prefers remote reapprove recovery when the wallet already exi
       relayStatus: 'expired',
       approvalReady: false,
       nextAction:
-        `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`,
+        `zk-agent wallet reapprove --name ops-wallet --session-hours 12 --disallow-transfers --allow-contract 0x4444444444444444444444444444444444444444 --relay-url ${relayBaseUrl} --wait-relay --prompt-code`,
       shareLinkBaseUrl: `${relayBaseUrl}/r`,
       statusApiBaseUrl: `${relayBaseUrl}/api/requests`,
       recoveryMode: 'reissue-remote-approval',
@@ -1623,7 +1636,7 @@ test('relay status prefers remote reapprove recovery when the wallet already exi
     assert.deepEqual(relayStatusExpired.recommendedCommands, {
       relayInspect: `zk-agent relay inspect --relay-url ${relayBaseUrl}`,
       reissueRemoteApproval:
-        `zk-agent wallet reapprove --name ops-wallet --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+        `zk-agent wallet reapprove --name ops-wallet --session-hours 12 --disallow-transfers --allow-contract 0x4444444444444444444444444444444444444444 --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
     });
   } finally {
     process.env.HOME = previousHome;
@@ -2377,6 +2390,11 @@ test('wallet reapprove --wait-relay expired request returns remote reapprove rec
         'relay-reapprove-expired',
         '--relay-url',
         relayBaseUrl,
+        '--session-hours',
+        '12',
+        '--allow-transfer-to',
+        '0x3333333333333333333333333333333333333333',
+        '--disallow-contract-calls',
         '--wait-relay',
         '--prompt-code',
         '--timeout-seconds',
@@ -2435,7 +2453,7 @@ test('wallet reapprove --wait-relay expired request returns remote reapprove rec
     assert.equal(result.details?.relayUrl, relayBaseUrl);
     assert.equal(
       result.details?.note,
-      'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
+      'Relay approval expired. Reissue the remote request. The recovery command preserves any CLI-expressible session-policy flags from the expired request.'
     );
     assert.equal(
       result.details?.relayInspectCommand,
@@ -2443,7 +2461,7 @@ test('wallet reapprove --wait-relay expired request returns remote reapprove rec
     );
     assert.equal(
       result.details?.reissueRemoteApprovalCommand,
-      `zk-agent wallet reapprove --name relay-reapprove-expired --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
+      `zk-agent wallet reapprove --name relay-reapprove-expired --session-hours 12 --allow-transfer-to 0x3333333333333333333333333333333333333333 --disallow-contract-calls --relay-url ${relayBaseUrl} --wait-relay --prompt-code`
     );
     assert.deepEqual(result.details?.relayRecoverySummary, {
       requestId,
@@ -2452,7 +2470,7 @@ test('wallet reapprove --wait-relay expired request returns remote reapprove rec
       relayStatus: 'expired',
       approvalReady: false,
       nextAction:
-        `zk-agent wallet reapprove --name relay-reapprove-expired --relay-url ${relayBaseUrl} --wait-relay --prompt-code`,
+        `zk-agent wallet reapprove --name relay-reapprove-expired --session-hours 12 --allow-transfer-to 0x3333333333333333333333333333333333333333 --disallow-contract-calls --relay-url ${relayBaseUrl} --wait-relay --prompt-code`,
       shareLinkBaseUrl: null,
       statusApiBaseUrl: null,
       recoveryMode: 'reissue-remote-approval',

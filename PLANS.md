@@ -142,6 +142,11 @@ The repo is already past scaffolding. The current stable baseline is:
    - keep the root README as a short front door
    - keep the package README as the canonical operator manual
    - keep `PLANS.md` and `PROJECT_STATE.md` concise and restart-oriented
+   - current baseline improvement:
+     the root README now stays at the entrypoint/handoff level and pushes
+     detailed command, recovery, and product-slice semantics back to the
+     package README plus focused skills instead of duplicating the operator
+     manual at the repo root
    - acceptance:
      a new user can choose packaged CLI vs skill install vs source checkout in
      under a minute without reading state docs first
@@ -155,6 +160,11 @@ The repo is already past scaffolding. The current stable baseline is:
      same singular first-run path as the README/help contract:
      `setup -> next -> wallet create|reapprove -> next -> workflow pay`
      and that alignment is now enforced through `release:check`
+   - current baseline improvement:
+     `wallet create --help` and `wallet reapprove --help` now explicitly keep
+     the local `--await-local` path as the default baseline, the relay-backed
+     path as the remote-browser fallback, and the "no custom .env required for
+     request creation" boundary in the command help itself
    - acceptance:
      both the local approval path and the hosted approval path have one exact
      happy-path sequence in help/docs with no ambiguous prerequisite wording
@@ -201,6 +211,11 @@ The repo is already past scaffolding. The current stable baseline is:
      deterministic local rehearsal for the expired hosted reapprove path, so
      inspect + reissue recovery semantics can be rechecked without waiting for
      an accidental public expiry
+   - current recovery improvement:
+     expired relay recovery commands now preserve any CLI-expressible
+     session-policy flags from the original request, so remote reissue no
+     longer depends on the operator remembering scoped `--session-hours`,
+     `--allow-transfer-to`, `--allow-contract`, or disallow flags by hand
    - current evidence improvement:
      the same public rehearsal now supports `--save-report`, so repeated
      hosted RC evidence can be persisted under
@@ -227,6 +242,9 @@ The repo is already past scaffolding. The current stable baseline is:
    - keep `pnpm validate:rc` as the explicit machine-checkable `beta -> rc`
      wrapper, while preserving the real public hosted rehearsal as a separate
      manual gate
+   - keep that same wrapper executing the deterministic local hosted recovery
+     drill with saved evidence, so expiry recovery is proven by one bounded
+     report artifact instead of only by plan-mode command drift checks
    - let that same wrapper ingest the newest matching hosted operated-baseline
      evidence report, or one pinned `--report-file`, so repeated public proof
      does not have to be manually re-declared on every RC pass
@@ -236,12 +254,19 @@ The repo is already past scaffolding. The current stable baseline is:
    - current gate status:
      host-side `pnpm validate:release` and
      `pnpm validate:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
-     --json` both passed on `2026-08-27`, with `validate:rc` consuming the
-     saved report for repeated public requests `a479c4a3` and `8122cdd5`
+     --json` both passed again on `2026-08-30`, with `validate:rc` consuming
+     the saved repeated public hosted report for requests `a479c4a3` and
+     `8122cdd5` and also writing deterministic local hosted recovery evidence
+     under `~/.zk-agent/reports/hosted-recovery/*.json`
+   - current RC-evidence improvement:
+     `pnpm validate:rc` now executes the deterministic local hosted recovery
+     drill for real and writes a saved report under
+     `~/.zk-agent/reports/hosted-recovery/`, allowing `review:rc` to carry
+     both public hosted proof and local expiry-recovery proof in one artifact
    - current review status:
      `pnpm review:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
-     --write` also passed on `2026-08-27`, producing
-     `docs/release-stage-reviews/2026-08-27-main-rc.md` as the current
+     --write` also passed on `2026-08-30`, producing
+     `docs/release-stage-reviews/2026-08-30-main-rc.md` as the current
      repo-tracked beta-to-rc decision artifact
    - acceptance:
      one release checklist/command sequence produces a versioned package,
@@ -296,8 +321,7 @@ The project should move through release stages in this order:
 
 Current judgment:
 
-- remain on `beta`
-- use `rc` only after the product contract is closed
+- move to `rc`
 - use `1.0.0` only after the `rc` contract survives repeated real release
   validation
 
@@ -371,7 +395,7 @@ All of the following must be true:
 Completed work is intentionally compressed here. The important closed baseline
 for the next stage is:
 
-- the public npm package is live at `zk-agent-cli@0.1.0-beta.11`
+- the next prepared npm cut is `zk-agent-cli@0.1.0-rc.0`
 - the install surface works as a packaged CLI, a repo skill surface, and a
   source-checkout wrapper
 - the repo now ships both the compatible-harness skill surface and the native
@@ -439,6 +463,11 @@ Unless priorities change, the next concrete slices should be:
 4. release automation and changelog
    - preserve `release:sync-version` and `release:check`
    - reduce the remaining manual publish, dist-tag, and changelog steps
+   - current baseline improvement:
+     `release:prepare` now wraps the supported version/doc prep path by
+     chaining `release:sync-version` and `release:draft-notes --apply`, so
+     version bumps and release-note draft refresh no longer depend on a manual
+     two-step sequence
    - expected observable result:
      version bumps and publish prep stop depending on manual drift hunting
 5. post-flagship vertical packaging

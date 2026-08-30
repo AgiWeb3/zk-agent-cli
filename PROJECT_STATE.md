@@ -2,7 +2,7 @@
 
 ## Snapshot
 
-- Last updated: 2026-08-27
+- Last updated: 2026-08-30
 - Latest commit at write time: `973dc55`
 - Current branch: `main`
 - Working tree status when this document was written: dirty with post-beta.10
@@ -12,8 +12,9 @@
 
 The product baseline is already closed for the core zkSync-native path:
 
-- `zk-agent-cli@0.1.0-beta.11` is live and both npm dist-tags `beta` and
-  `latest` point there
+- `zk-agent-cli@0.1.0-rc.0` is the current prepared RC cut, with documented
+  dist-tags `beta -> 0.1.0-beta.11`, `rc -> 0.1.0-rc.0`, and
+  `latest -> 0.1.0-rc.0`
 - the public package, local-first wallet/session lifecycle, hosted relay path,
   and flagship `workflow pay` AA flow all exist and have real validation proof
 - the current work is productization closeout and public-surface hardening, not
@@ -24,22 +25,21 @@ The product baseline is already closed for the core zkSync-native path:
 
 Current judged release stage:
 
-- stay on `beta`
-- do not claim `rc` readiness yet
+- move to `rc`
 - do not move to `1.0.0` yet
 
-Why the project is still `beta`:
+Why the project can now claim `rc`:
 
-- the core chain path is proven, but the product contract is not fully closed
-- the main remaining gaps are productization gaps, not missing zkSync
-  execution mechanics
-- the biggest blockers are still:
-  - hosted approval is now specified and exercised on repeated real public
-    reapprove runs, but stable recovery semantics still need to be treated as
-    an explicit RC gate rather than inferred from those successes alone
-  - release/version/doc discipline is still too manual for a formal release
-  - the public machine-readable contract is much better now, but it is not yet
-    frozen as a formal compatibility surface
+- the core chain path is proven and the remaining work is now RC hardening,
+  not missing zkSync execution mechanics
+- one canonical operator path is aligned across docs, help, skills, and
+  runtime JSON contracts
+- hosted approval now has both repeated public operated evidence and
+  deterministic local recovery evidence
+- release/version/doc discipline is now repeatable enough for RC through the
+  current `release:*`, `validate:rc`, and `review:rc` contract
+- the public machine-readable contract is now explicit and guarded under the
+  release gate
 
 Gate to move from `beta` to `rc`:
 
@@ -126,6 +126,10 @@ Current workstreams:
    - keep `setup`, `next`, `doctor`, and `wallet create|reapprove` aligned on
      one first-run story
    - current baseline improvement:
+     the root README now stays at the entrypoint/handoff level and pushes
+     detailed operator-path semantics back to the package README plus focused
+     skills, instead of duplicating the operator manual at the repo root
+   - current baseline improvement:
      `setup` now defaults the validated first-run path to `zksync-sepolia`
      plus the local connector at `http://localhost:4444`, and the CLI help,
      root README, package README, `skills/QUICKSTART.md`, and the primary
@@ -136,6 +140,12 @@ Current workstreams:
      `setup -> next -> wallet create|reapprove -> next -> workflow pay`
      and the quickstart/skill wording is now part of the `release:check`
      contract instead of relying on manual review
+   - current help-surface improvement:
+     `wallet create --help` and `wallet reapprove --help` now explicitly keep
+     the local `--await-local` path as the default baseline, the relay-backed
+     path as the remote-browser fallback, and the "no custom .env required for
+     request creation" boundary in the command help itself; `release:check`
+     now enforces those help contracts on both the packed and installed CLI
    - runtime contract improvement:
      `setup`, `next`, and `doctor` now emit a shared machine-readable
      `onboardingSummary`, while the runtime `workflow` entry commands now emit
@@ -189,6 +199,11 @@ Current workstreams:
      deterministic local expired-request recovery rehearsal for the default
      hosted reapprove path, including the expected inspect + reissue follow-up
      contract
+   - current recovery improvement:
+     expired relay recovery commands now preserve any CLI-expressible
+     session-policy flags from the original request, so remote reissue no
+     longer depends on the operator manually recreating scoped session-policy
+     arguments after an expiry
    - current evidence-capture improvement:
      `pnpm smoke:hosted-operated-baseline -- --save-report` now writes the
      repeated public rehearsal result to a local report artifact under
@@ -200,6 +215,11 @@ Current workstreams:
      sync steps
    - keep the release-stage docs, hosted operated-baseline doc, and packaged
      onboarding JSON contract under the same machine-checked release gate
+   - current baseline improvement:
+     `release:prepare` now wraps the supported version/doc prep path by
+     chaining `release:sync-version` and `release:draft-notes --apply`, so
+     public version references and git-derived draft notes can be refreshed in
+     one explicit command
    - current baseline improvement:
      `release:sync-version` now also maintains `CHANGELOG.md` plus a
      versioned `docs/releases/<version>.md` release artifact scaffold, and
@@ -214,6 +234,11 @@ Current workstreams:
      `pnpm validate:rc` now collects the machine-checkable `beta -> rc` subset
      into one host-side command, while still leaving the real public hosted
      rehearsal and final stage judgment explicit
+   - current recovery-evidence improvement:
+     `pnpm validate:rc` is being tightened so the deterministic local hosted
+     recovery drill executes for real and saves a report under
+     `~/.zk-agent/reports/hosted-recovery/`, instead of treating expiry
+     recovery as plan-only command drift coverage
    - current evidence-ingest improvement:
      `pnpm validate:rc` now also auto-detects the newest matching hosted
      operated-baseline report under
@@ -323,14 +348,19 @@ Current workstreams:
   - `pnpm validate:rc` now provides the machine-checkable RC wrapper above
     that release gate without collapsing the remaining public hosted rehearsal
     into a fake automation claim
+  - that same RC wrapper now captures deterministic local hosted recovery
+    evidence as a saved report, so expiry recovery contributes one concrete
+    artifact to the RC review path instead of only a planned command sequence
   - `pnpm validate:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
-    --json` also passed on `2026-08-27`, auto-ingesting the saved repeated
-    hosted evidence report for requests `a479c4a3` and `8122cdd5` while
-    leaving only the explicit stage-promotion judgment as manual
+    --json` also passed again on `2026-08-30`, auto-ingesting the saved
+    repeated hosted evidence report for requests `a479c4a3` and `8122cdd5`,
+    writing local hosted recovery evidence under
+    `~/.zk-agent/reports/hosted-recovery/*.json`, and leaving only the
+    explicit stage-promotion judgment as manual
   - `pnpm review:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
-    --write` also passed on `2026-08-27`, writing the current beta-to-rc
+    --write` also passed again on `2026-08-30`, writing the current beta-to-rc
     review artifact to
-    `docs/release-stage-reviews/2026-08-27-main-rc.md`
+    `docs/release-stage-reviews/2026-08-30-main-rc.md`
 - the managed sandbox can still produce false negatives for local relay listen
   or DNS, so real release/runtime checks should continue to be verified from
   the host shell when needed

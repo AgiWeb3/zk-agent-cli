@@ -318,6 +318,53 @@ test('wallet help prints the default wallet path', async () => {
   }
 });
 
+test('wallet create and reapprove help explain the local-first default and relay fallback', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-wallet-create-reapprove-help-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+
+    const createHelp = await runCliText(['wallet', 'create', '--help'], env);
+    assert.match(createHelp, /Default wallet-create path:/);
+    assert.match(
+      createHelp,
+      /Keep `--await-local` as the local-first baseline when the browser and terminal are colocated/
+    );
+    assert.match(createHelp, /zk-agent next/);
+    assert.match(createHelp, /zk-agent wallet create --await-local/);
+    assert.match(createHelp, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(
+      createHelp,
+      /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      createHelp,
+      /No custom \.env is required to create the wallet request itself/
+    );
+    assert.match(createHelp, /Add RPC env vars later, before live reads or broadcasts/);
+
+    const reapproveHelp = await runCliText(['wallet', 'reapprove', '--help'], env);
+    assert.match(reapproveHelp, /Default wallet-reapprove path:/);
+    assert.match(
+      reapproveHelp,
+      /Use this when the wallet already exists locally but its approval\/session must be refreshed/
+    );
+    assert.match(reapproveHelp, /zk-agent wallet reapprove --name main --await-local/);
+    assert.match(reapproveHelp, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(
+      reapproveHelp,
+      /zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      reapproveHelp,
+      /No custom \.env is required to create the reapproval request itself/
+    );
+    assert.match(reapproveHelp, /Add RPC env vars later, before live reads or broadcasts/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('wallet request, signer, and smart-account help surfaces are product-ordered', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-wallet-nested-help-cli-'));
 

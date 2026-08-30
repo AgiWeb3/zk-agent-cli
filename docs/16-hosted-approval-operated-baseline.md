@@ -106,7 +106,8 @@ If relay status becomes `expired`:
 - inspect the relay again if deployment readiness is in doubt
 - reissue `wallet create --relay-url ...` or
   `wallet reapprove --relay-url ...`
-- if scoped session flags were used, reissue them on the new command
+- the generated recovery command now preserves any CLI-expressible
+  session-policy flags from the expired request
 
 ## Required Readiness Checks
 

@@ -176,7 +176,7 @@ test('smoke hosted recovery validates expired hosted reapprove recovery semantic
       includesRemoteReissue: true
     });
     assert.deepEqual(result.details, {
-      note: 'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.',
+      note: 'Relay approval expired. Reissue the remote request. The recovery command preserves any CLI-expressible session-policy flags from the expired request.',
       suggestedAction: 'Inspect the hosted relay, then reissue the remote approval request.',
       retryable: true
     });

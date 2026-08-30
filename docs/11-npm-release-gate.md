@@ -1,6 +1,6 @@
 # npm Release Gate
 
-This checklist is the release gate for current beta or stable cuts of
+This checklist is the release gate for current beta, rc, or stable cuts of
 `zk-agent-cli`.
 
 The goal is not to prove that the project has "many features". The goal is to
@@ -21,28 +21,30 @@ This gate now serves two related but distinct decisions:
 
 Current judgment:
 
-- `zk-agent-cli` should remain on `beta`
-- the project is not ready to claim `rc` yet
+- `zk-agent-cli` is ready to move from `beta` to `rc`
+- the project is ready to claim `rc`
 - the project is not ready to claim `1.0.0` yet
 
-Why it is still `beta`:
+Why it can now claim `rc` but not `1.0.0`:
 
-- the default hosted approval path is now validated with repeated real public
-  operated rehearsal evidence, but that supportable deployment contract still
-  needs stable recovery evidence and broader product hardening
-- release/version/doc synchronization has improved, but it is still too easy to
-  rely on operator memory instead of a repeatable release contract
-- the public machine-readable JSON contracts are close to stable, but they
-  should be treated as frozen compatibility boundaries before `rc`
-- that freeze now needs to stay explicit in the operator-contract doc rather
-  than remaining an implied team convention
+- one canonical operator path is now aligned across the root README, package
+  README, CLI help, skills, and the machine-readable onboarding/workflow
+  summaries
+- the hosted approval contract is now documented and evidenced on both the
+  repeated public operated path and the deterministic local recovery path
+- release/version/doc synchronization is now repeatable enough for RC through
+  `release:prepare`, `validate:release`, `validate:rc`, and `review:rc`
+- the public machine-readable JSON contracts are now explicit release
+  boundaries under `release:check`
+- the remaining release-stage gap is now `rc -> 1.0.0`, not `beta -> rc`
 
 For the current hosted deployment boundary, see
 [16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md).
 
 ### Gate: `beta -> rc`
 
-Do not move from `beta` to `rc` until all of the following are true:
+The current product baseline now satisfies this gate. Keep the following
+criteria as the contract that justified the move from `beta` to `rc`:
 
 - one canonical operator path is aligned across the root README, package README,
   CLI help, skills, and machine-readable onboarding/output summaries
@@ -77,18 +79,21 @@ This command currently reruns:
 
 - `pnpm validate:release`
 - `pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code --repeat 2 --plan`
-- `pnpm smoke:hosted-recovery -- --wallet <name> --plan`
+- `pnpm smoke:hosted-recovery -- --wallet <name> --save-report`
 
 What it means:
 
 - it closes the machine-checkable RC subset on the supported host runtime
 - it keeps the standard hosted operated-baseline rehearsal command and the
-  deterministic hosted recovery rehearsal command from drifting out of the RC
-  contract
+  deterministic hosted recovery rehearsal evidence command from drifting out
+  of the RC contract
 - it auto-detects the newest matching public hosted evidence report under
   `~/.zk-agent/reports/hosted-operated-baseline/` when one already exists
 - `--report-file <path>` can pin one exact public evidence artifact instead of
   relying on newest-match discovery
+- it now also executes the bounded local hosted recovery drill for the named
+  wallet and saves that result under `~/.zk-agent/reports/hosted-recovery/`
+  so RC review no longer depends on plan-only proof for expiry recovery
 - it is necessary, but not sufficient, for `beta -> rc`
 - it does not replace the real public browser/manual rehearsal on the actual
   hosted relay URL
@@ -109,6 +114,8 @@ What this adds:
 
 - it reruns `validate:rc` in JSON mode and preserves the current machine gate
   result as one markdown review artifact
+- it records the deterministic hosted recovery evidence summary from the local
+  saved report alongside the public hosted rehearsal evidence
 - it records the accepted hosted-operated-baseline evidence summary and the
   remaining explicit manual decision in one repo-tracked file
 - it still does not promote the package to `rc` by itself
@@ -163,15 +170,21 @@ npm view zk-agent-cli version
 npm publish --dry-run
 ```
 
-Supported host wrapper:
+Supported host publish wrapper:
 
 ```bash
 pnpm release:publish --tag beta
 pnpm release:publish --tag beta --promote-latest
 ```
 
-Before a new version or tag is prepared in the repo docs, sync the local
-version references first:
+Supported combined version/doc prep wrapper:
+
+```bash
+pnpm release:prepare --version <version> --from <git-ref> [--date <YYYY-MM-DD>]
+```
+
+If you need the lower-level building blocks separately, sync the local version
+references first:
 
 ```bash
 pnpm release:sync-version --version <version> --date <YYYY-MM-DD> --latest-tag <version> --beta-tag <version>
@@ -385,9 +398,11 @@ Pass criteria:
   - it was rerun again successfully on `2026-08-27` after extending the
     listener/relay-heavy waits that were too tight at `5000ms` under host load
   - `pnpm validate:rc -- --wallet main --relay-url https://zk.frp.meroar.fun
-    --json` also passed on `2026-08-27`, consuming the saved repeated hosted
-    evidence report under
+    --json` also passed again on `2026-08-30`, consuming the saved repeated
+    hosted evidence report under
     `~/.zk-agent/reports/hosted-operated-baseline/2026-08-27T14-10-33.792Z-main-reapprove.json`
+    and writing deterministic local hosted recovery evidence under
+    `~/.zk-agent/reports/hosted-recovery/*.json`
 
 Blockers:
 
@@ -575,15 +590,16 @@ npm dist-tag add zk-agent-cli@<version> latest
   - `beta` points at the expected version
   - at least one package-outside-the-repo smoke passes
 
-## Current published baseline
+## Current prepared baseline
 
-- current public beta completed on `2026-08-27`:
-  `zk-agent-cli@0.1.0-beta.11`
-- post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-beta.11`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-beta.11`
+- current prepared release candidate baseline for `2026-08-30`:
+  `zk-agent-cli@0.1.0-rc.0`
+- intended post-publish npm readback:
+  - `npm view zk-agent-cli version -> 0.1.0-rc.0`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.0`
   - `npm view zk-agent-cli@beta version -> 0.1.0-beta.11`
-  - `npm view zk-agent-cli dist-tags --json -> {"latest":"0.1.0-beta.11","beta":"0.1.0-beta.11"}`
+  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.0`
+  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.0","latest":"0.1.0-rc.0"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted
@@ -606,6 +622,9 @@ npm dist-tag add zk-agent-cli@<version> latest
     `workflow --help`, and active-version references in the repo state docs
   - `release:sync-version` now also keeps `CHANGELOG.md` and
     `docs/releases/<version>.md` in sync with the current version metadata
+  - `release:prepare` now wraps the supported version/doc prep path, so one
+    command can update public version references and refresh the git-derived
+    draft block for the target release note
   - `release:draft-notes` can now upsert a repo-owned `Draft Input` block in
     `docs/releases/<version>.md` from a chosen git range before the final
     editor pass

@@ -1,6 +1,6 @@
 import { listWalletRequestIds, loadWalletSession, storageDir } from '@zk-agent/agent-core';
 
-import { rename, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, rename, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +12,35 @@ const HOSTED_RECOVERY_TIMEOUT_MS = 15_000;
 export interface SmokeHostedRecoveryOptions {
   walletName: string;
   plan: boolean;
+  saveReport: boolean;
+  reportFile?: string;
   timeoutSeconds: string;
   intervalMs: string;
+}
+
+export interface SmokeHostedRecoveryPayload {
+  ok: true;
+  phase: 'hosted-recovery-validated';
+  walletName: string;
+  relayOrigin: string;
+  requestId: string;
+  errorCode?: string;
+  relayInspectCommand?: unknown;
+  reissueRemoteApprovalCommand?: unknown;
+  relayRecoverySummary?: Record<string, unknown>;
+  details: {
+    note?: unknown;
+    suggestedAction?: unknown;
+    retryable: boolean;
+  };
+}
+
+export interface SmokeHostedRecoveryRuntime {
+  executeRecovery?: (
+    options: SmokeHostedRecoveryOptions
+  ) => Promise<SmokeHostedRecoveryPayload>;
+  nowIso?: () => string;
+  writeReport?: (reportFile: string, payload: unknown) => Promise<void>;
 }
 
 interface JsonLikeResult {
@@ -27,7 +54,7 @@ function printUsage(): void {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm --filter zk-agent-cli smoke:hosted-recovery -- --wallet <name> [--plan] [--timeout-seconds <n>] [--interval-ms <n>]',
+      '  pnpm --filter zk-agent-cli smoke:hosted-recovery -- --wallet <name> [--plan] [--save-report] [--report-file <path>] [--timeout-seconds <n>] [--interval-ms <n>]',
       '',
       'What it does:',
       '  1. Starts a local single-host relay server.',
@@ -39,6 +66,8 @@ function printUsage(): void {
       '  --wallet is required and must already exist locally',
       '  --timeout-seconds defaults to 5 for a bounded local recovery drill',
       '  --interval-ms defaults to 50 for deterministic local polling',
+      '  --save-report writes the final structured result to the default local evidence path under ~/.zk-agent/reports/hosted-recovery/',
+      '  --report-file <path> writes the same structured result to an explicit file path',
       '  --plan prints the intended command sequence without executing the local relay drill',
       '',
       'Environment:',
@@ -59,6 +88,8 @@ function requireOptionValue(argv: string[], index: number, flag: string): string
 function parseArgs(argv: string[]): SmokeHostedRecoveryOptions {
   let walletName = process.env.ZK_AGENT_SMOKE_WALLET?.trim() || '';
   let plan = false;
+  let saveReport = false;
+  let reportFile: string | undefined;
   let timeoutSeconds = '5';
   let intervalMs = '50';
 
@@ -80,6 +111,17 @@ function parseArgs(argv: string[]): SmokeHostedRecoveryOptions {
 
     if (arg === '--plan') {
       plan = true;
+      continue;
+    }
+
+    if (arg === '--save-report') {
+      saveReport = true;
+      continue;
+    }
+
+    if (arg === '--report-file') {
+      reportFile = requireOptionValue(argv, index, arg).trim();
+      index += 1;
       continue;
     }
 
@@ -105,6 +147,8 @@ function parseArgs(argv: string[]): SmokeHostedRecoveryOptions {
   return {
     walletName,
     plan,
+    saveReport,
+    reportFile,
     timeoutSeconds,
     intervalMs
   };
@@ -177,7 +221,7 @@ async function expireRelayRecord(
 }
 
 function buildPlan(options: SmokeHostedRecoveryOptions) {
-  return {
+  const payload: Record<string, unknown> = {
     ok: true,
     plan: true,
     walletName: options.walletName,
@@ -206,13 +250,60 @@ function buildPlan(options: SmokeHostedRecoveryOptions) {
       }
     ]
   };
-}
 
-export async function runSmokeHostedRecovery(options: SmokeHostedRecoveryOptions) {
-  if (options.plan) {
-    return buildPlan(options);
+  if (options.saveReport || options.reportFile) {
+    payload.reportRequested = true;
+    payload.reportFile = options.reportFile ?? '<default ~/.zk-agent/reports/hosted-recovery path>';
   }
 
+  return payload;
+}
+
+function sanitizeSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
+
+function defaultReportFilePath(
+  options: SmokeHostedRecoveryOptions,
+  generatedAt: string
+): string {
+  const reportDirectory = path.join(storageDir(), 'reports', 'hosted-recovery');
+  const fileName = `${sanitizeSegment(generatedAt)}-${sanitizeSegment(options.walletName)}.json`;
+  return path.join(reportDirectory, fileName);
+}
+
+async function writeReportFile(reportFile: string, payload: unknown): Promise<void> {
+  await mkdir(path.dirname(reportFile), { recursive: true, mode: 0o700 });
+  await writeFile(reportFile, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+}
+
+async function maybeAttachReport(
+  options: SmokeHostedRecoveryOptions,
+  payload: SmokeHostedRecoveryPayload,
+  nowIso: () => string,
+  persistReport: (reportFile: string, reportPayload: unknown) => Promise<void>
+) {
+  if (!options.saveReport && !options.reportFile) {
+    return payload;
+  }
+
+  const generatedAt = nowIso();
+  const reportFile = options.reportFile?.trim() || defaultReportFilePath(options, generatedAt);
+  const reportPayload = {
+    ...payload,
+    reportType: 'hosted-recovery-report',
+    reportGeneratedAt: generatedAt,
+    reportFile,
+    reportSaved: true
+  };
+
+  await persistReport(reportFile, reportPayload);
+  return reportPayload;
+}
+
+async function executeHostedRecovery(
+  options: SmokeHostedRecoveryOptions
+): Promise<SmokeHostedRecoveryPayload> {
   const existingWallet = await loadWalletSession(options.walletName);
   if (!existingWallet) {
     throw new Error(
@@ -289,7 +380,7 @@ export async function runSmokeHostedRecovery(options: SmokeHostedRecoveryOptions
       details.relayRecoverySummary &&
       typeof details.relayRecoverySummary === 'object' &&
       !Array.isArray(details.relayRecoverySummary)
-        ? details.relayRecoverySummary
+        ? (details.relayRecoverySummary as Record<string, unknown>)
         : undefined;
 
     return {
@@ -318,6 +409,21 @@ export async function runSmokeHostedRecovery(options: SmokeHostedRecoveryOptions
     }
     await relayServer.close();
   }
+}
+
+export async function runSmokeHostedRecovery(
+  options: SmokeHostedRecoveryOptions,
+  runtime: SmokeHostedRecoveryRuntime = {}
+) {
+  if (options.plan) {
+    return buildPlan(options);
+  }
+
+  const executeRecovery = runtime.executeRecovery ?? executeHostedRecovery;
+  const nowIso = runtime.nowIso ?? (() => new Date().toISOString());
+  const persistReport = runtime.writeReport ?? writeReportFile;
+  const payload = await executeRecovery(options);
+  return await maybeAttachReport(options, payload, nowIso, persistReport);
 }
 
 function isDirectExecution(metaUrl: string): boolean {

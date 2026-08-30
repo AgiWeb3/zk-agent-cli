@@ -45,8 +45,8 @@ products that expect a plugin tree rather than an npm tarball.
 
 Release snapshot:
 
-- the current public beta is `zk-agent-cli@0.1.0-beta.11`
-- that release was published on `2026-08-27`
+- the current release candidate cut is `zk-agent-cli@0.1.0-rc.0`
+- that RC cut is prepared for the `2026-08-30` release submission
 - release validation remains local and explicit through
   `pnpm validate:release`
 - the machine-checkable `beta -> rc` subset is now collected under
@@ -54,10 +54,10 @@ Release snapshot:
 - the explicit repo-tracked `beta -> rc` review artifact can now be generated
   with `pnpm review:rc -- --wallet <name> --relay-url <url> --write`
 - the public npm dist-tags are currently aligned:
-  `beta -> 0.1.0-beta.11`, `latest -> 0.1.0-beta.11`
-- release notes live in [CHANGELOG.md](./CHANGELOG.md) and [docs/releases/0.1.0-beta.11.md](./docs/releases/0.1.0-beta.11.md)
-- the next versioned release note can be seeded from git with
-  `pnpm release:draft-notes --from <git-ref> [--to <git-ref>] [--apply]`
+  `beta -> 0.1.0-beta.11`, `rc -> 0.1.0-rc.0`, `latest -> 0.1.0-rc.0`
+- release notes live in [CHANGELOG.md](./CHANGELOG.md) and [docs/releases/0.1.0-rc.0.md](./docs/releases/0.1.0-rc.0.md)
+- the next version bump plus release-note draft refresh can be prepared with
+  `pnpm release:prepare --version <version> --from <git-ref> [--date <YYYY-MM-DD>]`
 
 ## Current Status
 
@@ -69,6 +69,8 @@ The core zkSync-native product baseline is already real:
 - the flagship zkSync-native AA path is `workflow pay` on `sed-lite`
 - the maintained skill surface is split into `zk-aa`, `zk-discovery`,
   `zk-funding`, `zk-paymaster`, `zk-relay`, and `zk-defi`
+- the root README is intentionally the front door; the package README is the
+  canonical operator manual
 
 The active work is now productization:
 
@@ -82,13 +84,13 @@ The active work is now productization:
 
 Release-stage judgment:
 
-- the project should remain on `beta` today
-- `rc` requires a closed hosted-approval operating contract, repeatable release
-  flow, and frozen public machine-readable contracts
-- `pnpm validate:rc` is necessary for that transition, but it still leaves the
-  real public hosted rehearsal and final stage judgment explicit
-- `pnpm review:rc` now turns that remaining judgment into one saved repo review
-  artifact instead of leaving it as purely verbal state
+- the project is ready to move from `beta` to `rc`
+- `0.1.0-rc.0` should be treated as a release candidate, not as `1.0.0`
+- `pnpm validate:rc` now closes the machine-checkable `beta -> rc` gate, and
+  `pnpm review:rc` records that decision as a repo-tracked artifact
+- `1.0.0` still requires repeated RC release validation with no known
+  release-blocking issue on packaged install, hosted approval, or flagship
+  `workflow pay`
 - see [docs/11-npm-release-gate.md](./docs/11-npm-release-gate.md) and
   [docs/16-hosted-approval-operated-baseline.md](./docs/16-hosted-approval-operated-baseline.md)
 
@@ -132,96 +134,34 @@ zk-agent next
 For the full operator manual, recovery flows, and direct-command examples, use
 [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md).
 
-## User-Facing Command Model
+## Focused References
 
-From an operator point of view, the CLI keeps one consistent shape:
-
-```bash
-zk-agent <top-level-command> [subcommand] [flags]
-```
-
-The public surface is intentionally organized around five questions:
-
-1. What should I do next, or is local state unclear?
-   Use `zk-agent --help` and `zk-agent next`.
-   Use `zk-agent doctor` when you want one local-only diagnosis across config,
-   wallet approval, and signer state before dropping into wallet-specific
-   commands.
-2. Is the wallet/session itself blocked?
-   Use `zk-agent wallet --help`, `wallet status`, and `wallet next`.
-3. Do I already know the workflow intent?
-   Use `zk-agent workflow --help`, with `workflow pay` as the flagship path
-   and `workflow auto` as the broader guided path.
-4. Do I need stable local operator metadata?
-   Use `zk-agent agent ...`.
-5. Do I want lower-level primitives instead of the guided workflow layer?
-   Use direct commands such as `fund`, `send`, `swap`, `bridge`, `deposit`,
-   and `withdraw`.
-
-Discovery is also productized around one local-first path:
-
-- `assets` is the preferred single-chain asset view
-- `tokens --wallet <name> --owned` is the narrower ERC-20 holdings view
-- `tokens --chain <chain>` and `resolve-token` are the symbol-first discovery
-  surfaces
-- `tokens --chain <chain> --role paymaster-fee-token` and
-  `resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`
-  are the approval-based fee-token recovery path when `workflow pay` or another
-  paymaster-backed flow needs a canonical candidate set
-- `defaults` is the machine-readable registry escape hatch for validated and
-  fallback routes, tokens, and paymaster metadata
-- `ZK_AGENT_TOKEN_DIRECTORY_ROOT` is the optional broader local token-directory
-  input when repo-local deployment metadata is not enough
-
-Paymaster readiness is also productized around one constrained path:
-
-- `workflow pay` is the canonical paymaster-backed execution entrypoint
-- `approval-based` and `sponsored` are the validated paymaster-backed modes;
-  `none` is the diagnostic fallback that separates the base transaction path
-  from paymaster-specific compatibility issues
-- `defaults` exposes the tracked paymaster paths and validated default
-  selections
-- `tokens --chain <chain> --role paymaster-fee-token` and
-  `resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`
-  are the approval-based fee-token recovery surfaces
-- `pnpm smoke:paymaster-success -- --wallet <name>` is the bounded validation
-  smoke for this slice
-
-Funding readiness is also productized around one route-aware path:
-
-- `workflow fund` is the canonical guided funding entrypoint
-- `fund` remains the lower-level escape hatch when the operator explicitly
-  wants the raw funding surface
-- on `zksync-sepolia`, the current validated guidance prefers `deposit` from
-  `ethereum-sepolia` and keeps the bridge metadata visible in the same
-  contract
-- on `zksync-era`, the current funding guidance still falls back to portal
-  guidance until an executable mainnet route is explicitly validated here
-- `pnpm smoke:funding-readiness -- --wallet <name>` is the bounded validation
-  smoke for this slice
-
-Direct-command escape hatches still follow that same product contract:
-
-- `send-token`, `fund`, `deposit`, and `withdraw` can resolve symbols locally,
-  so explicit token addresses are no longer always required
-- `swap` follows the current registry-backed validated path by default and can
-  still be narrowed with explicit protocol or symbol-role flags
-- `bridge` can reuse the tracked default destination route when the current
-  wallet chain has one, so `--to-chain` is no longer always mandatory
-
-Optional local operator identity is a separate layer, not a prerequisite:
-
-- use `zk-agent agent status` to inspect whether a local profile exists
-- use `zk-agent agent set --name <name> --wallet main` to save or relink the
-  local operator profile
-- use `zk-agent agent show` to inspect the saved profile
-- wallet approval and workflow execution still work without a saved local
-  agent profile
-
-For the maintained long-form references, use:
+Use the package manual for the full terminal/operator path:
 
 - [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
+
+Use the quickstart when you only want the shortest verified happy path:
+
 - [skills/QUICKSTART.md](./skills/QUICKSTART.md)
+
+Use focused skills when the question is narrower than the full operator path:
+
+- flagship AA/operator path:
+  [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md)
+- discovery/defaults:
+  [skills/zk-discovery/SKILL.md](./skills/zk-discovery/SKILL.md)
+- funding readiness:
+  [skills/zk-funding/SKILL.md](./skills/zk-funding/SKILL.md)
+- paymaster readiness:
+  [skills/zk-paymaster/SKILL.md](./skills/zk-paymaster/SKILL.md)
+- hosted relay / remote approval:
+  [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md)
+- broader DeFi action paths:
+  [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
+
+Use the JSON contract doc when a wrapper or harness depends on field-level
+stability:
+
 - [docs/10-operator-json-contract.md](./docs/10-operator-json-contract.md)
 
 ## Agent Skills

@@ -11,6 +11,7 @@ function parseArgs(argv) {
     date: null,
     latestTag: null,
     betaTag: null,
+    rcTag: null,
     pluginCacheVersion: null
   };
 
@@ -42,6 +43,12 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--rc-tag') {
+      args.rcTag = next || null;
+      index += 1;
+      continue;
+    }
+
     if (arg === '--plugin-cache-version') {
       args.pluginCacheVersion = next || null;
       index += 1;
@@ -63,7 +70,7 @@ function printHelp() {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm release:sync-version --version <version> [--date <YYYY-MM-DD>] [--latest-tag <version>] [--beta-tag <version>] [--plugin-cache-version <version>]',
+      '  pnpm release:sync-version --version <version> [--date <YYYY-MM-DD>] [--latest-tag <version>] [--beta-tag <version>] [--rc-tag <version>] [--plugin-cache-version <version>]',
       '',
       'Behavior:',
       '  Syncs workspace/package/plugin manifest versions plus current public-version references,',
@@ -74,6 +81,7 @@ function printHelp() {
       'Notes:',
       '  --date only updates the current published-release date references.',
       '  --latest-tag and --beta-tag default to --version when omitted.',
+      '  --rc-tag defaults to --version for rc releases and is otherwise omitted.',
       '  --plugin-cache-version defaults to --version when omitted.'
     ].join('\n') + '\n'
   );
@@ -146,6 +154,47 @@ function inferReleaseStage(version) {
   return 'stable';
 }
 
+function inferPublishTag(version) {
+  const stage = inferReleaseStage(version);
+  if (stage === 'rc') return 'rc';
+  if (stage === 'beta') return 'beta';
+  return 'latest';
+}
+
+function currentPublicLabel(version) {
+  const stage = inferReleaseStage(version);
+  if (stage === 'rc') return 'current public release candidate';
+  if (stage === 'beta') return 'current public beta';
+  return 'current public stable release';
+}
+
+function resolveRcTag(options) {
+  if (options.rcTag) return options.rcTag;
+  return inferReleaseStage(options.version) === 'rc' ? options.version : null;
+}
+
+function distTagEntries(options) {
+  return [
+    ['beta', options.betaTag],
+    ['rc', resolveRcTag(options)],
+    ['latest', options.latestTag]
+  ].filter(([, version]) => Boolean(version));
+}
+
+function formatDistTagInline(options) {
+  return distTagEntries(options)
+    .map(([tag, version]) => `\`${tag} -> ${version}\``)
+    .join(', ');
+}
+
+function formatDistTagJson(options) {
+  return JSON.stringify(Object.fromEntries(distTagEntries(options)));
+}
+
+function formatReleaseNotesTagLines(options) {
+  return distTagEntries(options).map(([tag, version]) => `- \`${tag} -> ${version}\``).join('\n');
+}
+
 function releaseNotesRelativePath(version) {
   return `./docs/releases/${version}.md`;
 }
@@ -170,7 +219,7 @@ function resolveReleaseDate(options, existingText) {
   return 'TBD';
 }
 
-function syncJsonVersions(version) {
+function syncJsonVersions(options) {
   const workspacePackagePath = join(workspaceRoot, 'package.json');
   const packagePath = join(workspaceRoot, 'packages', 'zk-agent-cli', 'package.json');
   const pluginManifestPath = join(workspaceRoot, '.codex-plugin', 'plugin.json');
@@ -179,9 +228,13 @@ function syncJsonVersions(version) {
   const publishedPackage = readJson(packagePath);
   const pluginManifest = readJson(pluginManifestPath);
 
-  workspacePackage.version = version;
-  publishedPackage.version = version;
-  pluginManifest.version = version;
+  workspacePackage.version = options.version;
+  publishedPackage.version = options.version;
+  pluginManifest.version = options.version;
+  publishedPackage.publishConfig = {
+    ...(publishedPackage.publishConfig || {}),
+    tag: inferPublishTag(options.version)
+  };
 
   writeJson(workspacePackagePath, workspacePackage);
   writeJson(packagePath, publishedPackage);
@@ -194,14 +247,14 @@ function syncReadmeVersionReferences(options) {
 
   readme = replaceOne(
     readme,
-    /- the current public beta is `zk-agent-cli@[^`]+`/,
-    `- the current public beta is \`zk-agent-cli@${options.version}\``,
-    'README current public beta line'
+    /- the current public [^\n]+ is `zk-agent-cli@[^`]+`/,
+    `- ${currentPublicLabel(options.version)} is \`zk-agent-cli@${options.version}\``,
+    'README current public release line'
   );
   readme = replaceOne(
     readme,
-    /`beta -> [^`]+`, `latest -> [^`]+`/,
-    `\`beta -> ${options.betaTag}\`, \`latest -> ${options.latestTag}\``,
+    /`beta -> \d[^`]*`(?:, `rc -> \d[^`]*`)?(?:, `latest -> \d[^`]*`)?/,
+    formatDistTagInline(options),
     'README dist-tag line'
   );
   readme = replaceOne(
@@ -243,8 +296,8 @@ function syncProjectStateVersionReferences(options) {
 
   projectState = replaceOne(
     projectState,
-    /- `zk-agent-cli@[^`]+` is live and both npm dist-tags `beta` and/,
-    `- \`zk-agent-cli@${options.version}\` is live and both npm dist-tags \`beta\` and`,
+    /- `zk-agent-cli@[^`]+` is live and[\s\S]*?point there/,
+    `- \`zk-agent-cli@${options.version}\` is live and the documented npm dist-tags align with the intended public release set`,
     'PROJECT_STATE live version line'
   );
   projectState = replaceOptionalOne(
@@ -263,7 +316,7 @@ function syncReleaseGateReferences(options) {
 
   releaseGate = replaceOne(
     releaseGate,
-    /(- current public beta completed on `[^`]+`:\n  )`zk-agent-cli@[^`]+`/,
+    /(- current public [^`]+ completed on `[^`]+`:\n  )`zk-agent-cli@[^`]+`/,
     `$1\`zk-agent-cli@${options.version}\``,
     'Release gate current baseline package version'
   );
@@ -285,18 +338,24 @@ function syncReleaseGateReferences(options) {
     `\`npm view zk-agent-cli@beta version -> ${options.betaTag}\``,
     'Release gate npm view beta line'
   );
+  releaseGate = replaceOptionalOne(
+    releaseGate,
+    /`npm view zk-agent-cli@rc version -> [^`]+`/,
+    `\`npm view zk-agent-cli@rc version -> ${resolveRcTag(options)}\``,
+    'Release gate npm view rc line'
+  );
   releaseGate = replaceOne(
     releaseGate,
-    /`npm view zk-agent-cli dist-tags --json -> \{"latest":"[^"]+","beta":"[^"]+"\}`/,
-    `\`npm view zk-agent-cli dist-tags --json -> {"latest":"${options.latestTag}","beta":"${options.betaTag}"}\``,
+    /`npm view zk-agent-cli dist-tags --json -> \{[^`]+\}`/,
+    `\`npm view zk-agent-cli dist-tags --json -> ${formatDistTagJson(options)}\``,
     'Release gate dist-tags json line'
   );
 
   if (options.date) {
     releaseGate = replaceOne(
       releaseGate,
-      /- current public beta completed on `[^`]+`:/,
-      `- current public beta completed on \`${options.date}\`:`,
+      /- current public [^`]+ completed on `[^`]+`:/,
+      `- ${currentPublicLabel(options.version)} completed on \`${options.date}\`:`,
       'Release gate current baseline date line'
     );
   }
@@ -316,7 +375,7 @@ function syncChangelog(options) {
   const currentBlock = [
     `- version: \`${options.version}\``,
     `- date: \`${releaseDate}\``,
-    `- dist-tags: \`beta -> ${options.betaTag}\`, \`latest -> ${options.latestTag}\``,
+    `- dist-tags: ${formatDistTagInline(options)}`,
     `- notes: [${options.version}](${notePath})`
   ].join('\n');
   const historyLine = `- \`${options.version}\` (\`${releaseDate}\`) - [release notes](${notePath})`;
@@ -394,8 +453,7 @@ function syncReleaseNotes(options) {
   const metadataBlock = [
     `Release date: \`${releaseDate}\``,
     'Dist-tags:',
-    `- \`beta -> ${options.betaTag}\``,
-    `- \`latest -> ${options.latestTag}\``,
+    formatReleaseNotesTagLines(options),
     `Release stage: \`${releaseStage}\``
   ].join('\n');
 
@@ -481,7 +539,7 @@ function main() {
     pluginCacheVersion: args.pluginCacheVersion || version
   };
 
-  syncJsonVersions(options.version);
+  syncJsonVersions(options);
   syncReadmeVersionReferences(options);
   syncPlansVersionReferences(options.version);
   syncProjectStateVersionReferences(options);

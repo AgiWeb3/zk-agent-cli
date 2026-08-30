@@ -23,6 +23,7 @@ import {
   buildWalletSignerShowRecommendedCommand,
   buildWalletStatusRecommendedCommand,
   buildWalletReapproveRecommendedCommand,
+  buildWalletReapproveRemoteRecommendedCommand,
   buildWorkflowDeleteRecommendedCommand,
   buildWorkflowListRecommendedCommand,
   buildWorkflowNextRecommendedCommand,
@@ -52,6 +53,23 @@ test('recommended wallet create remote command can preserve wallet name and requ
       'eoa'
     ),
     'zk-agent wallet create --name ops-wallet --account-kind eoa --relay-url http://127.0.0.1:4445 --wait-relay --prompt-code --paymaster-mode approval-based'
+  );
+  assert.equal(
+    buildWalletCreateRemoteRecommendedCommand(
+      'http://127.0.0.1:4445',
+      'approval-based',
+      'ops-wallet',
+      'eoa',
+      {
+        requestCreatedAt: '2026-08-10T00:00:00.000Z',
+        sessionPolicies: {
+          expiresAt: '2026-08-10T12:00:00.000Z',
+          transfers: [{ to: '0x3333333333333333333333333333333333333333' }],
+          contractCalls: []
+        }
+      }
+    ),
+    'zk-agent wallet create --name ops-wallet --account-kind eoa --session-hours 12 --allow-transfer-to 0x3333333333333333333333333333333333333333 --disallow-contract-calls --relay-url http://127.0.0.1:4445 --wait-relay --prompt-code --paymaster-mode approval-based'
   );
 });
 
@@ -140,6 +158,17 @@ test('recommended wallet reapprove command includes await-local flow', () => {
   assert.equal(
     buildWalletReapproveRecommendedCommand('main'),
     'zk-agent wallet reapprove --name main --await-local'
+  );
+  assert.equal(
+    buildWalletReapproveRemoteRecommendedCommand('main', 'http://127.0.0.1:4445', {
+      requestCreatedAt: '2026-08-10T00:00:00.000Z',
+      sessionPolicies: {
+        expiresAt: '2026-08-10T06:00:00.000Z',
+        transfers: [],
+        contractCalls: [{ address: '0x4444444444444444444444444444444444444444' }]
+      }
+    }),
+    'zk-agent wallet reapprove --name main --session-hours 6 --disallow-transfers --allow-contract 0x4444444444444444444444444444444444444444 --relay-url http://127.0.0.1:4445 --wait-relay --prompt-code'
   );
 });
 

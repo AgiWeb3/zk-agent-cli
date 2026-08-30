@@ -297,28 +297,18 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /Discovery is also productized around one local-first path:[\s\S]*`assets` is the preferred single-chain asset view[\s\S]*`tokens --wallet <name> --owned` is the narrower ERC-20 holdings view[\s\S]*`tokens --chain <chain>` and `resolve-token` are the symbol-first discovery[\s\S]*surfaces[\s\S]*`tokens --chain <chain> --role paymaster-fee-token`[\s\S]*`resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`[\s\S]*`defaults` is the machine-readable registry escape hatch/,
-      'Root README must keep the discovery/defaults contract visible.'
+      /For the full operator manual, recovery flows, and direct-command examples, use[\s\S]*packages\/zk-agent-cli\/README\.md/,
+      'Root README must hand off the detailed operator path to the package README.'
     ],
     [
       rootReadme,
-      /Paymaster readiness is also productized around one constrained path:[\s\S]*`workflow pay` is the canonical paymaster-backed execution entrypoint[\s\S]*`approval-based` and `sponsored` are the validated paymaster-backed modes;[\s\S]*`defaults` exposes the tracked paymaster paths and validated default[\s\S]*selections[\s\S]*`tokens --chain <chain> --role paymaster-fee-token`[\s\S]*`resolve-token --chain <chain> --symbol <symbol> --role paymaster-fee-token`[\s\S]*`pnpm smoke:paymaster-success -- --wallet <name>` is the bounded validation[\s\S]*smoke/,
-      'Root README must keep the paymaster-readiness contract visible.'
+      /## Focused References[\s\S]*packages\/zk-agent-cli\/README\.md[\s\S]*skills\/QUICKSTART\.md[\s\S]*skills\/zk-aa\/SKILL\.md[\s\S]*skills\/zk-discovery\/SKILL\.md[\s\S]*skills\/zk-funding\/SKILL\.md[\s\S]*skills\/zk-paymaster\/SKILL\.md[\s\S]*skills\/zk-relay\/SKILL\.md[\s\S]*skills\/zk-defi\/SKILL\.md/,
+      'Root README must keep the focused reference handoff visible.'
     ],
     [
       rootReadme,
-      /Funding readiness is also productized around one route-aware path:[\s\S]*`workflow fund` is the canonical guided funding entrypoint[\s\S]*`fund` remains the lower-level escape hatch[\s\S]*on `zksync-sepolia`, the current validated guidance prefers `deposit` from[\s\S]*`ethereum-sepolia`[\s\S]*on `zksync-era`, the current funding guidance still falls back to portal[\s\S]*guidance[\s\S]*`pnpm smoke:funding-readiness -- --wallet <name>` is the bounded validation[\s\S]*smoke/,
-      'Root README must keep the funding-readiness contract visible.'
-    ],
-    [
-      rootReadme,
-      /Direct-command escape hatches still follow that same product contract:[\s\S]*`send-token`, `fund`, `deposit`, and `withdraw` can resolve symbols locally[\s\S]*`swap` follows the current registry-backed validated path by default[\s\S]*`bridge` can reuse the tracked default destination route/,
-      'Root README must keep the direct-command symbol/default contract visible.'
-    ],
-    [
-      rootReadme,
-      /Optional local operator identity is a separate layer, not a prerequisite:[\s\S]*`zk-agent agent status`[\s\S]*`zk-agent agent set --name <name> --wallet main`[\s\S]*`zk-agent agent show`[\s\S]*wallet approval and workflow execution still work without a saved local[\s\S]*agent profile/,
-      'Root README must keep the optional local operator-identity contract visible.'
+      /Use the JSON contract doc when a wrapper or harness depends on field-level[\s\S]*stability:[\s\S]*docs\/10-operator-json-contract\.md/,
+      'Root README must keep the JSON contract handoff visible.'
     ],
     [
       rootReadme,
@@ -327,8 +317,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /Release-stage judgment:[\s\S]*the project should remain on `beta` today[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
-      'Root README must keep the current beta-stage judgment and release-stage doc links visible.'
+      /Release-stage judgment:[\s\S]*ready to move from `beta` to `rc`[\s\S]*not as `1\.0\.0`[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
+      'Root README must keep the current RC-stage judgment and release-stage doc links visible.'
     ],
     [
       rootReadme,
@@ -457,16 +447,17 @@ function assertCurrentVersionDocs({
   releaseGateDoc
 }) {
   const escapedVersion = escapeRegExp(version);
+  const releaseStage = version.includes('-rc')
+    ? 'rc'
+    : version.includes('-beta')
+      ? 'beta'
+      : 'stable';
+  const stageTag = releaseStage === 'stable' ? 'latest' : releaseStage;
   const requiredChecks = [
     [
       rootReadme,
       new RegExp(`zk-agent-cli@${escapedVersion}`),
       'Root README must mention the current published package version.'
-    ],
-    [
-      rootReadme,
-      new RegExp(`beta -> ${escapedVersion}`),
-      'Root README must show the current beta dist-tag target.'
     ],
     [
       rootReadme,
@@ -520,26 +511,9 @@ function assertCurrentVersionDocs({
       'Release gate doc must record the current latest dist-tag target.'
     ],
     [
-      releaseGateDoc,
-      new RegExp(`npm view zk-agent-cli@beta version -> ${escapedVersion}`),
-      'Release gate doc must record the current beta dist-tag target.'
-    ],
-    [
-      releaseGateDoc,
-      new RegExp(
-        `npm view zk-agent-cli dist-tags --json -> \\{"latest":"${escapedVersion}","beta":"${escapedVersion}"\\}`
-      ),
-      'Release gate doc must record the current dist-tag alignment.'
-    ],
-    [
       releaseNotes,
       new RegExp(`# zk-agent-cli ${escapedVersion}`),
       'Versioned release notes must use the current version in the title.'
-    ],
-    [
-      releaseNotes,
-      new RegExp('- \\`beta -> ' + escapedVersion + '\\`'),
-      'Versioned release notes must record the current beta dist-tag target.'
     ],
     [
       releaseNotes,
@@ -547,6 +521,32 @@ function assertCurrentVersionDocs({
       'Versioned release notes must record the current latest dist-tag target.'
     ]
   ];
+
+  if (stageTag !== 'latest') {
+    requiredChecks.push(
+      [
+        rootReadme,
+        new RegExp(`${stageTag} -> ${escapedVersion}`),
+        `Root README must show the current ${stageTag} dist-tag target.`
+      ],
+      [
+        releaseGateDoc,
+        new RegExp(`npm view zk-agent-cli@${stageTag} version -> ${escapedVersion}`),
+        `Release gate doc must record the current ${stageTag} dist-tag target.`
+      ],
+      [
+        releaseNotes,
+        new RegExp('- \\`' + stageTag + ' -> ' + escapedVersion + '\\`'),
+        `Versioned release notes must record the current ${stageTag} dist-tag target.`
+      ]
+    );
+  }
+
+  requiredChecks.push([
+    releaseGateDoc,
+    new RegExp(`npm view zk-agent-cli dist-tags --json -> \\{[^\\n]*"latest":"${escapedVersion}"[^\\n]*\\}`),
+    'Release gate doc must record the current dist-tag alignment.'
+  ]);
 
   for (const [source, pattern, message] of requiredChecks) {
     assert.match(source, pattern, message);
@@ -564,8 +564,8 @@ function assertReleaseStageDocs({
   const requiredChecks = [
     [
       releaseGateDoc,
-      /## Release-stage progression[\s\S]*`zk-agent-cli` should remain on `beta`[\s\S]*the project is not ready to claim `rc` yet[\s\S]*the project is not ready to claim `1\.0\.0` yet/,
-      'Release gate doc must keep the current beta-stage judgment explicit.'
+      /## Release-stage progression[\s\S]*ready to move from `beta` to `rc`[\s\S]*ready to claim `rc`[\s\S]*not ready to claim `1\.0\.0` yet/,
+      'Release gate doc must keep the current RC-stage judgment explicit.'
     ],
     [
       releaseGateDoc,
@@ -599,7 +599,7 @@ function assertReleaseStageDocs({
     ],
     [
       hostedBaselineDoc,
-      /## Request Lifecycle[\s\S]*create or reapprove emits a relay-backed request[\s\S]*relay status is `pending`[\s\S]*browser operator opens the share URL[\s\S]*terminal finalizes via:[\s\S]*zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait[\s\S]*If relay status becomes `expired`:[\s\S]*treat that as a reissue state, not a polling state[\s\S]*inspect the relay again if deployment readiness is in doubt[\s\S]*reissue `wallet create --relay-url \.\.\.` or[\s\S]*`wallet reapprove --relay-url \.\.\.`[\s\S]*if scoped session flags were used, reissue them on the new command/,
+      /## Request Lifecycle[\s\S]*create or reapprove emits a relay-backed request[\s\S]*relay status is `pending`[\s\S]*browser operator opens the share URL[\s\S]*terminal finalizes via:[\s\S]*zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait[\s\S]*If relay status becomes `expired`:[\s\S]*treat that as a reissue state, not a polling state[\s\S]*inspect the relay again if deployment readiness is in doubt[\s\S]*reissue `wallet create --relay-url \.\.\.` or[\s\S]*`wallet reapprove --relay-url \.\.\.`[\s\S]*generated recovery command now preserves any CLI-expressible[\s\S]*session-policy flags from the expired request/,
       'Hosted baseline doc must describe the expired-request recovery lifecycle.'
     ],
     [
@@ -629,17 +629,17 @@ function assertReleaseStageDocs({
     ],
     [
       rootReadme,
-      /Release-stage judgment:[\s\S]*the project should remain on `beta` today[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
+      /Release-stage judgment:[\s\S]*ready to move from `beta` to `rc`[\s\S]*docs\/11-npm-release-gate\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
       'Root README must keep the release-stage judgment visible.'
     ],
     [
       rootReadme,
-      /Release-stage judgment:[\s\S]*`pnpm validate:rc` is necessary[\s\S]*real public hosted rehearsal[\s\S]*`pnpm review:rc`/,
+      /Release-stage judgment:[\s\S]*`pnpm validate:rc` now closes[\s\S]*`pnpm review:rc`[\s\S]*`1\.0\.0` still requires repeated RC release validation/,
       'Root README must keep the validate:rc boundary honest.'
     ],
     [
       plans,
-      /### Release-stage gates[\s\S]*`beta`\s*->\s*`rc`\s*->\s*`1\.0\.0`[\s\S]*remain on `beta`[\s\S]*Gate: `beta`\s*->\s*`rc`[\s\S]*Gate: `rc`\s*->\s*`1\.0\.0`/,
+      /### Release-stage gates[\s\S]*`beta`\s*->\s*`rc`\s*->\s*`1\.0\.0`[\s\S]*move to `rc`[\s\S]*Gate: `beta`\s*->\s*`rc`[\s\S]*Gate: `rc`\s*->\s*`1\.0\.0`/,
       'PLANS.md must keep the release-stage gates explicit.'
     ],
     [
@@ -649,7 +649,7 @@ function assertReleaseStageDocs({
     ],
     [
       projectState,
-      /### Release-stage assessment[\s\S]*stay on `beta`[\s\S]*do not claim `rc` readiness yet[\s\S]*do not move to `1\.0\.0` yet[\s\S]*Gate to move from `beta` to `rc`[\s\S]*Gate to move from `rc` to `1\.0\.0`/,
+      /### Release-stage assessment[\s\S]*move to `rc`[\s\S]*do not move to `1\.0\.0` yet[\s\S]*Gate to move from `beta` to `rc`[\s\S]*Gate to move from `rc` to `1\.0\.0`/,
       'PROJECT_STATE.md must keep the release-stage assessment explicit.'
     ],
     [
@@ -792,6 +792,44 @@ function assertDoctorHelpContract(helpOutput) {
       help.includes(snippet),
       true,
       `Doctor help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertWalletCreateHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Default wallet-create path:',
+    'Keep `--await-local` as the local-first baseline when the browser and terminal are colocated.',
+    'Fresh bootstrap: zk-agent next zk-agent wallet create --await-local zk-agent next',
+    'Remote-browser fallback: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'Environment note: No custom .env is required to create the wallet request itself. Add RPC env vars later, before live reads or broadcasts.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Wallet create help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertWalletReapproveHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Default wallet-reapprove path:',
+    'Use this when the wallet already exists locally but its approval/session must be refreshed.',
+    'Colocated browser + terminal: zk-agent wallet reapprove --name main --await-local zk-agent next',
+    'Remote-browser fallback: zk-agent relay inspect --relay-url <url> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'Environment note: No custom .env is required to create the reapproval request itself. Add RPC env vars later, before live reads or broadcasts.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Wallet reapprove help is missing required onboarding contract text: ${snippet}`
     );
   }
 }
@@ -1982,6 +2020,34 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertNoWorkspaceLeak(walletHelpResult.stdout);
     assertWalletHelpContract(walletHelpResult.stdout);
 
+    const walletCreateHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'wallet',
+      'create',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletCreateHelpResult.stderr,
+      walletCreateHelpResult.stdout,
+      'wallet create --help'
+    );
+    assert.match(walletCreateHelpResult.stdout, /Usage: zk-agent wallet create/);
+    assertNoWorkspaceLeak(walletCreateHelpResult.stdout);
+    assertWalletCreateHelpContract(walletCreateHelpResult.stdout);
+
+    const walletReapproveHelpResult = runPackedCli(extractedPackageDir, homeDir, [
+      'wallet',
+      'reapprove',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletReapproveHelpResult.stderr,
+      walletReapproveHelpResult.stdout,
+      'wallet reapprove --help'
+    );
+    assert.match(walletReapproveHelpResult.stdout, /Usage: zk-agent wallet reapprove/);
+    assertNoWorkspaceLeak(walletReapproveHelpResult.stdout);
+    assertWalletReapproveHelpContract(walletReapproveHelpResult.stdout);
+
     const walletRequestHelpResult = runPackedCli(extractedPackageDir, homeDir, [
       'wallet',
       'request',
@@ -2470,6 +2536,34 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.match(walletHelpResult.stdout, /Usage: zk-agent wallet/);
     assertNoWorkspaceLeak(walletHelpResult.stdout);
     assertWalletHelpContract(walletHelpResult.stdout);
+
+    const walletCreateHelpResult = runInstalledCli(projectRoot, homeDir, [
+      'wallet',
+      'create',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletCreateHelpResult.stderr,
+      walletCreateHelpResult.stdout,
+      'installed zk-agent wallet create --help'
+    );
+    assert.match(walletCreateHelpResult.stdout, /Usage: zk-agent wallet create/);
+    assertNoWorkspaceLeak(walletCreateHelpResult.stdout);
+    assertWalletCreateHelpContract(walletCreateHelpResult.stdout);
+
+    const walletReapproveHelpResult = runInstalledCli(projectRoot, homeDir, [
+      'wallet',
+      'reapprove',
+      '--help'
+    ]);
+    assertPackedCliStderr(
+      walletReapproveHelpResult.stderr,
+      walletReapproveHelpResult.stdout,
+      'installed zk-agent wallet reapprove --help'
+    );
+    assert.match(walletReapproveHelpResult.stdout, /Usage: zk-agent wallet reapprove/);
+    assertNoWorkspaceLeak(walletReapproveHelpResult.stdout);
+    assertWalletReapproveHelpContract(walletReapproveHelpResult.stdout);
 
     const walletRequestHelpResult = runInstalledCli(projectRoot, homeDir, [
       'wallet',

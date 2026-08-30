@@ -196,6 +196,7 @@ function buildReview(options, validation) {
     recommendedCurrentStage: 'beta',
     reviewFile,
     automatedSteps: validation.summary.automatedSteps,
+    hostedRecoveryEvidence: validation.summary.hostedRecoveryEvidence,
     publicHostedEvidence: validation.summary.publicHostedEvidence,
     remainingManualChecks: validation.summary.remainingManualChecks
   };
@@ -227,6 +228,19 @@ function buildMarkdown(review) {
         `- note: no matching saved hosted-operated-baseline evidence report was accepted for this wallet + relay URL`
       ];
 
+  const recoveryEvidence = review.hostedRecoveryEvidence;
+  const recoveryLines = recoveryEvidence
+    ? [
+        `- report file: \`${recoveryEvidence.reportFile}\``,
+        `- generated at: \`${recoveryEvidence.reportGeneratedAt}\``,
+        `- phase: \`${recoveryEvidence.phase}\``,
+        `- relay origin: \`${recoveryEvidence.relayOrigin}\``,
+        `- request id: \`${recoveryEvidence.requestId}\``,
+        `- error code: \`${recoveryEvidence.errorCode}\``,
+        `- report saved: \`${recoveryEvidence.reportSaved}\``
+      ]
+    : ['- none'];
+
   const manualChecks =
     review.remainingManualChecks.length === 0
       ? ['- none']
@@ -257,6 +271,10 @@ function buildMarkdown(review) {
     '### Automated Steps',
     '',
     automatedStepLines,
+    '',
+    '## Hosted Recovery Evidence',
+    '',
+    ...recoveryLines,
     '',
     '## Public Hosted Evidence',
     '',

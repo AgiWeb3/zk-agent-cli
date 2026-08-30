@@ -2297,7 +2297,9 @@ async function buildRelayStatusFollowUp(options: {
       walletName: options.relay.request?.walletName,
       relayUrl: options.relayUrl,
       paymasterMode: options.relay.request?.requestedPaymasterMode,
-      accountKind: options.relay.request?.requestedAccountKind
+      accountKind: options.relay.request?.requestedAccountKind,
+      sessionPolicies: options.relay.request?.policies,
+      requestCreatedAt: options.relay.request?.createdAt
     });
   }
 
@@ -2337,6 +2339,8 @@ async function buildRelayExpiredRecoveryCommands(options: {
   relayUrl: string;
   paymasterMode?: PaymasterMode;
   accountKind?: AccountKind;
+  sessionPolicies?: SessionPolicies;
+  requestCreatedAt?: string;
 }): Promise<{
   nextAction: string;
   recommendedCommands: Record<string, string>;
@@ -2358,12 +2362,19 @@ async function buildRelayExpiredRecoveryCommands(options: {
 
   const existingWallet = await loadWalletSession(walletName);
   const reissueRemoteApproval = existingWallet
-    ? buildWalletReapproveRemoteRecommendedCommand(walletName, options.relayUrl)
+    ? buildWalletReapproveRemoteRecommendedCommand(walletName, options.relayUrl, {
+        sessionPolicies: options.sessionPolicies,
+        requestCreatedAt: options.requestCreatedAt
+      })
     : buildWalletCreateRemoteRecommendedCommand(
         options.relayUrl,
         options.paymasterMode,
         walletName,
-        options.accountKind
+        options.accountKind,
+        {
+          sessionPolicies: options.sessionPolicies,
+          requestCreatedAt: options.requestCreatedAt
+        }
       );
 
   return {
@@ -2373,7 +2384,7 @@ async function buildRelayExpiredRecoveryCommands(options: {
       reissueRemoteApproval
     },
     note:
-      'Relay approval expired. Reissue the remote request. If the original request used scoped session flags, add those same policy flags again.'
+      'Relay approval expired. Reissue the remote request. The recovery command preserves any CLI-expressible session-policy flags from the expired request.'
   };
 }
 
@@ -2428,12 +2439,16 @@ async function buildRelayApprovalExpiredError(options: {
   walletName?: string;
   paymasterMode?: PaymasterMode;
   accountKind?: AccountKind;
+  sessionPolicies?: SessionPolicies;
+  requestCreatedAt?: string;
 }): Promise<AgentError> {
   const recovery = await buildRelayExpiredRecoveryCommands({
     walletName: options.walletName,
     relayUrl: options.relayUrl,
     paymasterMode: options.paymasterMode,
-    accountKind: options.accountKind
+    accountKind: options.accountKind,
+    sessionPolicies: options.sessionPolicies,
+    requestCreatedAt: options.requestCreatedAt
   });
 
   return new AgentError(
@@ -2784,7 +2799,9 @@ async function finalizePublishedRelayWalletRequest(options: {
         walletName: options.walletRequest.walletName,
         relayUrl: options.relayUrl,
         paymasterMode: options.walletRequest.requestedPaymasterMode,
-        accountKind: options.walletRequest.requestedAccountKind
+        accountKind: options.walletRequest.requestedAccountKind,
+        sessionPolicies: options.walletRequest.policies,
+        requestCreatedAt: options.walletRequest.createdAt
       });
     }
 
@@ -3430,6 +3447,28 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
     .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local or --wait-relay', '600')
     .option('--interval-ms <milliseconds>', 'How often to poll relay status while using --wait-relay', '2000')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Default wallet-create path:',
+        '  Keep `--await-local` as the local-first baseline when the browser and terminal are colocated.',
+        '',
+        '  Fresh bootstrap:',
+        '    zk-agent next',
+        '    zk-agent wallet create --await-local',
+        '    zk-agent next',
+        '',
+        '  Remote-browser fallback:',
+        '    zk-agent relay inspect --relay-url <url>',
+        '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+        '    zk-agent next',
+        '',
+        'Environment note:',
+        '  No custom .env is required to create the wallet request itself.',
+        '  Add RPC env vars later, before live reads or broadcasts.'
+      ].join('\n')
+    )
     .action(
       async (options: {
         name: string;
@@ -3677,6 +3716,27 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .option('--port <port>', 'Loopback port to bind when using --await-local (0 = choose a free port)', '0')
     .option('--timeout-seconds <seconds>', 'How long to wait when using --await-local or --wait-relay', '600')
     .option('--interval-ms <milliseconds>', 'How often to poll relay status while using --wait-relay', '2000')
+    .addHelpText(
+      'after',
+      [
+        '',
+        'Default wallet-reapprove path:',
+        '  Use this when the wallet already exists locally but its approval/session must be refreshed.',
+        '',
+        '  Colocated browser + terminal:',
+        '    zk-agent wallet reapprove --name main --await-local',
+        '    zk-agent next',
+        '',
+        '  Remote-browser fallback:',
+        '    zk-agent relay inspect --relay-url <url>',
+        '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+        '    zk-agent next',
+        '',
+        'Environment note:',
+        '  No custom .env is required to create the reapproval request itself.',
+        '  Add RPC env vars later, before live reads or broadcasts.'
+      ].join('\n')
+    )
     .action(
       async (options: {
         name: string;
