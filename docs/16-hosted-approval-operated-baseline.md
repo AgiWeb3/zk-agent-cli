@@ -5,8 +5,8 @@ for `zk-agent-cli`.
 
 It is intentionally narrower than a generic "production relay" claim.
 
-The point is to make the supportable baseline explicit before the project moves
-from `beta` to `rc`.
+The point is to keep the supportable baseline explicit while the project is on
+the `rc` track and working toward `1.0.0`.
 
 ## Current Supported Deployment Profile
 
@@ -214,16 +214,17 @@ The following shapes are outside the current supported baseline:
 This document adds the missing product judgment:
 
 - which deployment shape is actually supportable now
-- which assumptions are safe for `beta`
-- which deployment assumptions still block `rc`
+- which assumptions are safe for the current `rc` baseline
+- which deployment assumptions still block `1.0.0`
 
 ## Release-stage Meaning
 
-This document is enough to define the current operated baseline.
+This document is enough to define the current hosted operated baseline used on
+the `rc` track.
 
-It is not, by itself, enough to justify `rc`.
+It is not, by itself, enough to justify `1.0.0`.
 
-Moving to `rc` still requires:
+Moving from `rc` to `1.0.0` still requires:
 
 - repeated real smoke coverage on this exact operated mode
 - a release flow that keeps the relay/UI/package contract synchronized
@@ -233,5 +234,5 @@ Interpretation after the latest public rehearsal:
 
 - repeated real smoke coverage on this exact operated mode now exists for the
   browser/manual hosted reapprove path
-- this document is still not, by itself, enough to justify `rc`, because the
-  release-flow and recovery-stability gates remain separate
+- this document is now part of the current `rc` baseline, but it is still not
+  sufficient by itself to close the `rc -> 1.0.0` gate

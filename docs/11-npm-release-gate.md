@@ -16,13 +16,14 @@ prove that:
 This gate now serves two related but distinct decisions:
 
 1. whether the next npm cut is safe to publish
-2. whether the project is ready to move from `beta` to `rc`, and later from
-   `rc` to `1.0.0`
+2. whether the project is ready to remain on the current `rc` track and later
+   move from `rc` to `1.0.0`
 
 Current judgment:
 
-- `zk-agent-cli` is ready to move from `beta` to `rc`
-- the project is ready to claim `rc`
+- `zk-agent-cli` is already on the `rc` track
+- the current release-stage decision is no longer `beta -> rc`
+- the next release-stage decision is `rc -> 1.0.0`
 - the project is not ready to claim `1.0.0` yet
 
 Why it can now claim `rc` but not `1.0.0`:
@@ -36,15 +37,16 @@ Why it can now claim `rc` but not `1.0.0`:
   `release:prepare`, `validate:release`, `validate:rc`, and `review:rc`
 - the public machine-readable JSON contracts are now explicit release
   boundaries under `release:check`
-- the remaining release-stage gap is now `rc -> 1.0.0`, not `beta -> rc`
+- the remaining release-stage gap is now only `rc -> 1.0.0`
 
 For the current hosted deployment boundary, see
 [16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md).
 
-### Gate: `beta -> rc`
+### Closed gate: `beta -> rc`
 
-The current product baseline now satisfies this gate. Keep the following
-criteria as the contract that justified the move from `beta` to `rc`:
+The current product baseline already satisfies this gate. Keep the following
+criteria as the historical contract that justified the move from `beta` to
+`rc`:
 
 - one canonical operator path is aligned across the root README, package README,
   CLI help, skills, and machine-readable onboarding/output summaries
@@ -94,7 +96,8 @@ What it means:
 - it now also executes the bounded local hosted recovery drill for the named
   wallet and saves that result under `~/.zk-agent/reports/hosted-recovery/`
   so RC review no longer depends on plan-only proof for expiry recovery
-- it is necessary, but not sufficient, for `beta -> rc`
+- it is necessary for ongoing `rc` maintenance and eventual `rc -> 1.0.0`
+  review, but not sufficient by itself
 - it does not replace the real public browser/manual rehearsal on the actual
   hosted relay URL
 - the remaining public rehearsal should be run with `--save-report` so the
@@ -118,7 +121,7 @@ What this adds:
   saved report alongside the public hosted rehearsal evidence
 - it records the accepted hosted-operated-baseline evidence summary and the
   remaining explicit manual decision in one repo-tracked file
-- it still does not promote the package to `rc` by itself
+- it still does not promote the package to `1.0.0` by itself
 
 Default output path:
 
@@ -182,6 +185,10 @@ Supported combined version/doc prep wrapper:
 ```bash
 pnpm release:prepare --version <version> --from <git-ref> [--date <YYYY-MM-DD>]
 ```
+
+Both wrappers now require a clean git worktree by default before they mutate
+version/docs or publish to npm. Only bypass that guard with `--allow-dirty`
+when the dirty state is explicitly intentional.
 
 If you need the lower-level building blocks separately, sync the local version
 references first:
@@ -353,6 +360,7 @@ pnpm validate:release
 Notes:
 
 - this command currently covers:
+  - `node --test ./scripts/release-git-state.test.mjs ./scripts/release-publish.test.mjs`
   - `zk-agent-cli release:check`
   - `@zk-agent/agent-tools test`
   - `zk-agent-cli test`
@@ -592,14 +600,14 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current prepared baseline
 
-- current prepared release candidate baseline for `2026-08-30`:
-  `zk-agent-cli@0.1.0-rc.0`
+- current prepared release candidate baseline for `2026-09-01`:
+  `zk-agent-cli@0.1.0-rc.1`
 - intended post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-rc.0`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.0`
+  - `npm view zk-agent-cli version -> 0.1.0-rc.1`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.1`
   - `npm view zk-agent-cli@beta version -> 0.1.0-beta.11`
-  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.0`
-  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.0","latest":"0.1.0-rc.0"}`
+  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.1`
+  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.1","latest":"0.1.0-rc.1"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted
@@ -625,12 +633,18 @@ npm dist-tag add zk-agent-cli@<version> latest
   - `release:prepare` now wraps the supported version/doc prep path, so one
     command can update public version references and refresh the git-derived
     draft block for the target release note
+  - `release:prepare` and `release:publish` now also reject a dirty git
+    worktree by default, so version/doc edits and npm publishes do not
+    silently run on top of unrelated local changes
   - `release:draft-notes` can now upsert a repo-owned `Draft Input` block in
     `docs/releases/<version>.md` from a chosen git range before the final
     editor pass
   - `release:publish` now pins `npm` / `npx` resolution to the current Node
     runtime, runs npm readback from a neutral temp directory, and can publish,
     smoke, and optionally promote `latest` without repo-root cwd surprises
+  - `validate:release` now also executes the release-script unit tests, so
+    npm readback retry logic and clean-worktree preflight stay under the same
+    release gate instead of relying on manual script confidence
   - `release:check` now rejects a missing or placeholder-filled versioned
     release note for the current package version
   - `release:check` also rejects Node `<24` and any `pnpm` version other than

@@ -21,6 +21,13 @@ import { agentFollowupLines, buildAgentFollowup } from '../lib/agent-followup.js
 import { agentProfileLines } from '../lib/agent-profile.js';
 import { printResult } from '../lib/io.js';
 import {
+  buildSetupRecommendedPaths,
+  buildSignerRecoveryRecommendedPaths,
+  buildWalletBootstrapRecommendedPaths,
+  buildWalletReapprovalRecommendedPaths,
+  recommendedPathLines
+} from '../lib/onboarding-paths.js';
+import {
   buildOnboardingSummary,
   onboardingSummaryLines
 } from '../lib/onboarding-summary.js';
@@ -40,6 +47,9 @@ import {
   buildWalletCreateRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
   buildWalletNextRecommendedCommand,
+  buildWalletReapproveRecommendedCommand,
+  buildWalletReapproveRemoteRecommendedCommand,
+  buildWalletSignerAttachRecommendedCommand,
   buildWalletStatusRecommendedCommand,
   buildWorkflowAutoRecommendedCommand,
   buildWorkflowPayRecommendedCommand,
@@ -186,7 +196,7 @@ function buildNextHelpText(): string {
     '    zk-agent wallet create --await-local',
     '    zk-agent next',
     '',
-    '  If the browser is remote, switch at the wallet step instead of waiting for a local callback:',
+    '  Remote-browser variant of the same path:',
     '    zk-agent relay inspect --relay-url <url>',
     '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
     '    zk-agent next',
@@ -200,10 +210,12 @@ function buildNextHelpText(): string {
     '    zk-agent wallet next --name main',
     '',
     '  Switch to the hosted remote-approval path only when the browser is not colocated:',
-      '    zk-agent wallet --help',
+    '    zk-agent relay inspect --relay-url <url>',
+    '    zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code',
     '',
-    '  Use `wallet --help` when you already know the blocker is wallet-specific:',
+    '  Use wallet-layer commands when you already know the blocker is wallet-specific:',
     '    zk-agent wallet next --name main',
+    '    zk-agent wallet status --name main',
     '',
     '  Stay on the workflow layer only when you already have an explicit workflow or checkpoint:',
     '    zk-agent workflow next --request-id <id>'
@@ -328,6 +340,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           afterSetup: buildTopLevelNextRecommendedCommand(),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
+        const recommendedPaths = buildSetupRecommendedPaths('<url>', paymasterMode);
         const onboardingSummary = buildOnboardingSummary({
           stage: 'setup',
           localOnly: true,
@@ -345,6 +358,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['status', 'No local config found'],
             ...agentProfileLines(agentProfile),
             ...agentFollowupLines(defaultAgentFollowup),
+            ...recommendedPathLines(recommendedPaths),
             ['next', recommendedCommands.setup],
             ['after setup', recommendedCommands.afterSetup],
             ['inspect defaults', recommendedCommands.inspectDefaults]
@@ -355,6 +369,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             status: 'action-required',
             nextCommand: recommendedCommands.setup,
             onboardingSummary,
+            recommendedPaths,
             agentProfile,
             agentFollowup: defaultAgentFollowup,
             recommendedCommands
@@ -378,6 +393,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           afterApproval: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
+        const recommendedPaths = buildWalletBootstrapRecommendedPaths(
+          '<url>',
+          paymasterMode,
+          walletName
+        );
         const onboardingSummary = buildOnboardingSummary({
           stage: 'wallet-bootstrap',
           localOnly: true,
@@ -399,6 +419,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['connector', config.connectorUrl],
             ...agentProfileLines(agentProfile),
             ...agentFollowupLines(defaultAgentFollowup),
+            ...recommendedPathLines(recommendedPaths),
             ['next', recommendedCommands.createWallet],
             ['relay inspect', recommendedCommands.relayInspect],
             ['remote fallback', recommendedCommands.createWalletRemote],
@@ -412,6 +433,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             config,
             nextCommand: recommendedCommands.createWallet,
             onboardingSummary,
+            recommendedPaths,
             agentProfile,
             agentFollowup: defaultAgentFollowup,
             recommendedCommands
@@ -503,12 +525,41 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         nextAction: nextCommand,
         inspectDefaults: buildDefaultsRecommendedCommand()
       };
+      const recoveryRecommendedCommands =
+        !inspection.approvalReady
+          ? {
+              reapprove: buildWalletReapproveRecommendedCommand(wallet.walletName),
+              relayInspect: buildRelayInspectRecommendedCommand(),
+              reapproveRemote: buildWalletReapproveRemoteRecommendedCommand(wallet.walletName),
+              afterRecovery: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode)
+            }
+          : !inspection.localExecutionKeyStored
+            ? {
+                attachSigner: buildWalletSignerAttachRecommendedCommand(wallet.walletName),
+                afterRecovery: appendPaymasterMode(
+                  buildTopLevelNextRecommendedCommand(),
+                  paymasterMode
+                )
+              }
+            : {};
+      const recommendedPaths =
+        !inspection.approvalReady
+          ? buildWalletReapprovalRecommendedPaths(wallet.walletName, '<url>', paymasterMode)
+          : !inspection.localExecutionKeyStored
+            ? buildSignerRecoveryRecommendedPaths(wallet.walletName, paymasterMode)
+            : {
+                local: [nextCommand]
+              };
+      const mergedRecommendedCommands = {
+        ...recommendedCommands,
+        ...recoveryRecommendedCommands
+      };
       const tokenDiscoverySummary = buildWalletTokenDiscoverySummary({
         walletName: wallet.walletName,
         chain: wallet.chain,
         nextAction: nextCommand,
         paymasterMode,
-        recommendedCommands
+        recommendedCommands: mergedRecommendedCommands
       });
 
       printResult(
@@ -516,31 +567,45 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           ...walletNextLines(summary),
           ...agentProfileLines(agentProfile),
           ...agentFollowupLines(agentFollowup),
+          ...recommendedPathLines(recommendedPaths),
           ...(summary.recommendedCommand ? [] : [['next', workflowPay] as [string, string]]),
-          ['discover assets', recommendedCommands.discoverAssets],
-          ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
-          ...(recommendedCommands.discoverPaymasterTokens
-            ? [['discover paymaster tokens', recommendedCommands.discoverPaymasterTokens] as [string, string]]
+          ...(mergedRecommendedCommands.reapprove
+            ? [['reapprove', mergedRecommendedCommands.reapprove] as [string, string]]
             : []),
-          ['discover tokens', recommendedCommands.discoverTokens],
-          ...(recommendedCommands.inspectPaymasterToken
-            ? [['inspect paymaster token', recommendedCommands.inspectPaymasterToken] as [string, string]]
+          ...(mergedRecommendedCommands.attachSigner
+            ? [['attach signer', mergedRecommendedCommands.attachSigner] as [string, string]]
             : []),
-          ['inspect token', recommendedCommands.inspectToken],
-          ['inspect defaults', recommendedCommands.inspectDefaults]
+          ...(mergedRecommendedCommands.relayInspect
+            ? [['relay inspect', mergedRecommendedCommands.relayInspect] as [string, string]]
+            : []),
+          ...(mergedRecommendedCommands.reapproveRemote
+            ? [['remote fallback', mergedRecommendedCommands.reapproveRemote] as [string, string]]
+            : []),
+          ['discover assets', mergedRecommendedCommands.discoverAssets],
+          ['discover owned tokens', mergedRecommendedCommands.discoverOwnedTokens],
+          ...(mergedRecommendedCommands.discoverPaymasterTokens
+            ? [['discover paymaster tokens', mergedRecommendedCommands.discoverPaymasterTokens] as [string, string]]
+            : []),
+          ['discover tokens', mergedRecommendedCommands.discoverTokens],
+          ...(mergedRecommendedCommands.inspectPaymasterToken
+            ? [['inspect paymaster token', mergedRecommendedCommands.inspectPaymasterToken] as [string, string]]
+            : []),
+          ['inspect token', mergedRecommendedCommands.inspectToken],
+          ['inspect defaults', mergedRecommendedCommands.inspectDefaults]
         ], onboardingSummary),
         {
           ok: true,
           scope: 'wallet',
           walletName: wallet.walletName,
           onboardingSummary,
+          recommendedPaths,
           agentProfile,
           agentFollowup,
           inspection,
           summary,
           nextCommand,
           tokenDiscoverySummary,
-          recommendedCommands
+          recommendedCommands: mergedRecommendedCommands
         }
       );
     });

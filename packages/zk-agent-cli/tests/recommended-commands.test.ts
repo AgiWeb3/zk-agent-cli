@@ -38,6 +38,10 @@ test('recommended defaults command uses the registry readout', () => {
 
 test('recommended wallet create command uses await-local flow', () => {
   assert.equal(buildWalletCreateRecommendedCommand(), 'zk-agent wallet create --await-local');
+  assert.equal(
+    buildWalletCreateRecommendedCommand('sponsored'),
+    'zk-agent wallet create --await-local --paymaster-mode sponsored'
+  );
 });
 
 test('recommended wallet create remote command can preserve wallet name and request shape', () => {

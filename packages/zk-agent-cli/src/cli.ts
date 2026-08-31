@@ -24,6 +24,7 @@ import { createDoctorCommand } from './commands/doctor.js';
 import { createAgentCommand } from './commands/agent.js';
 import { createDefaultsCommand } from './commands/defaults.js';
 import { createResolveTokenCommand } from './commands/resolve-token.js';
+import { createSuiteCommand } from './commands/suite.js';
 import { createTokensCommand } from './commands/tokens.js';
 import { createRelayCommand } from './commands/relay.js';
 import { createWalletCommand } from './commands/wallet.js';
@@ -51,6 +52,9 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zk-agent next',
     `  ${buildWorkflowPayRecommendedCommand('main')}`,
     '',
+    'Operator suite beyond flagship pay:',
+    '  zk-agent suite',
+    '',
     'Validated first-run baseline:',
     '  setup defaults to zksync-sepolia and the local connector at http://localhost:4444',
     '  Override those only when you intentionally target a different chain or connector deployment.',
@@ -73,6 +77,7 @@ const ROOT_HELP_COMMAND_ORDER = [
   'init',
   'wallet',
   'workflow',
+  'suite',
   'assets',
   'balances',
   'fund',
@@ -125,6 +130,7 @@ function createProgram(): Command {
   program.addCommand(createDoctorCommand());
   program.addCommand(createAgentCommand());
   program.addCommand(createDefaultsCommand());
+  program.addCommand(createSuiteCommand());
   program.addCommand(createTokensCommand());
   program.addCommand(createResolveTokenCommand());
   program.addCommand(createRelayCommand());

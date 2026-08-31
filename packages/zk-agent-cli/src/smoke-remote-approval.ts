@@ -127,8 +127,9 @@ function printUsage(): void {
       '  1. Creates a wallet approval request through the real CLI.',
       '  2. Publishes that request to a relay (local in-process relay by default).',
       '  3. By default, submits a synthetic encrypted approval and confirms the relay reports ready.',
-      '  4. Finalizes the relay approval through the real CLI and confirms the wallet import/status path.',
-      '  5. With --manual-approval, stops after publish or waits for a real browser approval instead of submitting a synthetic payload.',
+      '  4. Finalizes the relay approval through the real CLI and confirms the wallet import path.',
+      '  5. Attempts wallet status as a best-effort post-check when chain RPC is available.',
+      '  6. With --manual-approval, stops after publish or waits for a real browser approval instead of submitting a synthetic payload.',
       '',
       'Defaults:',
       '  --chain defaults to zksync-sepolia',
@@ -352,6 +353,26 @@ async function runCliJson(args: string[]): Promise<JsonCommandResult> {
   }
 
   return JSON.parse(stdout) as JsonCommandResult;
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+async function runCliJsonBestEffort(args: string[]): Promise<{
+  result?: JsonCommandResult;
+  error?: string;
+}> {
+  try {
+    return {
+      result: await runCliJson(args)
+    };
+  } catch (error) {
+    return {
+      error: describeError(error)
+    };
+  }
 }
 
 function buildApprovedPayload(
@@ -624,7 +645,12 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
         approvalCode,
         '--wait'
       ]);
-      const walletStatus = await runCliJson(['wallet', 'status', '--name', options.walletName]);
+      const walletStatus = await runCliJsonBestEffort([
+        'wallet',
+        'status',
+        '--name',
+        options.walletName
+      ]);
 
       return {
         ok: true,
@@ -647,7 +673,8 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
         relayStatusPending: relayPending,
         relayStatusReady: relayReady,
         approve: approved,
-        walletStatus
+        ...(walletStatus.result ? { walletStatus: walletStatus.result } : {}),
+        ...(walletStatus.error ? { walletStatusError: walletStatus.error } : {})
       };
     }
 
@@ -688,7 +715,12 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       code,
       '--wait'
     ]);
-    const walletStatus = await runCliJson(['wallet', 'status', '--name', options.walletName]);
+    const walletStatus = await runCliJsonBestEffort([
+      'wallet',
+      'status',
+      '--name',
+      options.walletName
+    ]);
 
     return {
       ok: true,
@@ -710,7 +742,8 @@ export async function runSmokeRemoteApproval(options: SmokeRemoteApprovalOptions
       relayStatusPending: relayPending,
       relayStatusReady: relayReady,
       approve: approved,
-      walletStatus
+      ...(walletStatus.result ? { walletStatus: walletStatus.result } : {}),
+      ...(walletStatus.error ? { walletStatusError: walletStatus.error } : {})
     };
   } finally {
     await localRelay?.close();

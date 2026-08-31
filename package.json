@@ -1,7 +1,7 @@
 {
   "name": "zk-agent-cli-workspace",
   "private": true,
-  "version": "0.1.0-rc.0",
+  "version": "0.1.0-rc.1",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.30.3",
@@ -36,9 +36,10 @@
     "release:prepare": "node ./scripts/release-prepare.mjs",
     "release:publish": "node ./scripts/release-publish.mjs",
     "release:check": "pnpm --filter zk-agent-cli release:check",
+    "test:release-scripts": "node --test ./scripts/release-git-state.test.mjs ./scripts/release-publish.test.mjs",
     "review:rc": "node ./scripts/review-rc.mjs",
     "validate:rc": "node ./scripts/validate-rc.mjs",
-    "validate:release": "pnpm run release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
+    "validate:release": "pnpm run test:release-scripts && pnpm run release:check && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
     "validate:phase3": "pnpm --filter @zk-agent/agent-core test && pnpm --filter @zk-agent/agent-tools test && pnpm --filter zk-agent-cli test",
     "validate:phase4a": "pnpm run validate:release"
   },

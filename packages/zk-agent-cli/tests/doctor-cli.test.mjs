@@ -217,6 +217,21 @@ test('doctor returns setup guidance when local config is missing', async () => {
       next: 'zk-agent next',
       inspectDefaults: 'zk-agent defaults'
     });
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent wallet create --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -264,6 +279,17 @@ test('doctor returns wallet bootstrap guidance when config exists but the wallet
       result.recommendedCommands.relayInspect,
       'zk-agent relay inspect --relay-url https://relay.example.com'
     );
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet create --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent relay inspect --relay-url https://relay.example.com',
+        'zk-agent wallet create --relay-url https://relay.example.com --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -297,6 +323,17 @@ test('doctor returns reapprove guidance when the wallet exists but approval meta
       result.recommendedCommands.reapproveRemote,
       'zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code'
     );
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet reapprove --name main --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent relay inspect --relay-url https://relay.example.com',
+        'zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -327,6 +364,12 @@ test('doctor returns attach-signer guidance when approval exists but no local si
       result.recommendedCommands.attachSigner,
       'zk-agent wallet signer attach --name main --private-key <hex>'
     );
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet signer attach --name main --private-key <hex>',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -369,6 +412,9 @@ test('doctor returns zk-agent next when local config, approval, and signer state
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
     assert.equal(result.summary.localOnly, true);
+    assert.deepEqual(result.recommendedPaths, {
+      local: ['zk-agent next']
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

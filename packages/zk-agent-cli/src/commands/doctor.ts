@@ -13,6 +13,14 @@ import { buildAgentFollowup, agentFollowupLines } from '../lib/agent-followup.js
 import { agentProfileLines } from '../lib/agent-profile.js';
 import { printResult } from '../lib/io.js';
 import {
+  buildSetupRecommendedPaths,
+  buildSignerRecoveryRecommendedPaths,
+  buildWalletBootstrapRecommendedPaths,
+  buildWalletReapprovalRecommendedPaths,
+  recommendedPathLines,
+  type RecommendedPaths
+} from '../lib/onboarding-paths.js';
+import {
   buildOnboardingSummary,
   onboardingSummaryLines
 } from '../lib/onboarding-summary.js';
@@ -68,7 +76,7 @@ function buildDoctorHelpText(): string {
     '  and the shortest next command without requiring live RPC reads.',
     '  Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
     '',
-    'Remote-browser recovery path:',
+    'Remote-browser variant:',
     '  Pass --relay-url when you want the remote approval fallback commands',
     '  to use a concrete relay URL instead of a placeholder.'
   ].join('\n');
@@ -183,6 +191,7 @@ function buildDoctorResult(options: {
     return {
       scope: 'setup' as const,
       nextAction: recommendedCommands.setup,
+      recommendedPaths: buildSetupRecommendedPaths(options.relayUrl),
       onboardingSummary,
       summary: {
         stage: 'setup' as const,
@@ -224,6 +233,7 @@ function buildDoctorResult(options: {
     return {
       scope: 'wallet-bootstrap' as const,
       nextAction: recommendedCommands.createWallet,
+      recommendedPaths: buildWalletBootstrapRecommendedPaths(options.relayUrl, undefined, options.walletName),
       onboardingSummary,
       summary: {
         stage: 'wallet-bootstrap' as const,
@@ -267,6 +277,10 @@ function buildDoctorResult(options: {
     return {
       scope: 'wallet-recovery' as const,
       nextAction: recommendedCommands.reapprove,
+      recommendedPaths: buildWalletReapprovalRecommendedPaths(
+        options.wallet.walletName,
+        options.relayUrl
+      ),
       onboardingSummary,
       summary: {
         stage: 'wallet-recovery' as const,
@@ -311,6 +325,7 @@ function buildDoctorResult(options: {
     return {
       scope: 'wallet-recovery' as const,
       nextAction: attachSigner,
+      recommendedPaths: buildSignerRecoveryRecommendedPaths(options.wallet.walletName),
       onboardingSummary,
       summary: {
         stage: 'wallet-recovery' as const,
@@ -350,6 +365,9 @@ function buildDoctorResult(options: {
   return {
     scope: 'wallet-ready' as const,
     nextAction: recommendedCommands.next,
+    recommendedPaths: {
+      local: [recommendedCommands.next]
+    },
     onboardingSummary,
     summary: {
       stage: 'wallet-ready' as const,
@@ -376,6 +394,7 @@ function buildDoctorLines(input: {
   wallet: LocalWalletDoctorState | null;
   onboardingSummary: ReturnType<typeof buildOnboardingSummary>;
   summary: ReturnType<typeof buildDoctorResult>['summary'];
+  recommendedPaths?: RecommendedPaths;
   recommendedCommands: Record<string, string>;
   nextAction: string;
 }) {
@@ -421,6 +440,7 @@ function buildDoctorLines(input: {
   }
 
   lines.push(['next', input.nextAction]);
+  lines.push(...recommendedPathLines(input.recommendedPaths));
 
   if (input.recommendedCommands.createWallet) {
     lines.push(['create wallet (local)', input.recommendedCommands.createWallet]);
@@ -487,6 +507,7 @@ export function createDoctorCommand(): Command {
             wallet,
             onboardingSummary: result.onboardingSummary,
             summary: result.summary,
+            recommendedPaths: result.recommendedPaths,
             recommendedCommands: result.recommendedCommands,
             nextAction: result.nextAction
           }),
@@ -513,6 +534,7 @@ export function createDoctorCommand(): Command {
           agentProfile,
           agentFollowup,
           nextAction: result.nextAction,
+          recommendedPaths: result.recommendedPaths,
           recommendedCommands: result.recommendedCommands
         }
       );

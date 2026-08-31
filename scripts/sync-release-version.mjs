@@ -245,19 +245,19 @@ function syncReadmeVersionReferences(options) {
   const readmePath = join(workspaceRoot, 'README.md');
   let readme = readText(readmePath);
 
-  readme = replaceOne(
+  readme = replaceOptionalOne(
     readme,
     /- the current public [^\n]+ is `zk-agent-cli@[^`]+`/,
     `- ${currentPublicLabel(options.version)} is \`zk-agent-cli@${options.version}\``,
     'README current public release line'
   );
-  readme = replaceOne(
+  readme = replaceOptionalOne(
     readme,
     /`beta -> \d[^`]*`(?:, `rc -> \d[^`]*`)?(?:, `latest -> \d[^`]*`)?/,
     formatDistTagInline(options),
     'README dist-tag line'
   );
-  readme = replaceOne(
+  readme = replaceOptionalOne(
     readme,
     /- release notes live in \[CHANGELOG\.md\]\(\.\/CHANGELOG\.md\) and \[docs\/releases\/[^)]+\]\(\.\/docs\/releases\/[^)]+\)/,
     `- release notes live in [CHANGELOG.md](./CHANGELOG.md) and [docs/releases/${options.version}.md](./docs/releases/${options.version}.md)`,
@@ -265,7 +265,7 @@ function syncReadmeVersionReferences(options) {
   );
 
   if (options.date) {
-    readme = replaceOne(
+    readme = replaceOptionalOne(
       readme,
       /- that release was published on `[^`]+`/,
       `- that release was published on \`${options.date}\``,
@@ -282,9 +282,9 @@ function syncPlansVersionReferences(version) {
 
   plans = replaceOne(
     plans,
-    /- the public npm package is live at `zk-agent-cli@[^`]+`/,
-    `- the public npm package is live at \`zk-agent-cli@${version}\``,
-    'PLANS closed baseline version line'
+    /- release stage: `[^`]+`/,
+    `- release stage: \`${version}\``,
+    'PLANS release stage line'
   );
 
   writeText(plansPath, plans);
@@ -296,10 +296,18 @@ function syncProjectStateVersionReferences(options) {
 
   projectState = replaceOne(
     projectState,
-    /- `zk-agent-cli@[^`]+` is live and[\s\S]*?point there/,
-    `- \`zk-agent-cli@${options.version}\` is live and the documented npm dist-tags align with the intended public release set`,
-    'PROJECT_STATE live version line'
+    /- package stage: `[^`]+`/,
+    `- package stage: \`${options.version}\``,
+    'PROJECT_STATE package stage line'
   );
+  if (options.date) {
+    projectState = replaceOne(
+      projectState,
+      /- updated: `[^`]+`/,
+      `- updated: \`${options.date}\``,
+      'PROJECT_STATE updated date line'
+    );
+  }
   projectState = replaceOptionalOne(
     projectState,
     /\/Users\/mac\/\.codex\/plugins\/cache\/personal\/zk-agent-cli\/[^`]+`,/,
@@ -316,9 +324,15 @@ function syncReleaseGateReferences(options) {
 
   releaseGate = replaceOne(
     releaseGate,
-    /(- current public [^`]+ completed on `[^`]+`:\n  )`zk-agent-cli@[^`]+`/,
-    `$1\`zk-agent-cli@${options.version}\``,
+    /(- current prepared [^\n]+ baseline for `)[^`]+(`:\n  )`zk-agent-cli@[^`]+`/,
+    `$1${options.date || 'TBD'}$2\`zk-agent-cli@${options.version}\``,
     'Release gate current baseline package version'
+  );
+  releaseGate = replaceOne(
+    releaseGate,
+    /- current prepared [^\n]+ baseline for `[^`]+`:/,
+    `- current prepared ${inferReleaseStage(options.version) === 'rc' ? 'release candidate' : inferReleaseStage(options.version)} baseline for \`${options.date || 'TBD'}\`:`,
+    'Release gate current baseline date line'
   );
   releaseGate = replaceOne(
     releaseGate,
@@ -350,15 +364,6 @@ function syncReleaseGateReferences(options) {
     `\`npm view zk-agent-cli dist-tags --json -> ${formatDistTagJson(options)}\``,
     'Release gate dist-tags json line'
   );
-
-  if (options.date) {
-    releaseGate = replaceOne(
-      releaseGate,
-      /- current public [^`]+ completed on `[^`]+`:/,
-      `- ${currentPublicLabel(options.version)} completed on \`${options.date}\`:`,
-      'Release gate current baseline date line'
-    );
-  }
 
   writeText(releaseGatePath, releaseGate);
 }

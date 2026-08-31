@@ -12,7 +12,7 @@ stabilize the most important contracts on the default product path.
 This document is now the source of truth for the frozen machine-readable
 operator contract on the default product path.
 
-Before `rc`, the intentionally frozen compatibility boundary is:
+At the current `rc` stage, the intentionally frozen compatibility boundary is:
 
 - `onboardingSummary`
 - `workflowEntrySummary`
@@ -35,7 +35,7 @@ For the frozen contract set above:
    command is a breaking change.
 3. New fields may be added only when they are optional for existing callers,
    documented in this file, and covered by the same change's validation/tests.
-4. If a breaking change is still required before `rc`, it must be called out
+4. If a breaking change is still required during `rc`, it must be called out
    explicitly in release notes and updated across docs/tests in the same
    changeset.
 
@@ -180,6 +180,46 @@ Current semantics:
   The current recommendation depends on the live wallet/workflow path rather
   than just stored setup state.
 
+### `recommendedPaths`
+
+`setup`, `doctor`, and top-level `next` can now optionally return
+`recommendedPaths` when the current guidance is still on an onboarding or
+recovery path.
+
+Current stable fields:
+
+- `local`
+- `remoteBrowser`
+
+Current semantics:
+
+- `local`
+  Ordered commands for the canonical local-first path from the current scope.
+- `remoteBrowser`
+  Ordered commands for the remote-browser variant of that same path. This is
+  omitted when no distinct remote-browser variant is relevant from the current
+  scope.
+
+### `relayApprovalPaths`
+
+`relay serve` and `relay inspect` can now optionally return
+`relayApprovalPaths` when the relay advertised enough compatibility to build
+the relay-backed wallet approval path.
+
+Current stable fields:
+
+- `createWallet`
+- `reapproveWallet`
+
+Current semantics:
+
+- `createWallet`
+  Ordered commands for the relay-backed fresh-wallet path from the current
+  relay surface.
+- `reapproveWallet`
+  Ordered commands for the relay-backed wallet-reapproval path from the
+  current relay surface.
+
 ## `zk-agent setup`
 
 `zk-agent setup` writes the validated first-run local defaults and returns the
@@ -190,6 +230,7 @@ Current stable top-level fields:
 - `ok`
 - `config`
 - `onboardingSummary`
+- `recommendedPaths`
 - `recommendedCommands`
 - `message`
   Present when config already exists and setup did not overwrite it.
@@ -230,6 +271,21 @@ Key fields:
     "relayUrl": null,
     "nextAction": "zk-agent next"
   },
+  "recommendedPaths": {
+    "local": [
+      "zk-agent setup",
+      "zk-agent next",
+      "zk-agent wallet create --await-local",
+      "zk-agent next"
+    ],
+    "remoteBrowser": [
+      "zk-agent setup",
+      "zk-agent next",
+      "zk-agent relay inspect --relay-url <url>",
+      "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code",
+      "zk-agent next"
+    ]
+  },
   "recommendedCommands": {
     "next": "zk-agent next",
     "inspectDefaults": "zk-agent defaults",
@@ -261,6 +317,7 @@ Current stable top-level fields:
 - `agentProfile`
 - `agentFollowup`
 - `nextAction`
+- `recommendedPaths`
 - `recommendedCommands`
 
 Current stable `scope` values:
@@ -348,6 +405,21 @@ Key fields:
     "localOnly": true
   },
   "nextAction": "zk-agent setup",
+  "recommendedPaths": {
+    "local": [
+      "zk-agent setup",
+      "zk-agent next",
+      "zk-agent wallet create --await-local",
+      "zk-agent next"
+    ],
+    "remoteBrowser": [
+      "zk-agent setup",
+      "zk-agent next",
+      "zk-agent relay inspect --relay-url <url>",
+      "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code",
+      "zk-agent next"
+    ]
+  },
   "recommendedCommands": {
     "setup": "zk-agent setup",
     "next": "zk-agent next",
@@ -397,6 +469,17 @@ Key fields:
     "localOnly": true
   },
   "nextAction": "zk-agent wallet create --await-local",
+  "recommendedPaths": {
+    "local": [
+      "zk-agent wallet create --await-local",
+      "zk-agent next"
+    ],
+    "remoteBrowser": [
+      "zk-agent relay inspect --relay-url https://relay.example.com",
+      "zk-agent wallet create --relay-url https://relay.example.com --wait-relay --prompt-code",
+      "zk-agent next"
+    ]
+  },
   "recommendedCommands": {
     "next": "zk-agent next",
     "inspectDefaults": "zk-agent defaults",
@@ -496,6 +579,7 @@ Key fields:
 - `scope`
 - `nextCommand`
 - `onboardingSummary`
+- `recommendedPaths`
 - `agentProfile`
 - `agentFollowup`
 - `recommendedCommands`
@@ -530,6 +614,21 @@ Key fields:
     "relayUrl": null,
     "nextAction": "zk-agent setup"
   },
+  "recommendedPaths": {
+    "local": [
+      "zk-agent setup",
+      "zk-agent next",
+      "zk-agent wallet create --await-local",
+      "zk-agent next"
+    ],
+    "remoteBrowser": [
+      "zk-agent setup",
+      "zk-agent next",
+      "zk-agent relay inspect --relay-url <url>",
+      "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code",
+      "zk-agent next"
+    ]
+  },
   "recommendedCommands": {
     "setup": "zk-agent setup",
     "afterSetup": "zk-agent next",
@@ -561,6 +660,17 @@ Key fields:
     "connectorUrl": "http://localhost:4444",
     "relayUrl": null,
     "nextAction": "zk-agent wallet create --await-local"
+  },
+  "recommendedPaths": {
+    "local": [
+      "zk-agent wallet create --await-local",
+      "zk-agent next"
+    ],
+    "remoteBrowser": [
+      "zk-agent relay inspect --relay-url <url>",
+      "zk-agent wallet create --relay-url <url> --wait-relay --prompt-code",
+      "zk-agent next"
+    ]
   },
   "recommendedCommands": {
     "createWallet": "zk-agent wallet create --await-local",
@@ -1001,6 +1111,7 @@ Current stable top-level fields:
 - `connectorUiAvailable`
 - `hostedShareRedirectReady`
 - `capabilities`
+- `relayApprovalPaths`
 - `recommendedCommands`
 - `notes`
 
@@ -1059,6 +1170,11 @@ Current stable `recommendedCommands` shape on this surface:
   appears selectively when the relay is still advertising a local-only public
   origin
 
+Current stable `relayApprovalPaths` shape on this surface:
+
+- `createWallet`
+- `reapproveWallet`
+
 ## `zk-agent relay inspect`
 
 This is the hosted-relay compatibility and deployment-inspection surface.
@@ -1086,6 +1202,7 @@ Current stable top-level fields:
 - `connectorUiAvailable`
 - `hostedShareRedirectReady`
 - `capabilities`
+- `relayApprovalPaths`
 - `recommendedCommands`
 - `notes`
 
@@ -1142,6 +1259,11 @@ Current stable `recommendedCommands` shape on this surface:
 - `restartWithPublicOrigin`
   appears selectively when the relay is still advertising a local-only public
   origin
+
+Current stable `relayApprovalPaths` shape on this surface:
+
+- `createWallet`
+- `reapproveWallet`
 
 ## `zk-agent wallet create --relay-url <url>`
 
@@ -1384,6 +1506,48 @@ So the current contract layering is:
   execution-path follow-ups
 - `agentFollowup`
   local agent-identity follow-ups
+
+## `zk-agent suite`
+
+This is the current top-level product-surface catalog for the flagship path
+plus the explicit post-flagship operator slices.
+
+Current stable top-level fields:
+
+- `ok`
+- `summary`
+- `flagship`
+- `slices`
+- `recommendedCommands`
+
+Current stable `summary` fields:
+
+- `suiteId`
+- `walletName`
+- `chain`
+- `flagshipId`
+- `postFlagshipSliceIds`
+- `nextAction`
+
+Current stable `flagship` / `slices[]` fields:
+
+- `id`
+- `title`
+- `goal`
+- `primaryCommand`
+- `supportingCommands`
+- `skillPath`
+- `smokeCommand`
+  appears selectively when the slice has a bounded smoke entrypoint
+
+Current stable `recommendedCommands` shape on this surface:
+
+- `suite`
+- `flagship`
+- `discovery`
+- `paymaster`
+- `funding`
+- `inspectDefaults`
 
 ## `zk-agent defaults`
 

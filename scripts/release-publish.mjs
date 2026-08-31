@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureCleanWorktree } from './release-git-state.mjs';
+
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(rootDir, '..');
 const packageDir = join(workspaceRoot, 'packages', 'zk-agent-cli');
@@ -28,7 +30,8 @@ function parseArgs(argv) {
     promoteLatest: false,
     skipValidate: false,
     skipNpxSmoke: false,
-    dryRun: false
+    dryRun: false,
+    allowDirty: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -73,6 +76,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--allow-dirty') {
+      args.allowDirty = true;
+      continue;
+    }
+
     if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -89,6 +97,7 @@ function printHelp() {
     [
       'Usage:',
       '  pnpm release:publish [--version <version>] [--tag <tag>] [--promote-latest] [--otp <code>] [--dry-run]',
+      '    [--skip-validate] [--skip-npx-smoke] [--allow-dirty]',
       '',
       'Behavior:',
       '  Runs the supported host-runtime publish contract for zk-agent-cli.',
@@ -104,7 +113,9 @@ function printHelp() {
       '  --dry-run keeps the publish step non-destructive and skips post-publish',
       '    readback assertions.',
       '  --skip-validate skips pnpm validate:release.',
-      '  --skip-npx-smoke skips the clean npx help smoke during readback.'
+      '  --skip-npx-smoke skips the clean npx help smoke during readback.',
+      '  By default the command requires a clean git worktree before publish.',
+      '  --allow-dirty bypasses that guard when you intentionally publish from a dirty tree.'
     ].join('\n') + '\n'
   );
 }
@@ -318,6 +329,10 @@ function main() {
   ensureNodeRuntime();
 
   const args = parseArgs(process.argv.slice(2));
+  ensureCleanWorktree({
+    commandLabel: 'release:publish',
+    allowDirty: args.allowDirty
+  });
   const workspacePackage = readJson(workspacePackagePath);
   const publishedPackage = readJson(publishedPackagePath);
   const version = args.version || publishedPackage.version;

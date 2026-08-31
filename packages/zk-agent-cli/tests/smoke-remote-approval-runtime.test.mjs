@@ -221,6 +221,8 @@ test('smoke remote approval completes the local relay-backed create -> approve -
 
   try {
     const result = await runSmokeJson(['--wallet', 'remote-approved'], createCliEnv(homeDir));
+    const { loadWalletSession } = await loadAgentCoreStorage(homeDir);
+    const storedWallet = await loadWalletSession('remote-approved');
 
     assert.equal(result.ok, true);
     assert.equal(result.phase, 'approved');
@@ -234,8 +236,13 @@ test('smoke remote approval completes the local relay-backed create -> approve -
     assert.equal(result.approve.approvalSource, 'relay-url');
     assert.equal(result.approve.wallet.walletName, 'remote-approved');
     assert.equal(result.approve.wallet.walletAddress, '0x9999999999999999999999999999999999999999');
-    assert.equal(result.walletStatus.summary.walletName, 'remote-approved');
-    assert.equal(result.walletStatus.summary.accountKind, 'smart-account');
+    assert.equal(storedWallet.walletName, 'remote-approved');
+    assert.equal(storedWallet.walletAddress, '0x9999999999999999999999999999999999999999');
+    assert.equal(storedWallet.accountKind, 'smart-account');
+    if (result.walletStatus) {
+      assert.equal(result.walletStatus.summary.walletName, 'remote-approved');
+      assert.equal(result.walletStatus.summary.accountKind, 'smart-account');
+    }
     assert.equal(
       result.nextAction,
       'zk-agent wallet signer attach --name remote-approved --private-key <hex>'

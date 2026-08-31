@@ -8,6 +8,10 @@ import {
   onboardingSummaryLines
 } from '../lib/onboarding-summary.js';
 import {
+  buildSetupRecommendedPaths,
+  recommendedPathLines
+} from '../lib/onboarding-paths.js';
+import {
   buildDefaultsRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
@@ -37,7 +41,7 @@ function buildSetupHelpText(): string {
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
     '',
-    'If the browser is not colocated with this terminal, switch at the wallet step:',
+    'Remote-browser variant of the same path:',
     '  zk-agent relay inspect --relay-url <url>',
     '  zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
     '  zk-agent next',
@@ -65,6 +69,7 @@ export function createInitCommand(): Command {
         createWalletRemote: buildWalletCreateRemoteRecommendedCommand(),
         afterWalletApproval: buildTopLevelNextRecommendedCommand()
       };
+      const recommendedPaths = buildSetupRecommendedPaths();
 
       const existing = await loadProjectConfig();
       if (existing && !options.force) {
@@ -87,6 +92,7 @@ export function createInitCommand(): Command {
             ...onboardingSummaryLines(onboardingSummary),
             ['default chain', existing.defaultChain],
             ['connector', existing.connectorUrl],
+            ...recommendedPathLines(recommendedPaths),
             ['next', recommendedCommands.next],
             ['inspect defaults', recommendedCommands.inspectDefaults],
             ['create wallet (local)', recommendedCommands.createWallet],
@@ -99,6 +105,7 @@ export function createInitCommand(): Command {
             message: 'Config already exists. Re-run with --force to overwrite.',
             config: existing,
             onboardingSummary,
+            recommendedPaths,
             recommendedCommands
           }
         );
@@ -134,6 +141,7 @@ export function createInitCommand(): Command {
           ...onboardingSummaryLines(onboardingSummary),
           ['default chain', config.defaultChain],
           ['connector', config.connectorUrl],
+          ...recommendedPathLines(recommendedPaths),
           ['next', recommendedCommands.next],
           ['inspect defaults', recommendedCommands.inspectDefaults],
           ['create wallet (local)', recommendedCommands.createWallet],
@@ -141,7 +149,7 @@ export function createInitCommand(): Command {
           ['create wallet (remote)', recommendedCommands.createWalletRemote],
           ['after approval', recommendedCommands.afterWalletApproval]
         ],
-        { ok: true, config, onboardingSummary, recommendedCommands }
+        { ok: true, config, onboardingSummary, recommendedPaths, recommendedCommands }
       );
     });
 }

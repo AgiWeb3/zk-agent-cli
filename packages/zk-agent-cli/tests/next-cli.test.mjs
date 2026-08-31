@@ -281,6 +281,21 @@ test('top-level next recommends setup when local config is missing', async () =>
       afterSetup: 'zk-agent next',
       inspectDefaults: 'zk-agent defaults'
     });
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent wallet create --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -327,6 +342,17 @@ test('top-level next recommends wallet creation when config exists but the walle
       afterApproval: 'zk-agent next',
       inspectDefaults: 'zk-agent defaults'
     });
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet create --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -352,6 +378,17 @@ test('top-level next preserves an explicit paymaster override in wallet-bootstra
         'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code --paymaster-mode sponsored',
       afterApproval: 'zk-agent next --paymaster-mode sponsored',
       inspectDefaults: 'zk-agent defaults'
+    });
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet create --await-local --paymaster-mode sponsored',
+        'zk-agent next --paymaster-mode sponsored'
+      ],
+      remoteBrowser: [
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code --paymaster-mode sponsored',
+        'zk-agent next --paymaster-mode sponsored'
+      ]
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -500,6 +537,12 @@ test('top-level next exposes wallet-recovery onboarding guidance when approval e
       result.nextCommand,
       'zk-agent wallet signer attach --name main --private-key <hex>'
     );
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet signer attach --name main --private-key <hex>',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

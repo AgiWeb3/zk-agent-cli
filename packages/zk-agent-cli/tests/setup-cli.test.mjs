@@ -107,6 +107,21 @@ test('setup command returns the default operator-path recommendations', async ()
       'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code'
     );
     assert.equal(result.recommendedCommands.afterWalletApproval, 'zk-agent next');
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent wallet create --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
 
     const second = await runCliJson(['setup'], env);
     assert.equal(second.ok, true);
@@ -137,6 +152,21 @@ test('setup command returns the default operator-path recommendations', async ()
       'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code'
     );
     assert.equal(second.recommendedCommands.afterWalletApproval, 'zk-agent next');
+    assert.deepEqual(second.recommendedPaths, {
+      local: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent wallet create --await-local',
+        'zk-agent next'
+      ],
+      remoteBrowser: [
+        'zk-agent setup',
+        'zk-agent next',
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+        'zk-agent next'
+      ]
+    });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -182,6 +212,8 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /npm install -g zk-agent-cli/);
     assert.match(help, /Canonical terminal path:/);
     assert.match(help, /zk-agent next/);
+    assert.match(help, /Operator suite beyond flagship pay:/);
+    assert.match(help, /zk-agent suite/);
     assert.match(help, /Validated first-run baseline:/);
     assert.match(help, /setup defaults to zksync-sepolia and the local connector at http:\/\/localhost:4444/);
     assert.match(help, /If local setup or wallet state is unclear:/);
@@ -208,7 +240,8 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.ok(help.indexOf('\n  next') < help.indexOf('\n  doctor'));
     assert.ok(help.indexOf('\n  doctor') < help.indexOf('\n  wallet'));
     assert.ok(help.indexOf('\n  wallet') < help.indexOf('\n  workflow'));
-    assert.ok(help.indexOf('\n  workflow') < help.indexOf('\n  assets'));
+    assert.ok(help.indexOf('\n  workflow') < help.indexOf('\n  suite'));
+    assert.ok(help.indexOf('\n  suite') < help.indexOf('\n  assets'));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -226,16 +259,25 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     assert.match(help, /Fresh local-first routing:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent wallet create --await-local/);
-    assert.match(
-      help,
-      /If the browser is remote, switch at the wallet step instead of waiting for a local callback:/
-    );
+    assert.match(help, /Remote-browser variant of the same path:/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
     assert.match(help, /If setup has not run yet, `next` will send you back to `zk-agent setup` first/);
     assert.match(help, /zk-agent next --request-id <id>/);
-    assert.match(help, /zk-agent wallet --help/);
+    assert.match(
+      help,
+      /Switch to the hosted remote-approval path only when the browser is not colocated:/
+    );
+    assert.match(
+      help,
+      /zk-agent wallet create\|reapprove --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      help,
+      /Use wallet-layer commands when you already know the blocker is wallet-specific:/
+    );
     assert.match(help, /zk-agent wallet next --name main/);
+    assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });

@@ -277,6 +277,18 @@ test('relay serve returns operator follow-up commands and serves health endpoint
       restartWithPublicOrigin:
         'zk-agent relay serve --public-origin https://relay.example.com'
     });
+    assert.deepEqual(result.relayApprovalPaths, {
+      createWallet: [
+        `zk-agent relay inspect --relay-url ${result.origin}`,
+        `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ],
+      reapproveWallet: [
+        `zk-agent relay inspect --relay-url ${result.origin}`,
+        `zk-agent wallet reapprove --name main --relay-url ${result.origin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ]
+    });
     assert.equal(Array.isArray(result.notes), true);
     assert.equal(
       result.notes.some((note) =>
@@ -377,6 +389,16 @@ test('relay serve returns operator follow-up commands and serves health endpoint
       restartWithPublicOrigin:
         'zk-agent relay serve --public-origin https://relay.example.com'
     });
+    assert.deepEqual(inspected.relayApprovalPaths, {
+      createWallet: [
+        `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ],
+      reapproveWallet: [
+        `zk-agent wallet reapprove --name main --relay-url ${result.origin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ]
+    });
 
     await stopChild(child, 5000);
     const exitCode = child.exitCode;
@@ -458,6 +480,18 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
         `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
       reapproveWallet:
         `zk-agent wallet reapprove --name main --relay-url ${publicOrigin} --wait-relay --prompt-code`
+    });
+    assert.deepEqual(result.relayApprovalPaths, {
+      createWallet: [
+        `zk-agent relay inspect --relay-url ${publicOrigin}`,
+        `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ],
+      reapproveWallet: [
+        `zk-agent relay inspect --relay-url ${publicOrigin}`,
+        `zk-agent wallet reapprove --name main --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ]
     });
     assert.equal(
       result.capabilities.includes('connector-ui'),
@@ -596,6 +630,16 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
         `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
       reapproveWallet:
         `zk-agent wallet reapprove --name main --relay-url ${publicOrigin} --wait-relay --prompt-code`
+    });
+    assert.deepEqual(inspected.relayApprovalPaths, {
+      createWallet: [
+        `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ],
+      reapproveWallet: [
+        `zk-agent wallet reapprove --name main --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+        'zk-agent next'
+      ]
     });
 
     await stopChild(child, 5000);

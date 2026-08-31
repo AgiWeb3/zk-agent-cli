@@ -1,37 +1,11 @@
 # zk-agent-cli
 
-`zk-agent-cli` is the packaged `zk-agent-cli` command surface for zkSync Era
-and zkSync Sepolia.
+`zk-agent-cli` is the packaged terminal CLI for the zk-agent operator path on
+zkSync Era and zkSync Sepolia.
 
-This README is the canonical operator manual for the packaged CLI. If you want
-repo architecture, contributor state, or project planning context, use the root
-repository docs instead of this package manual.
+This file is the canonical operator manual for CLI users.
 
-Current strengths:
-
-- local-first wallet/session storage
-- `next`-first operator guidance
-- relay-backed approval and reapproval
-- workflow orchestration for send, swap, bridge, deposit, and withdraw
-- machine-readable JSON output for agent callers
-
-## Public Entry Points
-
-Choose the entrypoint that matches the environment.
-
-If you are installing this repository into a compatible agent harness instead
-of using the CLI directly, prefer the repo skill surface:
-
-```bash
-npx skills add https://github.com/AgiWeb3/zk-agent-cli
-```
-
-This repo currently ships a repository skill bundle for compatible harnesses.
-The repository root now also ships a native ChatGPT/Codex plugin manifest at
-`.codex-plugin/plugin.json`, but that plugin source belongs to the repository
-surface rather than this published npm tarball.
-
-For direct terminal use, install the packaged CLI:
+## Install
 
 One-shot execution:
 
@@ -46,24 +20,22 @@ npm install -g zk-agent-cli
 zk-agent --help
 ```
 
-The package also ships the secondary binary name:
+The package also ships the alias:
 
 ```bash
 zksync-agent --help
 ```
 
-## Prerequisites
+## Defaults and prerequisites
 
-- Node.js `>=24` for either `npx zk-agent-cli ...` or global install.
-  Older Node versions may still start the CLI, but the current package is not
-  supported there and npm will emit `EBADENGINE` warnings.
-- The default local approval path expects the connector UI to be reachable at
-  `http://localhost:4444`. Override it with
-  `zk-agent setup --connector-url <url>` when needed.
-- The CLI auto-loads `.env` from the current working directory.
+- Node.js `>=24`
+- the default chain is `zksync-sepolia`
+- the default local approval callback is `http://localhost:4444`
+- the CLI auto-loads `.env` from the current working directory
 
-You do not need a custom `.env` just to run `setup`, `next`, or create a local
-wallet request. You usually do need one for live chain reads or broadcasts.
+You do not need a custom `.env` just to run `setup`, `next`, `doctor`, or
+create a wallet request. You usually do need RPC values for live reads or
+broadcasts.
 
 Most relevant environment variables:
 
@@ -74,25 +46,9 @@ ZK_AGENT_TOKEN_DIRECTORY_ROOT=
 ZK_AGENT_STORAGE_DIR=
 ```
 
-Use:
+## Fastest verified path
 
-- `ZKSYNC_SEPOLIA_RPC_URL` for explicit zkSync Sepolia reads/broadcasts
-- `ETHEREUM_SEPOLIA_RPC_URL` for L1 deposit/bridge follow-up flows on Sepolia
-- `ZK_AGENT_TOKEN_DIRECTORY_ROOT` when you want local token-directory symbol
-  resolution
-- `ZK_AGENT_STORAGE_DIR` only when you need to override the default local
-  storage path
-
-## Shortest Path
-
-Current validated first-run baseline:
-
-- `setup` defaults to `zksync-sepolia`
-- the local approval path expects the connector UI at `http://localhost:4444`
-- override `--default-chain` or `--connector-url` only when you intentionally
-  target another chain or connector deployment
-
-Fresh setup:
+Use this path unless the task explicitly needs a lower-level command:
 
 ```bash
 zk-agent setup
@@ -102,8 +58,46 @@ zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
 ```
 
-If the browser is not colocated with the terminal, keep the same flow but
-replace the wallet-creation step with:
+Interpretation:
+
+- `setup` writes local defaults
+- `next` gives the shortest valid follow-up step
+- `wallet create --await-local` is the preferred local approval path
+- `workflow pay` is the flagship zkSync-native AA native-send path
+
+If readiness is unclear before you choose a fix, use:
+
+```bash
+zk-agent doctor
+```
+
+## Existing wallet recovery
+
+If the wallet already exists and approval is missing or expired:
+
+```bash
+zk-agent wallet reapprove --name main --await-local
+zk-agent next
+```
+
+If approval is still present but the local execution signer is missing:
+
+```bash
+zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent next
+```
+
+Use these inspection commands when the blocker is wallet-specific:
+
+```bash
+zk-agent wallet status --name main
+zk-agent wallet next --name main
+```
+
+## Remote approval
+
+Use the relay-backed path only when the browser is not colocated with the
+terminal:
 
 ```bash
 zk-agent relay inspect --relay-url <relay-url>
@@ -111,69 +105,81 @@ zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
 
-If local setup or wallet readiness is unclear, start with `zk-agent doctor`.
-It inspects saved config, wallet approval metadata, and local signer state
-without live RPC reads, and `--relay-url` only makes the remote fallback
-commands concrete.
-
-If a wallet already exists, inspect the blocker first. Use `wallet reapprove`
-when approval is missing or expired, then return to `zk-agent next`. Use
-`wallet signer attach` when approval is still present but the local execution
-signer is missing:
+For an existing wallet:
 
 ```bash
-zk-agent wallet reapprove --name main --await-local
-zk-agent next
-zk-agent wallet signer attach --name main --private-key <hex>
+zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
 
-Only fund when the CLI says funding is actually required:
+If the relay is self-hosted through the built-in server:
 
 ```bash
+zk-agent relay serve --public-origin https://relay.example.com
+```
+
+Use `relay inspect` before sending users to a share link. It exposes hosted
+readiness, URL shape, persistence mode, and the exact create/reapprove follow-up
+path.
+
+For the supported hosted operating contract, use
+[`docs/16-hosted-approval-operated-baseline.md`](../../docs/16-hosted-approval-operated-baseline.md).
+
+## Funding and execution
+
+Only fund when the CLI tells you funding is required:
+
+```bash
+zk-agent workflow fund --wallet main
 zk-agent workflow fund --wallet main --amount <amount> --execute
 ```
 
-Current flagship AA native-pay path:
+Flagship pay path:
 
 ```bash
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
-zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored
+zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
 ```
 
-Use a `sed-lite` wallet for the default AA acceptance path. Keep
-`daily-spend-limit` for profile-specific policy experiments, not as the main
-operator baseline.
+Keep `sed-lite` as the default AA baseline. Use `daily-spend-limit` only when
+you intentionally need that narrower policy profile.
 
-`workflow pay` fixes the workflow intent to `send-native`, persists a
-checkpoint, executes immediately when ready, reopens a missing writable session
-through the intent-scoped approval path, and defaults to the validated
-approval-based paymaster mode unless you override it.
-When that approval-based path still needs a fee-token candidate, recover with
-`zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token` and
-`zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token`.
+## Operator suite
 
-## Discovery Path
+Use:
 
-Use the discovery surfaces in this order when a workflow or direct command
-needs token context:
+```bash
+zk-agent suite
+```
 
-- `zk-agent assets --wallet main` for the preferred single-chain asset view
-- `zk-agent tokens --wallet main --owned` for the narrower owned ERC-20 subset
-- `zk-agent tokens --chain zksync-sepolia` and
-  `zk-agent resolve-token --chain zksync-sepolia --symbol USDC` for
-  symbol-first discovery before choosing an explicit token address
-- `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token` and
-  `zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token`
-  for approval-based paymaster fee-token discovery on the flagship pay path
-- `zk-agent defaults` for the machine-readable registry/defaults catalog:
-  tracked token roles, paymaster metadata, source order, and validated/fallback
-  route metadata
+when you want the flagship path plus the current post-flagship surfaces in one
+place.
 
-## Direct Command Escape Hatches
+Current suite shape:
 
-Use the guided workflow layer first, but the lower-level direct commands now
-keep the same symbol/discovery contract:
+- flagship pay:
+  `zk-agent workflow pay --wallet main --to <address> --amount <amount>`
+- discovery/defaults:
+  `zk-agent assets --wallet main`
+  `zk-agent defaults`
+  `zk-agent resolve-token --chain zksync-sepolia --symbol USDC`
+- funding readiness:
+  `zk-agent workflow fund --wallet main`
+- paymaster readiness:
+  `zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based`
+  `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`
+
+## Discovery and direct commands
+
+Preferred discovery order:
+
+- `zk-agent assets --wallet main`
+- `zk-agent tokens --wallet main --owned`
+- `zk-agent defaults`
+- `zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>`
+
+Use the direct commands when you intentionally want to bypass the workflow
+layer:
 
 - `zk-agent send-token --wallet main --symbol USDC --to <address> --amount <amount>`
 - `zk-agent swap --wallet main --token-in-symbol USDC --token-out-symbol ETH --amount-in <amount>`
@@ -181,148 +187,76 @@ keep the same symbol/discovery contract:
 - `zk-agent deposit --wallet main --symbol USDC --amount <amount>`
 - `zk-agent withdraw --wallet main --symbol USDC --amount <amount>`
 
-Current direct-command behavior:
+## Local storage
 
-- `send-token`, `fund`, `deposit`, and `withdraw` accept symbol-first token
-  resolution when the local registry can resolve the active chain token
-- `swap` follows the current registry-backed validated route by default when
-  `--protocol` is omitted
-- `bridge` can reuse the tracked default destination route when one is already
-  known for the current wallet chain
-
-## Local Agent Identity
-
-The local operator profile is optional. It helps agent harnesses and operators
-persist stable metadata, but wallet approval and workflow execution do not
-depend on it.
-
-Use:
-
-- `zk-agent agent status`
-- `zk-agent agent set --name "<operator-name>" --wallet main`
-- `zk-agent agent show`
-
-## Remote Approval
-
-Shortest relay-backed path in one terminal process:
-
-```bash
-zk-agent relay inspect --relay-url <relay-url>
-zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
-```
-
-If the wallet already exists and approval metadata needs to be refreshed, use:
-
-```bash
-zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
-```
-
-Treat that hosted path as the fallback when the browser is not colocated with
-the terminal; keep the local `--await-local` path as the default baseline.
-
-If approval is still present and only the local execution signer is missing,
-repair that locally instead of forcing a new approval round-trip:
-
-```bash
-zk-agent wallet signer attach --name main --private-key <hex>
-zk-agent next
-```
-
-Local relay prototype path:
-
-```bash
-zk-agent relay serve --public-origin https://relay.example.com
-zk-agent wallet create --relay-url <relay-url>
-zk-agent wallet request approve --request-id <id> --relay-url <relay-url> --code <code> --wait
-```
-
-The built-in relay is a local file-backed prototype. It is useful for operator
-testing, not a production hosted relay service. When it sits behind a tunnel or
-reverse proxy, pass `--public-origin` so the emitted share/status URLs point at
-the externally reachable hosted URL instead of the local bind address. The
-published package now also ships the bundled connector UI build used by
-`relay serve`, so hosted share-link approval no longer depends on a separate
-source checkout just to serve the UI. `relay inspect` now also reports
-`stateBackend`, `deploymentScope`, and `sameHostRestartPersists` so the
-single-host local-filesystem constraint is explicit before you rely on a hosted
-URL. For the current supported hosted operating contract and the remaining
-`beta -> rc` blocker on this path, see
-[`docs/16-hosted-approval-operated-baseline.md`](../../docs/16-hosted-approval-operated-baseline.md).
-
-## Local Storage
-
-By default the CLI stores config, wallets, requests, and workflow checkpoints
-under:
+By default the CLI stores local state under:
 
 ```text
 ~/.zk-agent/
 ```
 
-Common files created by the default path:
+Common files:
 
 - `config.json`
 - `wallets/*.json`
 - `requests/*.json`
 - `workflows/*.json`
 
-## Smart-Account Profiles
+## Smart-account profiles
 
-The published package ships built-in profile artifacts for the first-party
-smart-account presets:
+The packaged CLI includes built-in profile artifacts for:
+
+- `sed-lite`
+- `daily-spend-limit`
+
+Inspect them with:
 
 ```bash
 zk-agent wallet smart-account profiles --json
 ```
 
-That means the packaged CLI can use:
+Use the packaged path for:
 
-- `zk-agent wallet smart-account predict --profile sed-lite`
-- `zk-agent wallet smart-account deploy --profile sed-lite`
-- the same built-in path for `daily-spend-limit`
+```bash
+zk-agent wallet smart-account predict --profile sed-lite
+zk-agent wallet smart-account deploy --profile sed-lite
+```
 
-Current boundary:
-
-- built-in profiles work from the packaged CLI
-- custom profile artifacts still use `--artifact <json|@file>`
-- `ZK_AGENT_ACCOUNT_PROFILES_ROOT` is now only a source-checkout override for
-  development or custom runtime layouts
-
-## Common Failures
+## Common failures
 
 Connector callback never arrives:
 
 - verify the connector URL saved by `zk-agent setup`
-- if local callback is not possible in your environment, switch to the relay
-  path with `zk-agent relay serve` plus `wallet create|reapprove --relay-url`
+- if local callback is impossible in the current environment, switch to the
+  relay-backed path
 
 CLI says the wallet is missing a writable session:
 
-- if the blocker is unclear, run `zk-agent doctor --wallet <wallet>` first
+- run `zk-agent doctor --wallet <wallet>`
 - inspect `zk-agent wallet status --name <wallet>`
-- if approval is missing, run `zk-agent wallet reapprove --name <wallet> --await-local`
-- if approval is present but the local signer is missing, run
-  `zk-agent wallet signer attach --name <wallet> --private-key <hex>`
-- then rerun `zk-agent next` or the blocked workflow command
+- reapprove when approval is missing
+- attach the signer when approval is present but local write readiness is not
 
 Workflow stops on funding:
 
 - do not guess the route
 - run the exact `workflow fund` command suggested by the CLI
 
-Relay / `--await-local` flows fail in a locked-down environment:
+Locked-down environment blocks local callback or relay binding:
 
-- those flows need a process that can bind `127.0.0.1`
-- rerun from a normal host shell or use the relay/manual approval path
+- rerun from a normal host shell
+- or use a relay/manual approval path that matches the environment
 
-## Command Help
+## Command help
 
-For the canonical command surfaces:
+Use:
 
 ```bash
 zk-agent --help
 zk-agent doctor --help
 zk-agent wallet --help
 zk-agent workflow --help
+zk-agent suite --help
 ```
 
 ## License

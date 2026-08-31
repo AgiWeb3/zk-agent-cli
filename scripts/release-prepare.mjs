@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureCleanWorktree } from './release-git-state.mjs';
+
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(rootDir, '..');
 const syncVersionScript = join(rootDir, 'sync-release-version.mjs');
@@ -20,7 +22,8 @@ function parseArgs(argv) {
     to: 'HEAD',
     maxCommits: null,
     maxPaths: null,
-    apply: true
+    apply: true,
+    allowDirty: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -92,6 +95,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--allow-dirty') {
+      args.allowDirty = true;
+      continue;
+    }
+
     if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -109,7 +117,7 @@ function printHelp() {
       'Usage:',
       '  pnpm release:prepare --version <version> --from <git-ref> [--date <YYYY-MM-DD>] [--to <git-ref>]',
       '    [--latest-tag <version>] [--beta-tag <version>] [--rc-tag <version>] [--plugin-cache-version <version>]',
-      '    [--max-commits <count>] [--max-paths <count>] [--no-apply]',
+      '    [--max-commits <count>] [--max-paths <count>] [--no-apply] [--allow-dirty]',
       '',
       'Behavior:',
       '  Runs release:sync-version and release:draft-notes in one supported step.',
@@ -119,7 +127,9 @@ function printHelp() {
       'Notes:',
       '  --version and --from are required.',
       '  --to defaults to HEAD.',
-      '  --no-apply leaves the draft-notes output on stdout instead of writing it.'
+      '  --no-apply leaves the draft-notes output on stdout instead of writing it.',
+      '  By default the command requires a clean git worktree before it edits version/docs.',
+      '  --allow-dirty bypasses that guard when you intentionally prepare from a dirty worktree.'
     ].join('\n') + '\n'
   );
 }
@@ -153,6 +163,11 @@ function main() {
 
   assert.ok(args.version, 'release:prepare requires --version <version>.');
   assert.ok(args.from, 'release:prepare requires --from <git-ref>.');
+
+  ensureCleanWorktree({
+    commandLabel: 'release:prepare',
+    allowDirty: args.allowDirty
+  });
 
   const syncArgs = ['--version', args.version];
   pushOption(syncArgs, '--date', args.date);

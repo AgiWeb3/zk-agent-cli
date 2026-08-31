@@ -7,303 +7,105 @@ description: Hosted relay and remote-approval guide for zk-agent-cli on zkSync. 
 
 ## Scope
 
-This skill is the focused guide for the current relay and hosted-approval
-surface.
+Use this skill when the task is specifically about:
 
-Use it when the task is specifically about:
-
-- relay health and compatibility inspection
+- relay health and compatibility
 - hosted share-link readiness
-- local relay prototype usage behind a tunnel or reverse proxy
-- relay-backed wallet create or reapprove
-- manual relay publish/status/approve fallback
-- validating an externally reachable hosted relay URL
+- relay-backed wallet create/reapprove
+- local relay serving behind a tunnel or reverse proxy
+- expired-request recovery or manual approval fallback
 
-If the task is broader than relay/approval and needs the full operator path,
-start at:
+If the task is broader than relay/approval, use [../SKILL.md](../SKILL.md).
 
-- [../SKILL.md](../SKILL.md)
+## Supported boundary
 
-If the task is specifically about the current AA execution path after session
-recovery, use:
+The current supported hosted baseline is:
 
-- [../zk-aa/SKILL.md](../zk-aa/SKILL.md)
+- single-host
+- local-filesystem state
+- same-host restart persistence
+- externally reachable `publicOrigin`
 
-## Current product boundary
+Do not assume multi-host durability, queue semantics, or service-grade hosted
+infrastructure.
 
-The current relay product surface is intentionally narrower than a production
-hosted relay service:
+## Hosted readiness
 
-- relay-capable remote approval is implemented end to end
-- the published CLI bundles the connector UI used by `relay serve`
-- `relay inspect` can validate compatibility and hosted readiness
-- `smoke:hosted-relay` can validate the share-link/UI entrypoint from the
-  outside in
-- the local relay prototype can advertise `--public-origin`
-
-Do not assume:
-
-- multi-tenant isolation
-- durable queue semantics
-- production auth/rate-limiting policy
-- hosted proof against a real public URL unless one is actually available and
-  tested
-
-## Fast path
-
-When a real hosted relay URL exists, the preferred relay path is:
+Inspect the relay first:
 
 ```bash
 zk-agent relay inspect --relay-url <url>
-pnpm smoke:hosted-relay -- --relay-url <url>
-zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
-zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 ```
 
-Interpretation:
+Treat the relay as ready only when the output shows the expected compatibility,
+public origin, hosted readiness, and single-host persistence contract.
 
-1. `relay inspect` checks the advertised relay contract and hosted readiness
-2. `smoke:hosted-relay` proves the share-link/UI path from the outside in
-3. `wallet create|reapprove --wait-relay` completes the operator-facing
-   approval loop through the same relay
+## Preferred remote-approval path
 
-If approval is already present and the only missing piece is the local
-execution signer, do not force a new relay round-trip. Repair it locally with:
+Fresh wallet:
+
+```bash
+zk-agent relay inspect --relay-url <url>
+zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
+zk-agent next
+```
+
+Existing wallet:
+
+```bash
+zk-agent relay inspect --relay-url <url>
+zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
+zk-agent next
+```
+
+If approval is still present and only the local signer is missing, repair that
+locally instead:
 
 ```bash
 zk-agent wallet signer attach --name main --private-key <hex>
 ```
 
-## Hosted readiness checklist
-
-Run:
+## Serve behind a public URL
 
 ```bash
-zk-agent relay inspect --relay-url <url>
+zk-agent relay serve --public-origin https://relay.example.com
+zk-agent relay inspect --relay-url https://relay.example.com
 ```
 
-What to rely on:
+Use `--public-origin` whenever the relay sits behind FRP, a reverse proxy, or
+another externally reachable URL.
 
-- `compatible = true`
-- `origin` stays the relay's local bind origin
-- `publicOriginLooksLocal = false`
-- `publicOrigin` is the externally reachable share/status origin
-- `stateBackend = local-filesystem`
-- `deploymentScope = single-host`
-- `sameHostRestartPersists = true`
-- `connectorUiAvailable = true`
-- `hostedShareRedirectReady = true`
-- `hostedReadinessSummary.status = ready`
+## Relay validation smokes
 
-If any of those fail, do not treat the relay as hosted-ready yet.
-
-The current prototype is still single-host only: request state lives on the
-relay host local filesystem, same-host process restarts keep that state, and
-multi-instance or load-balanced deployments do not share it.
-
-## Outside-in hosted validation
-
-When you still have a source checkout, use the bounded hosted validation smoke:
+Hosted entrypoint validation:
 
 ```bash
 pnpm smoke:hosted-relay -- --relay-url <url>
 ```
 
-This smoke:
-
-- reuses the real CLI `relay inspect` path
-- publishes a synthetic relay request
-- checks `/r/<id>` redirect behavior
-- confirms the connector UI landing page still serves
-- confirms the bundled hashed frontend asset still serves from the relay
-
-Use it before treating an externally supplied relay URL as trustworthy for the
-current flagship AA path.
-
-When you want the real repeated hosted rehearsal to leave a durable local
-artifact instead of only terminal output, add `--save-report`:
+Repeated public operated-baseline rehearsal:
 
 ```bash
 pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --repeat 2 --prompt-code --save-report
 ```
 
-That writes the structured series result under:
-
-```text
-~/.zk-agent/reports/hosted-operated-baseline/
-```
-
-## Local relay prototype behind a tunnel or reverse proxy
-
-Start the relay with the externally reachable URL:
-
-```bash
-zk-agent relay serve --public-origin https://relay.example.com
-```
-
-Then inspect it through that same external URL:
-
-```bash
-zk-agent relay inspect --relay-url https://relay.example.com
-```
-
-If you still have the repository checkout available, validate the hosted entry
-path too:
-
-```bash
-pnpm smoke:hosted-relay -- --relay-url https://relay.example.com
-```
-
-## Relay-backed approval flows
-
-Fresh wallet:
-
-```bash
-zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
-```
-
-Existing wallet needing a fresh approved session:
-
-```bash
-zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
-```
-
-Non-interactive code-supplied variant:
-
-```bash
-zk-agent wallet create --relay-url <url> --wait-relay --code <6-digit-code>
-zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --code <6-digit-code>
-```
-
-## Manual relay fallback
-
-When you intentionally want the lower-level relay steps:
-
-```bash
-zk-agent wallet request relay-publish --request-id <id> --relay-url <url>
-zk-agent wallet request relay-status --request-id <id> --relay-url <url> --wait
-zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait
-```
-
-This is the right fallback when a wrapper or operator cannot keep one waiting
-CLI process alive through the whole flow.
-
-## Focused relay smokes
-
-Hosted relay path only:
-
-```bash
-pnpm smoke:hosted-relay -- --relay-url <url>
-```
-
-Standard operated-baseline rehearsal for a real external relay:
-
-```bash
-pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code
-pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --repeat 2 --prompt-code
-pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --plan
-```
-
-Use this when you want one repeatable source-checkout command that first proves
-the hosted share-link/UI contract and then completes the real browser/manual
-relay-backed approval loop on the same external relay. Use `--repeat 2` when
-you want one command that produces repeated operated-baseline evidence for RC
-readiness instead of a single successful sample.
-
-Deterministic recovery rehearsal for the hosted reapprove path:
+Deterministic local expiry recovery drill:
 
 ```bash
 pnpm smoke:hosted-recovery -- --wallet <name>
 ```
 
-Use this when you want to validate the current expired-request recovery
-contract locally: the smoke forces a relay-backed reapprove request to expire
-and checks that the CLI returns the expected inspect + reissue recovery
-commands instead of continuing to poll a dead request id.
-
-Relay-backed approval lifecycle only:
+## Manual approval fallback
 
 ```bash
-pnpm smoke:remote-approval -- --wallet <name> --relay-url <url>
-pnpm smoke:remote-approval -- --wallet <name> --reapprove --relay-url <url>
-pnpm smoke:remote-approval -- --wallet <name> --relay-url <url> --manual-approval
-pnpm smoke:remote-approval -- --wallet <name> --reapprove --relay-url <url> --manual-approval --prompt-code
+zk-agent wallet request approve --request-id <id> --payload @approved-session.json
+zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted-session.json --code <code>
 ```
 
-Use `--manual-approval` when you want the smoke to follow the real browser
-share-link approval path instead of auto-submitting a synthetic encrypted
-payload. Without `--code` or `--prompt-code`, the smoke stops after publish and
-returns `shareUrl`, `statusUrl`, plus explicit `waitReady` / `approve`
-follow-up commands so an operator can approve in a real browser first.
+Use these only when you intentionally need the lower-level recovery path.
 
-Flagship AA path with hosted relay preflight:
+## Related guides
 
-```bash
-pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> [--paymaster-mode approval-based|sponsored]
-pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --manual-approval
-pnpm smoke:flagship-workflow -- --wallet <name> --relay-url <url> --manual-approval --prompt-code
-```
-
-When `--relay-url` is present, that flagship smoke now validates the hosted
-relay first instead of assuming the URL is already good. Use a `sed-lite`
-wallet when this relay flow is meant to validate the default AA/operator path;
-keep `daily-spend-limit` for constrained control cases only.
-
-## Failure patterns
-
-### `publicOriginLooksLocal = true`
-
-Meaning:
-
-- the relay still advertises `localhost` or another local-only address
-
-Fix:
-
-- restart `relay serve` with the real external URL in `--public-origin`
-- `recommendedCommands.restartWithPublicOrigin` returns the placeholder restart
-  command directly on `relay serve` and `relay inspect`
-
-### `connectorUiAvailable = false`
-
-Meaning:
-
-- the relay API works
-- but its own share-link/UI entrypoint is not ready
-
-Fix:
-
-- if you are using the packaged CLI, reinstall or repack the current build
-- if you are using a source checkout, rebuild `packages/zk-connector-ui`
-- restart the relay
-- rerun `relay inspect`
-
-### `hostedShareRedirectReady = false`
-
-Meaning:
-
-- hosted relay compatibility exists
-- but the relay is still not safe to treat as the hosted approval entrypoint
-
-Most common causes:
-
-- local-only `publicOrigin`
-- missing connector UI bundle
-
-Stable summary values now exposed on `relay serve` and `relay inspect`:
-
-- `ready`
-- `needs-public-origin`
-- `needs-connector-ui`
-- `needs-public-origin-and-ui`
-- `incompatible`
-
-### No real public URL exists yet
-
-Meaning:
-
-- you can still validate the local prototype and packaged relay behavior
-- but you cannot truthfully claim that the outside-in hosted deployment proof
-  is done
-
-Treat that last step as deferred until a real publicly reachable relay URL is
-available.
+- full operator path: [../SKILL.md](../SKILL.md)
+- flagship AA path: [../zk-aa/SKILL.md](../zk-aa/SKILL.md)
+- operated hosted baseline: [../../docs/16-hosted-approval-operated-baseline.md](../../docs/16-hosted-approval-operated-baseline.md)

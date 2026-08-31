@@ -24,8 +24,8 @@ export function buildTopLevelNextRecommendedCommand(
   return appendPaymasterMode(command, paymasterMode);
 }
 
-export function buildWalletCreateRecommendedCommand(): string {
-  return 'zk-agent wallet create --await-local';
+export function buildWalletCreateRecommendedCommand(paymasterMode?: PaymasterMode): string {
+  return appendPaymasterMode('zk-agent wallet create --await-local', paymasterMode);
 }
 
 export function buildRelayInspectRecommendedCommand(relayUrl = '<url>'): string {
@@ -293,6 +293,14 @@ export function buildWorkflowPayRecommendedCommand(
 ): string {
   const command = `zk-agent workflow pay --wallet ${walletName} --to <address> --amount <amount>`;
   return appendPaymasterMode(command, paymasterMode);
+}
+
+export function buildWorkflowFundRecommendedCommand(walletName: string): string {
+  return `zk-agent workflow fund --wallet ${walletName}`;
+}
+
+export function buildWorkflowFundRunRecommendedCommand(walletName: string): string {
+  return `zk-agent workflow fund --wallet ${walletName} --amount <amount> --execute`;
 }
 
 export function buildWorkflowShowRecommendedCommand(requestId: string): string {
