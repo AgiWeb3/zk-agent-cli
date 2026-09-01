@@ -188,6 +188,7 @@ test('wallet next recommended commands include assets discovery even when no rem
     discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
     discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
     inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+    suite: 'zk-agent suite',
     walletStatus: 'zk-agent wallet status --name main'
   });
 });
@@ -213,6 +214,7 @@ test('wallet next recommended commands include paymaster token discovery on appr
     inspectPaymasterToken:
       'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token',
     inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+    suite: 'zk-agent suite',
     walletStatus: 'zk-agent wallet status --name main'
   });
 });

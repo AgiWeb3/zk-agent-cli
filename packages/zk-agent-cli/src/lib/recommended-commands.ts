@@ -13,6 +13,21 @@ export function buildDefaultsRecommendedCommand(): string {
   return 'zk-agent defaults';
 }
 
+export function buildSuiteRecommendedCommand(
+  walletName = 'main',
+  chain = 'zksync-sepolia'
+): string {
+  const flags: string[] = [];
+  if (walletName !== 'main') {
+    flags.push(`--wallet ${walletName}`);
+  }
+  if (chain !== 'zksync-sepolia') {
+    flags.push(`--chain ${chain}`);
+  }
+
+  return flags.length > 0 ? `zk-agent suite ${flags.join(' ')}` : 'zk-agent suite';
+}
+
 export function buildTopLevelNextRecommendedCommand(
   requestId?: string,
   paymasterMode?: PaymasterMode

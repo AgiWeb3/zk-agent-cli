@@ -14,6 +14,7 @@ import {
   buildPaymasterFeeTokenResolveRecommendedCommand,
   buildPaymasterFeeTokensRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildSuiteRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletStatusRecommendedCommand
 } from './recommended-commands.js';
@@ -29,6 +30,7 @@ export function buildWalletNextRecommendedCommands(
   discoverTokens: string;
   inspectPaymasterToken?: string;
   inspectToken: string;
+  suite: string;
   walletStatus: string;
   nextAction?: string;
 } {
@@ -43,6 +45,7 @@ export function buildWalletNextRecommendedCommands(
       : {}),
     discoverTokens: buildTokensRecommendedCommand(summary.chain),
     inspectToken: buildResolveTokenRecommendedCommand(summary.chain),
+    suite: buildSuiteRecommendedCommand(walletName, summary.chain),
     walletStatus: buildWalletStatusRecommendedCommand(walletName),
     ...(summary.recommendedCommand ? { nextAction: summary.recommendedCommand } : {})
   };

@@ -4141,6 +4141,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       printResult(
         [
           ...walletStatusLines(inspection, summary),
+          ['suite', recommendedCommands.suite],
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
           ...(recommendedCommands.discoverPaymasterTokens
@@ -4186,6 +4187,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       printResult(
         [
           ...walletNextLines(summary),
+          ['suite', recommendedCommands.suite],
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
           ...(recommendedCommands.discoverPaymasterTokens

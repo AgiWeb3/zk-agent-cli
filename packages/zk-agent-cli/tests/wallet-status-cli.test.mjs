@@ -174,6 +174,7 @@ test('wallet status exposes the same paymaster token discovery contract as walle
       inspectPaymasterToken:
         'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+      suite: 'zk-agent suite',
       walletStatus: 'zk-agent wallet status --name main'
     });
     assert.deepEqual(result.tokenDiscoverySummary, {
@@ -216,6 +217,7 @@ test('wallet next includes approval-based paymaster token discovery commands', a
       inspectPaymasterToken:
         'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>',
+      suite: 'zk-agent suite',
       walletStatus: 'zk-agent wallet status --name main'
     });
     assert.equal(result.tokenDiscoverySummary.includesPaymasterTokenDiscovery, true);

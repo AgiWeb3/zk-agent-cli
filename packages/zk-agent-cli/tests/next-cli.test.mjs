@@ -435,6 +435,7 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
       walletStatus: 'zk-agent wallet status --name main',
+      suite: 'zk-agent suite',
       discoverAssets: 'zk-agent assets --wallet main',
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
@@ -569,6 +570,7 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
       walletStatus: 'zk-agent wallet status --name main',
+      suite: 'zk-agent suite',
       discoverAssets: 'zk-agent assets --wallet main',
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
@@ -622,6 +624,7 @@ test('top-level next adds paymaster fee-token discovery commands for approval-ba
     assert.deepEqual(result.recommendedCommands, {
       walletNext: 'zk-agent wallet next --name main',
       walletStatus: 'zk-agent wallet status --name main',
+      suite: 'zk-agent suite',
       discoverAssets: 'zk-agent assets --wallet main',
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',
       discoverPaymasterTokens: 'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
@@ -690,6 +693,7 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
       resume: 'zk-agent workflow resume --request-id wf-next-001',
       delete: 'zk-agent workflow delete --request-id wf-next-001',
       walletStatus: 'zk-agent wallet status --name main',
+      suite: 'zk-agent suite',
       nextAction: 'zk-agent wallet signer attach --name main --private-key <hex>'
     });
   } finally {
@@ -730,6 +734,7 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
       resume: 'zk-agent workflow resume --request-id wf-next-token-001',
       delete: 'zk-agent workflow delete --request-id wf-next-token-001',
       walletStatus: 'zk-agent wallet status --name main',
+      suite: 'zk-agent suite',
       nextAction: result.nextCommand,
       discoverAssets: 'zk-agent assets --wallet main',
       discoverOwnedTokens: 'zk-agent tokens --wallet main --owned',

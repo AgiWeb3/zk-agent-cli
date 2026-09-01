@@ -43,6 +43,7 @@ import {
   buildPaymasterFeeTokensRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildSuiteRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
@@ -104,6 +105,7 @@ function buildTopLevelWorkflowRecommendedCommands(input: {
     resume: buildWorkflowResumeRecommendedCommand(input.requestId),
     delete: buildWorkflowDeleteRecommendedCommand(input.requestId),
     walletStatus: buildWalletStatusRecommendedCommand(input.walletName),
+    suite: buildSuiteRecommendedCommand(input.walletName, input.chain),
     ...(input.nextAction ? { nextAction: input.nextAction } : {}),
     ...(workflowIntentSupportsTokenDiscovery(input.intent)
       ? {
@@ -304,6 +306,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ...agentProfileLines(workflowAgentProfile),
             ...agentFollowupLines(agentFollowup),
             ...(nextCommand ? [['next', nextCommand] as [string, string]] : []),
+            ['suite', recommendedCommands.suite],
             ['inspect defaults', recommendedCommands.inspectDefaults],
             ...result.blockingActionIds.map((actionId) => ['blocking action', actionId] as [string, string]),
             ...(result.fundingProgress
@@ -510,6 +513,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
       const recommendedCommands = {
         walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
         walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
+        suite: buildSuiteRecommendedCommand(wallet.walletName, wallet.chain),
         discoverAssets: buildAssetsRecommendedCommand(wallet.walletName),
         discoverOwnedTokens: buildOwnedTokensRecommendedCommand(wallet.walletName),
         ...(paymasterMode === 'approval-based'
@@ -581,6 +585,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           ...(mergedRecommendedCommands.reapproveRemote
             ? [['remote fallback', mergedRecommendedCommands.reapproveRemote] as [string, string]]
             : []),
+          ['suite', mergedRecommendedCommands.suite],
           ['discover assets', mergedRecommendedCommands.discoverAssets],
           ['discover owned tokens', mergedRecommendedCommands.discoverOwnedTokens],
           ...(mergedRecommendedCommands.discoverPaymasterTokens
