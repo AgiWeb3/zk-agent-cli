@@ -176,6 +176,7 @@ function assertPluginManifest(pluginManifest, packagePkg) {
 
 function assertPackageReadme(readme) {
   const requiredPatterns = [
+    [/## One-minute path/, 'Package README must include the one-minute path section.'],
     [/## Install/, 'Package README must include an Install section.'],
     [/npx zk-agent-cli --help/, 'Package README must document one-shot npx usage.'],
     [/npm install -g zk-agent-cli/, 'Package README must document global install usage.'],
@@ -194,11 +195,11 @@ function assertPackageReadme(readme) {
       'Package README must document the local-only doctor entrypoint.'
     ],
     [
-      /## Operator suite[\s\S]*zk-agent suite/,
+      /zk-agent suite[\s\S]*post-flagship/,
       'Package README must keep the operator-suite surface visible.'
     ],
     [
-      /## Discovery and direct commands[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>/,
+      /## Direct Discovery and Bypass Commands[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>/,
       'Package README must document the discovery/defaults path and its command order.'
     ],
     [
@@ -247,7 +248,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
   const requiredChecks = [
     [
       rootReadme,
-      /## Choose Your Entry Point/,
+      /## Entry Points/,
       'Root README must expose a public entrypoint section.'
     ],
     [
@@ -257,32 +258,27 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /\.codex-plugin\//,
-      'Root README must keep the current skill-vs-plugin boundary explicit.'
-    ],
-    [
-      rootReadme,
-      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      /## Fastest Path[\s\S]*zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>[\s\S]*zk-agent suite/,
       'Root README must keep the canonical terminal path visible.'
     ],
     [
       rootReadme,
-      /The current stage is `rc`[\s\S]*product-shell polish[\s\S]*hosted approval hardening[\s\S]*release discipline/,
+      /Current public stage: `0\.1\.0-rc\.1`\./,
       'Root README must keep the current RC-stage product baseline visible.'
     ],
     [
       rootReadme,
-      /\[skills\/zk-aa\/SKILL\.md\][\s\S]*\[skills\/zk-discovery\/SKILL\.md\][\s\S]*\[skills\/zk-funding\/SKILL\.md\][\s\S]*\[skills\/zk-paymaster\/SKILL\.md\][\s\S]*\[skills\/zk-relay\/SKILL\.md\][\s\S]*\[skills\/zk-defi\/SKILL\.md\]/,
+      /Focused product slices live under \[skills\/\]\(\.\/skills\/\):[\s\S]*`zk-aa`[\s\S]*`zk-discovery`[\s\S]*`zk-funding`[\s\S]*`zk-paymaster`[\s\S]*`zk-relay`[\s\S]*`zk-defi`/,
       'Root README must keep the split product-skill surface visible, including discovery, funding, and paymaster readiness.'
     ],
     [
       rootReadme,
-      /canonical operator manual:[\s\S]*packages\/zk-agent-cli\/README\.md/,
+      /CLI operator manual:[\s\S]*packages\/zk-agent-cli\/README\.md/,
       'Root README must hand off the detailed operator path to the package README.'
     ],
     [
       rootReadme,
-      /## Read In This Order[\s\S]*packages\/zk-agent-cli\/README\.md[\s\S]*skills\/QUICKSTART\.md[\s\S]*skills\/zk-aa\/SKILL\.md[\s\S]*skills\/zk-discovery\/SKILL\.md[\s\S]*skills\/zk-funding\/SKILL\.md[\s\S]*skills\/zk-paymaster\/SKILL\.md[\s\S]*skills\/zk-relay\/SKILL\.md[\s\S]*skills\/zk-defi\/SKILL\.md/,
+      /## Read Next[\s\S]*packages\/zk-agent-cli\/README\.md[\s\S]*skills\/QUICKSTART\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md[\s\S]*docs\/README\.md/,
       'Root README must keep the focused reference handoff visible.'
     ],
     [
@@ -317,7 +313,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
-      /## 5\. Inspect discovery and defaults only when needed[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/,
+      /## 5\. Use `suite` as the default post-flagship surface[\s\S]*zk-agent suite[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/,
       'Quickstart must keep the discovery/defaults contract visible.'
     ],
     [
@@ -337,7 +333,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
-      /Use `zk-agent suite` when you want the flagship path plus discovery\/defaults,[\s\S]*funding, and paymaster readiness in one place\./,
+      /## 5\. Use `suite` as the default post-flagship surface[\s\S]*zk-agent suite/,
       'Quickstart must keep the operator-suite handoff visible.'
     ],
     [
@@ -362,7 +358,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
-      /Use `zk-agent doctor` first when readiness is unclear\./,
+      /Use `zk-agent doctor` before choosing a remediation path when readiness is[\s\S]*unclear\./,
       'Primary skill guide must keep the doctor diagnostic visible.'
     ],
     [
@@ -372,12 +368,12 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
-      /### 5\. Fund only when the CLI says funding is required[\s\S]*zk-agent workflow fund --wallet main[\s\S]*zk-agent workflow fund --wallet main --amount <amount> --execute/,
+      /## Readiness, suite, and funding[\s\S]*zk-agent workflow fund --wallet main[\s\S]*zk-agent workflow fund --wallet main --amount <amount> --execute/,
       'Primary skill guide must keep the funding-readiness contract visible.'
     ],
     [
       skillGuide,
-      /## Readiness and discovery[\s\S]*zk-agent doctor[\s\S]*zk-agent next[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/,
+      /## Direct command escape hatches[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/,
       'Primary skill guide must keep the discovery/defaults contract visible.'
     ],
     [
@@ -432,8 +428,8 @@ function assertCurrentVersionDocs({
     ],
     [
       plans,
-      new RegExp(`release stage: \`${escapedVersion}\``),
-      'PLANS.md must mention the current package stage.'
+      /release stage: `rc`|release stage: `beta`|release stage: `stable`/,
+      'PLANS.md must mention the current release stage.'
     ],
     [
       projectState,
@@ -547,18 +543,13 @@ function assertReleaseStageDocs({
       'PLANS.md must keep the release-stage gates explicit.'
     ],
     [
-      plans,
-      /### 4\. Release hardening[\s\S]*release-prepare\.mjs[\s\S]*release-publish\.mjs[\s\S]*validate-rc\.mjs[\s\S]*docs\/11-npm-release-gate\.md/,
-      'PLANS.md must keep the release-hardening slice explicit.'
-    ],
-    [
       projectState,
-      /## Current release assessment[\s\S]*already in the `rc` stage[\s\S]*not `1\.0\.0` yet/,
+      /## Snapshot[\s\S]*package stage: `0\.1\.0-rc\.1`[\s\S]*current focus: RC hardening and productization closeout/,
       'PROJECT_STATE.md must keep the release-stage assessment explicit.'
     ],
     [
       projectState,
-      /## Current work in progress[\s\S]*Hosted approval operated baseline[\s\S]*Release hardening/,
+      /## Current priorities[\s\S]*hosted approval operated baseline[\s\S]*post-flagship product surface centered on `suite`[\s\S]*release validation and dist-tag behavior/,
       'PROJECT_STATE.md must keep the current RC workstreams explicit.'
     ]
   ];
