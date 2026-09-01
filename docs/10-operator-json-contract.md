@@ -1584,6 +1584,12 @@ Current stable `recommendedCommands` shape on this surface:
 - `funding`
 - `inspectDefaults`
 
+When `zk-agent suite` is invoked with non-default `--wallet` or `--chain`
+options, the stable contract preserves that context across `summary`,
+`flagship`, `slices`, and `recommendedCommands`. In particular,
+`recommendedCommands.suite` becomes the context-preserving rerun command for
+the same packaged surface.
+
 ## `zk-agent defaults`
 
 `zk-agent defaults` is the machine-readable defaults and discovery catalog for

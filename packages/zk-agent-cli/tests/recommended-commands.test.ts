@@ -6,6 +6,7 @@ import {
   buildDefaultsRecommendedCommand,
   buildOwnedTokensRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildSuiteRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
@@ -34,6 +35,14 @@ import {
 
 test('recommended defaults command uses the registry readout', () => {
   assert.equal(buildDefaultsRecommendedCommand(), 'zk-agent defaults');
+});
+
+test('recommended suite command preserves non-default wallet and chain context', () => {
+  assert.equal(buildSuiteRecommendedCommand(), 'zk-agent suite');
+  assert.equal(
+    buildSuiteRecommendedCommand('ops-wallet', 'zksync-era'),
+    'zk-agent suite --wallet ops-wallet --chain zksync-era'
+  );
 });
 
 test('recommended wallet create command uses await-local flow', () => {

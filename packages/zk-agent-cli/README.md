@@ -165,6 +165,10 @@ when you want the flagship path plus the current post-flagship surfaces in one
 place. This is the intended follow-up surface once `next` or `wallet next`
 shows the wallet is already ready.
 
+Use `--wallet <name>` or `--chain <chain>` when the packaged suite contract
+should stay on a non-default wallet or chain. The returned commands preserve
+that context.
+
 Current suite shape:
 
 - flagship pay:

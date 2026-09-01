@@ -98,6 +98,11 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
     assert.equal(result.flagship.skillPath, 'skills/zk-aa/SKILL.md');
+    assert.deepEqual(result.flagship.supportingCommands, [
+      'zk-agent next',
+      'zk-agent wallet status --name main',
+      'zk-agent defaults'
+    ]);
     assert.equal(result.slices.length, 3);
     assert.deepEqual(
       result.slices.map((entry) => entry.id),
@@ -138,6 +143,55 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
   }
 });
 
+test('suite command preserves wallet and chain context across the packaged contract', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-suite-context-cli-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const result = await runCliJson(['suite', '--wallet', 'ops-wallet', '--chain', 'zksync-era'], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.summary.walletName, 'ops-wallet');
+    assert.equal(result.summary.chain, 'zksync-era');
+    assert.equal(
+      result.summary.nextAction,
+      'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>'
+    );
+    assert.deepEqual(result.flagship.supportingCommands, [
+      'zk-agent next',
+      'zk-agent wallet status --name ops-wallet',
+      'zk-agent defaults'
+    ]);
+    assert.equal(result.slices[0].primaryCommand, 'zk-agent assets --wallet ops-wallet');
+    assert.deepEqual(result.slices[0].supportingCommands, [
+      'zk-agent defaults',
+      'zk-agent tokens --chain zksync-era',
+      'zk-agent resolve-token --chain zksync-era --symbol USDC'
+    ]);
+    assert.equal(
+      result.slices[1].primaryCommand,
+      'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount> --paymaster-mode approval-based'
+    );
+    assert.deepEqual(result.slices[1].supportingCommands, [
+      'zk-agent defaults',
+      'zk-agent tokens --chain zksync-era --role paymaster-fee-token',
+      'zk-agent resolve-token --chain zksync-era --symbol <symbol> --role paymaster-fee-token'
+    ]);
+    assert.equal(result.slices[2].primaryCommand, 'zk-agent workflow fund --wallet ops-wallet');
+    assert.deepEqual(result.recommendedCommands, {
+      suite: 'zk-agent suite --wallet ops-wallet --chain zksync-era',
+      flagship: 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+      discovery: 'zk-agent assets --wallet ops-wallet',
+      paymaster:
+        'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount> --paymaster-mode approval-based',
+      funding: 'zk-agent workflow fund --wallet ops-wallet',
+      inspectDefaults: 'zk-agent defaults'
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('suite help exposes the operator suite entrypoint', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-suite-help-cli-'));
 
@@ -154,6 +208,7 @@ test('suite help exposes the operator suite entrypoint', async () => {
       help,
       /zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based/
     );
+    assert.match(help, /Pass `--wallet` or `--chain` to retarget the entire suite contract\./);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

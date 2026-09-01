@@ -18,6 +18,8 @@ export function createSuiteCommand(): Command {
         '    zk-agent workflow fund --wallet main',
         '    zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
         '',
+        '  Pass `--wallet` or `--chain` to retarget the entire suite contract.',
+        '',
         '  Use `suite` when you want the flagship path plus the current',
         '  post-flagship discovery/defaults, funding, and paymaster surfaces in one place.'
       ].join('\n')

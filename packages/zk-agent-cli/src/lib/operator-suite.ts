@@ -5,6 +5,8 @@ import {
   buildPaymasterFeeTokenResolveRecommendedCommand,
   buildPaymasterFeeTokensRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildSuiteRecommendedCommand,
+  buildWalletStatusRecommendedCommand,
   buildWorkflowFundRecommendedCommand,
   buildWorkflowFundRunRecommendedCommand,
   buildWorkflowPayRecommendedCommand,
@@ -72,11 +74,7 @@ export function buildOperatorSuitePayload(
     title: 'Flagship Pay',
     goal: 'Run the default zkSync-native native-send path through the workflow layer.',
     primaryCommand: flagshipCommand,
-    supportingCommands: [
-      'zk-agent next',
-      'zk-agent wallet status --name main',
-      inspectDefaults
-    ],
+    supportingCommands: ['zk-agent next', buildWalletStatusRecommendedCommand(walletName), inspectDefaults],
     skillPath: 'skills/zk-aa/SKILL.md'
   };
 
@@ -135,7 +133,7 @@ export function buildOperatorSuitePayload(
     flagship,
     slices,
     recommendedCommands: {
-      suite: 'zk-agent suite',
+      suite: buildSuiteRecommendedCommand(walletName, chain),
       flagship: flagshipCommand,
       discovery: discoveryCommand,
       paymaster: paymasterCommand,
