@@ -51,6 +51,7 @@ zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent suite
 ```
 
 Interpretation:
@@ -59,6 +60,8 @@ Interpretation:
 - `next` gives the shortest valid follow-up step
 - `wallet create --await-local` is the preferred local approval path
 - `workflow pay` is the flagship zkSync-native AA native-send path
+- `suite` is the packaged post-flagship entrypoint for discovery, defaults,
+  funding, and paymaster readiness
 
 If readiness is unclear before you choose a fix, use:
 
@@ -115,9 +118,19 @@ zk-agent relay serve --public-origin https://relay.example.com
 Keep the local `--await-local` path as the default whenever the browser and
 terminal can be colocated.
 
-## 5. Inspect discovery and defaults only when needed
+## 5. Use `suite` as the default post-flagship surface
 
-Preferred order:
+When the wallet is already ready and you want the packaged post-flagship
+surface in one place:
+
+```bash
+zk-agent suite
+```
+
+Use `--wallet <name>` or `--chain <chain>` when the returned commands should
+stay on a non-default wallet or chain.
+
+If you want the narrower discovery/defaults commands directly, prefer:
 
 ```bash
 zk-agent assets --wallet main
@@ -125,9 +138,6 @@ zk-agent defaults
 zk-agent resolve-token --chain zksync-sepolia --symbol USDC
 zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
 ```
-
-Use `zk-agent suite` when you want the flagship path plus discovery/defaults,
-funding, and paymaster readiness in one place.
 
 ## 6. Fund only when the CLI tells you to
 

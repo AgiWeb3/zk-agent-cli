@@ -5,6 +5,34 @@ zkSync Era and zkSync Sepolia.
 
 This file is the canonical operator manual for CLI users.
 
+## One-minute path
+
+Use this path unless the task explicitly needs a lower-level command:
+
+```bash
+zk-agent setup
+zk-agent next
+zk-agent wallet create --await-local
+zk-agent next
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent suite
+```
+
+Interpretation:
+
+- `setup` writes local defaults
+- `next` gives the shortest valid follow-up step
+- `wallet create --await-local` is the preferred local approval path
+- `workflow pay` is the flagship zkSync-native AA native-send path
+- `suite` is the packaged post-flagship entrypoint for discovery, defaults,
+  funding, and paymaster readiness
+
+If readiness is unclear before you choose a fix, use:
+
+```bash
+zk-agent doctor
+```
+
 ## Install
 
 One-shot execution:
@@ -44,34 +72,6 @@ ZKSYNC_SEPOLIA_RPC_URL=
 ETHEREUM_SEPOLIA_RPC_URL=
 ZK_AGENT_TOKEN_DIRECTORY_ROOT=
 ZK_AGENT_STORAGE_DIR=
-```
-
-## Fastest verified path
-
-Use this path unless the task explicitly needs a lower-level command:
-
-```bash
-zk-agent setup
-zk-agent next
-zk-agent wallet create --await-local
-zk-agent next
-zk-agent workflow pay --wallet main --to <address> --amount <amount>
-zk-agent suite
-```
-
-Interpretation:
-
-- `setup` writes local defaults
-- `next` gives the shortest valid follow-up step
-- `wallet create --await-local` is the preferred local approval path
-- `workflow pay` is the flagship zkSync-native AA native-send path
-- `suite` is the packaged post-flagship entrypoint for discovery, defaults,
-  funding, and paymaster readiness
-
-If readiness is unclear before you choose a fix, use:
-
-```bash
-zk-agent doctor
 ```
 
 ## Existing wallet recovery
