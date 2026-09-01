@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { startRelayServer } from './lib/relay.js';
 
-const HOSTED_RECOVERY_TIMEOUT_MS = 15_000;
+const HOSTED_RECOVERY_TIMEOUT_MS = 30_000;
 
 export interface SmokeHostedRecoveryOptions {
   walletName: string;

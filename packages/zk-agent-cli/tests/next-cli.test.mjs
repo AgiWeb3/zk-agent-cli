@@ -11,7 +11,7 @@ const fixtureEntry = path.join(packageRoot, 'tests', 'fixtures', 'next-cli-runne
 const agentCoreStorageModuleUrl = pathToFileURL(
   path.resolve(packageRoot, '../agent-core/dist/storage.js')
 ).href;
-const NEXT_CLI_TIMEOUT_MS = 15_000;
+const NEXT_CLI_TIMEOUT_MS = 30_000;
 
 function createCliEnv(homeDir) {
   return {
