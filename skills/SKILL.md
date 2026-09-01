@@ -1,19 +1,21 @@
 ---
 name: zk-agent-cli
-description: Agent-facing operating guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or operator initialize local config, create or reapprove a wallet session, inspect readiness, fund the wallet, run workflow-based send/swap/bridge/deposit/withdraw actions, inspect balances, or work with the built-in sed-lite smart-account profile. The current preferred operating path is setup -> next -> wallet create/reapprove -> next -> workflow pay for the flagship native-send path, with workflow auto kept for broader multi-intent flows.
+description: Agent-facing routing guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or harness choose the default path across setup, wallet create/reapprove, workflow pay, suite, relay-backed approval, funding follow-up, or direct zkSync command escape hatches. The preferred product path is setup -> next -> wallet create/reapprove -> next -> workflow pay -> suite, with workflow auto kept for broader multi-intent flows.
 ---
 
 # zk-agent-cli Skill
 
 ## Scope
 
-Use this skill for the stable operator path:
+Use this skill as the agent/harness routing contract for the stable product
+path:
 
 - local wallet bootstrap
 - wallet recovery and reapproval
 - readiness inspection
+- flagship workflow execution
+- post-flagship `suite` routing
 - funding follow-up
-- workflow-based execution
 - balances and asset inspection
 - built-in `sed-lite` smart-account usage
 
@@ -22,6 +24,14 @@ Current posture:
 - `sed-lite` is the default AA/operator baseline
 - `daily-spend-limit` remains available only for narrower policy testing
 - do not assume Polygon-style identity, Polymarket, or x402 surfaces exist
+
+Role boundary:
+
+- use [../packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
+  as the canonical CLI operator manual for human users
+- use [QUICKSTART.md](./QUICKSTART.md) for the shortest verified happy path
+- keep this skill focused on default routing, escalation rules, and which
+  narrower skill to open next
 
 ## Sub-skills
 
@@ -62,6 +72,9 @@ pnpm zk-agent <command>
 npx skills add https://github.com/AgiWeb3/zk-agent-cli
 ```
 
+This skill assumes the current packaged command name is `zk-agent`. Use the
+package README when a human needs the full install surface or alias details.
+
 ## Defaults
 
 - Node.js `>=24`
@@ -87,53 +100,49 @@ Most relevant paths:
 ~/.zk-agent/workflows/
 ```
 
-## Canonical operator path
+## Default routing contract
 
-Use this path unless the task explicitly needs a lower-level command:
-
-### 1. Initialize local defaults
+Stay on this path unless the task explicitly needs a narrower surface:
 
 ```bash
 zk-agent setup
-```
-
-### 2. Ask for the shortest valid next step
-
-```bash
 zk-agent next
-```
-
-Use `zk-agent doctor` first when readiness is unclear.
-
-If you want the local operator identity to be explicit:
-
-```bash
-zk-agent agent set --name "<operator-name>" --wallet main
-```
-
-### 3. Create or refresh a writable wallet session
-
-Preferred local path:
-
-```bash
 zk-agent wallet create --await-local
+zk-agent next
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent suite
 ```
 
-If approval is missing or expired on an existing wallet:
+Interpret the steps like this:
+
+- `setup`
+  write local defaults once
+- `next`
+  ask the product for the shortest valid follow-up instead of guessing
+- `wallet create --await-local`
+  preferred local approval path when browser and terminal are colocated
+- `workflow pay`
+  default flagship zkSync-native AA native-send path
+- `suite`
+  default packaged post-flagship surface for discovery/defaults, funding, and
+  paymaster readiness
+
+Use `zk-agent doctor` before choosing a remediation path when readiness is
+unclear.
+
+## When to leave the default path
+
+Use wallet-specific commands only when the blocker is clearly wallet-local:
 
 ```bash
+zk-agent wallet status --name main
+zk-agent wallet next --name main
 zk-agent wallet reapprove --name main --await-local
-zk-agent next
-```
-
-If approval is still present but the local execution signer is missing:
-
-```bash
 zk-agent wallet signer attach --name main --private-key <hex>
-zk-agent next
 ```
 
-When the operator wants tighter permissions, set them at request time:
+Use session-policy flags only when the goal is to replace the stored session
+permissions instead of preserving them:
 
 ```bash
 zk-agent wallet create --await-local --session-preset transfer-only
@@ -142,47 +151,8 @@ zk-agent wallet reapprove --name main --session-preset full-access
 zk-agent wallet reapprove --name main --disallow-contract-calls
 ```
 
-`wallet reapprove` preserves the current stored session permissions by default.
-Only pass session-policy flags when the goal is to replace them.
-
-### 4. Ask for the shortest next step again
-
-```bash
-zk-agent next
-```
-
-Wallet-specific follow-up:
-
-```bash
-zk-agent wallet next --name main
-zk-agent wallet status --name main
-```
-
-### 5. Fund only when the CLI says funding is required
-
-```bash
-zk-agent workflow fund --wallet main
-zk-agent workflow fund --wallet main --amount <amount> --execute
-```
-
-Do not guess the route. Use the exact funding command suggested by the CLI.
-
-### 6. Execute through the flagship path
-
-Preview:
-
-```bash
-zk-agent workflow pay --wallet main --to <address> --amount <amount>
-```
-
-Broadcast:
-
-```bash
-zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
-```
-
-Use `workflow pay` as the default zkSync-native AA native-send path. Keep
-`workflow auto` for broader guided intent execution.
+Keep `workflow auto` for broader multi-intent guided execution. Do not replace
+the flagship native-send path with it by default.
 
 ## Remote approval path
 
@@ -220,36 +190,49 @@ zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted
 Use `relay inspect` before sharing a hosted URL. It exposes readiness, URL
 shape, persistence mode, and the exact create/reapprove follow-up path.
 
-## Readiness and discovery
+## Readiness, suite, and funding
 
-Use these surfaces in this order:
+Preferred routing after setup:
 
 ```bash
 zk-agent doctor
 zk-agent next
-zk-agent assets --wallet main
-zk-agent defaults
-zk-agent resolve-token --chain zksync-sepolia --symbol USDC
-zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
+zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent suite
 ```
 
-Use:
+Use `suite` instead of assembling post-flagship discovery/funding/paymaster
+commands manually:
 
 ```bash
 zk-agent suite
 ```
 
-when you want the flagship pay path plus discovery/defaults, funding, and
-paymaster readiness in one CLI summary.
+Only fund when the CLI says funding is required:
+
+```bash
+zk-agent workflow fund --wallet main
+zk-agent workflow fund --wallet main --amount <amount> --execute
+```
+
+Do not guess the route. Use the exact funding command suggested by `next`,
+`doctor`, `wallet status`, a blocked workflow, or `suite`.
+
+Keep `sed-lite` as the default AA baseline. Use `daily-spend-limit` only when
+you intentionally need that narrower policy profile.
 
 ## Direct command escape hatches
 
 Use the workflow layer first. Drop to direct commands only when the task
-explicitly needs it.
+explicitly needs a narrower direct path than `suite` or `workflow pay`.
 
 Examples:
 
 ```bash
+zk-agent assets --wallet main
+zk-agent defaults
+zk-agent resolve-token --chain zksync-sepolia --symbol USDC
+zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
 zk-agent send-token --wallet main --symbol USDC --to <address> --amount <amount>
 zk-agent swap --wallet main --token-in-symbol USDC --token-out-symbol ETH --amount-in <amount>
 zk-agent deposit --wallet main --symbol USDC --amount <amount>
@@ -273,6 +256,8 @@ zk-agent suite --help
 ## Use the right deeper guide
 
 - shortest verified path: [QUICKSTART.md](./QUICKSTART.md)
+- canonical CLI operator manual:
+  [../packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
 - flagship AA path: [zk-aa/SKILL.md](./zk-aa/SKILL.md)
 - discovery/defaults: [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
 - funding readiness: [zk-funding/SKILL.md](./zk-funding/SKILL.md)
