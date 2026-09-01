@@ -1,6 +1,6 @@
 ---
 name: zk-aa
-description: Account-abstraction and flagship operator-path guide for zk-agent-cli on zkSync. Covers relay-backed wallet approval or reapproval, the current flagship AA smoke path, paymaster-aware workflow execution, built-in smart-account profiles, and the SED-centric management surface. Use this skill when the task is specifically about smart-account readiness or the AA product path rather than broad DeFi coverage.
+description: AA-specific decision guide for zk-agent-cli on zkSync. Covers smart-account readiness, flagship `workflow pay`, relay-backed AA reapproval, sponsored-vs-default paymaster variants, built-in smart-account profiles, and the bounded AA smoke surface. Use this skill only when the task is clearly about AA readiness or the flagship AA path rather than broader operator routing, relay operations, or DeFi coverage.
 ---
 
 # zk-agent-cli AA Skill
@@ -18,6 +18,13 @@ Use this skill when the task is specifically about:
 If the task is mainly about relay health, use [../zk-relay/SKILL.md](../zk-relay/SKILL.md).
 If the task is broader than AA, use [../SKILL.md](../SKILL.md).
 
+Role boundary:
+
+- the core [../SKILL.md](../SKILL.md) chooses the default product route
+- this skill takes over only once the task is clearly on AA readiness,
+  flagship execution, or smart-account profile handling
+- the package README remains the human-facing CLI manual
+
 ## Current AA boundary
 
 - `sed-lite` is the default AA/operator baseline
@@ -27,13 +34,15 @@ If the task is broader than AA, use [../SKILL.md](../SKILL.md).
 
 Do not assume multisig, passkey, or broad AA-module support.
 
-## Preferred AA path
+## AA-specific routing
 
-Local-first path:
+Do not restart from setup here unless the environment is still uninitialized.
+Enter this skill once the task is already on wallet readiness, wallet
+recovery, or flagship execution.
+
+Local AA path:
 
 ```bash
-zk-agent setup
-zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
@@ -55,6 +64,10 @@ it locally instead of forcing a new approval round-trip:
 zk-agent wallet signer attach --name main --private-key <hex>
 zk-agent next
 ```
+
+If the task becomes broader than the flagship AA write path, hand back to
+`zk-agent suite` or the core skill instead of expanding this skill into general
+discovery/funding routing.
 
 ## Flagship execution
 

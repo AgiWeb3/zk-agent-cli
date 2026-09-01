@@ -1,6 +1,6 @@
 ---
 name: zk-funding
-description: Funding readiness guide for zk-agent-cli on zkSync. Covers route-aware funding guidance, the workflow-first `workflow fund` surface, Sepolia deposit-vs-bridge expectations, mainnet portal fallback guidance, funding-progress follow-up on workflow checkpoints, and the bounded `smoke:funding-readiness` validation smoke. Use this skill when the task is specifically about gas funding, L1->L2 top-up guidance, or workflow funding fallback rather than AA paymaster coverage or broader DeFi actions.
+description: Funding-specific decision guide for zk-agent-cli on zkSync. Covers route-aware funding guidance, the workflow-first `workflow fund` surface, Sepolia deposit-vs-bridge expectations, stored-workflow funding follow-up, and the bounded `smoke:funding-readiness` validation smoke. Use this skill only when the task is specifically about gas funding, L1->L2 top-up guidance, or workflow funding fallback rather than default product routing, AA paymaster coverage, or broader DeFi actions.
 ---
 
 # zk-agent-cli Funding Skill
@@ -16,7 +16,18 @@ Use this skill when the task is specifically about:
 
 If the task is broader than funding readiness, use [../SKILL.md](../SKILL.md).
 
+Role boundary:
+
+- the core [../SKILL.md](../SKILL.md) decides whether funding is actually the
+  current blocker
+- this skill takes over only after `next`, `doctor`, `wallet status`, or a
+  stored workflow says funding is required
+- if the task is mainly about approval-based fee-token coverage rather than gas
+  funding, hand off to [../zk-paymaster/SKILL.md](../zk-paymaster/SKILL.md)
+
 ## Preferred funding path
+
+Enter this skill only when funding is already confirmed as the active blocker:
 
 ```bash
 zk-agent next

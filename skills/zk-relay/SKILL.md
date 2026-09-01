@@ -1,6 +1,6 @@
 ---
 name: zk-relay
-description: Hosted relay and remote-approval guide for zk-agent-cli on zkSync. Covers relay inspect/serve, hosted share-link readiness, synthetic hosted validation smoke, relay-backed wallet create/reapprove flows, and manual relay fallback commands. Use this skill when the task is specifically about relay health, hosted approval entrypoints, or remote approval recovery rather than broader AA execution or DeFi actions.
+description: Relay-specific decision guide for zk-agent-cli on zkSync. Covers relay inspect/serve, hosted share-link readiness, relay-backed wallet create/reapprove, expiry recovery, operated-baseline smokes, and manual approval fallback commands. Use this skill only when the task is specifically about relay health, hosted approval entrypoints, or remote approval recovery rather than broader operator routing, AA execution, or DeFi actions.
 ---
 
 # zk-agent-cli Relay Skill
@@ -16,6 +16,14 @@ Use this skill when the task is specifically about:
 - expired-request recovery or manual approval fallback
 
 If the task is broader than relay/approval, use [../SKILL.md](../SKILL.md).
+
+Role boundary:
+
+- the core [../SKILL.md](../SKILL.md) owns the default product path
+- this skill takes over only when a relay URL, hosted share link, expiry
+  recovery, or relay serve/inspect decision is the actual blocker
+- if the task becomes mainly about flagship AA execution, hand off to
+  [../zk-aa/SKILL.md](../zk-aa/SKILL.md)
 
 ## Supported boundary
 
@@ -40,7 +48,10 @@ zk-agent relay inspect --relay-url <url>
 Treat the relay as ready only when the output shows the expected compatibility,
 public origin, hosted readiness, and single-host persistence contract.
 
-## Preferred remote-approval path
+## Relay-backed approval path
+
+Do not reopen the whole onboarding story here. Use this skill once the need for
+remote approval is already known.
 
 Fresh wallet:
 
