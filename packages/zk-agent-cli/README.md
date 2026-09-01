@@ -97,12 +97,6 @@ zk-agent wallet status --name main
 zk-agent wallet next --name main
 ```
 
-If the wallet is already ready and you want the packaged post-flagship entrypoint:
-
-```bash
-zk-agent suite
-```
-
 ## Remote approval
 
 Use the relay-backed path only when the browser is not colocated with the
@@ -134,16 +128,9 @@ path.
 For the supported hosted operating contract, use
 [`docs/16-hosted-approval-operated-baseline.md`](../../docs/16-hosted-approval-operated-baseline.md).
 
-## Funding and execution
+## After Wallet Ready
 
-Only fund when the CLI tells you funding is required:
-
-```bash
-zk-agent workflow fund --wallet main
-zk-agent workflow fund --wallet main --amount <amount> --execute
-```
-
-Flagship pay path:
+Use `workflow pay` as the default flagship write path:
 
 ```bash
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
@@ -153,17 +140,16 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount> --broadcast
 Keep `sed-lite` as the default AA baseline. Use `daily-spend-limit` only when
 you intentionally need that narrower policy profile.
 
-## Operator suite
-
-Use:
+Use `suite` as the default packaged post-flagship surface:
 
 ```bash
 zk-agent suite
 ```
 
-when you want the flagship path plus the current post-flagship surfaces in one
-place. This is the intended follow-up surface once `next` or `wallet next`
-shows the wallet is already ready.
+Use it when you want the flagship path plus the current post-flagship surfaces
+in one place. This is the intended follow-up surface once `next`,
+`wallet next`, or the flagship pay path has already brought the wallet into a
+ready state.
 
 Use `--wallet <name>` or `--chain <chain>` when the packaged suite contract
 should stay on a non-default wallet or chain. The returned commands preserve
@@ -183,7 +169,21 @@ Current suite shape:
   `zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based`
   `zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token`
 
-## Discovery and direct commands
+Only fund when the CLI tells you funding is required:
+
+```bash
+zk-agent workflow fund --wallet main
+zk-agent workflow fund --wallet main --amount <amount> --execute
+```
+
+Do not guess the route. Use the exact funding command suggested by `next`,
+`doctor`, `wallet status`, a blocked workflow, or `suite`.
+
+## Direct Discovery and Bypass Commands
+
+Prefer `suite` first when you want the packaged discovery/defaults/funding/
+paymaster surface. Use the commands below only when you intentionally want a
+narrower direct path.
 
 Preferred discovery order:
 
