@@ -1,12 +1,12 @@
 # zk-agent-cli
 
-`zk-agent-cli` is a local-first zkSync-native operator toolkit.
+`zk-agent-cli` is a local-first zkSync-native operator toolkit for wallet
+approval, workflow execution, hosted relay recovery, and post-flagship
+discovery/funding/paymaster guidance.
 
-It ships three public surfaces:
+Current public stage: `0.1.0-rc.1`.
 
-- a packaged terminal CLI: `zk-agent-cli` / `zk-agent`
-- a repo skill bundle for compatible agent harnesses
-- a native plugin source under `.codex-plugin/`
+## Fastest Path
 
 The current flagship path is a `sed-lite` smart-account workflow on zkSync
 Sepolia:
@@ -24,76 +24,46 @@ After the flagship path is live, use `zk-agent suite` as the packaged
 post-flagship entrypoint for discovery, defaults, funding, and paymaster
 readiness.
 
-## Choose Your Entry Point
+## Entry Points
 
-Use the packaged CLI for direct terminal/operator work:
+- packaged CLI:
 
 ```bash
 npx zk-agent-cli --help
-```
-
-or:
-
-```bash
 npm install -g zk-agent-cli
 zk-agent --help
 ```
 
-Use the repo skill bundle when a compatible harness consumes this repository as
-an installable skill set:
+- repo skill bundle for compatible harnesses:
 
 ```bash
 npx skills add https://github.com/AgiWeb3/zk-agent-cli
 ```
 
-Use a source checkout when you are developing or validating the repository
-itself:
+- source checkout for development or validation:
 
 ```bash
 pnpm install
 pnpm zk-agent --help
 ```
 
-## Current Product Baseline
+## Read Next
 
-- local-first wallet/session lifecycle is implemented
-- `setup`, `next`, and `doctor` provide the canonical onboarding path
-- hosted relay approval exists for remote-browser approval and reapproval
-- `workflow pay` is the flagship zkSync-native AA path
-- `suite` packages discovery, defaults, funding, and paymaster readiness after
-  the flagship pay flow
-
-The current stage is `rc`: the chain path is real, and the remaining work is
-product-shell polish, hosted approval hardening, and release discipline.
-
-## Read In This Order
-
-If you want to use the CLI:
-
-- canonical operator manual:
+- CLI operator manual:
   [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
-- shortest verified happy path:
+- shortest harness/operator quickstart:
   [skills/QUICKSTART.md](./skills/QUICKSTART.md)
-
-If you need a focused surface:
-
-- flagship AA/operator path:
-  [skills/zk-aa/SKILL.md](./skills/zk-aa/SKILL.md)
-- discovery/defaults:
-  [skills/zk-discovery/SKILL.md](./skills/zk-discovery/SKILL.md)
-- funding readiness:
-  [skills/zk-funding/SKILL.md](./skills/zk-funding/SKILL.md)
-- paymaster readiness:
-  [skills/zk-paymaster/SKILL.md](./skills/zk-paymaster/SKILL.md)
-- hosted relay / remote approval:
-  [skills/zk-relay/SKILL.md](./skills/zk-relay/SKILL.md)
-- broader DeFi paths:
-  [skills/zk-defi/SKILL.md](./skills/zk-defi/SKILL.md)
-
-If you are working on the repo itself:
-
-- docs index:
+- hosted remote approval contract:
+  [docs/16-hosted-approval-operated-baseline.md](./docs/16-hosted-approval-operated-baseline.md)
+- repo reference docs:
   [docs/README.md](./docs/README.md)
+
+Focused product slices live under [skills/](./skills/):
+`zk-aa`, `zk-discovery`, `zk-funding`, `zk-paymaster`, `zk-relay`, and
+`zk-defi`.
+
+If you are working on the repo itself, start with:
+
 - current plan:
   [PLANS.md](./PLANS.md)
 - current project snapshot:
@@ -117,7 +87,7 @@ For the current hosted relay operating contract, use
 
 ## Development
 
-Default repo checks:
+Default repo validation:
 
 ```bash
 pnpm typecheck
