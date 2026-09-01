@@ -17,7 +17,12 @@ zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent suite
 ```
+
+After the flagship path is live, use `zk-agent suite` as the packaged
+post-flagship entrypoint for discovery, defaults, funding, and paymaster
+readiness.
 
 ## Choose Your Entry Point
 

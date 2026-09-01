@@ -278,6 +278,11 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     );
     assert.match(help, /zk-agent wallet next --name main/);
     assert.match(help, /zk-agent wallet status --name main/);
+    assert.match(
+      help,
+      /When the wallet is already ready and you want the packaged post-flagship surface:/
+    );
+    assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -338,6 +343,11 @@ test('wallet help prints the default wallet path', async () => {
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(help, /zk-agent wallet next --name main/);
+    assert.match(
+      help,
+      /When wallet readiness is no longer the blocker and you want the packaged post-flagship surface:/
+    );
+    assert.match(help, /zk-agent suite/);
     assert.match(help, /Hosted remote approval path:/);
     assert.match(help, /Use this only when the browser is not colocated with the terminal/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);

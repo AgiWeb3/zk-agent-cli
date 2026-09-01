@@ -722,6 +722,7 @@ Key fields:
   "recommendedCommands": {
     "walletNext": "zk-agent wallet next --name main",
     "walletStatus": "zk-agent wallet status --name main",
+    "suite": "zk-agent suite",
     "discoverAssets": "zk-agent assets --wallet main",
     "discoverOwnedTokens": "zk-agent tokens --wallet main --owned",
     "discoverTokens": "zk-agent tokens --chain zksync-sepolia",
@@ -734,6 +735,10 @@ Key fields:
   }
 }
 ```
+
+`recommendedCommands.suite` is the stable post-flagship entrypoint from the
+same wallet-ready state when the operator wants discovery/defaults, funding,
+and paymaster guidance in one packaged surface.
 
 When the wallet scope exposes token/discovery follow-ups, `tokenDiscoverySummary`
 compresses that routing contract into:
@@ -772,7 +777,19 @@ Key fields:
   },
   "tokenDiscoverySummary": { "...": "workflow-scope token recovery summary" },
   "result": { "...": "workflow status payload" },
-  "checkpoint": { "...": "stored checkpoint payload" }
+  "checkpoint": { "...": "stored checkpoint payload" },
+  "recommendedCommands": {
+    "inspectDefaults": "zk-agent defaults",
+    "list": "zk-agent workflow list",
+    "show": "zk-agent workflow show --request-id wf123456",
+    "status": "zk-agent workflow status --request-id wf123456",
+    "next": "zk-agent workflow next --request-id wf123456",
+    "resume": "zk-agent workflow resume --request-id wf123456",
+    "delete": "zk-agent workflow delete --request-id wf123456",
+    "walletStatus": "zk-agent wallet status --name main",
+    "suite": "zk-agent suite",
+    "nextAction": "zk-agent workflow resume --request-id wf123456"
+  }
 }
 ```
 
@@ -783,6 +800,20 @@ Current stable `summary` fields on this surface:
 - `nextCommand`
 - `blockingActionIds`
 - `fundingProgress`
+
+Current stable `recommendedCommands` fields on this surface include the stored
+workflow follow-ups plus wallet and packaged post-flagship routing:
+
+- `inspectDefaults`
+- `list`
+- `show`
+- `status`
+- `next`
+- `resume`
+- `delete`
+- `walletStatus`
+- `suite`
+- `nextAction`
 
 When the restored workflow intent is tokenized, `tokenDiscoverySummary` uses
 the same field set described for wallet scope.
@@ -812,6 +843,10 @@ Within that set:
 - `recommendedCommands`
   The wallet-scoped remediation and discovery follow-up contract that can also
   point onward into the flagship workflow path.
+
+The stable wallet-scoped follow-up contract now also includes `suite` as the
+packaged post-flagship entrypoint when the operator wants discovery/defaults,
+funding, and paymaster guidance from the same wallet state.
 
 When the effective wallet paymaster mode is `approval-based`,
 `recommendedCommands` can also include:

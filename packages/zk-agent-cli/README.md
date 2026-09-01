@@ -56,6 +56,7 @@ zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent suite
 ```
 
 Interpretation:
@@ -64,6 +65,8 @@ Interpretation:
 - `next` gives the shortest valid follow-up step
 - `wallet create --await-local` is the preferred local approval path
 - `workflow pay` is the flagship zkSync-native AA native-send path
+- `suite` is the packaged post-flagship entrypoint for discovery, defaults,
+  funding, and paymaster readiness
 
 If readiness is unclear before you choose a fix, use:
 
@@ -92,6 +95,12 @@ Use these inspection commands when the blocker is wallet-specific:
 ```bash
 zk-agent wallet status --name main
 zk-agent wallet next --name main
+```
+
+If the wallet is already ready and you want the packaged post-flagship entrypoint:
+
+```bash
+zk-agent suite
 ```
 
 ## Remote approval
@@ -153,7 +162,8 @@ zk-agent suite
 ```
 
 when you want the flagship path plus the current post-flagship surfaces in one
-place.
+place. This is the intended follow-up surface once `next` or `wallet next`
+shows the wallet is already ready.
 
 Current suite shape:
 
