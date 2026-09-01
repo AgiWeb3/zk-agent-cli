@@ -1,6 +1,6 @@
 ---
 name: zk-discovery
-description: Discovery and defaults guide for zk-agent-cli on zkSync. Covers the preferred single-chain asset view, owned-token inspection, symbol-first token resolution, paymaster fee-token candidate discovery, defaults-registry inspection, and the bounded smoke used to keep the discovery contract stable. Use this skill when the task is specifically about token discovery, token metadata recovery, or defaults-backed operator guidance rather than AA execution or DeFi writes.
+description: Discovery-specific decision guide for zk-agent-cli on zkSync. Covers the preferred single-chain asset view, owned-token inspection, symbol-first token resolution, paymaster fee-token candidate discovery, defaults-registry inspection, and the bounded smoke used to keep the discovery contract stable. Use this skill only when the task is specifically about token discovery, token metadata recovery, or defaults-backed operator guidance rather than default product routing, `suite`, AA execution, or DeFi writes.
 ---
 
 # zk-agent-cli Discovery Skill
@@ -17,7 +17,20 @@ Use this skill when the task is specifically about:
 
 If the task is broader than discovery, use [../SKILL.md](../SKILL.md).
 
+Role boundary:
+
+- the core [../SKILL.md](../SKILL.md) owns the default product route
+- use `zk-agent suite` first when the operator wants the packaged
+  discovery/defaults/funding/paymaster surface
+- this skill takes over only when the task needs narrower token metadata
+  recovery, source filtering, or explicit defaults inspection
+- if the task is mainly about paymaster-backed execution rather than token
+  lookup, hand off to [../zk-paymaster/SKILL.md](../zk-paymaster/SKILL.md)
+
 ## Preferred order
+
+Enter this skill only after the need for a narrower discovery/defaults path is
+already known.
 
 Use discovery in this order:
 
@@ -36,6 +49,9 @@ Interpretation:
 - `tokens --chain` gives broader candidates on one chain
 - `resolve-token` turns one symbol into one concrete token match
 - `defaults` shows tracked roles and validated defaults
+
+Prefer `zk-agent suite` when the task is still on packaged post-flagship
+routing rather than explicit token recovery.
 
 ## Paymaster fee-token recovery
 

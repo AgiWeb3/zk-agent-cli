@@ -1,6 +1,6 @@
 ---
 name: zk-paymaster
-description: Paymaster readiness guide for zk-agent-cli on zkSync. Covers validated `none|sponsored|approval-based` mode selection, tracked paymaster defaults from `zk-agent defaults`, approval-based fee-token recovery through the discovery surface, the flagship `workflow pay` path, and the bounded `smoke:paymaster-success` validation smoke. Use this skill when the task is specifically about paymaster-backed execution, fee-token compatibility, or paymaster fallback interpretation rather than broad discovery or generic DeFi breadth.
+description: Paymaster-specific decision guide for zk-agent-cli on zkSync. Covers validated `none|sponsored|approval-based` mode selection, tracked paymaster defaults from `zk-agent defaults`, approval-based fee-token recovery through the discovery surface, the flagship paymaster-backed `workflow pay` path, and the bounded `smoke:paymaster-success` validation smoke. Use this skill only when the task is specifically about paymaster-backed execution, fee-token compatibility, or paymaster fallback interpretation rather than default product routing, broad discovery, or generic DeFi breadth.
 ---
 
 # zk-agent-cli Paymaster Skill
@@ -16,6 +16,16 @@ Use this skill when the task is specifically about:
 
 If the task is broader than paymaster readiness, use [../SKILL.md](../SKILL.md).
 
+Role boundary:
+
+- the core [../SKILL.md](../SKILL.md) owns the default product route
+- this skill takes over only when paymaster mode selection, paymaster-backed
+  retry logic, or fee-token compatibility is the actual blocker
+- use `zk-agent suite` first when the operator still wants the packaged
+  post-flagship surface instead of a dedicated paymaster diagnostic path
+- if the task is mainly about token lookup rather than paymaster execution,
+  hand off to [../zk-discovery/SKILL.md](../zk-discovery/SKILL.md)
+
 ## Current modes
 
 - `approval-based`: current default flagship mode on zkSync Sepolia
@@ -26,6 +36,8 @@ If the task is broader than paymaster readiness, use [../SKILL.md](../SKILL.md).
 Do not assume every ERC-20 is valid for approval-based fee payment.
 
 ## Preferred paymaster path
+
+Enter this skill only after paymaster readiness is already the active concern:
 
 ```bash
 zk-agent defaults
