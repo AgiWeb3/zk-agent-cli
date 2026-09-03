@@ -32,6 +32,10 @@ import {
   onboardingSummaryLines
 } from '../lib/onboarding-summary.js';
 import {
+  buildSuiteHandoffSummary,
+  suiteHandoffLines
+} from '../lib/suite-handoff.js';
+import {
   buildWalletTokenDiscoverySummary,
   walletNextLines
 } from '../lib/wallet-next.js';
@@ -211,7 +215,7 @@ function buildNextHelpText(): string {
     '  Stay on the wallet layer only when you need wallet-specific remediation:',
     '    zk-agent wallet next --name main',
     '',
-    '  When the wallet is already ready and you want the packaged post-flagship surface:',
+    '  When the wallet is already ready and you want the packaged surface:',
     '    zk-agent suite',
     '',
     '  Switch to the hosted remote-approval path only when the browser is not colocated:',
@@ -293,6 +297,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           paymasterMode: extractCheckpointPaymasterMode(updatedCheckpoint),
           recommendedCommands
         });
+        const suiteHandoffSummary = buildSuiteHandoffSummary({
+          currentSurface: 'workflow',
+          recommendedNow: false,
+          walletName: wallet.walletName,
+          chain: result.plan.chain
+        });
         const workflowAgentProfile = await loadAgentIdentitySummary(wallet.walletName);
         const agentFollowup = buildAgentFollowup(workflowAgentProfile, {
           walletName: wallet.walletName,
@@ -309,7 +319,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ...agentProfileLines(workflowAgentProfile),
             ...agentFollowupLines(agentFollowup),
             ...(nextCommand ? [['next', nextCommand] as [string, string]] : []),
-            ['suite', recommendedCommands.suite],
+            ...suiteHandoffLines(suiteHandoffSummary),
             ['inspect defaults', recommendedCommands.inspectDefaults],
             ...result.blockingActionIds.map((actionId) => ['blocking action', actionId] as [string, string]),
             ...(result.fundingProgress
@@ -333,6 +343,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             result,
             checkpoint: updatedCheckpoint,
             tokenDiscoverySummary,
+            suiteHandoffSummary,
             recommendedCommands
           }
         );
@@ -568,6 +579,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         paymasterMode,
         recommendedCommands: mergedRecommendedCommands
       });
+      const suiteHandoffSummary = buildSuiteHandoffSummary({
+        currentSurface: 'next',
+        recommendedNow: summary.status === 'ready',
+        walletName: wallet.walletName,
+        chain: wallet.chain
+      });
 
       printResult(
         topLevelNextLines('wallet', [
@@ -588,7 +605,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           ...(mergedRecommendedCommands.reapproveRemote
             ? [['remote fallback', mergedRecommendedCommands.reapproveRemote] as [string, string]]
             : []),
-          ['suite', mergedRecommendedCommands.suite],
+          ...suiteHandoffLines(suiteHandoffSummary),
           ['discover assets', mergedRecommendedCommands.discoverAssets],
           ['discover owned tokens', mergedRecommendedCommands.discoverOwnedTokens],
           ...(mergedRecommendedCommands.discoverPaymasterTokens
@@ -613,6 +630,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           summary,
           nextCommand,
           tokenDiscoverySummary,
+          suiteHandoffSummary,
           recommendedCommands: mergedRecommendedCommands
         }
       );

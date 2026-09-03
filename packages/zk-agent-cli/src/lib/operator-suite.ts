@@ -21,6 +21,7 @@ export interface OperatorSuiteEntry {
     | 'funding-readiness';
   title: string;
   goal: string;
+  useWhen: string;
   primaryCommand: string;
   supportingCommands: string[];
   skillPath: string;
@@ -31,10 +32,13 @@ export interface OperatorSuiteSummary {
   suiteId: 'zk-agent-operator-suite';
   walletName: string;
   chain: string;
+  stage: 'wallet-ready-post-flagship';
+  useWhen: string;
   flagshipId: OperatorSuiteEntry['id'];
   postFlagshipSliceIds: Array<
     Extract<OperatorSuiteEntry['id'], 'discovery-defaults' | 'paymaster-readiness' | 'funding-readiness'>
   >;
+  recommendedOrder: OperatorSuiteEntry['id'][];
   nextAction: string;
 }
 
@@ -73,6 +77,7 @@ export function buildOperatorSuitePayload(
     id: 'flagship-pay',
     title: 'Flagship Pay',
     goal: 'Run the default zkSync-native native-send path through the workflow layer.',
+    useWhen: 'Start here when the wallet is already ready and the next real goal is a native send.',
     primaryCommand: flagshipCommand,
     supportingCommands: ['zk-agent next', buildWalletStatusRecommendedCommand(walletName), inspectDefaults],
     skillPath: 'skills/zk-aa/SKILL.md'
@@ -83,6 +88,7 @@ export function buildOperatorSuitePayload(
       id: 'discovery-defaults',
       title: 'Discovery / Defaults',
       goal: 'Discover owned assets, tracked defaults, and symbol-first token resolution before acting.',
+      useWhen: 'Use this before tokenized actions or whenever asset/default context is unclear.',
       primaryCommand: discoveryCommand,
       supportingCommands: [
         inspectDefaults,
@@ -96,6 +102,7 @@ export function buildOperatorSuitePayload(
       id: 'paymaster-readiness',
       title: 'Paymaster Readiness',
       goal: 'Stay on the approval-based flagship path and recover the exact fee-token/default metadata when needed.',
+      useWhen: 'Use this when approval-based pay or another sponsored write needs fee-token/default recovery.',
       primaryCommand: paymasterCommand,
       supportingCommands: [
         inspectDefaults,
@@ -109,6 +116,7 @@ export function buildOperatorSuitePayload(
       id: 'funding-readiness',
       title: 'Funding Readiness',
       goal: 'Ask the workflow layer for the exact funding route before executing bridge/deposit follow-up.',
+      useWhen: 'Use this when the workflow path is blocked on gas or the CLI says funding is required.',
       primaryCommand: fundingCommand,
       supportingCommands: [
         buildWorkflowFundRunRecommendedCommand(walletName),
@@ -126,8 +134,12 @@ export function buildOperatorSuitePayload(
       suiteId: 'zk-agent-operator-suite',
       walletName,
       chain,
+      stage: 'wallet-ready-post-flagship',
+      useWhen:
+        'Use suite after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
       flagshipId: flagship.id,
       postFlagshipSliceIds: slices.map((entry) => entry.id) as OperatorSuiteSummary['postFlagshipSliceIds'],
+      recommendedOrder: [flagship.id, ...slices.map((entry) => entry.id)],
       nextAction: flagship.primaryCommand
     },
     flagship,
@@ -145,16 +157,22 @@ export function buildOperatorSuitePayload(
 
 export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string, string]> {
   const sliceLines = payload.slices.flatMap((entry): Array<[string, string]> => [
-    [entry.id, formatRecommendedPath([entry.primaryCommand, ...entry.supportingCommands])],
-    [`${entry.id} skill`, entry.skillPath],
-    ...(entry.smokeCommand ? [[`${entry.id} smoke`, entry.smokeCommand] as [string, string]] : [])
+    [entry.title.toLowerCase(), formatRecommendedPath([entry.primaryCommand, ...entry.supportingCommands])],
+    [`${entry.title.toLowerCase()} when`, entry.useWhen],
+    [`${entry.title.toLowerCase()} skill`, entry.skillPath],
+    ...(entry.smokeCommand ? [[`${entry.title.toLowerCase()} smoke`, entry.smokeCommand] as [string, string]] : [])
   ]);
 
   return [
     ['suite', payload.summary.suiteId],
     ['wallet', payload.summary.walletName],
     ['chain', payload.summary.chain],
-    ['flagship', formatRecommendedPath([payload.flagship.primaryCommand, 'zk-agent next'])],
+    ['stage', payload.summary.stage],
+    ['use when', payload.summary.useWhen],
+    ['recommended order', payload.summary.recommendedOrder.join(' -> ')],
+    [payload.flagship.title.toLowerCase(), formatRecommendedPath([payload.flagship.primaryCommand, 'zk-agent next'])],
+    [`${payload.flagship.title.toLowerCase()} when`, payload.flagship.useWhen],
+    [`${payload.flagship.title.toLowerCase()} skill`, payload.flagship.skillPath],
     ...sliceLines,
     ['next action', payload.summary.nextAction]
   ];

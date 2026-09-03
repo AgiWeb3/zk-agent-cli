@@ -83,6 +83,10 @@ import {
   buildWorkflowStatusRecommendedCommand
 } from '../lib/recommended-commands.js';
 import { resolveSwapCommandDefaults } from '../lib/swap-defaults.js';
+import {
+  buildSuiteHandoffSummary,
+  suiteHandoffLines
+} from '../lib/suite-handoff.js';
 import { summarizeBridgeAssetConstraints } from '../lib/validated-defaults.js';
 import { runWorkflow, type WorkflowGoalInput, type WorkflowRunResult } from '../lib/workflow-run.js';
 import {
@@ -1332,6 +1336,10 @@ async function printWorkflowRunCommandResult(
       result: execution.result,
       nextCommand: execution.result.nextCommand
     });
+    const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+      walletName: execution.result.walletName,
+      chain: execution.result.plan.chain
+    });
     const workflowEntrySummary = buildWorkflowEntrySummary({
       command,
       source: execution.requestId ? 'checkpoint' : 'input',
@@ -1350,6 +1358,7 @@ async function printWorkflowRunCommandResult(
           [
             ...workflowRunLines(execution.result),
             ...workflowWalletApprovalLines(execution.walletApproval),
+            ...suiteHandoffLines(suiteHandoffSummary),
             ...workflowFollowupLines(recommendedCommands)
           ],
           agentProfile,
@@ -1366,6 +1375,7 @@ async function printWorkflowRunCommandResult(
         result: execution.result,
         ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
         tokenDiscoverySummary,
+        suiteHandoffSummary,
         recommendedCommands
       }
     );
@@ -1406,6 +1416,10 @@ async function printWorkflowRunCommandResult(
     status,
     nextCommand: status.recommendedCommand
   });
+  const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+    walletName: status.walletName,
+    chain: status.plan.chain
+  });
   const workflowEntrySummary = buildWorkflowEntrySummary({
     command,
     source: execution.requestId ? 'checkpoint' : 'input',
@@ -1423,6 +1437,7 @@ async function printWorkflowRunCommandResult(
           [
             ...workflowStatusLines(status),
             ...workflowWalletApprovalLines(execution.walletApproval),
+            ...suiteHandoffLines(suiteHandoffSummary),
             ...workflowFollowupLines(recommendedCommands)
           ],
         agentProfile,
@@ -1440,6 +1455,7 @@ async function printWorkflowRunCommandResult(
         checkpoint: execution.checkpoint,
         ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
         tokenDiscoverySummary,
+        suiteHandoffSummary,
         recommendedCommands
     }
   );
@@ -1800,6 +1816,10 @@ async function printWorkflowAutoCommandResult(
     result: execution.result,
     nextCommand: nextAction
   });
+  const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+    walletName: execution.status.walletName,
+    chain: execution.status.plan.chain
+  });
   const workflowEntrySummary = buildWorkflowEntrySummary({
     command,
     source: execution.source,
@@ -1827,6 +1847,7 @@ async function printWorkflowAutoCommandResult(
           ...summaryLines,
           ...detailLines,
           ...workflowWalletApprovalLines(execution.walletApproval),
+          ...suiteHandoffLines(suiteHandoffSummary),
           ...workflowFollowupLines(recommendedCommands)
         ],
         agentProfile,
@@ -1848,6 +1869,7 @@ async function printWorkflowAutoCommandResult(
       checkpoint: execution.checkpoint,
       ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
       tokenDiscoverySummary,
+      suiteHandoffSummary,
       recommendedCommands
     }
   );
@@ -1905,6 +1927,18 @@ function extractPaymasterModeFromCommand(command?: string): PaymasterMode | unde
 
   const match = command.match(/--paymaster-mode (none|sponsored|approval-based)\b/);
   return match?.[1] as PaymasterMode | undefined;
+}
+
+function buildWorkflowSuiteHandoff(input: {
+  walletName: string;
+  chain: string;
+}) {
+  return buildSuiteHandoffSummary({
+    currentSurface: 'workflow',
+    recommendedNow: false,
+    walletName: input.walletName,
+    chain: input.chain
+  });
 }
 
 function buildWorkflowRuntimeRecommendedCommands(input: {
@@ -2707,6 +2741,9 @@ function buildWorkflowHelpText(): string {
     '    zk-agent workflow next --request-id <id>',
     '    zk-agent workflow resume --request-id <id> [--broadcast]',
     '',
+    '  When the explicit workflow is no longer the real question and you want the broader packaged surface:',
+    '    zk-agent suite',
+    '',
     '  Funding-only step:',
     '    zk-agent workflow fund --wallet main --amount <amount> --execute',
     '',
@@ -3151,6 +3188,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       status: inspection.result,
       nextCommand: inspection.result.recommendedCommand
     });
+    const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+      walletName: inspection.result.walletName,
+      chain: inspection.result.plan.chain
+    });
     const workflowEntrySummary = buildWorkflowEntrySummary({
       command: 'status',
       source: options.requestId?.trim() ? 'checkpoint' : 'input',
@@ -3168,6 +3209,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           [
             ...workflowStatusLines(inspection.result),
             ...workflowWalletApprovalLines(inspection.walletApproval),
+            ...suiteHandoffLines(suiteHandoffSummary),
             ...workflowFollowupLines(recommendedCommands)
           ],
           agentProfile,
@@ -3185,6 +3227,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         checkpoint: inspection.checkpoint,
         ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
         tokenDiscoverySummary,
+        suiteHandoffSummary,
         recommendedCommands
       }
     );
@@ -3235,6 +3278,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       status: inspection.result,
       nextCommand
     });
+    const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+      walletName: inspection.result.walletName,
+      chain: inspection.result.plan.chain
+    });
     const workflowEntrySummary = buildWorkflowEntrySummary({
       command: 'next',
       source: options.requestId?.trim() ? 'checkpoint' : 'input',
@@ -3252,6 +3299,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           [
             ...workflowNextLines(inspection.result),
             ...workflowWalletApprovalLines(inspection.walletApproval),
+            ...suiteHandoffLines(suiteHandoffSummary),
             ...workflowFollowupLines(recommendedCommands)
           ],
           agentProfile,
@@ -3269,6 +3317,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         checkpoint: inspection.checkpoint,
         ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
         tokenDiscoverySummary,
+        suiteHandoffSummary,
         recommendedCommands
       }
     );
@@ -3316,6 +3365,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         status: inspection.result,
         nextCommand: inspection.result.recommendedCommand
       });
+      const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+        walletName: inspection.result.walletName,
+        chain: inspection.result.plan.chain
+      });
       const workflowEntrySummary = buildWorkflowEntrySummary({
         command: 'resume',
         source: options.requestId?.trim() ? 'checkpoint' : 'input',
@@ -3333,6 +3386,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
             [
               ...workflowStatusLines(inspection.result),
               ...workflowWalletApprovalLines(inspection.walletApproval),
+              ...suiteHandoffLines(suiteHandoffSummary),
               ...workflowFollowupLines(recommendedCommands)
             ],
             agentProfile,
@@ -3350,6 +3404,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           checkpoint: inspection.checkpoint,
           ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
           tokenDiscoverySummary,
+          suiteHandoffSummary,
           recommendedCommands
         }
       );
@@ -3401,6 +3456,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         status,
         nextCommand: status.recommendedCommand
       });
+      const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+        walletName: status.walletName,
+        chain: status.plan.chain
+      });
       const workflowEntrySummary = buildWorkflowEntrySummary({
         command: 'resume',
         source: options.requestId?.trim() ? 'checkpoint' : 'input',
@@ -3418,6 +3477,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
             [
               ...workflowStatusLines(status),
               ...workflowWalletApprovalLines(execution.walletApproval),
+              ...suiteHandoffLines(suiteHandoffSummary),
               ...workflowFollowupLines(recommendedCommands)
             ],
             agentProfile,
@@ -3435,6 +3495,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           checkpoint: execution.checkpoint,
           ...serializeWorkflowWalletApprovalOutput(execution.walletApproval),
           tokenDiscoverySummary,
+          suiteHandoffSummary,
           recommendedCommands
         }
       );
@@ -3471,6 +3532,10 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
       result: execution.result,
       nextCommand: execution.result.nextCommand ?? inspection.result.recommendedCommand
     });
+    const suiteHandoffSummary = buildWorkflowSuiteHandoff({
+      walletName: execution.result.walletName,
+      chain: execution.result.plan.chain
+    });
     const workflowEntrySummary = buildWorkflowEntrySummary({
       command: 'resume',
       source: options.requestId?.trim() ? 'checkpoint' : 'input',
@@ -3489,6 +3554,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
           [
             ...workflowRunLines(execution.result),
             ...workflowWalletApprovalLines(inspection.walletApproval),
+            ...suiteHandoffLines(suiteHandoffSummary),
             ...workflowFollowupLines(recommendedCommands)
           ],
           agentProfile,
@@ -3506,6 +3572,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
         result: execution.result,
         ...serializeWorkflowWalletApprovalOutput(inspection.walletApproval),
         tokenDiscoverySummary,
+        suiteHandoffSummary,
         recommendedCommands
       }
     );

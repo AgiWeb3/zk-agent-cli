@@ -17,6 +17,7 @@ At the current `rc` stage, the intentionally frozen compatibility boundary is:
 - `onboardingSummary`
 - `workflowEntrySummary`
 - `walletApprovalSummary`
+- `suiteHandoffSummary`
 - documented next-step command surfaces carried through:
   `recommendedCommands`, `nextAction`, `afterApproval`, and
   `afterApprovalStatus`
@@ -705,6 +706,11 @@ Key fields:
   "inspection": { "...": "wallet inspection payload" },
   "summary": { "...": "wallet next summary payload" },
   "tokenDiscoverySummary": { "...": "wallet-scope token recovery summary" },
+  "suiteHandoffSummary": {
+    "currentSurface": "next",
+    "recommendedNow": true,
+    "command": "zk-agent suite"
+  },
   "nextCommand": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
   "onboardingSummary": {
     "stage": "wallet-ready",
@@ -739,6 +745,18 @@ Key fields:
 `recommendedCommands.suite` is the stable post-flagship entrypoint from the
 same wallet-ready state when the operator wants discovery/defaults, funding,
 and paymaster guidance in one packaged surface.
+
+`suiteHandoffSummary` is the stable boundary marker for when `next` should
+hand the operator from the product-entry surface to `suite`.
+
+Current stable `suiteHandoffSummary` fields on this surface:
+
+- `currentSurface`
+- `recommendedNow`
+- `command`
+- `useWhen`
+- `stayOnCurrentSurfaceWhen`
+- `note`
 
 When the wallet scope exposes token/discovery follow-ups, `tokenDiscoverySummary`
 compresses that routing contract into:
@@ -776,6 +794,11 @@ Key fields:
     "blockingActionIds": ["reapprove"]
   },
   "tokenDiscoverySummary": { "...": "workflow-scope token recovery summary" },
+  "suiteHandoffSummary": {
+    "currentSurface": "workflow",
+    "recommendedNow": false,
+    "command": "zk-agent suite"
+  },
   "result": { "...": "workflow status payload" },
   "checkpoint": { "...": "stored checkpoint payload" },
   "recommendedCommands": {
@@ -815,6 +838,9 @@ workflow follow-ups plus wallet and packaged post-flagship routing:
 - `suite`
 - `nextAction`
 
+Current stable `suiteHandoffSummary` fields on this surface use the same field
+set described above for wallet scope.
+
 When the restored workflow intent is tokenized, `tokenDiscoverySummary` uses
 the same field set described for wallet scope.
 
@@ -830,6 +856,7 @@ Current stable top-level fields:
 - `inspection`
 - `summary`
 - `tokenDiscoverySummary`
+- `suiteHandoffSummary`
 - `recommendedCommands`
 
 Within that set:
@@ -843,10 +870,22 @@ Within that set:
 - `recommendedCommands`
   The wallet-scoped remediation and discovery follow-up contract that can also
   point onward into the flagship workflow path.
+- `suiteHandoffSummary`
+  The stable wallet-layer handoff summary for when the current question should
+  stay on `wallet status|next` versus move to `suite`.
 
 The stable wallet-scoped follow-up contract now also includes `suite` as the
 packaged post-flagship entrypoint when the operator wants discovery/defaults,
 funding, and paymaster guidance from the same wallet state.
+
+Current stable `suiteHandoffSummary` fields on this surface:
+
+- `currentSurface`
+- `recommendedNow`
+- `command`
+- `useWhen`
+- `stayOnCurrentSurfaceWhen`
+- `note`
 
 When the effective wallet paymaster mode is `approval-based`,
 `recommendedCommands` can also include:
@@ -992,6 +1031,7 @@ These surfaces currently all include:
 - `workflowEntrySummary`
 - `walletApprovalSummary`
 - `tokenDiscoverySummary`
+- `suiteHandoffSummary`
 - `recommendedCommands`
 
 Within that set:
@@ -1049,6 +1089,15 @@ wallet approval context is present:
 - `nextAction`
 - `afterApproval`
 - `afterApprovalStatus`
+
+Current stable `suiteHandoffSummary` fields on workflow runtime surfaces:
+
+- `currentSurface`
+- `recommendedNow`
+- `command`
+- `useWhen`
+- `stayOnCurrentSurfaceWhen`
+- `note`
 
 ### `workflowEntrySummary` examples
 
@@ -1539,6 +1588,9 @@ So the current contract layering is:
 
 - `recommendedCommands`
   execution-path follow-ups
+- `suiteHandoffSummary`
+  explicit boundary guidance for when the current surface should hand off to
+  `suite`
 - `agentFollowup`
   local agent-identity follow-ups
 
@@ -1560,8 +1612,11 @@ Current stable `summary` fields:
 - `suiteId`
 - `walletName`
 - `chain`
+- `stage`
+- `useWhen`
 - `flagshipId`
 - `postFlagshipSliceIds`
+- `recommendedOrder`
 - `nextAction`
 
 Current stable `flagship` / `slices[]` fields:
@@ -1569,6 +1624,7 @@ Current stable `flagship` / `slices[]` fields:
 - `id`
 - `title`
 - `goal`
+- `useWhen`
 - `primaryCommand`
 - `supportingCommands`
 - `skillPath`

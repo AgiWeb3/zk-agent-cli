@@ -8,6 +8,40 @@ It is intentionally narrower than a generic "production relay" claim.
 The point is to keep the supportable baseline explicit while the project is on
 the `rc` track and working toward `1.0.0`.
 
+## One-line product claim
+
+Today, `zk-agent-cli` supports a single-host hosted approval path:
+
+- one externally reachable public origin
+- one relay host with same-host file persistence
+- one same-origin share-link + approval UI surface
+
+That is the current product claim.
+
+It is not a claim of:
+
+- multi-host durability
+- horizontal scale-out
+- active/active relay instances
+- durable queue semantics
+- multi-tenant hosted service isolation
+
+## What this mode is for
+
+Use this mode only when the browser is not colocated with the terminal and the
+local `--await-local` approval path is not viable.
+
+The operator-facing path is:
+
+```bash
+zk-agent relay inspect --relay-url <url>
+zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
+zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
+```
+
+`relay inspect` is the readiness gate. The wallet commands are the supported
+hosted operator surface after that gate passes.
+
 ## Current Supported Deployment Profile
 
 The current supported hosted baseline is:

@@ -1,6 +1,10 @@
 # zk-agent-cli Quickstart
 
 This quickstart keeps only the shortest verified operator path.
+Use the package README when you need the broader CLI surface, flags, or repair
+details.
+Use the plugin onboarding note only when you intentionally want the native
+Codex plugin path instead of the CLI path.
 
 Use the packaged CLI form:
 
@@ -43,6 +47,13 @@ Compatible skill-harness install:
 npx skills add https://github.com/AgiWeb3/zk-agent-cli
 ```
 
+Native local Codex plugin wiring is a separate path:
+
+```bash
+pnpm codex:plugin:doctor
+pnpm codex:plugin:install-local
+```
+
 ## 2. Follow the default operator path
 
 ```bash
@@ -54,7 +65,7 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
-Interpretation:
+What each step is doing:
 
 - `setup` writes local defaults
 - `next` gives the shortest valid follow-up step

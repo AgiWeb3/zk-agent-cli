@@ -124,7 +124,7 @@ Interpret the steps like this:
 - `workflow pay`
   default flagship zkSync-native AA native-send path
 - `suite`
-  default packaged post-flagship surface for discovery/defaults, funding, and
+  default packaged surface for discovery/defaults, funding, and
   paymaster readiness
 
 Use `zk-agent doctor` before choosing a remediation path when readiness is

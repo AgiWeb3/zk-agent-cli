@@ -204,7 +204,7 @@ test('top-level help prints the default operator path around zk-agent next', asy
 
     assert.match(
       help,
-      /Local-first zkSync Era CLI for wallet approval, workflow execution, and hosted\s+relay recovery/
+      /Local-first zkSync-native CLI for wallet approval, workflow execution, and\s+single-host hosted\s+relay recovery/
     );
     assert.match(help, /Public entrypoints:/);
     assert.match(help, /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli/);
@@ -233,6 +233,10 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(
       help,
       /zk-agent wallet create\|reapprove --relay-url <url> --wait-relay --prompt-code/
+    );
+    assert.match(
+      help,
+      /Current hosted approval claim: one public origin, one relay host, and one same-origin share-link \+ approval UI surface\./
     );
     assert.match(help, /zk-agent wallet --help/);
     assert.match(help, /zk-agent workflow --help/);
@@ -280,7 +284,7 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     assert.match(help, /zk-agent wallet status --name main/);
     assert.match(
       help,
-      /When the wallet is already ready and you want the packaged post-flagship surface:/
+      /When the wallet is already ready and you want the packaged surface:/
     );
     assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
@@ -303,6 +307,11 @@ test('workflow help prints the default workflow path', async () => {
     assert.match(help, /zk-agent workflow status --request-id <id>/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
     assert.match(help, /zk-agent workflow resume --request-id <id> \[--broadcast\]/);
+    assert.match(
+      help,
+      /When the explicit workflow is no longer the real question and you want the broader packaged surface:/
+    );
+    assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent workflow fund --wallet main --amount <amount> --execute/);
     assert.match(help, /Token\/discovery recovery path:/);
     assert.match(help, /zk-agent assets --wallet main/);
@@ -345,7 +354,7 @@ test('wallet help prints the default wallet path', async () => {
     assert.match(help, /zk-agent wallet next --name main/);
     assert.match(
       help,
-      /When wallet readiness is no longer the blocker and you want the packaged post-flagship surface:/
+      /When wallet readiness is no longer the blocker and you want the packaged surface:/
     );
     assert.match(help, /zk-agent suite/);
     assert.match(help, /Hosted remote approval path:/);
@@ -474,6 +483,10 @@ test('relay and agent help surfaces expose the public product contract', async (
       relayHelp,
       /zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code/
     );
+    assert.match(relayHelp, /Supported product claim today:/);
+    assert.match(relayHelp, /one externally reachable public origin/);
+    assert.match(relayHelp, /one relay host with same-host file persistence/);
+    assert.match(relayHelp, /Do not assume multi-host or load-balanced durability/);
     assert.match(
       relayHelp,
       /Keep `wallet create\|reapprove --await-local` as the default baseline/

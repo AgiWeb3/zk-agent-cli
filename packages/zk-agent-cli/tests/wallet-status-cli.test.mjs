@@ -134,6 +134,21 @@ function sampleWallet() {
   };
 }
 
+function expectedWalletSuiteHandoff(recommendedNow) {
+  return {
+    currentSurface: 'wallet',
+    recommendedNow,
+    command: 'zk-agent suite',
+    useWhen:
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
+    stayOnCurrentSurfaceWhen:
+      'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
+    note: recommendedNow
+      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface.'
+      : 'Suite is not the current recommendation because wallet-specific remediation is still the blocker.'
+  };
+}
+
 async function runWalletCli(args, env) {
   const child = spawn(process.execPath, ['--import', 'tsx', fixtureEntry, ...args], {
     cwd: packageRoot,
@@ -191,6 +206,7 @@ test('wallet status exposes the same paymaster token discovery contract as walle
       includesPaymasterTokenDiscovery: true,
       includesPaymasterTokenInspection: true
     });
+    assert.deepEqual(result.suiteHandoffSummary, expectedWalletSuiteHandoff(true));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -222,6 +238,7 @@ test('wallet next includes approval-based paymaster token discovery commands', a
     });
     assert.equal(result.tokenDiscoverySummary.includesPaymasterTokenDiscovery, true);
     assert.equal(result.tokenDiscoverySummary.includesPaymasterTokenInspection, true);
+    assert.deepEqual(result.suiteHandoffSummary, expectedWalletSuiteHandoff(true));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

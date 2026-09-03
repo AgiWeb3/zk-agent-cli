@@ -36,7 +36,7 @@ function printHelp() {
       '',
       'Follow-up:',
       '  Run pnpm review:rc -- --wallet <name> --relay-url <url> [--report-file <path>] --write',
-      '  when you want one explicit repo-tracked beta-to-rc review artifact.',
+      '  when you want one explicit repo-tracked rc-to-1.0.0 review artifact.',
       '',
       'Important:',
       '  This command does not claim RC readiness by itself.',
@@ -342,7 +342,7 @@ function buildSteps(options) {
   return [
     {
       id: 'release-validation',
-      title: 'Beta release validation baseline',
+      title: 'RC release validation baseline',
       command: 'pnpm',
       args: ['validate:release']
     },
@@ -406,12 +406,12 @@ function main() {
   remainingManualChecks.push({
     id: 'rc-judgment-review',
     status: 'manual',
-    title: 'Explicit beta-to-rc judgment review',
+    title: 'Explicit rc-to-1.0.0 judgment review',
     command:
       `pnpm review:rc -- --wallet ${options.walletName} --relay-url ${options.relayUrl}` +
       `${options.reportFile ? ` --report-file ${options.reportFile}` : ''} --write`,
     reason:
-      'validate:rc closes the machine and evidence gates, but stage promotion still needs an explicit release judgment recorded as a review artifact.'
+      'validate:rc closes the machine and evidence gates, but the eventual 1.0.0 promotion still needs an explicit release judgment recorded as a review artifact.'
   });
 
   const summary = {
@@ -452,4 +452,8 @@ function main() {
   }
 }
 
-main();
+export { buildSteps, main, parseArgs };
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

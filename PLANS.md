@@ -13,6 +13,8 @@ parity.
 - release stage: `rc`
 - core operator path: landed
 - current work: productization closeout and release hardening
+- current documentation push: front-door compression across README, package
+  README, quickstart, plugin onboarding, and docs index
 - default AA path: `sed-lite`
 - broad DeFi expansion: deferred
 
@@ -27,8 +29,16 @@ parity.
   flows expose machine-readable follow-up contracts
 - `suite` exists as the packaged post-flagship surface for discovery,
   defaults, funding, and paymaster readiness
+- public onboarding docs now distinguish the CLI, repo skill, quickstart, and
+  native Codex plugin entry surfaces explicitly
+- root README, package README, and docs index are now shorter and more clearly
+  separated by role
 - release support exists through:
-  `release:*`, `validate:release`, and `validate:rc`
+  `release:*`, `release:checklist`, `validate:release`, and `validate:rc`
+- a short publish runbook now exists at:
+  `docs/17-release-checklist.md`
+- a current repo-tracked RC review artifact exists at:
+  `docs/release-stage-reviews/2026-09-01-main-rc.md`
 
 ## Current priorities
 
@@ -44,10 +54,14 @@ parity.
 
 ## Main remaining gaps
 
-- public onboarding can still get lighter
-- hosted approval still needs more polished product framing
+- public onboarding is lighter now, but the package manual can still be
+  tightened further if we want a stricter 1.0.0 front door
+- hosted approval framing is clearer now, but the operated story can still get
+  shorter for public users
 - post-flagship packaging still needs to feel more cohesive
 - release discipline still depends on some manual judgment
+- the short publish checklist now exists, but the end-to-end release path still
+  needs more automation
 
 ## Release gates
 
@@ -82,6 +96,8 @@ parity.
 - `PROJECT_STATE.md`
 - `docs/10-operator-json-contract.md`
 - `docs/11-npm-release-gate.md`
+- `docs/17-release-checklist.md`
+- `docs/release-stage-reviews/README.md`
 - `docs/16-hosted-approval-operated-baseline.md`
 - `packages/zk-agent-cli/src/commands/setup.ts`
 - `packages/zk-agent-cli/src/commands/next.ts`
@@ -89,5 +105,7 @@ parity.
 - `packages/zk-agent-cli/src/commands/relay.ts`
 - `packages/zk-agent-cli/src/commands/suite.ts`
 - `scripts/release-prepare.mjs`
+- `scripts/release-checklist.mjs`
 - `scripts/release-publish.mjs`
+- `scripts/review-rc.mjs`
 - `scripts/validate-rc.mjs`

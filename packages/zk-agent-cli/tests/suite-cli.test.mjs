@@ -82,8 +82,16 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
     assert.equal(result.summary.suiteId, 'zk-agent-operator-suite');
     assert.equal(result.summary.walletName, 'main');
     assert.equal(result.summary.chain, 'zksync-sepolia');
+    assert.equal(result.summary.stage, 'wallet-ready-post-flagship');
+    assert.match(result.summary.useWhen, /Use suite after wallet readiness/);
     assert.equal(result.summary.flagshipId, 'flagship-pay');
     assert.deepEqual(result.summary.postFlagshipSliceIds, [
+      'discovery-defaults',
+      'paymaster-readiness',
+      'funding-readiness'
+    ]);
+    assert.deepEqual(result.summary.recommendedOrder, [
+      'flagship-pay',
       'discovery-defaults',
       'paymaster-readiness',
       'funding-readiness'
@@ -93,6 +101,7 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
     assert.equal(result.flagship.id, 'flagship-pay');
+    assert.match(result.flagship.useWhen, /Start here when the wallet is already ready/);
     assert.equal(
       result.flagship.primaryCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
@@ -109,6 +118,7 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
       ['discovery-defaults', 'paymaster-readiness', 'funding-readiness']
     );
     assert.equal(result.slices[0].primaryCommand, 'zk-agent assets --wallet main');
+    assert.match(result.slices[0].useWhen, /before tokenized actions/);
     assert.deepEqual(result.slices[0].supportingCommands, [
       'zk-agent defaults',
       'zk-agent tokens --chain zksync-sepolia',
@@ -118,12 +128,14 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
       result.slices[1].primaryCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based'
     );
+    assert.match(result.slices[1].useWhen, /fee-token\/default recovery/);
     assert.deepEqual(result.slices[1].supportingCommands, [
       'zk-agent defaults',
       'zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token',
       'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token'
     ]);
     assert.equal(result.slices[2].primaryCommand, 'zk-agent workflow fund --wallet main');
+    assert.match(result.slices[2].useWhen, /blocked on gas/);
     assert.deepEqual(result.slices[2].supportingCommands, [
       'zk-agent workflow fund --wallet main --amount <amount> --execute',
       'zk-agent fund --wallet main --amount <amount>',
@@ -153,6 +165,7 @@ test('suite command preserves wallet and chain context across the packaged contr
     assert.equal(result.ok, true);
     assert.equal(result.summary.walletName, 'ops-wallet');
     assert.equal(result.summary.chain, 'zksync-era');
+    assert.equal(result.summary.stage, 'wallet-ready-post-flagship');
     assert.equal(
       result.summary.nextAction,
       'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>'
@@ -200,15 +213,43 @@ test('suite help exposes the operator suite entrypoint', async () => {
     const help = await runCliText(['suite', '--help'], env);
 
     assert.match(help, /Show the flagship and post-flagship zkSync-native operator suite/);
-    assert.match(help, /Current operator suite:/);
+    assert.match(help, /Use `suite` after wallet readiness when you want one packaged surface/);
+    assert.match(help, /Recommended order inside the suite:/);
     assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent assets --wallet main/);
-    assert.match(help, /zk-agent workflow fund --wallet main/);
     assert.match(
       help,
       /zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based/
     );
+    assert.match(help, /zk-agent workflow fund --wallet main/);
     assert.match(help, /Pass `--wallet` or `--chain` to retarget the entire suite contract\./);
+    assert.match(help, /summary\.useWhen/);
+    assert.match(help, /recommendedOrder/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('suite text output explains when to use each packaged slice', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-suite-text-cli-'));
+
+  try {
+    const env = {
+      ...createCliEnv(homeDir),
+      ZK_AGENT_OUTPUT: 'text'
+    };
+    const output = await runCliText(['suite'], env);
+
+    assert.match(output, /stage: wallet-ready-post-flagship/);
+    assert.match(output, /use when: Use suite after wallet readiness/);
+    assert.match(
+      output,
+      /recommended order: flagship-pay -> discovery-defaults -> paymaster-readiness -> funding-readiness/
+    );
+    assert.match(output, /flagship pay when: Start here when the wallet is already ready/);
+    assert.match(output, /discovery \/ defaults when: Use this before tokenized actions/);
+    assert.match(output, /paymaster readiness when: Use this when approval-based pay/);
+    assert.match(output, /funding readiness when: Use this when the workflow path is blocked on gas/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

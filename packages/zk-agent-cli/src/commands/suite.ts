@@ -12,16 +12,19 @@ export function createSuiteCommand(): Command {
       'after',
       [
         '',
-        '  Current operator suite:',
+        '  Use `suite` after wallet readiness when you want one packaged surface',
+        '  for flagship pay plus the current post-flagship slices.',
+        '',
+        '  Recommended order inside the suite:',
         '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
         '    zk-agent assets --wallet main',
-        '    zk-agent workflow fund --wallet main',
         '    zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
+        '    zk-agent workflow fund --wallet main',
         '',
         '  Pass `--wallet` or `--chain` to retarget the entire suite contract.',
         '',
-        '  Use `suite` when you want the flagship path plus the current',
-        '  post-flagship discovery/defaults, funding, and paymaster surfaces in one place.'
+        '  In JSON mode, `summary.useWhen`, `summary.recommendedOrder`, and each',
+        '  entry `useWhen` field explain when to stay on one slice instead of guessing.'
       ].join('\n')
     )
     .action((options: { wallet?: string; chain?: string }) => {

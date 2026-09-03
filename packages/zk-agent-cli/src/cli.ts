@@ -67,6 +67,7 @@ function buildDefaultOperatorPathHelpText(): string {
     '',
     'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
     'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
+    'Current hosted approval claim: one public origin, one relay host, and one same-origin share-link + approval UI surface.',
     'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'
   ].join('\n');
 }
@@ -117,7 +118,7 @@ function createProgram(): Command {
   const program = new Command()
     .name('zk-agent')
     .description(
-      'Local-first zkSync Era CLI for wallet approval, workflow execution, and hosted relay recovery'
+      'Local-first zkSync-native CLI for wallet approval, workflow execution, and single-host hosted relay recovery'
     )
     .showHelpAfterError()
     .option('--json', 'Force JSON output for agent harnesses', false)

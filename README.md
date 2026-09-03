@@ -4,7 +4,9 @@
 approval, workflow execution, hosted relay recovery, and post-flagship
 discovery/funding/paymaster guidance.
 
-Current public stage: `0.1.0-rc.1`.
+Current public stage: `0.1.0-rc.2`.
+
+This README is only the repo front door.
 
 ## Fastest Path
 
@@ -24,7 +26,7 @@ After the flagship path is live, use `zk-agent suite` as the packaged
 post-flagship entrypoint for discovery, defaults, funding, and paymaster
 readiness.
 
-## Entry Points
+## Use It From
 
 - packaged CLI:
 
@@ -49,10 +51,12 @@ pnpm zk-agent --help
 
 ## Read Next
 
-- CLI operator manual:
+- packaged CLI operator manual:
   [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
-- shortest harness/operator quickstart:
+- shortest verified CLI/harness path:
   [skills/QUICKSTART.md](./skills/QUICKSTART.md)
+- native Codex/Codex-plugin wiring:
+  [docs/15-codex-plugin-onboarding.md](./docs/15-codex-plugin-onboarding.md)
 - hosted remote approval contract:
   [docs/16-hosted-approval-operated-baseline.md](./docs/16-hosted-approval-operated-baseline.md)
 - repo reference docs:
@@ -68,22 +72,15 @@ If you are working on the repo itself, start with:
   [PLANS.md](./PLANS.md)
 - current project snapshot:
   [PROJECT_STATE.md](./PROJECT_STATE.md)
+- release cut runbook:
+  [docs/17-release-checklist.md](./docs/17-release-checklist.md)
 - contributor instructions:
   [AGENTS.md](./AGENTS.md)
 
-## Remote Approval Fallback
+Hosted remote approval is documented in:
 
-When the browser is not colocated with the terminal, keep the same operator
-path but replace the local approval step with:
-
-```bash
-zk-agent relay inspect --relay-url <relay-url>
-zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
-zk-agent next
-```
-
-For the current hosted relay operating contract, use
-[docs/16-hosted-approval-operated-baseline.md](./docs/16-hosted-approval-operated-baseline.md).
+- [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
+- [docs/16-hosted-approval-operated-baseline.md](./docs/16-hosted-approval-operated-baseline.md)
 
 ## Development
 
@@ -93,6 +90,7 @@ Default repo validation:
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm release:checklist
 pnpm validate:release
 pnpm validate:rc
 ```

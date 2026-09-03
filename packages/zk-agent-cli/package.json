@@ -1,6 +1,6 @@
 {
   "name": "zk-agent-cli",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "Local-first zkSync Era and ZK Stack agent CLI with wallet session recovery, workflow orchestration, relay-backed approval, and SED smart-account support.",
   "license": "MIT",
   "type": "module",
@@ -46,6 +46,10 @@
     "smoke:hosted-operated-baseline": "node --import tsx ./src/smoke-hosted-operated-baseline.ts",
     "smoke:remote-approval": "node --import tsx ./src/smoke-remote-approval.ts",
     "typecheck": "tsc --noEmit",
+    "test:onboarding": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/setup-cli.test.mjs",
+    "test:suite": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/suite-cli.test.mjs",
+    "test:wallet-status": "pnpm --filter @zk-agent/agent-core build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/wallet-status-cli.test.mjs",
+    "test:product-surface": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/setup-cli.test.mjs ./tests/suite-cli.test.mjs ./tests/wallet-status-cli.test.mjs",
     "test": "pnpm --filter @zk-agent/agent-core build && pnpm run build && node --import ../../scripts/ensure-test-storage-isolation.mjs --import tsx --test ./tests/*.test.mjs ./tests/*.test.ts"
   },
   "engines": {

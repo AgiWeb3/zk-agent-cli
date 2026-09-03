@@ -626,7 +626,9 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
 }
 
 export function createRelayCommand(): Command {
-  const relay = new Command('relay').description('Run the local connector relay prototype server');
+  const relay = new Command('relay').description(
+    'Serve and inspect the single-host connector relay baseline for hosted approval'
+  );
 
   relay.addHelpText(
     'after',
@@ -637,6 +639,12 @@ export function createRelayCommand(): Command {
       '    zk-agent relay inspect --relay-url <url>',
       '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
       '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+      '',
+      '  Supported product claim today:',
+      '    one externally reachable public origin',
+      '    one relay host with same-host file persistence',
+      '    one same-origin share-link + approval UI surface',
+      '    Do not assume multi-host or load-balanced durability.',
       '',
       '  Keep `wallet create|reapprove --await-local` as the default baseline when',
       '  the browser and terminal are colocated.',

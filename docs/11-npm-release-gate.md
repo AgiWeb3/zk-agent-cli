@@ -3,6 +3,10 @@
 This checklist is the release gate for current beta, rc, or stable cuts of
 `zk-agent-cli`.
 
+If you only need the short operator runbook and current command order, use
+[17-release-checklist.md](./17-release-checklist.md) or
+`pnpm release:checklist`.
+
 The goal is not to prove that the project has "many features". The goal is to
 prove that:
 
@@ -176,8 +180,8 @@ npm publish --dry-run
 Supported host publish wrapper:
 
 ```bash
-pnpm release:publish --tag beta
-pnpm release:publish --tag beta --promote-latest
+pnpm release:publish --tag rc
+pnpm release:publish --tag rc --promote-latest
 ```
 
 Supported combined version/doc prep wrapper:
@@ -194,7 +198,7 @@ If you need the lower-level building blocks separately, sync the local version
 references first:
 
 ```bash
-pnpm release:sync-version --version <version> --date <YYYY-MM-DD> --latest-tag <version> --beta-tag <version>
+pnpm release:sync-version --version <version> --date <YYYY-MM-DD> --latest-tag <version> --beta-tag <beta-version> --rc-tag <version>
 ```
 
 Then refresh the versioned release-note draft input from the intended git
@@ -560,7 +564,7 @@ Only after Gate 0-8 all pass should the actual release happen.
 - [ ] the versioned release note draft input has been regenerated from the
       intended git range when release copy is being refreshed
 - [ ] `docs/releases/<version>.md` exists and is filled in without placeholder text
-- [ ] prerelease publishes use `npm publish --tag beta`
+- [ ] the publish tag matches the intended release stage (`beta` or `rc`)
 - [ ] `latest` is only promoted after post-publish readback succeeds
 - [ ] real `npm publish` executed
 - [ ] post-publish npm page, dist-tags, and install commands read back successfully
@@ -576,7 +580,7 @@ npx zk-agent-cli --help
 Prefer the supported wrapper for the actual post-publish path:
 
 ```bash
-pnpm release:publish --tag beta --promote-latest
+pnpm release:publish --tag rc --promote-latest
 ```
 
 If you run the three manual readback commands yourself, run them from a
@@ -586,7 +590,8 @@ declares `devEngines.packageManager = pnpm`, and that can make `npm view` or
 
 Dist-tag policy:
 
-- publish prereleases with `npm publish --tag beta`
+- publish beta cuts with `npm publish --tag beta`
+- publish RC cuts with `npm publish --tag rc`
 - promote `latest` explicitly with:
 
 ```bash
@@ -600,14 +605,14 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current prepared baseline
 
-- current prepared release candidate baseline for `2026-09-01`:
-  `zk-agent-cli@0.1.0-rc.1`
+- current prepared release candidate baseline for `2026-09-03`:
+  `zk-agent-cli@0.1.0-rc.2`
 - intended post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-rc.1`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.1`
+  - `npm view zk-agent-cli version -> 0.1.0-rc.2`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.2`
   - `npm view zk-agent-cli@beta version -> 0.1.0-beta.11`
-  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.1`
-  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.1","latest":"0.1.0-rc.1"}`
+  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.2`
+  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.2","latest":"0.1.0-rc.2"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted

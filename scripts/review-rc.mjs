@@ -20,8 +20,8 @@ function printHelp() {
       '',
       'What it does:',
       '  1. Re-runs validate:rc in JSON mode for the supplied wallet + relay URL.',
-      '  2. Builds one explicit beta-to-rc review artifact from that machine gate.',
-      '  3. Keeps the final promotion decision manual instead of claiming RC automatically.',
+      '  2. Builds one explicit rc-to-1.0.0 review artifact from that machine gate.',
+      '  3. Keeps the final promotion decision manual instead of claiming 1.0.0 automatically.',
       '',
       'Defaults:',
       '  --wallet defaults to main.',
@@ -185,15 +185,15 @@ function buildReview(options, validation) {
   return {
     ok: true,
     generatedAt,
-    currentStage: 'beta',
-    targetStage: 'rc',
+    currentStage: 'rc',
+    targetStage: '1.0.0',
     walletName: options.walletName,
     relayUrl: options.relayUrl,
     validateRcCommand: validation.command,
     reviewCommand: formatPnpmReviewCommand(options, true),
     reviewReady,
     promoteNow: false,
-    recommendedCurrentStage: 'beta',
+    recommendedCurrentStage: 'rc',
     reviewFile,
     automatedSteps: validation.summary.automatedSteps,
     hostedRecoveryEvidence: validation.summary.hostedRecoveryEvidence,
@@ -258,8 +258,8 @@ function buildMarkdown(review) {
     `Wallet: \`${review.walletName}\``,
     `Relay URL: \`${review.relayUrl}\``,
     '',
-    'This artifact does not promote the package to `rc` by itself. It records the',
-    'current machine gate result and the remaining explicit human decision.',
+    'This artifact does not promote the package to `1.0.0` by itself. It records the',
+    'current RC machine gate result and the remaining explicit human decision.',
     '',
     '## Machine Gate',
     '',
@@ -286,8 +286,8 @@ function buildMarkdown(review) {
     '',
     '## Reviewer Decision',
     '',
-    '- [ ] Stay on `beta`',
-    '- [ ] Promote to `rc`',
+    '- [ ] Stay on `rc`',
+    '- [ ] Promote to `1.0.0`',
     '- Reviewer:',
     '- Decision date:',
     '- Notes:',
@@ -332,4 +332,8 @@ function main() {
   process.stdout.write(`${markdown}\n`);
 }
 
-main();
+export { buildMarkdown, buildReview, main, parseArgs };
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

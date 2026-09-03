@@ -192,6 +192,38 @@ function sampleTokenCheckpoint() {
   };
 }
 
+function expectedSuiteHandoff(surface, recommendedNow) {
+  switch (surface) {
+    case 'next':
+      return {
+        currentSurface: 'next',
+        recommendedNow,
+        command: 'zk-agent suite',
+        useWhen:
+          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
+        stayOnCurrentSurfaceWhen:
+          'Stay on next when you still need the CLI to choose across setup, wallet readiness, and the shortest flagship workflow entry.',
+        note: recommendedNow
+          ? 'Wallet readiness is no longer the blocker. The default shortest action can still be workflow pay, while suite is the broader packaged follow-up surface.'
+          : 'Suite is not the current recommendation because next is still steering setup or wallet remediation.'
+      };
+    case 'workflow':
+      return {
+        currentSurface: 'workflow',
+        recommendedNow,
+        command: 'zk-agent suite',
+        useWhen:
+          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
+        stayOnCurrentSurfaceWhen:
+          'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
+        note:
+          'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.'
+      };
+    default:
+      throw new Error(`Unsupported suite handoff surface in test: ${surface}`);
+  }
+}
+
 async function saveAgentProfile(homeDir, {
   agentId = 'sed-operator',
   name = 'SED Operator',
@@ -498,6 +530,7 @@ test('top-level next treats a stored local execution authority as writable even 
       result.recommendedCommands.nextAction,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
+    assert.deepEqual(result.suiteHandoffSummary, expectedSuiteHandoff('next', true));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -544,6 +577,7 @@ test('top-level next exposes wallet-recovery onboarding guidance when approval e
         'zk-agent next'
       ]
     });
+    assert.deepEqual(result.suiteHandoffSummary, expectedSuiteHandoff('next', false));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -655,6 +689,7 @@ test('top-level next adds paymaster fee-token discovery commands for approval-ba
       includesPaymasterTokenDiscovery: true,
       includesPaymasterTokenInspection: true
     });
+    assert.deepEqual(result.suiteHandoffSummary, expectedSuiteHandoff('next', true));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -696,6 +731,7 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
       suite: 'zk-agent suite',
       nextAction: 'zk-agent wallet signer attach --name main --private-key <hex>'
     });
+    assert.deepEqual(result.suiteHandoffSummary, expectedSuiteHandoff('workflow', false));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -755,6 +791,7 @@ test('top-level next adds token discovery commands for tokenized workflow checkp
       includesPaymasterTokenDiscovery: false,
       includesPaymasterTokenInspection: false
     });
+    assert.deepEqual(result.suiteHandoffSummary, expectedSuiteHandoff('workflow', false));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

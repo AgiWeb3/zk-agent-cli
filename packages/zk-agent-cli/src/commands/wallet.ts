@@ -149,6 +149,10 @@ import {
   resolveEffectivePaymasterSelection,
   walletNextLines
 } from '../lib/wallet-next.js';
+import {
+  buildSuiteHandoffSummary,
+  suiteHandoffLines
+} from '../lib/suite-handoff.js';
 
 const provider = new ZkSyncWalletProvider();
 const NATIVE_TOKEN_DECIMALS = 18;
@@ -3344,7 +3348,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
       '    zk-agent wallet status --name main',
       '    zk-agent wallet next --name main',
       '',
-      '  When wallet readiness is no longer the blocker and you want the packaged post-flagship surface:',
+      '  When wallet readiness is no longer the blocker and you want the packaged surface:',
       '    zk-agent suite',
       '',
       '  Hosted remote approval path:',
@@ -4140,11 +4144,17 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         paymasterMode: resolveEffectivePaymasterSelection(walletRecord)?.mode,
         recommendedCommands
       });
+      const suiteHandoffSummary = buildSuiteHandoffSummary({
+        currentSurface: 'wallet',
+        recommendedNow: summary.status === 'ready',
+        walletName: walletRecord.walletName,
+        chain: summary.chain
+      });
 
       printResult(
         [
           ...walletStatusLines(inspection, summary),
-          ['suite', recommendedCommands.suite],
+          ...suiteHandoffLines(suiteHandoffSummary),
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
           ...(recommendedCommands.discoverPaymasterTokens
@@ -4162,6 +4172,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           inspection,
           summary,
           tokenDiscoverySummary,
+          suiteHandoffSummary,
           recommendedCommands
         }
       );
@@ -4186,11 +4197,17 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         paymasterMode: resolveEffectivePaymasterSelection(walletRecord)?.mode,
         recommendedCommands
       });
+      const suiteHandoffSummary = buildSuiteHandoffSummary({
+        currentSurface: 'wallet',
+        recommendedNow: summary.status === 'ready',
+        walletName: walletRecord.walletName,
+        chain: summary.chain
+      });
 
       printResult(
         [
           ...walletNextLines(summary),
-          ['suite', recommendedCommands.suite],
+          ...suiteHandoffLines(suiteHandoffSummary),
           ['discover assets', recommendedCommands.discoverAssets],
           ['discover owned tokens', recommendedCommands.discoverOwnedTokens],
           ...(recommendedCommands.discoverPaymasterTokens
@@ -4208,6 +4225,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           inspection,
           summary,
           tokenDiscoverySummary,
+          suiteHandoffSummary,
           recommendedCommands
         }
       );

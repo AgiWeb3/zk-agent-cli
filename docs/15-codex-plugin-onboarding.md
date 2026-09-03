@@ -68,18 +68,19 @@ Then install `zk-agent-cli` from the Personal marketplace.
 
 ## Current local status
 
-On the maintainer machine used for this repository, after upgrading to
-`codex-cli 0.147.0`, the full native install path now works:
+On the maintainer machine used for this repository, the full native install
+path works:
 
 - `pnpm codex:plugin:install-local`
 - `codex plugin marketplace list --json`
 - `codex plugin add zk-agent-cli@personal --json`
 - `codex plugin list --json`
 
-That install writes the cached plugin under:
+That install writes a cached plugin entry under the personal Codex cache, for
+example:
 
 ```text
-/Users/mac/.codex/plugins/cache/personal/zk-agent-cli/0.1.0-beta.9
+~/.codex/plugins/cache/personal/zk-agent-cli/<installed-version>
 ```
 
 and reports the installed source as:

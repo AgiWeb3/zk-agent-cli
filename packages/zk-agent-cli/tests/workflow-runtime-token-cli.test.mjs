@@ -41,6 +41,20 @@ async function runCliJson(args, env) {
   return JSON.parse(stdout);
 }
 
+function expectedWorkflowSuiteHandoff() {
+  return {
+    currentSurface: 'workflow',
+    recommendedNow: false,
+    command: 'zk-agent suite',
+    useWhen:
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
+    stayOnCurrentSurfaceWhen:
+      'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
+    note:
+      'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.'
+  };
+}
+
 test('workflow next returns token discovery commands for tokenized ready checkpoints', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workflow-runtime-token-home-'));
 
@@ -95,6 +109,7 @@ test('workflow next returns token discovery commands for tokenized ready checkpo
       discoverTokens: 'zk-agent tokens --chain zksync-sepolia',
       inspectToken: 'zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>'
     });
+    assert.deepEqual(result.suiteHandoffSummary, expectedWorkflowSuiteHandoff());
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

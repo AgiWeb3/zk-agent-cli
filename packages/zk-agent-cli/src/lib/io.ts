@@ -14,7 +14,10 @@ export function isTTY(): boolean {
 }
 
 export function shouldJsonOutput(): boolean {
-  return !isTTY() || process.env.ZK_AGENT_OUTPUT === 'json';
+  const requestedOutput = process.env.ZK_AGENT_OUTPUT?.trim().toLowerCase();
+  if (requestedOutput === 'text') return false;
+  if (requestedOutput === 'json') return true;
+  return !isTTY();
 }
 
 export function jsonOut(value: unknown): void {

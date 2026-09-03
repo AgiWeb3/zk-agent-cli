@@ -195,11 +195,11 @@ function assertPackageReadme(readme) {
       'Package README must document the local-only doctor entrypoint.'
     ],
     [
-      /zk-agent suite[\s\S]*post-flagship/,
+      /zk-agent suite[\s\S]*(post-flagship|packaged surface)/,
       'Package README must keep the operator-suite surface visible.'
     ],
     [
-      /## Direct Discovery and Bypass Commands[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>/,
+      /## (Direct Discovery and Bypass Commands|Direct Paths)[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>/,
       'Package README must document the discovery/defaults path and its command order.'
     ],
     [
@@ -230,11 +230,11 @@ function assertPackageReadme(readme) {
     [/workflows\/\*\.json/, 'Package README must document the workflows storage path correctly.'],
     [/## Common [Ff]ailures/, 'Package README must include a Common Failures section.'],
     [
-      /Connector callback never arrives:/,
+      /[Cc]onnector callback never arrives:/,
       'Package README must document connector callback repair guidance.'
     ],
     [
-      /Workflow stops on funding:/,
+      /[Ww]orkflow stops on funding:/,
       'Package README must document funding-stop repair guidance.'
     ]
   ];
@@ -248,7 +248,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
   const requiredChecks = [
     [
       rootReadme,
-      /## Entry Points/,
+      /## (Entry Points|Use It From)/,
       'Root README must expose a public entrypoint section.'
     ],
     [
@@ -263,8 +263,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /Current public stage: `0\.1\.0-rc\.1`\./,
-      'Root README must keep the current RC-stage product baseline visible.'
+      /Current public stage: `[^`]+`\./,
+      'Root README must keep the current public-stage product baseline visible.'
     ],
     [
       rootReadme,
@@ -283,8 +283,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /zk-agent relay inspect --relay-url <relay-url>[\s\S]*zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent next/,
-      'Root README must keep the remote-browser wallet-create fallback visible.'
+      /Hosted remote approval is documented in:[\s\S]*packages\/zk-agent-cli\/README\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
+      'Root README must hand off hosted remote approval to the package README and operated-baseline doc.'
     ],
     [
       rootReadme,
@@ -405,6 +405,11 @@ function assertCurrentVersionDocs({
       : 'stable';
   const stageTag = releaseStage === 'stable' ? 'latest' : releaseStage;
   const requiredChecks = [
+    [
+      rootReadme,
+      new RegExp(`Current public stage: \`${escapedVersion}\`\\.`),
+      'README.md must keep the current published version visible in the public-stage line.'
+    ],
     [
       changelog,
       new RegExp('- `' + escapedVersion + '`'),
@@ -544,7 +549,7 @@ function assertReleaseStageDocs({
     ],
     [
       projectState,
-      /## Snapshot[\s\S]*package stage: `0\.1\.0-rc\.1`[\s\S]*current focus: RC hardening and productization closeout/,
+      /## Snapshot[\s\S]*package stage: `[^`]+`[\s\S]*current focus: RC hardening and productization closeout/,
       'PROJECT_STATE.md must keep the release-stage assessment explicit.'
     ],
     [
@@ -593,7 +598,7 @@ function assertReleaseArtifact(changelog, releaseNotes) {
 function assertTopLevelHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Local-first zkSync Era CLI for wallet approval, workflow execution, and hosted relay recovery',
+    'Local-first zkSync-native CLI for wallet approval, workflow execution, and single-host hosted relay recovery',
     'Public entrypoints:',
     'Agent harness: npx skills add https://github.com/AgiWeb3/zk-agent-cli',
     'One-shot CLI: npx zk-agent-cli --help',
