@@ -43,6 +43,10 @@ test('recommended suite command preserves non-default wallet and chain context',
     buildSuiteRecommendedCommand('ops-wallet', 'zksync-era'),
     'zk-agent suite --wallet ops-wallet --chain zksync-era'
   );
+  assert.equal(
+    buildSuiteRecommendedCommand('ops-wallet', 'zksync-era', { includeOnboarding: true }),
+    'zk-agent suite --wallet ops-wallet --chain zksync-era --include-onboarding'
+  );
 });
 
 test('recommended wallet create command uses await-local flow', () => {
@@ -50,6 +54,10 @@ test('recommended wallet create command uses await-local flow', () => {
   assert.equal(
     buildWalletCreateRecommendedCommand('sponsored'),
     'zk-agent wallet create --await-local --paymaster-mode sponsored'
+  );
+  assert.equal(
+    buildWalletCreateRecommendedCommand(undefined, 'ops-wallet'),
+    'zk-agent wallet create --name ops-wallet --await-local'
   );
 });
 

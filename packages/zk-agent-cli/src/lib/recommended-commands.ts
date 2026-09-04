@@ -15,7 +15,10 @@ export function buildDefaultsRecommendedCommand(): string {
 
 export function buildSuiteRecommendedCommand(
   walletName = 'main',
-  chain = 'zksync-sepolia'
+  chain = 'zksync-sepolia',
+  options: {
+    includeOnboarding?: boolean;
+  } = {}
 ): string {
   const flags: string[] = [];
   if (walletName !== 'main') {
@@ -24,23 +27,36 @@ export function buildSuiteRecommendedCommand(
   if (chain !== 'zksync-sepolia') {
     flags.push(`--chain ${chain}`);
   }
+  if (options.includeOnboarding) {
+    flags.push('--include-onboarding');
+  }
 
   return flags.length > 0 ? `zk-agent suite ${flags.join(' ')}` : 'zk-agent suite';
 }
 
 export function buildTopLevelNextRecommendedCommand(
   requestId?: string,
-  paymasterMode?: PaymasterMode
+  paymasterMode?: PaymasterMode,
+  walletName = 'main'
 ): string {
   const command = requestId
     ? `zk-agent next --request-id ${requestId}`
-    : 'zk-agent next';
+    : walletName !== 'main'
+      ? `zk-agent next --wallet ${walletName}`
+      : 'zk-agent next';
 
   return appendPaymasterMode(command, paymasterMode);
 }
 
-export function buildWalletCreateRecommendedCommand(paymasterMode?: PaymasterMode): string {
-  return appendPaymasterMode('zk-agent wallet create --await-local', paymasterMode);
+export function buildWalletCreateRecommendedCommand(
+  paymasterMode?: PaymasterMode,
+  walletName = 'main'
+): string {
+  const command =
+    walletName !== 'main'
+      ? `zk-agent wallet create --name ${walletName} --await-local`
+      : 'zk-agent wallet create --await-local';
+  return appendPaymasterMode(command, paymasterMode);
 }
 
 export function buildRelayInspectRecommendedCommand(relayUrl = '<url>'): string {

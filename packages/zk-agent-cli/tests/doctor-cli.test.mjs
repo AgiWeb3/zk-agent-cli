@@ -179,6 +179,61 @@ function sampleWallet({ approvalReady = true, localExecutionKeyStored = true } =
   };
 }
 
+function expectedDoctorProductEntrySummary(stage, nextAction) {
+  switch (stage) {
+    case 'setup':
+      return {
+        view: 'product-entry',
+        currentSurface: 'doctor',
+        stage: 'setup',
+        category: 'bootstrap',
+        recommendedMode: 'local-first',
+        nextSurface: 'setup',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Start with setup first. The operator path is still in first-run bootstrap.'
+      };
+    case 'wallet-bootstrap':
+      return {
+        view: 'product-entry',
+        currentSurface: 'doctor',
+        stage: 'wallet-bootstrap',
+        category: 'bootstrap',
+        recommendedMode: 'local-first',
+        nextSurface: 'wallet',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Local defaults exist, but wallet bootstrap is still the current product question.'
+      };
+    case 'wallet-recovery':
+      return {
+        view: 'product-entry',
+        currentSurface: 'doctor',
+        stage: 'wallet-recovery',
+        category: 'recover',
+        recommendedMode: 'local-first',
+        nextSurface: 'wallet',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Stay on wallet recovery until approval or local signer readiness stops being the blocker.'
+      };
+    case 'wallet-ready':
+      return {
+        view: 'product-entry',
+        currentSurface: 'doctor',
+        stage: 'wallet-ready',
+        category: 'operate',
+        recommendedMode: 'local-first',
+        nextSurface: 'next',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Local readiness is clear. Return to zk-agent next when you want the live operator path instead of a local-only diagnosis.'
+      };
+    default:
+      throw new Error(`Unsupported doctor product entry stage in test: ${stage}`);
+  }
+}
+
 test('doctor returns setup guidance when local config is missing', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-doctor-setup-'));
 
@@ -190,6 +245,10 @@ test('doctor returns setup guidance when local config is missing', async () => {
     assert.equal(result.scope, 'setup');
     assert.equal(result.config.exists, false);
     assert.equal(result.wallet, null);
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedDoctorProductEntrySummary('setup', 'zk-agent setup')
+    );
     assert.deepEqual(result.onboardingSummary, {
       stage: 'setup',
       baseline: 'local-first',
@@ -251,6 +310,10 @@ test('doctor returns wallet bootstrap guidance when config exists but the wallet
     );
 
     assert.equal(result.scope, 'wallet-bootstrap');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedDoctorProductEntrySummary('wallet-bootstrap', 'zk-agent wallet create --await-local')
+    );
     assert.equal(result.config.exists, true);
     assert.equal(result.summary.walletExists, false);
     assert.deepEqual(result.onboardingSummary, {
@@ -310,6 +373,10 @@ test('doctor returns reapprove guidance when the wallet exists but approval meta
     );
 
     assert.equal(result.scope, 'wallet-recovery');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedDoctorProductEntrySummary('wallet-recovery', 'zk-agent wallet reapprove --name main --await-local')
+    );
     assert.equal(result.wallet.approvalReady, false);
     assert.equal(result.wallet.localExecutionKeyStored, false);
     assert.equal(result.onboardingSummary.stage, 'wallet-recovery');
@@ -351,6 +418,10 @@ test('doctor returns attach-signer guidance when approval exists but no local si
     const result = await runCliJson(['doctor'], env);
 
     assert.equal(result.scope, 'wallet-recovery');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedDoctorProductEntrySummary('wallet-recovery', 'zk-agent wallet signer attach --name main --private-key <hex>')
+    );
     assert.equal(result.wallet.approvalReady, true);
     assert.equal(result.wallet.localExecutionKeyStored, false);
     assert.equal(result.onboardingSummary.stage, 'wallet-recovery');
@@ -387,6 +458,10 @@ test('doctor returns zk-agent next when local config, approval, and signer state
     const result = await runCliJson(['doctor'], env);
 
     assert.equal(result.scope, 'wallet-ready');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedDoctorProductEntrySummary('wallet-ready', 'zk-agent next')
+    );
     assert.equal(result.wallet.approvalReady, true);
     assert.equal(result.wallet.localExecutionKeyStored, true);
     assert.deepEqual(result.onboardingSummary, {
@@ -430,6 +505,10 @@ test('doctor help explains the local-only boundary and relay-url override', asyn
     assert.match(help, /Use `doctor` when local state is unclear:/);
     assert.match(help, /zk-agent doctor --wallet main/);
     assert.match(help, /zk-agent doctor --wallet main --relay-url https:\/\/relay\.example\.com/);
+    assert.match(help, /What `doctor` answers right now:/);
+    assert.match(help, /bootstrap: local config or wallet bootstrap is still missing/);
+    assert.match(help, /recover: local approval or signer state still needs repair/);
+    assert.match(help, /operate: local readiness is clear, so return to `zk-agent next` for the live path/);
     assert.match(help, /without requiring live RPC reads/);
     assert.match(help, /Run this before guessing whether the blocker is setup, wallet approval, or local signer state/);
     assert.match(help, /Pass --relay-url when you want the remote approval fallback commands/);

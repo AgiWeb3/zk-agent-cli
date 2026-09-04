@@ -25,6 +25,10 @@ import {
   onboardingSummaryLines
 } from '../lib/onboarding-summary.js';
 import {
+  buildProductEntrySummary,
+  productEntrySummaryLines
+} from '../lib/product-entry-summary.js';
+import {
   buildDefaultsRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
@@ -71,6 +75,11 @@ function buildDoctorHelpText(): string {
     '  zk-agent doctor --wallet main',
     '  zk-agent doctor --wallet main --relay-url https://relay.example.com',
     '',
+    '  What `doctor` answers right now:',
+    '    bootstrap: local config or wallet bootstrap is still missing',
+    '    recover: local approval or signer state still needs repair',
+    '    operate: local readiness is clear, so return to `zk-agent next` for the live path',
+    '',
     'Default behavior:',
     '  Inspects saved config, local wallet approval metadata, local signer state,',
     '  and the shortest next command without requiring live RPC reads.',
@@ -111,19 +120,19 @@ function summarizeLocalWalletState(wallet: WalletSessionRecord): LocalWalletDoct
   };
 }
 
-function buildSetupRecommendedCommands() {
+function buildSetupRecommendedCommands(walletName: string) {
   return {
     setup: 'zk-agent setup',
-    next: buildTopLevelNextRecommendedCommand(),
+    next: buildTopLevelNextRecommendedCommand(undefined, undefined, walletName),
     inspectDefaults: buildDefaultsRecommendedCommand()
   };
 }
 
 function buildWalletBootstrapRecommendedCommands(walletName: string, relayUrl?: string) {
   return {
-    next: buildTopLevelNextRecommendedCommand(),
+    next: buildTopLevelNextRecommendedCommand(undefined, undefined, walletName),
     inspectDefaults: buildDefaultsRecommendedCommand(),
-    createWallet: buildWalletCreateRecommendedCommand(),
+    createWallet: buildWalletCreateRecommendedCommand(undefined, walletName),
     relayInspect: buildRelayInspectRecommendedCommand(relayUrl),
     createWalletRemote: buildWalletCreateRemoteRecommendedCommand(relayUrl, undefined, walletName)
   };
@@ -134,7 +143,7 @@ function buildWalletRecoveryRecommendedCommands(
   relayUrl?: string
 ) {
   const shared = {
-    next: buildTopLevelNextRecommendedCommand(),
+    next: buildTopLevelNextRecommendedCommand(undefined, undefined, wallet.walletName),
     walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
     walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
     signerShow: buildWalletSignerShowRecommendedCommand(wallet.walletName),
@@ -158,7 +167,7 @@ function buildWalletRecoveryRecommendedCommands(
 
 function buildWalletReadyRecommendedCommands(wallet: LocalWalletDoctorState) {
   return {
-    next: buildTopLevelNextRecommendedCommand(),
+    next: buildTopLevelNextRecommendedCommand(undefined, undefined, wallet.walletName),
     walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
     walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
     workflowPay: buildWorkflowPayRecommendedCommand(wallet.walletName),
@@ -173,7 +182,7 @@ function buildDoctorResult(options: {
   config: Awaited<ReturnType<typeof loadProjectConfig>>;
 }) {
   if (!options.config) {
-    const recommendedCommands = buildSetupRecommendedCommands();
+    const recommendedCommands = buildSetupRecommendedCommands(options.walletName);
     const onboardingSummary = buildOnboardingSummary({
       stage: 'setup',
       localOnly: true,
@@ -188,10 +197,16 @@ function buildDoctorResult(options: {
         'Doctor is local-only by default and does not require live RPC reads.'
       ]
     });
+    const productEntrySummary = buildProductEntrySummary({
+      currentSurface: 'doctor',
+      stage: 'setup',
+      nextAction: recommendedCommands.setup
+    });
     return {
       scope: 'setup' as const,
       nextAction: recommendedCommands.setup,
-      recommendedPaths: buildSetupRecommendedPaths(options.relayUrl),
+      recommendedPaths: buildSetupRecommendedPaths(options.relayUrl, undefined, options.walletName),
+      productEntrySummary,
       onboardingSummary,
       summary: {
         stage: 'setup' as const,
@@ -230,10 +245,16 @@ function buildDoctorResult(options: {
         'Use the remote relay path only when the browser is not colocated with this terminal.'
       ]
     });
+    const productEntrySummary = buildProductEntrySummary({
+      currentSurface: 'doctor',
+      stage: 'wallet-bootstrap',
+      nextAction: recommendedCommands.createWallet
+    });
     return {
       scope: 'wallet-bootstrap' as const,
       nextAction: recommendedCommands.createWallet,
       recommendedPaths: buildWalletBootstrapRecommendedPaths(options.relayUrl, undefined, options.walletName),
+      productEntrySummary,
       onboardingSummary,
       summary: {
         stage: 'wallet-bootstrap' as const,
@@ -274,6 +295,11 @@ function buildDoctorResult(options: {
         'Use the remote reapproval path only when the browser cannot return directly to this terminal.'
       ]
     });
+    const productEntrySummary = buildProductEntrySummary({
+      currentSurface: 'doctor',
+      stage: 'wallet-recovery',
+      nextAction: recommendedCommands.reapprove
+    });
     return {
       scope: 'wallet-recovery' as const,
       nextAction: recommendedCommands.reapprove,
@@ -281,6 +307,7 @@ function buildDoctorResult(options: {
         options.wallet.walletName,
         options.relayUrl
       ),
+      productEntrySummary,
       onboardingSummary,
       summary: {
         stage: 'wallet-recovery' as const,
@@ -322,10 +349,16 @@ function buildDoctorResult(options: {
         'Doctor is local-only: it confirms stored signer state, not live chain deployment or gas balance.'
       ]
     });
+    const productEntrySummary = buildProductEntrySummary({
+      currentSurface: 'doctor',
+      stage: 'wallet-recovery',
+      nextAction: attachSigner
+    });
     return {
       scope: 'wallet-recovery' as const,
       nextAction: attachSigner,
       recommendedPaths: buildSignerRecoveryRecommendedPaths(options.wallet.walletName),
+      productEntrySummary,
       onboardingSummary,
       summary: {
         stage: 'wallet-recovery' as const,
@@ -362,12 +395,19 @@ function buildDoctorResult(options: {
       'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
     ]
   });
+  const productEntrySummary = buildProductEntrySummary({
+    currentSurface: 'doctor',
+    stage: 'wallet-ready',
+    nextAction: recommendedCommands.next,
+    nextSurface: 'next'
+  });
   return {
     scope: 'wallet-ready' as const,
     nextAction: recommendedCommands.next,
     recommendedPaths: {
       local: [recommendedCommands.next]
     },
+    productEntrySummary,
     onboardingSummary,
     summary: {
       stage: 'wallet-ready' as const,
@@ -393,6 +433,7 @@ function buildDoctorLines(input: {
   config: Awaited<ReturnType<typeof loadProjectConfig>>;
   wallet: LocalWalletDoctorState | null;
   onboardingSummary: ReturnType<typeof buildOnboardingSummary>;
+  productEntrySummary: ReturnType<typeof buildProductEntrySummary>;
   summary: ReturnType<typeof buildDoctorResult>['summary'];
   recommendedPaths?: RecommendedPaths;
   recommendedCommands: Record<string, string>;
@@ -401,6 +442,7 @@ function buildDoctorLines(input: {
   const lines: Array<[string, string]> = [
     ['scope', input.scope],
     ...onboardingSummaryLines(input.onboardingSummary),
+    ...productEntrySummaryLines(input.productEntrySummary),
     ['config', input.config ? 'present' : 'missing']
   ];
 
@@ -506,6 +548,7 @@ export function createDoctorCommand(): Command {
             config,
             wallet,
             onboardingSummary: result.onboardingSummary,
+            productEntrySummary: result.productEntrySummary,
             summary: result.summary,
             recommendedPaths: result.recommendedPaths,
             recommendedCommands: result.recommendedCommands,
@@ -529,6 +572,7 @@ export function createDoctorCommand(): Command {
                 exists: false
               },
           wallet,
+          productEntrySummary: result.productEntrySummary,
           onboardingSummary: result.onboardingSummary,
           summary: result.summary,
           agentProfile,

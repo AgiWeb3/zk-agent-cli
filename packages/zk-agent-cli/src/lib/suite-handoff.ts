@@ -19,7 +19,7 @@ export function buildSuiteHandoffSummary(input: {
 }): SuiteHandoffSummary {
   const command = buildSuiteRecommendedCommand(input.walletName, input.chain);
   const useWhen =
-    'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.';
+    'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.';
 
   switch (input.currentSurface) {
     case 'next':

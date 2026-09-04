@@ -22,9 +22,33 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
+`zk-agent next` is the product entrypoint. It now compresses the immediate
+operator question into one of four categories:
+
+- `bootstrap`
+- `recover`
+- `operate`
+- `workflow`
+
 After the flagship path is live, use `zk-agent suite` as the packaged
-post-flagship entrypoint for discovery, defaults, funding, and paymaster
-readiness.
+post-flagship entrypoint for discovery, defaults, funding, paymaster
+readiness, and hosted approval recovery.
+
+If you want the full product map from fresh install through wallet bootstrap
+and into the packaged operator surface, use:
+
+```bash
+zk-agent suite --include-onboarding
+```
+
+Inside `suite`, the current operator catalog is organized by the question the
+operator is actually asking:
+
+- `operate`: run the flagship native send path
+- `discover`: inspect assets/defaults before tokenized actions
+- `pay`: stay on the approval-based paymaster path
+- `fund`: recover from gas and funding blockers
+- `recover`: switch to hosted relay approval when the browser is remote
 
 ## Use It From
 

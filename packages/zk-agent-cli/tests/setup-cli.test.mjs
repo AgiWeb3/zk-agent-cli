@@ -260,6 +260,12 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
 
     assert.match(help, /Use `next` as the product entrypoint:/);
     assert.match(help, /Stay on `next` until it points you at a wallet-specific or workflow-specific blocker/);
+    assert.match(help, /What `next` answers right now:/);
+    assert.match(help, /bootstrap: config or wallet bootstrap is still the current blocker/);
+    assert.match(help, /recover: wallet approval or local signer readiness still needs repair/);
+    assert.match(help, /operate: wallet readiness is clear, so the flagship workflow path is next/);
+    assert.match(help, /workflow: a stored checkpoint is already the active question/);
+    assert.match(help, /suite: switch only when the question becomes broader than one immediate next step/);
     assert.match(help, /Fresh local-first routing:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent wallet create --await-local/);

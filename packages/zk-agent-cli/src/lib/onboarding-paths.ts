@@ -32,21 +32,22 @@ export function recommendedPathLines(paths?: RecommendedPaths): Array<[string, s
 
 export function buildSetupRecommendedPaths(
   relayUrl = '<url>',
-  paymasterMode?: PaymasterMode
+  paymasterMode?: PaymasterMode,
+  walletName = 'main'
 ): RecommendedPaths {
-  const next = buildTopLevelNextRecommendedCommand(undefined, paymasterMode);
+  const next = buildTopLevelNextRecommendedCommand(undefined, paymasterMode, walletName);
   return {
     local: [
       'zk-agent setup',
       next,
-      buildWalletCreateRecommendedCommand(paymasterMode),
+      buildWalletCreateRecommendedCommand(paymasterMode, walletName),
       next
     ],
     remoteBrowser: [
       'zk-agent setup',
       next,
       buildRelayInspectRecommendedCommand(relayUrl),
-      buildWalletCreateRemoteRecommendedCommand(relayUrl, paymasterMode),
+      buildWalletCreateRemoteRecommendedCommand(relayUrl, paymasterMode, walletName),
       next
     ]
   };
@@ -57,9 +58,9 @@ export function buildWalletBootstrapRecommendedPaths(
   paymasterMode?: PaymasterMode,
   walletName = 'main'
 ): RecommendedPaths {
-  const next = buildTopLevelNextRecommendedCommand(undefined, paymasterMode);
+  const next = buildTopLevelNextRecommendedCommand(undefined, paymasterMode, walletName);
   return {
-    local: [buildWalletCreateRecommendedCommand(paymasterMode), next],
+    local: [buildWalletCreateRecommendedCommand(paymasterMode, walletName), next],
     remoteBrowser: [
       buildRelayInspectRecommendedCommand(relayUrl),
       buildWalletCreateRemoteRecommendedCommand(relayUrl, paymasterMode, walletName),
@@ -73,7 +74,7 @@ export function buildWalletReapprovalRecommendedPaths(
   relayUrl = '<url>',
   paymasterMode?: PaymasterMode
 ): RecommendedPaths {
-  const next = buildTopLevelNextRecommendedCommand(undefined, paymasterMode);
+  const next = buildTopLevelNextRecommendedCommand(undefined, paymasterMode, walletName);
   return {
     local: [buildWalletReapproveRecommendedCommand(walletName), next],
     remoteBrowser: [
@@ -91,7 +92,7 @@ export function buildSignerRecoveryRecommendedPaths(
   return {
     local: [
       buildWalletSignerAttachRecommendedCommand(walletName),
-      buildTopLevelNextRecommendedCommand(undefined, paymasterMode)
+      buildTopLevelNextRecommendedCommand(undefined, paymasterMode, walletName)
     ]
   };
 }

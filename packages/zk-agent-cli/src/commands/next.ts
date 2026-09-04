@@ -32,6 +32,11 @@ import {
   onboardingSummaryLines
 } from '../lib/onboarding-summary.js';
 import {
+  buildProductEntrySummary,
+  productEntrySummaryLines,
+  type ProductEntrySummary
+} from '../lib/product-entry-summary.js';
+import {
   buildSuiteHandoffSummary,
   suiteHandoffLines
 } from '../lib/suite-handoff.js';
@@ -148,8 +153,12 @@ function buildSetupCommand(): string {
   return 'zk-agent setup';
 }
 
-function buildTopLevelNextRecommendedCommand(requestId?: string): string {
-  return requestId ? `zk-agent next --request-id ${requestId}` : 'zk-agent next';
+function buildTopLevelNextRecommendedCommand(requestId?: string, walletName = 'main'): string {
+  return requestId
+    ? `zk-agent next --request-id ${requestId}`
+    : walletName !== 'main'
+      ? `zk-agent next --wallet ${walletName}`
+      : 'zk-agent next';
 }
 
 function buildTopLevelWorkflowSummary(
@@ -181,11 +190,13 @@ function appendPaymasterMode(command: string, paymasterMode?: PaymasterMode): st
 function topLevelNextLines(
   scope: 'setup' | 'wallet-bootstrap' | 'wallet' | 'workflow',
   lines: Array<[string, string]>,
-  onboardingSummary?: ReturnType<typeof buildOnboardingSummary>
+  onboardingSummary?: ReturnType<typeof buildOnboardingSummary>,
+  productEntrySummary?: ProductEntrySummary
 ): Array<[string, string]> {
   return [
     ['scope', scope],
     ...(onboardingSummary ? onboardingSummaryLines(onboardingSummary) : []),
+    ...(productEntrySummary ? productEntrySummaryLines(productEntrySummary) : []),
     ...lines
   ];
 }
@@ -195,6 +206,13 @@ function buildNextHelpText(): string {
     '',
     'Use `next` as the product entrypoint:',
     '  Stay on `next` until it points you at a wallet-specific or workflow-specific blocker.',
+    '',
+    '  What `next` answers right now:',
+    '    bootstrap: config or wallet bootstrap is still the current blocker',
+    '    recover: wallet approval or local signer readiness still needs repair',
+    '    operate: wallet readiness is clear, so the flagship workflow path is next',
+    '    workflow: a stored checkpoint is already the active question',
+    '    suite: switch only when the question becomes broader than one immediate next step',
     '',
     '  Fresh local-first routing:',
     '    zk-agent setup',
@@ -308,6 +326,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           walletName: wallet.walletName,
           walletExists: true
         });
+        const productEntrySummary = buildProductEntrySummary({
+          stage: 'workflow',
+          nextAction: nextCommand,
+          suiteAvailable: false
+        });
 
         printResult(
           topLevelNextLines('workflow', [
@@ -329,7 +352,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
                   ['funding status', result.fundingProgress.status] as [string, string]
                 ]
               : [])
-          ]),
+          ], undefined, productEntrySummary),
           {
             ok: true,
             scope: 'workflow',
@@ -337,6 +360,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             workflowRequestId: requestId,
             walletName: wallet.walletName,
             nextCommand,
+            productEntrySummary,
             agentProfile: workflowAgentProfile,
             agentFollowup,
             summary: buildTopLevelWorkflowSummary(result, nextCommand),
@@ -354,10 +378,10 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
       if (!config) {
         const recommendedCommands = {
           setup: buildSetupCommand(),
-          afterSetup: buildTopLevelNextRecommendedCommand(),
+          afterSetup: buildTopLevelNextRecommendedCommand(undefined, walletName),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
-        const recommendedPaths = buildSetupRecommendedPaths('<url>', paymasterMode);
+        const recommendedPaths = buildSetupRecommendedPaths('<url>', paymasterMode, walletName);
         const onboardingSummary = buildOnboardingSummary({
           stage: 'setup',
           localOnly: true,
@@ -369,6 +393,10 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             'This scope is local-only and does not require live RPC reads.'
           ]
         });
+        const productEntrySummary = buildProductEntrySummary({
+          stage: 'setup',
+          nextAction: recommendedCommands.setup
+        });
 
         printResult(
           topLevelNextLines('setup', [
@@ -379,12 +407,13 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['next', recommendedCommands.setup],
             ['after setup', recommendedCommands.afterSetup],
             ['inspect defaults', recommendedCommands.inspectDefaults]
-          ], onboardingSummary),
+          ], onboardingSummary, productEntrySummary),
           {
             ok: true,
             scope: 'setup',
             status: 'action-required',
             nextCommand: recommendedCommands.setup,
+            productEntrySummary,
             onboardingSummary,
             recommendedPaths,
             agentProfile,
@@ -399,15 +428,19 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
       if (!wallet) {
         const recommendedCommands = {
           createWallet: appendPaymasterMode(
-            buildWalletCreateRecommendedCommand(),
+            buildWalletCreateRecommendedCommand(undefined, walletName),
             paymasterMode
           ),
           relayInspect: buildRelayInspectRecommendedCommand(),
           createWalletRemote: buildWalletCreateRemoteRecommendedCommand(
             '<url>',
+            paymasterMode,
+            walletName
+          ),
+          afterApproval: appendPaymasterMode(
+            buildTopLevelNextRecommendedCommand(undefined, walletName),
             paymasterMode
           ),
-          afterApproval: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode),
           inspectDefaults: buildDefaultsRecommendedCommand()
         };
         const recommendedPaths = buildWalletBootstrapRecommendedPaths(
@@ -428,6 +461,10 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             'Use the remote approval fallback only when the browser is not colocated with this terminal.'
           ]
         });
+        const productEntrySummary = buildProductEntrySummary({
+          stage: 'wallet-bootstrap',
+          nextAction: recommendedCommands.createWallet
+        });
 
         printResult(
           topLevelNextLines('wallet-bootstrap', [
@@ -442,13 +479,14 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             ['remote fallback', recommendedCommands.createWalletRemote],
             ['after approval', recommendedCommands.afterApproval],
             ['inspect defaults', recommendedCommands.inspectDefaults]
-          ], onboardingSummary),
+          ], onboardingSummary, productEntrySummary),
           {
             ok: true,
             scope: 'wallet-bootstrap',
             walletName,
             config,
             nextCommand: recommendedCommands.createWallet,
+            productEntrySummary,
             onboardingSummary,
             recommendedPaths,
             agentProfile,
@@ -549,13 +587,16 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
               reapprove: buildWalletReapproveRecommendedCommand(wallet.walletName),
               relayInspect: buildRelayInspectRecommendedCommand(),
               reapproveRemote: buildWalletReapproveRemoteRecommendedCommand(wallet.walletName),
-              afterRecovery: appendPaymasterMode(buildTopLevelNextRecommendedCommand(), paymasterMode)
+              afterRecovery: appendPaymasterMode(
+                buildTopLevelNextRecommendedCommand(undefined, wallet.walletName),
+                paymasterMode
+              )
             }
           : !inspection.localExecutionKeyStored
             ? {
                 attachSigner: buildWalletSignerAttachRecommendedCommand(wallet.walletName),
                 afterRecovery: appendPaymasterMode(
-                  buildTopLevelNextRecommendedCommand(),
+                  buildTopLevelNextRecommendedCommand(undefined, wallet.walletName),
                   paymasterMode
                 )
               }
@@ -584,6 +625,11 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         recommendedNow: summary.status === 'ready',
         walletName: wallet.walletName,
         chain: wallet.chain
+      });
+      const productEntrySummary = buildProductEntrySummary({
+        stage: onboardingSummary.stage,
+        nextAction: nextCommand,
+        suiteAvailable: summary.status === 'ready'
       });
 
       printResult(
@@ -617,11 +663,12 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
             : []),
           ['inspect token', mergedRecommendedCommands.inspectToken],
           ['inspect defaults', mergedRecommendedCommands.inspectDefaults]
-        ], onboardingSummary),
+        ], onboardingSummary, productEntrySummary),
         {
           ok: true,
           scope: 'wallet',
           walletName: wallet.walletName,
+          productEntrySummary,
           onboardingSummary,
           recommendedPaths,
           agentProfile,

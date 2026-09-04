@@ -21,9 +21,13 @@
 - relay expiry recovery and local reissue semantics exist
 - `setup`, `next`, and `doctor` emit structured onboarding summaries and
   follow-up paths
+- `next` now also emits a product-entry summary that classifies the current
+  operator question as bootstrap, recover, operate, or workflow
 - wallet and workflow flows emit structured follow-up contracts
-- discovery, defaults, funding, and paymaster readiness are exposed through
-  `suite` and the CLI discovery surface
+- discovery, defaults, funding, paymaster readiness, and hosted approval
+  recovery are exposed through `suite` and the CLI discovery surface
+- `suite --include-onboarding` can now expose the first-run preflight and the
+  post-flagship operator surface together
 - release support exists through:
   `release:prepare`, `release:checklist`, `release:publish`,
   `validate:release`, and `validate:rc`

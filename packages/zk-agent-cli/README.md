@@ -28,7 +28,8 @@ zk-agent suite
 What each step is doing:
 
 - `setup` writes local defaults
-- `next` gives the shortest valid follow-up step
+- `next` gives the shortest valid follow-up step and now labels the current
+  product question as `bootstrap`, `recover`, `operate`, or `workflow`
 - `wallet create --await-local` is the preferred local approval path
 - `workflow pay` is the flagship zkSync-native AA native-send path
 - `suite` is the packaged surface
@@ -37,6 +38,13 @@ If readiness is unclear before you choose a fix, use:
 
 ```bash
 zk-agent doctor
+```
+
+If you want one packaged readout that includes both first-run onboarding and
+the post-flagship operator surface, use:
+
+```bash
+zk-agent suite --include-onboarding
 ```
 
 ## Install
@@ -165,8 +173,16 @@ zk-agent suite
 ```
 
 Use `suite` when the wallet is already ready and you want one packaged surface
-for flagship pay, discovery/defaults, funding readiness, and approval-based
-paymaster readiness.
+for flagship pay, discovery/defaults, funding readiness, approval-based
+paymaster readiness, and hosted approval recovery.
+
+Current `suite` catalog categories:
+
+- `operate`
+- `discover`
+- `pay`
+- `fund`
+- `recover`
 
 Use `--wallet <name>` or `--chain <chain>` when the returned suite commands
 should stay on a non-default wallet or chain.

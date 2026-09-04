@@ -24,11 +24,15 @@ parity.
   create, local approval, reapprove, export/restore, sync, and recovery
 - flagship AA path validated on zkSync Sepolia:
   `setup -> next -> wallet create|reapprove -> next -> workflow pay`
+- `next` now exposes a more explicit product-entry contract across
+  `bootstrap`, `recover`, `operate`, and `workflow`
 - hosted relay approval exists with repeated public operated validation
 - `setup`, `next`, `doctor`, relay flows, wallet flows, and workflow entry
   flows expose machine-readable follow-up contracts
 - `suite` exists as the packaged post-flagship surface for discovery,
-  defaults, funding, and paymaster readiness
+  defaults, funding, paymaster readiness, and hosted approval recovery, and
+  can now optionally include the first-run onboarding/preflight map in the
+  same readout
 - public onboarding docs now distinguish the CLI, repo skill, quickstart, and
   native Codex plugin entry surfaces explicitly
 - root README, package README, and docs index are now shorter and more clearly

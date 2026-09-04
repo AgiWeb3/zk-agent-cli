@@ -313,6 +313,7 @@ Current stable top-level fields:
 - `walletName`
 - `config`
 - `wallet`
+- `productEntrySummary`
 - `onboardingSummary`
 - `summary`
 - `agentProfile`
@@ -368,6 +369,10 @@ Current stable `summary` fields:
 `onboardingSummary` uses the shared onboarding field set documented above.
 On `doctor`, its values are always local-state driven.
 
+`productEntrySummary` uses the same stable field set documented on
+`zk-agent next`, but on `doctor` it remains local-only and never skips ahead to
+live workflow routing by itself.
+
 ### `scope = "setup"`
 
 This means local config is missing.
@@ -382,6 +387,16 @@ Key fields:
     "exists": false
   },
   "wallet": null,
+  "productEntrySummary": {
+    "view": "product-entry",
+    "currentSurface": "doctor",
+    "stage": "setup",
+    "category": "bootstrap",
+    "recommendedMode": "local-first",
+    "nextSurface": "setup",
+    "nextAction": "zk-agent setup",
+    "suiteAvailable": false
+  },
   "onboardingSummary": {
     "stage": "setup",
     "baseline": "local-first",
@@ -579,6 +594,7 @@ Key fields:
 
 - `scope`
 - `nextCommand`
+- `productEntrySummary`
 - `onboardingSummary`
 - `recommendedPaths`
 - `agentProfile`
@@ -591,6 +607,22 @@ when the routing decision is still purely local, and flips to
 `wallet-recovery` or `wallet-ready` once the live wallet/workflow path is the
 active decision boundary.
 
+`productEntrySummary` is the compressed product-language companion to
+`onboardingSummary`. It explains which operator question `next` is answering
+right now without forcing callers to infer that from prose or command shape.
+
+Current stable `productEntrySummary` fields:
+
+- `view`
+- `currentSurface`
+- `stage`
+- `category`
+- `recommendedMode`
+- `nextSurface`
+- `nextAction`
+- `suiteAvailable`
+- `note`
+
 ### `scope = "setup"`
 
 This means local config is missing.
@@ -602,6 +634,16 @@ Key fields:
   "scope": "setup",
   "status": "action-required",
   "nextCommand": "zk-agent setup",
+  "productEntrySummary": {
+    "view": "product-entry",
+    "currentSurface": "next",
+    "stage": "setup",
+    "category": "bootstrap",
+    "recommendedMode": "local-first",
+    "nextSurface": "setup",
+    "nextAction": "zk-agent setup",
+    "suiteAvailable": false
+  },
   "onboardingSummary": {
     "stage": "setup",
     "baseline": "local-first",
@@ -649,6 +691,16 @@ Key fields:
   "scope": "wallet-bootstrap",
   "walletName": "main",
   "nextCommand": "zk-agent wallet create --await-local",
+  "productEntrySummary": {
+    "view": "product-entry",
+    "currentSurface": "next",
+    "stage": "wallet-bootstrap",
+    "category": "bootstrap",
+    "recommendedMode": "local-first",
+    "nextSurface": "wallet",
+    "nextAction": "zk-agent wallet create --await-local",
+    "suiteAvailable": false
+  },
   "onboardingSummary": {
     "stage": "wallet-bootstrap",
     "baseline": "local-first",
@@ -703,6 +755,16 @@ Key fields:
 {
   "scope": "wallet",
   "walletName": "main",
+  "productEntrySummary": {
+    "view": "product-entry",
+    "currentSurface": "next",
+    "stage": "wallet-ready",
+    "category": "operate",
+    "recommendedMode": "local-first",
+    "nextSurface": "workflow",
+    "nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+    "suiteAvailable": true
+  },
   "inspection": { "...": "wallet inspection payload" },
   "summary": { "...": "wallet next summary payload" },
   "tokenDiscoverySummary": { "...": "wallet-scope token recovery summary" },
@@ -787,6 +849,16 @@ Key fields:
   "workflowRequestId": "wf123456",
   "walletName": "main",
   "nextCommand": "zk-agent workflow resume --request-id wf123456",
+  "productEntrySummary": {
+    "view": "product-entry",
+    "currentSurface": "next",
+    "stage": "workflow",
+    "category": "workflow",
+    "recommendedMode": "workflow-followup",
+    "nextSurface": "workflow",
+    "nextAction": "zk-agent workflow resume --request-id wf123456",
+    "suiteAvailable": false
+  },
   "summary": {
     "status": "blocked",
     "readyForGoal": false,
@@ -1597,12 +1669,15 @@ So the current contract layering is:
 ## `zk-agent suite`
 
 This is the current top-level product-surface catalog for the flagship path
-plus the explicit post-flagship operator slices.
+plus the explicit post-flagship operator slices, including the current hosted
+approval recovery surface.
 
 Current stable top-level fields:
 
 - `ok`
 - `summary`
+- `preflight`
+  appears only when `zk-agent suite --include-onboarding` is used
 - `flagship`
 - `slices`
 - `recommendedCommands`
@@ -1610,10 +1685,13 @@ Current stable top-level fields:
 Current stable `summary` fields:
 
 - `suiteId`
+- `catalogView`
 - `walletName`
 - `chain`
 - `stage`
 - `useWhen`
+- `entryModes`
+- `categoryOrder`
 - `flagshipId`
 - `postFlagshipSliceIds`
 - `recommendedOrder`
@@ -1621,6 +1699,7 @@ Current stable `summary` fields:
 
 Current stable `flagship` / `slices[]` fields:
 
+- `category`
 - `id`
 - `title`
 - `goal`
@@ -1638,13 +1717,26 @@ Current stable `recommendedCommands` shape on this surface:
 - `discovery`
 - `paymaster`
 - `funding`
+- `hostedApproval`
 - `inspectDefaults`
+
+When `preflight` is present, its current stable fields are:
+
+- `id`
+- `title`
+- `goal`
+- `useWhen`
+- `diagnosticCommand`
+- `localPath`
+- `remoteBrowserPath`
+- `afterWalletReady`
 
 When `zk-agent suite` is invoked with non-default `--wallet` or `--chain`
 options, the stable contract preserves that context across `summary`,
 `flagship`, `slices`, and `recommendedCommands`. In particular,
 `recommendedCommands.suite` becomes the context-preserving rerun command for
-the same packaged surface.
+the same packaged surface. When `--include-onboarding` is also used, that rerun
+command preserves the onboarding-inclusive suite shape as well.
 
 ## `zk-agent defaults`
 

@@ -200,7 +200,7 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         recommendedNow,
         command: 'zk-agent suite',
         useWhen:
-          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
+          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
         stayOnCurrentSurfaceWhen:
           'Stay on next when you still need the CLI to choose across setup, wallet readiness, and the shortest flagship workflow entry.',
         note: recommendedNow
@@ -213,7 +213,7 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         recommendedNow,
         command: 'zk-agent suite',
         useWhen:
-          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, and funding slices.',
+          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
         stayOnCurrentSurfaceWhen:
           'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
         note:
@@ -221,6 +221,75 @@ function expectedSuiteHandoff(surface, recommendedNow) {
       };
     default:
       throw new Error(`Unsupported suite handoff surface in test: ${surface}`);
+  }
+}
+
+function expectedProductEntrySummary(stage, nextAction, suiteAvailable = false) {
+  switch (stage) {
+    case 'setup':
+      return {
+        view: 'product-entry',
+        currentSurface: 'next',
+        stage: 'setup',
+        category: 'bootstrap',
+        recommendedMode: 'local-first',
+        nextSurface: 'setup',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Start with setup first. The operator path is still in first-run bootstrap.'
+      };
+    case 'wallet-bootstrap':
+      return {
+        view: 'product-entry',
+        currentSurface: 'next',
+        stage: 'wallet-bootstrap',
+        category: 'bootstrap',
+        recommendedMode: 'local-first',
+        nextSurface: 'wallet',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Local defaults exist, but wallet bootstrap is still the current product question.'
+      };
+    case 'wallet-recovery':
+      return {
+        view: 'product-entry',
+        currentSurface: 'next',
+        stage: 'wallet-recovery',
+        category: 'recover',
+        recommendedMode: 'local-first',
+        nextSurface: 'wallet',
+        nextAction,
+        suiteAvailable: false,
+        note: 'Stay on wallet recovery until approval or local signer readiness stops being the blocker.'
+      };
+    case 'wallet-ready':
+      return {
+        view: 'product-entry',
+        currentSurface: 'next',
+        stage: 'wallet-ready',
+        category: 'operate',
+        recommendedMode: 'local-first',
+        nextSurface: 'workflow',
+        nextAction,
+        suiteAvailable,
+        note:
+          'The default product action is now the flagship workflow path. Switch to suite when the question becomes broader than one flagship pay step.'
+      };
+    case 'workflow':
+      return {
+        view: 'product-entry',
+        currentSurface: 'next',
+        stage: 'workflow',
+        category: 'workflow',
+        recommendedMode: 'workflow-followup',
+        nextSurface: 'workflow',
+        nextAction,
+        suiteAvailable,
+        note:
+          'A stored workflow checkpoint is now the active product context. Stay on workflow follow-up until the question is no longer workflow-specific.'
+      };
+    default:
+      throw new Error(`Unsupported product entry stage in test: ${stage}`);
   }
 }
 
@@ -288,6 +357,10 @@ test('top-level next recommends setup when local config is missing', async () =>
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'setup');
     assert.equal(result.nextCommand, 'zk-agent setup');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary('setup', 'zk-agent setup')
+    );
     assert.deepEqual(result.onboardingSummary, {
       stage: 'setup',
       baseline: 'local-first',
@@ -347,6 +420,10 @@ test('top-level next recommends wallet creation when config exists but the walle
     assert.equal(result.scope, 'wallet-bootstrap');
     assert.equal(result.walletName, 'main');
     assert.equal(result.nextCommand, 'zk-agent wallet create --await-local');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary('wallet-bootstrap', 'zk-agent wallet create --await-local')
+    );
     assert.deepEqual(result.onboardingSummary, {
       stage: 'wallet-bootstrap',
       baseline: 'local-first',
@@ -402,6 +479,13 @@ test('top-level next preserves an explicit paymaster override in wallet-bootstra
 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet-bootstrap');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-bootstrap',
+        'zk-agent wallet create --await-local --paymaster-mode sponsored'
+      )
+    );
     assert.equal(result.onboardingSummary.nextAction, 'zk-agent wallet create --await-local --paymaster-mode sponsored');
     assert.deepEqual(result.recommendedCommands, {
       createWallet: 'zk-agent wallet create --await-local --paymaster-mode sponsored',
@@ -427,6 +511,52 @@ test('top-level next preserves an explicit paymaster override in wallet-bootstra
   }
 });
 
+test('top-level next preserves a non-default wallet name across wallet-bootstrap follow-up', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-bootstrap-custom-wallet-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const storage = await loadAgentCoreStorage(homeDir);
+    await storage.saveProjectConfig(sampleConfig());
+
+    const result = await runNextCli(['--wallet', 'ops-wallet'], env);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.scope, 'wallet-bootstrap');
+    assert.equal(result.walletName, 'ops-wallet');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-bootstrap',
+        'zk-agent wallet create --name ops-wallet --await-local'
+      )
+    );
+    assert.equal(result.nextCommand, 'zk-agent wallet create --name ops-wallet --await-local');
+    assert.equal(result.onboardingSummary.nextAction, 'zk-agent wallet create --name ops-wallet --await-local');
+    assert.deepEqual(result.recommendedCommands, {
+      createWallet: 'zk-agent wallet create --name ops-wallet --await-local',
+      relayInspect: 'zk-agent relay inspect --relay-url <url>',
+      createWalletRemote:
+        'zk-agent wallet create --name ops-wallet --relay-url <url> --wait-relay --prompt-code',
+      afterApproval: 'zk-agent next --wallet ops-wallet',
+      inspectDefaults: 'zk-agent defaults'
+    });
+    assert.deepEqual(result.recommendedPaths, {
+      local: [
+        'zk-agent wallet create --name ops-wallet --await-local',
+        'zk-agent next --wallet ops-wallet'
+      ],
+      remoteBrowser: [
+        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent wallet create --name ops-wallet --relay-url <url> --wait-relay --prompt-code',
+        'zk-agent next --wallet ops-wallet'
+      ]
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 test('top-level next recommends starting a workflow when the wallet is already ready', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-next-wallet-ready-'));
 
@@ -443,6 +573,14 @@ test('top-level next recommends starting a workflow when the wallet is already r
     assert.equal(result.scope, 'wallet');
     assert.equal(result.walletName, 'main');
     assert.equal(result.summary.status, 'ready');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-ready',
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        true
+      )
+    );
     assert.deepEqual(result.onboardingSummary, {
       stage: 'wallet-ready',
       baseline: 'local-first',
@@ -520,6 +658,14 @@ test('top-level next treats a stored local execution authority as writable even 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
     assert.equal(result.summary.status, 'ready');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-ready',
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        true
+      )
+    );
     assert.equal(result.onboardingSummary.stage, 'wallet-ready');
     assert.equal(result.onboardingSummary.localExecutionKeyStored, true);
     assert.equal(
@@ -550,6 +696,13 @@ test('top-level next exposes wallet-recovery onboarding guidance when approval e
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
     assert.equal(result.summary.status, 'action-required');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-recovery',
+        'zk-agent wallet signer attach --name main --private-key <hex>'
+      )
+    );
     assert.deepEqual(result.onboardingSummary, {
       stage: 'wallet-recovery',
       baseline: 'local-first',
@@ -596,6 +749,14 @@ test('top-level next preserves an explicit sponsored paymaster override in walle
 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-ready',
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored',
+        true
+      )
+    );
     assert.equal(result.onboardingSummary.nextAction, 'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode sponsored');
     assert.equal(
       result.nextCommand,
@@ -650,6 +811,14 @@ test('top-level next adds paymaster fee-token discovery commands for approval-ba
 
     assert.equal(result.ok, true);
     assert.equal(result.scope, 'wallet');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'wallet-ready',
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
+        true
+      )
+    );
     assert.equal(result.onboardingSummary.nextAction, 'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based');
     assert.equal(
       result.nextCommand,
@@ -710,6 +879,13 @@ test('top-level next can summarize the next step for a stored workflow checkpoin
     assert.equal(result.scope, 'workflow');
     assert.equal(result.workflowRequestId, 'wf-next-001');
     assert.equal(result.nextCommand, 'zk-agent wallet signer attach --name main --private-key <hex>');
+    assert.deepEqual(
+      result.productEntrySummary,
+      expectedProductEntrySummary(
+        'workflow',
+        'zk-agent wallet signer attach --name main --private-key <hex>'
+      )
+    );
     assert.deepEqual(result.summary, {
       status: 'blocked',
       readyForGoal: false,
