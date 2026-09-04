@@ -199,12 +199,16 @@ function assertPackageReadme(readme) {
       'Package README must keep the operator-suite surface visible.'
     ],
     [
-      /## (Direct Discovery and Bypass Commands|Direct Paths)[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>/,
+      /## Choose the right surface[\s\S]*zk-agent next[\s\S]*zk-agent doctor[\s\S]*zk-agent wallet status --name <wallet>[\s\S]*zk-agent workflow \.\.\.[\s\S]*zk-agent suite/,
+      'Package README must route operators to the correct top-level surface.'
+    ],
+    [
+      /## (Direct Discovery and Bypass Commands|Direct Paths|Leave the default path only on purpose)[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent tokens --wallet main --owned[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>/,
       'Package README must document the discovery/defaults path and its command order.'
     ],
     [
-      /zk-agent send-token --wallet main --symbol USDC[\s\S]*zk-agent swap --wallet main --token-in-symbol USDC --token-out-symbol ETH[\s\S]*zk-agent fund --wallet main --symbol USDC[\s\S]*zk-agent deposit --wallet main --symbol USDC[\s\S]*zk-agent withdraw --wallet main --symbol USDC/,
-      'Package README must document the symbol-first direct-command escape hatches.'
+      /zk-agent send-token --wallet main --symbol USDC[\s\S]*zk-agent workflow --help[\s\S]*zk-agent wallet --help[\s\S]*zk-agent relay --help/,
+      'Package README must document the lower-level escape hatches once the packaged path is no longer the right fit.'
     ],
     [
       /zk-agent wallet reapprove --name main --await-local/,
@@ -805,12 +809,12 @@ function assertResolveTokenHelpContract(helpOutput) {
 function assertWalletHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Local-first wallet path:',
-    'Use this layer when the blocker is specifically about wallet approval or signer state. Otherwise start with `zk-agent next` or `zk-agent doctor`.',
-    'First bootstrap: zk-agent wallet create --await-local zk-agent next',
-    'Restore approval metadata for an existing wallet: zk-agent wallet reapprove --name main --await-local zk-agent next',
-    'Attach a local signer when approval is still present: zk-agent wallet signer attach --name main --private-key <hex> zk-agent next',
-    'Hosted remote approval path: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent next Use this only when the browser is not colocated with the terminal.'
+    'Wallet surface:',
+    'Use this layer when the blocker is specifically wallet approval, signer state, or session recovery. If the CLI still needs to decide whether the problem is setup, wallet readiness, or workflow continuation, start with `zk-agent next` or `zk-agent doctor`.',
+    'First local-first bootstrap: zk-agent wallet create --await-local zk-agent next',
+    'Repair an existing wallet session: zk-agent wallet reapprove --name main --await-local zk-agent next',
+    'Repair signer-only local execution state: zk-agent wallet signer attach --name main --private-key <hex> zk-agent next',
+    'Hosted remote approval only when the browser is remote: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent next Use this only when the browser is not colocated with the terminal.'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -825,12 +829,15 @@ function assertWalletHelpContract(helpOutput) {
 function assertWorkflowHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Flagship native pay path: zk-agent workflow pay --wallet main --to <address> --amount <amount>',
-    'Broader multi-intent guided path: zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
-    'Checkpointed execution: zk-agent workflow start --wallet main --intent <intent> [goal flags] zk-agent workflow status --request-id <id> zk-agent workflow next --request-id <id> zk-agent workflow resume --request-id <id> [--broadcast]',
-    'Funding-only step: zk-agent workflow fund --wallet main --amount <amount> --execute',
-    'Token/discovery recovery path: zk-agent assets --wallet main zk-agent tokens --wallet main --owned zk-agent tokens --chain zksync-sepolia zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
+    'Workflow surface:',
+    'Use this layer when the question is already an explicit workflow, checkpoint, or execution state. If the CLI still needs to choose across setup, wallet readiness, or recovery, go back to `zk-agent next` or `zk-agent doctor`.',
+    'Fastest flagship pay path: zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    'Multi-intent guided path: zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
+    'Checkpoint lifecycle when you want explicit control: zk-agent workflow start --wallet main --intent <intent> [goal flags] zk-agent workflow status --request-id <id> zk-agent workflow next --request-id <id> zk-agent workflow resume --request-id <id> [--broadcast]',
+    'Funding-only recovery when execution is blocked on gas: zk-agent workflow fund --wallet main --amount <amount> --execute',
+    'Discovery / token recovery before the workflow can continue: zk-agent assets --wallet main zk-agent tokens --wallet main --owned zk-agent tokens --chain zksync-sepolia zk-agent resolve-token --chain zksync-sepolia --symbol USDC',
     'Approval-based paymaster fee-token recovery: zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token zk-agent defaults',
+    'When the question becomes broader than one explicit workflow: zk-agent suite',
     'Lower-level one-shot escape hatch: zk-agent workflow run --wallet main --intent <intent> [goal flags]'
   ];
 
@@ -1043,8 +1050,10 @@ function assertSmartAccountHelpContract(helpOutput) {
 function assertRelayHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Hosted remote-approval path: zk-agent relay serve --public-origin https://relay.example.com zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+    'Relay surface:',
+    'Use this layer only when approval must happen through a publicly reachable hosted path.',
     'Keep `wallet create|reapprove --await-local` as the default baseline when the browser and terminal are colocated.',
+    'Hosted remote-approval path today: zk-agent relay serve --public-origin https://relay.example.com zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
     'Use `relay inspect` before sending operators to a hosted share link so the public origin, connector UI, and hosted-readiness contract are visible.'
   ];
 
@@ -1060,10 +1069,12 @@ function assertRelayHelpContract(helpOutput) {
 function assertAgentHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Agent identity path: zk-agent agent status zk-agent agent set --name "SED Operator" --wallet main zk-agent agent show',
+    'Agent profile surface:',
+    'Use this layer only when you want explicit local operator identity metadata on top of the wallet path.',
+    'Wallet approval and workflow execution still work without a saved local agent profile.',
+    'Basic local identity path: zk-agent agent status zk-agent agent set --name "SED Operator" --wallet main zk-agent agent show',
     'Portable local profile management: zk-agent agent export zk-agent agent import --payload @agent-profile.json --overwrite',
-    'Remove the saved local profile: zk-agent agent clear',
-    'This profile is optional. Wallet approval and workflow execution still work without a saved local agent profile.'
+    'Clear the saved local profile: zk-agent agent clear'
   ];
 
   for (const snippet of requiredSnippets) {

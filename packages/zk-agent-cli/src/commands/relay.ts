@@ -634,7 +634,11 @@ export function createRelayCommand(): Command {
     'after',
     [
       '',
-      '  Hosted remote-approval path:',
+      '  Relay surface:',
+      '    Use this layer only when approval must happen through a publicly reachable hosted path.',
+      '    Keep `wallet create|reapprove --await-local` as the default baseline when the browser and terminal are colocated.',
+      '',
+      '  Hosted remote-approval path today:',
       '    zk-agent relay serve --public-origin https://relay.example.com',
       '    zk-agent relay inspect --relay-url <url>',
       '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
@@ -645,9 +649,6 @@ export function createRelayCommand(): Command {
       '    one relay host with same-host file persistence',
       '    one same-origin share-link + approval UI surface',
       '    Do not assume multi-host or load-balanced durability.',
-      '',
-      '  Keep `wallet create|reapprove --await-local` as the default baseline when',
-      '  the browser and terminal are colocated.',
       '',
       '  Use `relay inspect` before sending operators to a hosted share link so',
       '  the public origin, connector UI, and hosted-readiness contract are visible.'

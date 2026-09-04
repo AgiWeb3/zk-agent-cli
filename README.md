@@ -34,6 +34,15 @@ After the flagship path is live, use `zk-agent suite` as the packaged
 post-flagship entrypoint for discovery, defaults, funding, paymaster
 readiness, and hosted approval recovery.
 
+Use the two surfaces differently:
+
+- `next`: when the CLI still needs to choose the shortest path across setup,
+  wallet readiness, recovery, or workflow continuation
+- `suite`: when wallet readiness is already clear and you want the packaged
+  post-flagship operator catalog
+- `suite --include-onboarding`: when you want one readout from first-run
+  bootstrap through the packaged operator surface
+
 If you want the full product map from fresh install through wallet bootstrap
 and into the packaged operator surface, use:
 

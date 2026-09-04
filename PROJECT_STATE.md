@@ -40,6 +40,17 @@
   as a single-host, same-origin, externally reachable operator path
 - root README, package README, and docs index are now shorter and more clearly
   separated by role
+- root help, README, package README, quickstart, and docs index now describe
+  the `next` versus `suite` boundary with the same product-routing language
+- the package README now also routes operators to the correct deeper surface
+  (`doctor`, `wallet`, `workflow`, `suite`, `relay`) instead of keeping long
+  direct-command inventories in the front door
+- the native Codex plugin onboarding note is now shorter and framed as an
+  install-path guide rather than a maintainer-machine narrative
+- wallet and workflow help now use the same product-routing language as the
+  top-level help and front-door docs, reducing drift between help surfaces
+- relay and agent help now follow the same surface-routing contract as well,
+  making the CLI help layer more consistent end to end
 
 ## Current priorities
 

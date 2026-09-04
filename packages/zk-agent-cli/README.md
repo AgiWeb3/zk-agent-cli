@@ -47,6 +47,15 @@ the post-flagship operator surface, use:
 zk-agent suite --include-onboarding
 ```
 
+Use the surfaces this way:
+
+- `next`: the CLI is still deciding the shortest path across setup, wallet
+  readiness, recovery, or workflow continuation
+- `suite`: the wallet is already ready and you want the packaged operator
+  catalog after the flagship pay path
+- `suite --include-onboarding`: you want one combined readout from first-run
+  bootstrap through the packaged post-flagship surface
+
 ## Install
 
 One-shot execution:
@@ -91,7 +100,19 @@ ZK_AGENT_TOKEN_DIRECTORY_ROOT=
 ZK_AGENT_STORAGE_DIR=
 ```
 
-## Repair Paths
+## Choose the right surface
+
+- `zk-agent next`: the top-level product entrypoint when the CLI still needs to
+  choose the shortest path
+- `zk-agent doctor`: local-only diagnosis before you choose a fix
+- `zk-agent wallet status --name <wallet>` and
+  `zk-agent wallet next --name <wallet>`: wallet-scoped repair and readiness
+- `zk-agent workflow ...`: explicit workflow planning, persistence, status, and
+  resume questions
+- `zk-agent suite`: the packaged post-flagship catalog once wallet readiness is
+  no longer the blocker
+
+## Repair locally first
 
 If the wallet already exists and approval is missing or expired:
 
@@ -114,7 +135,7 @@ zk-agent wallet status --name main
 zk-agent wallet next --name main
 ```
 
-## Remote approval
+## Switch to remote approval only when needed
 
 Use the relay-backed path only when the browser is not colocated with the
 terminal:
@@ -154,7 +175,7 @@ path.
 For the supported hosted operating contract, use
 [`docs/16-hosted-approval-operated-baseline.md`](../../docs/16-hosted-approval-operated-baseline.md).
 
-## After Wallet Ready
+## After the wallet is ready
 
 Default flagship write path:
 
@@ -197,11 +218,11 @@ zk-agent workflow fund --wallet main --amount <amount> --execute
 Do not guess the route. Use the exact funding command suggested by `next`,
 `doctor`, `wallet status`, a blocked workflow, or `suite`.
 
-## Direct Paths
+## Leave the default path only on purpose
 
 Prefer `suite` first when you want the packaged discovery/defaults/funding/
-paymaster surface. Use the commands below only when you intentionally want a
-narrower path.
+paymaster surface. Drop to lower-level commands only when the question is
+already narrower than the packaged catalog.
 
 Preferred discovery order:
 
@@ -210,33 +231,25 @@ Preferred discovery order:
 - `zk-agent defaults`
 - `zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>`
 
-Bypass examples:
+- direct token transfer or send path:
+  `zk-agent send-token --wallet main --symbol USDC --to <address> --amount <amount>`
+- explicit workflow planning, swap, bridge, deposit, withdraw, or resume:
+  `zk-agent workflow --help`
+- wallet lifecycle, recovery, approval requests, signer management, or
+  smart-account profile operations:
+  `zk-agent wallet --help`
+- hosted relay inspection or built-in relay serving:
+  `zk-agent relay --help`
 
-- `zk-agent send-token --wallet main --symbol USDC --to <address> --amount <amount>`
-- `zk-agent swap --wallet main --token-in-symbol USDC --token-out-symbol ETH --amount-in <amount>`
-- `zk-agent fund --wallet main --symbol USDC --amount <amount>`
-- `zk-agent deposit --wallet main --symbol USDC --amount <amount>`
-- `zk-agent withdraw --wallet main --symbol USDC --amount <amount>`
-
-## Smart-account Profiles
-
-Built-in profiles:
+Built-in smart-account profiles remain:
 
 - `sed-lite`
 - `daily-spend-limit`
 
-Inspect them with:
-
-```bash
-zk-agent wallet smart-account profiles --json
-```
-
-Use the packaged path for:
-
-```bash
-zk-agent wallet smart-account predict --profile sed-lite
-zk-agent wallet smart-account deploy --profile sed-lite
-```
+Keep `sed-lite` as the default product baseline. Use
+`zk-agent wallet smart-account --help` when the task is specifically about
+predict, deploy, or profile-level self-calls rather than the normal operator
+path.
 
 ## Common failures
 
@@ -279,6 +292,7 @@ zk-agent doctor --help
 zk-agent wallet --help
 zk-agent workflow --help
 zk-agent suite --help
+zk-agent relay --help
 ```
 
 ## License

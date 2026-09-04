@@ -214,6 +214,18 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /zk-agent next/);
     assert.match(help, /Operator suite beyond flagship pay:/);
     assert.match(help, /zk-agent suite/);
+    assert.match(help, /zk-agent suite --include-onboarding/);
+    assert.match(help, /Product routing by operator question:/);
+    assert.match(help, /next\s+-> bootstrap \| recover \| operate \| workflow/);
+    assert.match(help, /suite -> operate \| discover \| pay \| fund \| recover/);
+    assert.match(
+      help,
+      /Use `next` while the CLI still needs to choose across setup, wallet readiness, or stored workflow continuation\./
+    );
+    assert.match(
+      help,
+      /Use `suite` once wallet readiness is no longer the blocker and you want the packaged post-flagship surface\./
+    );
     assert.match(help, /Validated first-run baseline:/);
     assert.match(help, /setup defaults to zksync-sepolia and the local connector at http:\/\/localhost:4444/);
     assert.match(help, /If local setup or wallet state is unclear:/);
@@ -306,20 +318,21 @@ test('workflow help prints the default workflow path', async () => {
     const env = createCliEnv(homeDir);
     const help = await runCliText(['workflow', '--help'], env);
 
+    assert.match(help, /Workflow surface:/);
+    assert.match(help, /Use this layer when the question is already an explicit workflow, checkpoint, or execution state/);
+    assert.match(help, /go back to `zk-agent next` or `zk-agent doctor`/);
+    assert.match(help, /Fastest flagship pay path:/);
     assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
-    assert.match(help, /Broader multi-intent guided path:/);
+    assert.match(help, /Multi-intent guided path:/);
     assert.match(help, /zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready/);
+    assert.match(help, /Checkpoint lifecycle when you want explicit control:/);
     assert.match(help, /zk-agent workflow start --wallet main --intent <intent> \[goal flags\]/);
     assert.match(help, /zk-agent workflow status --request-id <id>/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
     assert.match(help, /zk-agent workflow resume --request-id <id> \[--broadcast\]/);
-    assert.match(
-      help,
-      /When the explicit workflow is no longer the real question and you want the broader packaged surface:/
-    );
-    assert.match(help, /zk-agent suite/);
+    assert.match(help, /Funding-only recovery when execution is blocked on gas:/);
     assert.match(help, /zk-agent workflow fund --wallet main --amount <amount> --execute/);
-    assert.match(help, /Token\/discovery recovery path:/);
+    assert.match(help, /Discovery \/ token recovery before the workflow can continue:/);
     assert.match(help, /zk-agent assets --wallet main/);
     assert.match(help, /zk-agent tokens --wallet main --owned/);
     assert.match(help, /zk-agent tokens --chain zksync-sepolia/);
@@ -331,6 +344,9 @@ test('workflow help prints the default workflow path', async () => {
       /zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token/
     );
     assert.match(help, /zk-agent defaults/);
+    assert.match(help, /When the question becomes broader than one explicit workflow:/);
+    assert.match(help, /zk-agent suite/);
+    assert.match(help, /Lower-level one-shot escape hatch:/);
     assert.match(help, /zk-agent workflow run --wallet main --intent <intent> \[goal flags\]/);
     assert.ok(help.indexOf('pay [options]') < help.indexOf('auto [options]'));
     assert.ok(help.indexOf('pay [options]') < help.indexOf('run [options]'));
@@ -348,22 +364,26 @@ test('wallet help prints the default wallet path', async () => {
     const env = createCliEnv(homeDir);
     const help = await runCliText(['wallet', '--help'], env);
 
-    assert.match(help, /Local-first wallet path:/);
-    assert.match(help, /Use this layer when the blocker is specifically about wallet approval or signer state/);
-    assert.match(help, /Otherwise start with `zk-agent next` or `zk-agent doctor`/);
-    assert.match(help, /zk-agent wallet create --await-local/);
-    assert.match(help, /zk-agent wallet reapprove --name main --await-local/);
-    assert.match(help, /zk-agent wallet reapprove --name main --await-local\s+zk-agent next/);
-    assert.match(help, /zk-agent wallet signer attach --name main --private-key <hex>/);
-    assert.match(help, /zk-agent next/);
-    assert.match(help, /zk-agent wallet status --name main/);
-    assert.match(help, /zk-agent wallet next --name main/);
+    assert.match(help, /Wallet surface:/);
+    assert.match(help, /Use this layer when the blocker is specifically wallet approval, signer state, or session recovery/);
     assert.match(
       help,
-      /When wallet readiness is no longer the blocker and you want the packaged surface:/
+      /If the CLI still needs to decide whether the problem is setup, wallet readiness, or workflow continuation, start with `zk-agent next` or `zk-agent doctor`/
     );
+    assert.match(help, /First local-first bootstrap:/);
+    assert.match(help, /zk-agent wallet create --await-local/);
+    assert.match(help, /Repair an existing wallet session:/);
+    assert.match(help, /zk-agent wallet reapprove --name main --await-local/);
+    assert.match(help, /zk-agent wallet reapprove --name main --await-local\s+zk-agent next/);
+    assert.match(help, /Repair signer-only local execution state:/);
+    assert.match(help, /zk-agent wallet signer attach --name main --private-key <hex>/);
+    assert.match(help, /zk-agent next/);
+    assert.match(help, /Wallet-scoped diagnosis:/);
+    assert.match(help, /zk-agent wallet status --name main/);
+    assert.match(help, /zk-agent wallet next --name main/);
+    assert.match(help, /Switch to the packaged catalog after wallet readiness:/);
     assert.match(help, /zk-agent suite/);
-    assert.match(help, /Hosted remote approval path:/);
+    assert.match(help, /Hosted remote approval only when the browser is remote:/);
     assert.match(help, /Use this only when the browser is not colocated with the terminal/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(
@@ -478,7 +498,16 @@ test('relay and agent help surfaces expose the public product contract', async (
     const env = createCliEnv(homeDir);
 
     const relayHelp = await runCliText(['relay', '--help'], env);
-    assert.match(relayHelp, /Hosted remote-approval path:/);
+    assert.match(relayHelp, /Relay surface:/);
+    assert.match(
+      relayHelp,
+      /Use this layer only when approval must happen through a publicly reachable hosted path/
+    );
+    assert.match(
+      relayHelp,
+      /Keep `wallet create\|reapprove --await-local` as the default baseline when the browser and terminal are colocated/
+    );
+    assert.match(relayHelp, /Hosted remote-approval path today:/);
     assert.match(relayHelp, /zk-agent relay serve --public-origin https:\/\/relay\.example\.com/);
     assert.match(relayHelp, /zk-agent relay inspect --relay-url <url>/);
     assert.match(
@@ -495,26 +524,28 @@ test('relay and agent help surfaces expose the public product contract', async (
     assert.match(relayHelp, /Do not assume multi-host or load-balanced durability/);
     assert.match(
       relayHelp,
-      /Keep `wallet create\|reapprove --await-local` as the default baseline/
-    );
-    assert.match(
-      relayHelp,
       /Use `relay inspect` before sending operators to a hosted share link/
     );
 
     const agentHelp = await runCliText(['agent', '--help'], env);
-    assert.match(agentHelp, /Agent identity path:/);
+    assert.match(agentHelp, /Agent profile surface:/);
+    assert.match(
+      agentHelp,
+      /Use this layer only when you want explicit local operator identity metadata on top of the wallet path/
+    );
+    assert.match(
+      agentHelp,
+      /Wallet approval and workflow execution still work without a saved local agent profile/
+    );
+    assert.match(agentHelp, /Basic local identity path:/);
     assert.match(agentHelp, /zk-agent agent status/);
     assert.match(agentHelp, /zk-agent agent set --name "SED Operator" --wallet main/);
     assert.match(agentHelp, /zk-agent agent show/);
     assert.match(agentHelp, /Portable local profile management:/);
     assert.match(agentHelp, /zk-agent agent export/);
     assert.match(agentHelp, /zk-agent agent import --payload @agent-profile\.json --overwrite/);
+    assert.match(agentHelp, /Clear the saved local profile:/);
     assert.match(agentHelp, /zk-agent agent clear/);
-    assert.match(
-      agentHelp,
-      /This profile is optional\. Wallet approval and workflow execution still work/
-    );
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }

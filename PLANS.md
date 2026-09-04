@@ -14,7 +14,8 @@ parity.
 - core operator path: landed
 - current work: productization closeout and release hardening
 - current documentation push: front-door compression across README, package
-  README, quickstart, plugin onboarding, and docs index
+  README, package README, quickstart, root help, plugin onboarding, and docs
+  index
 - default AA path: `sed-lite`
 - broad DeFi expansion: deferred
 
@@ -35,6 +36,8 @@ parity.
   same readout
 - public onboarding docs now distinguish the CLI, repo skill, quickstart, and
   native Codex plugin entry surfaces explicitly
+- root help now also explains the `next` versus `suite` surface boundary in
+  product terms instead of only listing commands
 - root README, package README, and docs index are now shorter and more clearly
   separated by role
 - release support exists through:
@@ -60,6 +63,15 @@ parity.
 
 - public onboarding is lighter now, but the package manual can still be
   tightened further if we want a stricter 1.0.0 front door
+- the package manual now routes users to `next`, `doctor`, `wallet`,
+  `workflow`, `suite`, and `relay` more explicitly, but the deeper per-surface
+  docs can still be tightened further
+- the native Codex plugin note is now a shorter install-path document instead
+  of a mixed status log, but the overall release shell still needs more polish
+- wallet and workflow help are being tightened to use the same product-routing
+  language as the top-level help and public docs
+- relay and agent help are also being aligned to the same surface-routing
+  contract so operators do not have to relearn each entrypoint
 - hosted approval framing is clearer now, but the operated story can still get
   shorter for public users
 - post-flagship packaging still needs to feel more cohesive

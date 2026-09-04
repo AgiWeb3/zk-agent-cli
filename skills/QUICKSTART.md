@@ -74,6 +74,15 @@ What each step is doing:
 - `suite` is the packaged post-flagship entrypoint for discovery, defaults,
   funding, and paymaster readiness
 
+Choose the surface by question:
+
+- `next`: the CLI still needs to choose across setup, wallet readiness,
+  recovery, or workflow continuation
+- `suite`: wallet readiness is already clear and you want the packaged
+  post-flagship operator catalog
+- `suite --include-onboarding`: you want the full map from first-run bootstrap
+  through the packaged operator surface
+
 If readiness is unclear before you choose a fix, use:
 
 ```bash
