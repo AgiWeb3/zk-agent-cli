@@ -283,7 +283,7 @@ function syncPlansVersionReferences(version) {
   plans = replaceOne(
     plans,
     /- release stage: `[^`]+`/,
-    `- release stage: \`${version}\``,
+    `- release stage: \`${inferReleaseStage(version)}\``,
     'PLANS release stage line'
   );
 

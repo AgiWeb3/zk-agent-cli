@@ -4,7 +4,7 @@
 
 - updated: `2026-09-05`
 - branch: `main`
-- package stage: `0.1.0-rc.2`
+- package stage: `0.1.0-rc.3`
 - current focus: RC closeout, release-gate hardening, and state-doc cleanup
 - latest RC review artifact:
   `docs/release-stage-reviews/2026-09-03-main-rc.md`

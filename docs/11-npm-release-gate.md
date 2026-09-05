@@ -608,14 +608,14 @@ npm dist-tag add zk-agent-cli@<version> latest
 
 ## Current prepared baseline
 
-- current prepared release candidate baseline for `2026-09-03`:
-  `zk-agent-cli@0.1.0-rc.2`
+- current prepared release candidate baseline for `2026-09-05`:
+  `zk-agent-cli@0.1.0-rc.3`
 - intended post-publish npm readback:
-  - `npm view zk-agent-cli version -> 0.1.0-rc.2`
-  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.2`
+  - `npm view zk-agent-cli version -> 0.1.0-rc.3`
+  - `npm view zk-agent-cli@latest version -> 0.1.0-rc.3`
   - `npm view zk-agent-cli@beta version -> 0.1.0-beta.11`
-  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.2`
-  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.2","latest":"0.1.0-rc.2"}`
+  - `npm view zk-agent-cli@rc version -> 0.1.0-rc.3`
+  - `npm view zk-agent-cli dist-tags --json -> {"beta":"0.1.0-beta.11","rc":"0.1.0-rc.3","latest":"0.1.0-rc.3"}`
 - post-publish clean-machine smoke:
   - `npx --yes zk-agent-cli@latest --help` ran successfully outside the repository
   - the same readback was run from a host on Node `20.10.0`, so npm emitted
