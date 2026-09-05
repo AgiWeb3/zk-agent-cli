@@ -203,6 +203,12 @@ function releaseNotesPath(version) {
   return join(workspaceRoot, 'docs', 'releases', `${version}.md`);
 }
 
+function isDirectExecution(metaUrl) {
+  const entryPath = process.argv[1];
+  if (!entryPath) return false;
+  return resolve(fileURLToPath(metaUrl)) === resolve(entryPath);
+}
+
 function extractFirstMatch(text, pattern) {
   const match = text.match(pattern);
   return match?.[1] || null;
@@ -241,53 +247,65 @@ function syncJsonVersions(options) {
   writeJson(pluginManifestPath, pluginManifest);
 }
 
-function syncReadmeVersionReferences(options) {
-  const readmePath = join(workspaceRoot, 'README.md');
-  let readme = readText(readmePath);
+export function syncReadmeVersionText(readme, options) {
+  let nextReadme = readme;
 
-  readme = replaceOptionalOne(
-    readme,
+  nextReadme = replaceOptionalOne(
+    nextReadme,
+    /Current public stage: `[^`]+`\./,
+    `Current public stage: \`${options.version}\`.`,
+    'README current public stage line'
+  );
+  nextReadme = replaceOptionalOne(
+    nextReadme,
     /- the current public [^\n]+ is `zk-agent-cli@[^`]+`/,
     `- ${currentPublicLabel(options.version)} is \`zk-agent-cli@${options.version}\``,
     'README current public release line'
   );
-  readme = replaceOptionalOne(
-    readme,
+  nextReadme = replaceOptionalOne(
+    nextReadme,
     /`beta -> \d[^`]*`(?:, `rc -> \d[^`]*`)?(?:, `latest -> \d[^`]*`)?/,
     formatDistTagInline(options),
     'README dist-tag line'
   );
-  readme = replaceOptionalOne(
-    readme,
+  nextReadme = replaceOptionalOne(
+    nextReadme,
     /- release notes live in \[CHANGELOG\.md\]\(\.\/CHANGELOG\.md\) and \[docs\/releases\/[^)]+\]\(\.\/docs\/releases\/[^)]+\)/,
     `- release notes live in [CHANGELOG.md](./CHANGELOG.md) and [docs/releases/${options.version}.md](./docs/releases/${options.version}.md)`,
     'README release notes line'
   );
 
   if (options.date) {
-    readme = replaceOptionalOne(
-      readme,
+    nextReadme = replaceOptionalOne(
+      nextReadme,
       /- that release was published on `[^`]+`/,
       `- that release was published on \`${options.date}\``,
       'README release date line'
     );
   }
 
-  writeText(readmePath, readme);
+  return nextReadme;
 }
 
-function syncPlansVersionReferences(version) {
-  const plansPath = join(workspaceRoot, 'PLANS.md');
-  let plans = readText(plansPath);
+function syncReadmeVersionReferences(options) {
+  const readmePath = join(workspaceRoot, 'README.md');
+  const readme = readText(readmePath);
+  writeText(readmePath, syncReadmeVersionText(readme, options));
+}
 
-  plans = replaceOne(
+export function syncPlansVersionText(plans, version) {
+  return replaceOne(
     plans,
     /- release stage: `[^`]+`/,
     `- release stage: \`${inferReleaseStage(version)}\``,
     'PLANS release stage line'
   );
+}
 
-  writeText(plansPath, plans);
+function syncPlansVersionReferences(version) {
+  const plansPath = join(workspaceRoot, 'PLANS.md');
+  const plans = readText(plansPath);
+  writeText(plansPath, syncPlansVersionText(plans, version));
 }
 
 function syncProjectStateVersionReferences(options) {
@@ -566,4 +584,6 @@ function main() {
   );
 }
 
-main();
+if (isDirectExecution(import.meta.url)) {
+  main();
+}

@@ -30,7 +30,7 @@ test('readNpmVersionWithRetry retries transient npm 404 until the version become
 
   assert.equal(result, '0.1.0-rc.0');
   assert.equal(logs.length, 1);
-  assert.match(logs[0], /Waiting for npm registry readback/);
+  assert.match(logs[0], /Waiting for npm registry readback for zk-agent-cli@0\.1\.0-rc\.0 to converge/);
 });
 
 test('readNpmVersionWithRetry retries stale dist-tag readback until the expected version appears', () => {

@@ -12,7 +12,7 @@ const workspaceRoot = resolve(rootDir, '..');
 const packageDir = join(workspaceRoot, 'packages', 'zk-agent-cli');
 const workspacePackagePath = join(workspaceRoot, 'package.json');
 const publishedPackagePath = join(packageDir, 'package.json');
-const DEFAULT_READBACK_ATTEMPTS = 6;
+const DEFAULT_READBACK_ATTEMPTS = 24;
 const DEFAULT_READBACK_DELAY_MS = 5000;
 const preferredBinDir = dirname(process.execPath);
 const executionEnv = {
@@ -27,6 +27,8 @@ function parseArgs(argv) {
     version: null,
     tag: null,
     otp: null,
+    readbackAttempts: DEFAULT_READBACK_ATTEMPTS,
+    readbackDelayMs: DEFAULT_READBACK_DELAY_MS,
     promoteLatest: false,
     skipValidate: false,
     skipNpxSmoke: false,
@@ -52,6 +54,18 @@ function parseArgs(argv) {
 
     if (arg === '--otp') {
       args.otp = next || null;
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--readback-attempts') {
+      args.readbackAttempts = Number(next || NaN);
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--readback-delay-ms') {
+      args.readbackDelayMs = Number(next || NaN);
       index += 1;
       continue;
     }
@@ -97,7 +111,8 @@ function printHelp() {
     [
       'Usage:',
       '  pnpm release:publish [--version <version>] [--tag <tag>] [--promote-latest] [--otp <code>] [--dry-run]',
-      '    [--skip-validate] [--skip-npx-smoke] [--allow-dirty]',
+      '    [--skip-validate] [--skip-npx-smoke] [--readback-attempts <count>]',
+      '    [--readback-delay-ms <ms>] [--allow-dirty]',
       '',
       'Behavior:',
       '  Runs the supported host-runtime publish contract for zk-agent-cli.',
@@ -114,6 +129,10 @@ function printHelp() {
       '    readback assertions.',
       '  --skip-validate skips pnpm validate:release.',
       '  --skip-npx-smoke skips the clean npx help smoke during readback.',
+      `  --readback-attempts defaults to ${DEFAULT_READBACK_ATTEMPTS}.`,
+      `  --readback-delay-ms defaults to ${DEFAULT_READBACK_DELAY_MS}.`,
+      '  These readback settings matter because npm registry propagation can',
+      '  lag behind the initial publish acknowledgement by more than one minute.',
       '  By default the command requires a clean git worktree before publish.',
       '  --allow-dirty bypasses that guard when you intentionally publish from a dirty tree.'
     ].join('\n') + '\n'
@@ -186,6 +205,14 @@ function retryLog(log, message) {
   }
 }
 
+function validatePositiveInteger(value, flag) {
+  assert.equal(
+    Number.isInteger(value) && value > 0,
+    true,
+    `${flag} must be a positive integer.`
+  );
+}
+
 export function readNpmVersionWithRetry({
   packageName,
   spec,
@@ -223,7 +250,7 @@ export function readNpmVersionWithRetry({
         : summarizeFailure(result) || 'empty readback';
     retryLog(
       log,
-      `Waiting for npm registry readback for ${packageName}@${spec} to converge (${attempt}/${attempts}): ${observed}`
+      `Waiting for npm registry readback for ${spec} to converge (${attempt}/${attempts}): ${observed}`
     );
     sleepSync(delayMs);
   }
@@ -329,6 +356,8 @@ function main() {
   ensureNodeRuntime();
 
   const args = parseArgs(process.argv.slice(2));
+  validatePositiveInteger(args.readbackAttempts, '--readback-attempts');
+  validatePositiveInteger(args.readbackDelayMs, '--readback-delay-ms');
   ensureCleanWorktree({
     commandLabel: 'release:publish',
     allowDirty: args.allowDirty
@@ -432,7 +461,9 @@ function main() {
       packageName,
       spec: `${packageName}@${version}`,
       expectedVersion: version,
-      cwd: neutralDir
+      cwd: neutralDir,
+      attempts: args.readbackAttempts,
+      delayMs: args.readbackDelayMs
     });
     assert.equal(versionReadback, version, `Post-publish readback returned ${versionReadback}; expected ${version}.`);
 
@@ -440,7 +471,9 @@ function main() {
       packageName,
       spec: `${packageName}@${tag}`,
       expectedVersion: version,
-      cwd: neutralDir
+      cwd: neutralDir,
+      attempts: args.readbackAttempts,
+      delayMs: args.readbackDelayMs
     });
     assert.equal(tagReadback, version, `Dist-tag ${tag} points at ${tagReadback}; expected ${version}.`);
 
@@ -458,7 +491,9 @@ function main() {
         expectedTags: {
           [tag]: version
         },
-        cwd: neutralDir
+        cwd: neutralDir,
+        attempts: args.readbackAttempts,
+        delayMs: args.readbackDelayMs
       });
 
       if (currentDistTags.latest === version) {
@@ -477,7 +512,9 @@ function main() {
       expectedTags: args.promoteLatest
         ? { [tag]: version, latest: version }
         : { [tag]: version },
-      cwd: neutralDir
+      cwd: neutralDir,
+      attempts: args.readbackAttempts,
+      delayMs: args.readbackDelayMs
     });
 
     if (args.promoteLatest) {

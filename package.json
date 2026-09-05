@@ -37,7 +37,7 @@
     "release:prepare": "node ./scripts/release-prepare.mjs",
     "release:publish": "node ./scripts/release-publish.mjs",
     "release:check": "pnpm --filter zk-agent-cli release:check",
-    "test:release-scripts": "node --test ./scripts/release-git-state.test.mjs ./scripts/release-publish.test.mjs ./scripts/validate-release.test.mjs ./scripts/validate-rc.test.mjs ./scripts/review-rc.test.mjs ./scripts/release-checklist.test.mjs",
+    "test:release-scripts": "node --test ./scripts/release-git-state.test.mjs ./scripts/release-publish.test.mjs ./scripts/sync-release-version.test.mjs ./scripts/validate-release.test.mjs ./scripts/validate-rc.test.mjs ./scripts/review-rc.test.mjs ./scripts/release-checklist.test.mjs",
     "review:rc": "node ./scripts/review-rc.mjs",
     "validate:rc": "node ./scripts/validate-rc.mjs",
     "validate:release": "node ./scripts/validate-release.mjs",
