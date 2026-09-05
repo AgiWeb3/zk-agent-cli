@@ -337,6 +337,9 @@ Pass criteria:
 - that packaged runtime also keeps the default onboarding JSON contract stable:
   `next --json`, `setup --json`, and `doctor --json` still emit the expected
   shared `onboardingSummary` fields and first-run follow-up commands
+- that same packaged runtime now also keeps the wallet-ready `doctor` contract
+  stable, including `suiteAvailable`, `recommendedCommands.suite`, and the
+  `suiteHandoffSummary.recommendedJourney` handoff into `zk-agent suite`
 - that installed package can also start `relay serve --public-origin ...`,
   create a real relay request, redirect `/r/<id>` into the connector UI
   entrypoint, and still serve the bundled hashed frontend asset from the relay

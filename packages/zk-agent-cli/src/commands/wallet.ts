@@ -4148,7 +4148,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         currentSurface: 'wallet',
         recommendedNow: summary.status === 'ready',
         walletName: walletRecord.walletName,
-        chain: summary.chain
+        chain: summary.chain,
+        recommendedJourneyId: summary.status === 'ready' ? 'send-value-now' : null
       });
 
       printResult(
@@ -4201,7 +4202,8 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
         currentSurface: 'wallet',
         recommendedNow: summary.status === 'ready',
         walletName: walletRecord.walletName,
-        chain: summary.chain
+        chain: summary.chain,
+        recommendedJourneyId: summary.status === 'ready' ? 'send-value-now' : null
       });
 
       printResult(

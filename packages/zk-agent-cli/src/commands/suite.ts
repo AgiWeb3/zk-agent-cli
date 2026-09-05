@@ -23,6 +23,17 @@ export function createSuiteCommand(): Command {
         '    fund: recover from gas/funding blockers without guessing the route',
         '    recover: switch to hosted relay approval when the browser is remote',
         '',
+        '  Most common operator journeys:',
+        '    send value now: go straight to the flagship pay path',
+        '    inspect before acting: open assets/defaults/token inspection first',
+        '    unstick a write: recover paymaster/funding readiness on the workflow path',
+        '    recover remote approval: move approval to the hosted relay path',
+        '',
+        '  Where `suite` hands you off next:',
+        '    workflow: flagship pay, approval-based pay, and funding recovery',
+        '    discovery: assets, defaults, and token inspection',
+        '    relay: hosted approval recovery and relay readiness',
+        '',
         '  For the full first-run to post-flagship map:',
         '    zk-agent suite --include-onboarding',
         '',
@@ -38,9 +49,13 @@ export function createSuiteCommand(): Command {
         '  guidance in the same packaged readout.',
         '',
         '  In JSON mode, `summary.catalogView`, `summary.entryModes`,',
-        '  `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`,',
-        '  and each entry `category` + `useWhen` field explain which slice to',
-        '  choose without guessing.'
+        '  `summary.journeyOrder`, `summary.surfaceOrder`, top-level `journeys[]`,',
+        '  top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`,',
+        '  optional `preflight`, and each entry `category` + `surface` +',
+        '  `surfaceCommand` + `useWhen` field explain which slice to choose',
+        '  and which deeper surface owns it next.',
+        '  `recommendedCommands.workflowSurface|discoverySurface|relaySurface`',
+        '  expose the direct deeper-surface entry commands.'
       ].join('\n')
     )
     .action((options: { wallet?: string; chain?: string; includeOnboarding?: boolean }) => {

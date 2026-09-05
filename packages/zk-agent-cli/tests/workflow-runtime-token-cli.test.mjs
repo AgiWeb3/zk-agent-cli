@@ -51,7 +51,8 @@ function expectedWorkflowSuiteHandoff() {
     stayOnCurrentSurfaceWhen:
       'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
     note:
-      'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.'
+      'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.',
+    recommendedJourney: null
   };
 }
 

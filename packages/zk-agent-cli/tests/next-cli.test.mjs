@@ -204,8 +204,15 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         stayOnCurrentSurfaceWhen:
           'Stay on next when you still need the CLI to choose across setup, wallet readiness, and the shortest flagship workflow entry.',
         note: recommendedNow
-          ? 'Wallet readiness is no longer the blocker. The default shortest action can still be workflow pay, while suite is the broader packaged follow-up surface.'
-          : 'Suite is not the current recommendation because next is still steering setup or wallet remediation.'
+          ? 'Wallet readiness is no longer the blocker. The default shortest action can still be workflow pay, while suite is the broader packaged follow-up surface. Start with the suggested suite journey when the question is broader than one immediate workflow pay step.'
+          : 'Suite is not the current recommendation because next is still steering setup or wallet remediation.',
+        recommendedJourney: recommendedNow
+          ? {
+              id: 'send-value-now',
+              title: 'Send Value Now',
+              command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+            }
+          : null
       };
     case 'workflow':
       return {
@@ -217,7 +224,8 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         stayOnCurrentSurfaceWhen:
           'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
         note:
-          'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.'
+          'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.',
+        recommendedJourney: null
       };
     default:
       throw new Error(`Unsupported suite handoff surface in test: ${surface}`);

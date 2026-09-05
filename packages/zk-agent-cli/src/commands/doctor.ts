@@ -29,8 +29,14 @@ import {
   productEntrySummaryLines
 } from '../lib/product-entry-summary.js';
 import {
+  buildSuiteHandoffSummary,
+  suiteHandoffLines,
+  type SuiteHandoffSummary
+} from '../lib/suite-handoff.js';
+import {
   buildDefaultsRecommendedCommand,
   buildRelayInspectRecommendedCommand,
+  buildSuiteRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
@@ -79,11 +85,14 @@ function buildDoctorHelpText(): string {
     '    bootstrap: local config or wallet bootstrap is still missing',
     '    recover: local approval or signer state still needs repair',
     '    operate: local readiness is clear, so return to `zk-agent next` for the live path',
+    '    suite: once readiness is clear, the broader packaged post-flagship surface is available too',
     '',
     'Default behavior:',
     '  Inspects saved config, local wallet approval metadata, local signer state,',
     '  and the shortest next command without requiring live RPC reads.',
     '  Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
+    '  When doctor shows local readiness is clear and the question is broader than one next step:',
+    '    zk-agent suite',
     '',
     'Remote-browser variant:',
     '  Pass --relay-url when you want the remote approval fallback commands',
@@ -168,6 +177,7 @@ function buildWalletRecoveryRecommendedCommands(
 function buildWalletReadyRecommendedCommands(wallet: LocalWalletDoctorState) {
   return {
     next: buildTopLevelNextRecommendedCommand(undefined, undefined, wallet.walletName),
+    suite: buildSuiteRecommendedCommand(wallet.walletName, wallet.chain),
     walletStatus: buildWalletStatusRecommendedCommand(wallet.walletName),
     walletNext: buildWalletNextRecommendedCommand(wallet.walletName),
     workflowPay: buildWorkflowPayRecommendedCommand(wallet.walletName),
@@ -399,7 +409,15 @@ function buildDoctorResult(options: {
     currentSurface: 'doctor',
     stage: 'wallet-ready',
     nextAction: recommendedCommands.next,
+    suiteAvailable: true,
     nextSurface: 'next'
+  });
+  const suiteHandoffSummary = buildSuiteHandoffSummary({
+    currentSurface: 'doctor',
+    recommendedNow: true,
+    walletName: options.wallet.walletName,
+    chain: options.wallet.chain,
+    recommendedJourneyId: 'send-value-now'
   });
   return {
     scope: 'wallet-ready' as const,
@@ -409,6 +427,7 @@ function buildDoctorResult(options: {
     },
     productEntrySummary,
     onboardingSummary,
+    suiteHandoffSummary,
     summary: {
       stage: 'wallet-ready' as const,
       configExists: true,
@@ -435,6 +454,7 @@ function buildDoctorLines(input: {
   onboardingSummary: ReturnType<typeof buildOnboardingSummary>;
   productEntrySummary: ReturnType<typeof buildProductEntrySummary>;
   summary: ReturnType<typeof buildDoctorResult>['summary'];
+  suiteHandoffSummary?: SuiteHandoffSummary;
   recommendedPaths?: RecommendedPaths;
   recommendedCommands: Record<string, string>;
   nextAction: string;
@@ -483,6 +503,9 @@ function buildDoctorLines(input: {
 
   lines.push(['next', input.nextAction]);
   lines.push(...recommendedPathLines(input.recommendedPaths));
+  if (input.suiteHandoffSummary) {
+    lines.push(...suiteHandoffLines(input.suiteHandoffSummary));
+  }
 
   if (input.recommendedCommands.createWallet) {
     lines.push(['create wallet (local)', input.recommendedCommands.createWallet]);
@@ -495,6 +518,9 @@ function buildDoctorLines(input: {
   }
   if (input.recommendedCommands.workflowPay) {
     lines.push(['workflow pay', input.recommendedCommands.workflowPay]);
+  }
+  if (input.recommendedCommands.suite) {
+    lines.push(['suite command', input.recommendedCommands.suite]);
   }
   if (input.recommendedCommands.relayInspect) {
     lines.push(['relay inspect', input.recommendedCommands.relayInspect]);
@@ -550,6 +576,8 @@ export function createDoctorCommand(): Command {
             onboardingSummary: result.onboardingSummary,
             productEntrySummary: result.productEntrySummary,
             summary: result.summary,
+            suiteHandoffSummary:
+              'suiteHandoffSummary' in result ? result.suiteHandoffSummary : undefined,
             recommendedPaths: result.recommendedPaths,
             recommendedCommands: result.recommendedCommands,
             nextAction: result.nextAction
@@ -575,6 +603,9 @@ export function createDoctorCommand(): Command {
           productEntrySummary: result.productEntrySummary,
           onboardingSummary: result.onboardingSummary,
           summary: result.summary,
+          ...('suiteHandoffSummary' in result
+            ? { suiteHandoffSummary: result.suiteHandoffSummary }
+            : {}),
           agentProfile,
           agentFollowup,
           nextAction: result.nextAction,

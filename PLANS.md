@@ -12,10 +12,9 @@ parity.
 
 - release stage: `rc`
 - core operator path: landed
-- current work: productization closeout and release hardening
-- current documentation push: front-door compression across README, package
-  README, package README, quickstart, root help, plugin onboarding, and docs
-  index
+- current work: RC closeout, state-doc compression, and release hardening
+- current documentation push: keep README, package README, quickstart, help,
+  skills, and runtime JSON on one canonical product story
 - default AA path: `sed-lite`
 - broad DeFi expansion: deferred
 
@@ -34,6 +33,14 @@ parity.
   defaults, funding, paymaster readiness, and hosted approval recovery, and
   can now optionally include the first-run onboarding/preflight map in the
   same readout
+- `suite` now exposes both top-level `journeys[]` and `surfaces[]` so callers
+  can choose by operator question or jump directly to the deeper owning
+  surface
+- `doctor`, `next`, `wallet status|next`, and workflow follow-up surfaces now
+  expose stable `suiteHandoffSummary` guidance when the operator is ready to
+  leave the current surface
+- packaged validation now asserts `doctor --json` both in setup state and in
+  a clean-room wallet-ready state, including the `doctor -> suite` handoff
 - public onboarding docs now distinguish the CLI, repo skill, quickstart, and
   native Codex plugin entry surfaces explicitly
 - root help now also explains the `next` versus `suite` surface boundary in
@@ -45,7 +52,7 @@ parity.
 - a short publish runbook now exists at:
   `docs/17-release-checklist.md`
 - a current repo-tracked RC review artifact exists at:
-  `docs/release-stage-reviews/2026-09-01-main-rc.md`
+  `docs/release-stage-reviews/2026-09-03-main-rc.md`
 
 ## Current priorities
 
@@ -61,23 +68,14 @@ parity.
 
 ## Main remaining gaps
 
-- public onboarding is lighter now, but the package manual can still be
-  tightened further if we want a stricter 1.0.0 front door
-- the package manual now routes users to `next`, `doctor`, `wallet`,
-  `workflow`, `suite`, and `relay` more explicitly, but the deeper per-surface
-  docs can still be tightened further
-- the native Codex plugin note is now a shorter install-path document instead
-  of a mixed status log, but the overall release shell still needs more polish
-- wallet and workflow help are being tightened to use the same product-routing
-  language as the top-level help and public docs
-- relay and agent help are also being aligned to the same surface-routing
-  contract so operators do not have to relearn each entrypoint
-- hosted approval framing is clearer now, but the operated story can still get
-  shorter for public users
-- post-flagship packaging still needs to feel more cohesive
-- release discipline still depends on some manual judgment
-- the short publish checklist now exists, but the end-to-end release path still
-  needs more automation
+- the public shell is much tighter now, but the package manual can still be
+  shortened further before `1.0.0`
+- hosted approval is supportable and documented, but its market-facing story
+  can still get shorter and clearer
+- `suite` is now coherent as a catalog, but the overall post-flagship story
+  can still be compressed into a simpler public narrative
+- release discipline is better, but repeated RC and final `1.0.0` promotion
+  still require some manual judgment
 
 ## Release gates
 

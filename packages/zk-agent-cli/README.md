@@ -40,6 +40,13 @@ If readiness is unclear before you choose a fix, use:
 zk-agent doctor
 ```
 
+When `doctor` shows local readiness is clear and the question is broader than
+one immediate next step, move to:
+
+```bash
+zk-agent suite
+```
+
 If you want one packaged readout that includes both first-run onboarding and
 the post-flagship operator surface, use:
 
@@ -204,6 +211,19 @@ Current `suite` catalog categories:
 - `pay`
 - `fund`
 - `recover`
+
+Current `suite` handoff surfaces:
+
+- `workflow`: flagship pay, approval-based pay, and funding recovery
+- `discovery`: assets/defaults/token inspection
+- `relay`: hosted approval recovery
+
+Current `suite` operator journeys:
+
+- `send value now`
+- `inspect before acting`
+- `unstick a write`
+- `recover remote approval`
 
 Use `--wallet <name>` or `--chain <chain>` when the returned suite commands
 should stay on a non-default wallet or chain.

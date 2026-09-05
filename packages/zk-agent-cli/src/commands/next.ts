@@ -624,7 +624,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
         currentSurface: 'next',
         recommendedNow: summary.status === 'ready',
         walletName: wallet.walletName,
-        chain: wallet.chain
+        chain: wallet.chain,
+        recommendedJourneyId: summary.status === 'ready' ? 'send-value-now' : null
       });
       const productEntrySummary = buildProductEntrySummary({
         stage: onboardingSummary.stage,

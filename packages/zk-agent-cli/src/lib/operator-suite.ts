@@ -17,8 +17,16 @@ import {
   buildWorkflowStatusRecommendedCommand
 } from './recommended-commands.js';
 
+export type OperatorSuiteSurface = 'workflow' | 'discovery' | 'relay';
+export type OperatorSuiteJourneyId =
+  | 'send-value-now'
+  | 'inspect-before-acting'
+  | 'unstick-a-write'
+  | 'recover-remote-approval';
+
 export interface OperatorSuiteEntry {
   category: 'operate' | 'discover' | 'pay' | 'fund' | 'recover';
+  surface: OperatorSuiteSurface;
   id:
     | 'flagship-pay'
     | 'discovery-defaults'
@@ -29,6 +37,7 @@ export interface OperatorSuiteEntry {
   goal: string;
   useWhen: string;
   primaryCommand: string;
+  surfaceCommand: string;
   supportingCommands: string[];
   skillPath: string;
   smokeCommand?: string;
@@ -42,6 +51,8 @@ export interface OperatorSuiteSummary {
   stage: 'wallet-ready-post-flagship';
   useWhen: string;
   entryModes: Array<'local-first' | 'hosted-recovery'>;
+  journeyOrder: OperatorSuiteJourneyId[];
+  surfaceOrder: OperatorSuiteSurface[];
   categoryOrder: OperatorSuiteEntry['category'][];
   flagshipId: OperatorSuiteEntry['id'];
   postFlagshipSliceIds: Array<
@@ -65,15 +76,40 @@ export interface OperatorSuitePreflight {
   afterWalletReady: string;
 }
 
+export interface OperatorSuiteSurfaceSummary {
+  surface: OperatorSuiteSurface;
+  title: string;
+  useWhen: string;
+  command: string;
+  categoryIds: OperatorSuiteEntry['category'][];
+  entryIds: OperatorSuiteEntry['id'][];
+}
+
+export interface OperatorSuiteJourneySummary {
+  id: OperatorSuiteJourneyId;
+  title: string;
+  operatorQuestion: string;
+  useWhen: string;
+  startCommand: string;
+  surface: OperatorSuiteSurface;
+  categoryIds: OperatorSuiteEntry['category'][];
+  entryIds: OperatorSuiteEntry['id'][];
+}
+
 export interface OperatorSuitePayload {
   ok: true;
   summary: OperatorSuiteSummary;
   preflight?: OperatorSuitePreflight;
+  journeys: OperatorSuiteJourneySummary[];
+  surfaces: OperatorSuiteSurfaceSummary[];
   flagship: OperatorSuiteEntry;
   slices: OperatorSuiteEntry[];
   recommendedCommands: {
     suite: string;
     flagship: string;
+    workflowSurface: string;
+    discoverySurface: string;
+    relaySurface: string;
     discovery: string;
     paymaster: string;
     funding: string;
@@ -96,6 +132,8 @@ export function buildOperatorSuitePayload(
   const includeOnboarding = options.includeOnboarding === true;
   const flagshipCommand = buildWorkflowPayRecommendedCommand(walletName);
   const inspectDefaults = buildDefaultsRecommendedCommand();
+  const workflowSurfaceCommand = 'zk-agent workflow --help';
+  const relaySurfaceCommand = 'zk-agent relay --help';
   const discoveryCommand = buildAssetsRecommendedCommand(walletName);
   const paymasterCommand = buildWorkflowPayRecommendedCommand(walletName, 'approval-based');
   const fundingCommand = buildWorkflowFundRecommendedCommand(walletName);
@@ -135,11 +173,13 @@ export function buildOperatorSuitePayload(
 
   const flagship: OperatorSuiteEntry = {
     category: 'operate',
+    surface: 'workflow',
     id: 'flagship-pay',
     title: 'Flagship Pay',
     goal: 'Run the default zkSync-native native-send path through the workflow layer.',
     useWhen: 'Start here when the wallet is already ready and the next real goal is a native send.',
     primaryCommand: flagshipCommand,
+    surfaceCommand: workflowSurfaceCommand,
     supportingCommands: [nextCommand, buildWalletStatusRecommendedCommand(walletName), inspectDefaults],
     skillPath: 'skills/zk-aa/SKILL.md'
   };
@@ -147,11 +187,13 @@ export function buildOperatorSuitePayload(
   const slices: OperatorSuiteEntry[] = [
     {
       category: 'discover',
+      surface: 'discovery',
       id: 'discovery-defaults',
       title: 'Discovery / Defaults',
       goal: 'Discover owned assets, tracked defaults, and symbol-first token resolution before acting.',
       useWhen: 'Use this before tokenized actions or whenever asset/default context is unclear.',
       primaryCommand: discoveryCommand,
+      surfaceCommand: inspectDefaults,
       supportingCommands: [
         inspectDefaults,
         `zk-agent tokens --chain ${chain}`,
@@ -162,11 +204,13 @@ export function buildOperatorSuitePayload(
     },
     {
       category: 'pay',
+      surface: 'workflow',
       id: 'paymaster-readiness',
       title: 'Paymaster Readiness',
       goal: 'Stay on the approval-based flagship path and recover the exact fee-token/default metadata when needed.',
       useWhen: 'Use this when approval-based pay or another sponsored write needs fee-token/default recovery.',
       primaryCommand: paymasterCommand,
+      surfaceCommand: workflowSurfaceCommand,
       supportingCommands: [
         inspectDefaults,
         buildPaymasterFeeTokensRecommendedCommand(chain),
@@ -177,11 +221,13 @@ export function buildOperatorSuitePayload(
     },
     {
       category: 'fund',
+      surface: 'workflow',
       id: 'funding-readiness',
       title: 'Funding Readiness',
       goal: 'Ask the workflow layer for the exact funding route before executing bridge/deposit follow-up.',
       useWhen: 'Use this when the workflow path is blocked on gas or the CLI says funding is required.',
       primaryCommand: fundingCommand,
+      surfaceCommand: workflowSurfaceCommand,
       supportingCommands: [
         buildWorkflowFundRunRecommendedCommand(walletName),
         `zk-agent fund --wallet ${walletName} --amount <amount>`,
@@ -192,18 +238,97 @@ export function buildOperatorSuitePayload(
     },
     {
       category: 'recover',
+      surface: 'relay',
       id: 'hosted-approval-recovery',
       title: 'Hosted Approval Recovery',
       goal: 'Validate a hosted relay URL and switch to the remote approval path when the browser is not colocated or a writable session must be reapproved remotely.',
       useWhen:
         'Use this when local callback is not viable, the browser is remote, or an expired writable session must be recovered through the single-host hosted relay baseline.',
       primaryCommand: hostedRelayInspectCommand,
+      surfaceCommand: relaySurfaceCommand,
       supportingCommands: [
         hostedCreateWalletCommand,
         hostedReapproveCommand,
         `pnpm smoke:hosted-operated-baseline -- --wallet ${walletName} --relay-url <url> --reapprove --prompt-code --plan`
       ],
       skillPath: 'skills/zk-relay/SKILL.md'
+    }
+  ];
+
+  const surfaces: OperatorSuiteSurfaceSummary[] = [
+    {
+      surface: 'workflow',
+      title: 'Workflow Surface',
+      useWhen:
+        'Use this when the question is already about execution, approval-based pay, or funding recovery after suite has identified the right slice.',
+      command: workflowSurfaceCommand,
+      categoryIds: ['operate', 'pay', 'fund'],
+      entryIds: [flagship.id, 'paymaster-readiness', 'funding-readiness']
+    },
+    {
+      surface: 'discovery',
+      title: 'Discovery Surface',
+      useWhen:
+        'Use this when the question is about assets, defaults, token ownership, or symbol-first inspection after suite has identified the discovery slice.',
+      command: inspectDefaults,
+      categoryIds: ['discover'],
+      entryIds: ['discovery-defaults']
+    },
+    {
+      surface: 'relay',
+      title: 'Relay Surface',
+      useWhen:
+        'Use this when the browser is remote or hosted approval readiness must be checked before wallet recovery can continue.',
+      command: relaySurfaceCommand,
+      categoryIds: ['recover'],
+      entryIds: ['hosted-approval-recovery']
+    }
+  ];
+
+  const journeys: OperatorSuiteJourneySummary[] = [
+    {
+      id: 'send-value-now',
+      title: 'Send Value Now',
+      operatorQuestion: 'I already have a ready wallet and want the shortest path to send native value now.',
+      useWhen:
+        'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.',
+      startCommand: flagshipCommand,
+      surface: 'workflow',
+      categoryIds: ['operate'],
+      entryIds: [flagship.id]
+    },
+    {
+      id: 'inspect-before-acting',
+      title: 'Inspect Before Acting',
+      operatorQuestion: 'I need to inspect assets, defaults, or token metadata before I choose a tokenized action.',
+      useWhen:
+        'Use this when asset visibility, defaults, or symbol-first token inspection is still the real blocker.',
+      startCommand: discoveryCommand,
+      surface: 'discovery',
+      categoryIds: ['discover'],
+      entryIds: ['discovery-defaults']
+    },
+    {
+      id: 'unstick-a-write',
+      title: 'Unstick a Write',
+      operatorQuestion: 'The write path is blocked on fee-token/default state or funding, and I need the shortest recovery route.',
+      useWhen:
+        'Use this when approval-based pay or a workflow write is blocked and the CLI needs to recover paymaster or funding readiness.',
+      startCommand: paymasterCommand,
+      surface: 'workflow',
+      categoryIds: ['pay', 'fund'],
+      entryIds: ['paymaster-readiness', 'funding-readiness']
+    },
+    {
+      id: 'recover-remote-approval',
+      title: 'Recover Remote Approval',
+      operatorQuestion: 'The browser is remote or local callback is not viable, so approval must move to the hosted relay path.',
+      useWhen:
+        'Use this when a writable session must be recovered through the single-host hosted relay baseline.',
+      startCommand: hostedRelayInspectCommand,
+      surface: 'relay',
+      categoryIds: ['recover'],
+      entryIds: ['hosted-approval-recovery']
     }
   ];
 
@@ -218,6 +343,8 @@ export function buildOperatorSuitePayload(
       useWhen:
         'Use suite after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
       entryModes: ['local-first', 'hosted-recovery'],
+      journeyOrder: journeys.map((entry) => entry.id),
+      surfaceOrder: ['workflow', 'discovery', 'relay'],
       categoryOrder: [flagship.category, ...slices.map((entry) => entry.category)],
       flagshipId: flagship.id,
       postFlagshipSliceIds: slices.map((entry) => entry.id) as OperatorSuiteSummary['postFlagshipSliceIds'],
@@ -225,11 +352,16 @@ export function buildOperatorSuitePayload(
       nextAction: flagship.primaryCommand
     },
     ...(preflight ? { preflight } : {}),
+    journeys,
+    surfaces,
     flagship,
     slices,
     recommendedCommands: {
       suite: suiteCommand,
       flagship: flagshipCommand,
+      workflowSurface: workflowSurfaceCommand,
+      discoverySurface: inspectDefaults,
+      relaySurface: relaySurfaceCommand,
       discovery: discoveryCommand,
       paymaster: paymasterCommand,
       funding: fundingCommand,
@@ -251,12 +383,27 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
         ['preflight handoff', payload.preflight.afterWalletReady] as [string, string]
       ]
     : [];
+  const journeyLines = payload.journeys.flatMap((journey): Array<[string, string]> => [
+    [`journey ${journey.id}`, journey.startCommand],
+    [`journey ${journey.id} surface`, journey.surface],
+    [`journey ${journey.id} categories`, journey.categoryIds.join(' -> ')],
+    [`journey ${journey.id} entries`, journey.entryIds.join(' -> ')],
+    [`journey ${journey.id} when`, journey.useWhen]
+  ]);
   const sliceLines = payload.slices.flatMap((entry): Array<[string, string]> => [
     [`${entry.title.toLowerCase()} category`, entry.category],
+    [`${entry.title.toLowerCase()} surface`, entry.surface],
+    [`${entry.title.toLowerCase()} surface command`, entry.surfaceCommand],
     [entry.title.toLowerCase(), formatRecommendedPath([entry.primaryCommand, ...entry.supportingCommands])],
     [`${entry.title.toLowerCase()} when`, entry.useWhen],
     [`${entry.title.toLowerCase()} skill`, entry.skillPath],
     ...(entry.smokeCommand ? [[`${entry.title.toLowerCase()} smoke`, entry.smokeCommand] as [string, string]] : [])
+  ]);
+  const surfaceLines = payload.surfaces.flatMap((surface): Array<[string, string]> => [
+    [`${surface.surface} surface`, surface.command],
+    [`${surface.surface} surface categories`, surface.categoryIds.join(' -> ')],
+    [`${surface.surface} surface entries`, surface.entryIds.join(' -> ')],
+    [`${surface.surface} surface when`, surface.useWhen]
   ]);
 
   return [
@@ -267,10 +414,16 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     ['stage', payload.summary.stage],
     ['use when', payload.summary.useWhen],
     ['entry modes', payload.summary.entryModes.join(' -> ')],
+    ['journey order', payload.summary.journeyOrder.join(' -> ')],
+    ['surface order', payload.summary.surfaceOrder.join(' -> ')],
     ['category order', payload.summary.categoryOrder.join(' -> ')],
     ...preflightLines,
+    ...journeyLines,
+    ...surfaceLines,
     ['recommended order', payload.summary.recommendedOrder.join(' -> ')],
     [`${payload.flagship.title.toLowerCase()} category`, payload.flagship.category],
+    [`${payload.flagship.title.toLowerCase()} surface`, payload.flagship.surface],
+    [`${payload.flagship.title.toLowerCase()} surface command`, payload.flagship.surfaceCommand],
     [
       payload.flagship.title.toLowerCase(),
       formatRecommendedPath([

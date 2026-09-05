@@ -195,6 +195,10 @@ function assertPackageReadme(readme) {
       'Package README must document the local-only doctor entrypoint.'
     ],
     [
+      /When `doctor` shows local readiness is clear and the question is broader than[\s\S]*zk-agent suite/,
+      'Package README must document the doctor-to-suite handoff once local readiness is clear.'
+    ],
+    [
       /zk-agent suite[\s\S]*(post-flagship|packaged surface)/,
       'Package README must keep the operator-suite surface visible.'
     ],
@@ -267,6 +271,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
+      /If readiness is still unclear, use `zk-agent doctor` first\.[\s\S]*move to `zk-agent suite`\./,
+      'Root README must keep the doctor-to-suite product routing visible.'
+    ],
+    [
+      rootReadme,
       /Current public stage: `[^`]+`\./,
       'Root README must keep the current public-stage product baseline visible.'
     ],
@@ -317,6 +326,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
+      /When `doctor` says local readiness is clear but the question is broader than[\s\S]*zk-agent suite/,
+      'Quickstart must keep the doctor-to-suite handoff visible.'
+    ],
+    [
+      quickstart,
       /## 5\. Use `suite` as the default post-flagship surface[\s\S]*zk-agent suite[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/,
       'Quickstart must keep the discovery/defaults contract visible.'
     ],
@@ -364,6 +378,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       skillGuide,
       /Use `zk-agent doctor` before choosing a remediation path when readiness is[\s\S]*unclear\./,
       'Primary skill guide must keep the doctor diagnostic visible.'
+    ],
+    [
+      skillGuide,
+      /When `doctor` shows local readiness is clear but the operator question is[\s\S]*zk-agent suite/,
+      'Primary skill guide must keep the doctor-to-suite handoff visible.'
     ],
     [
       skillGuide,
@@ -553,7 +572,7 @@ function assertReleaseStageDocs({
     ],
     [
       projectState,
-      /## Snapshot[\s\S]*package stage: `[^`]+`[\s\S]*current focus: RC hardening and productization closeout/,
+      /## Snapshot[\s\S]*package stage: `[^`]+`[\s\S]*current focus: RC closeout, release-gate hardening, and state-doc cleanup/,
       'PROJECT_STATE.md must keep the release-stage assessment explicit.'
     ],
     [
@@ -677,8 +696,10 @@ function assertDoctorHelpContract(helpOutput) {
     'zk-agent doctor',
     'zk-agent doctor --wallet main',
     'zk-agent doctor --wallet main --relay-url https://relay.example.com',
+    'What `doctor` answers right now: bootstrap: local config or wallet bootstrap is still missing recover: local approval or signer state still needs repair operate: local readiness is clear, so return to `zk-agent next` for the live path suite: once readiness is clear, the broader packaged post-flagship surface is available too',
     'Default behavior: Inspects saved config, local wallet approval metadata, local signer state, and the shortest next command without requiring live RPC reads.',
     'Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
+    'When doctor shows local readiness is clear and the question is broader than one next step: zk-agent suite',
     'Remote-browser variant: Pass --relay-url when you want the remote approval fallback commands to use a concrete relay URL instead of a placeholder.'
   ];
 
@@ -854,6 +875,28 @@ function assertWorkflowHelpContract(helpOutput) {
     true,
     'Workflow help must list the flagship pay path ahead of workflow auto.'
   );
+}
+
+function assertSuiteHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Use `suite` after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship slices.',
+    'What `suite` answers right now: operate: send native value through the flagship workflow path discover: inspect owned assets and defaults before tokenized actions pay: stay on the approval-based paymaster path with exact fee-token follow-up fund: recover from gas/funding blockers without guessing the route recover: switch to hosted relay approval when the browser is remote',
+    'Most common operator journeys: send value now: go straight to the flagship pay path inspect before acting: open assets/defaults/token inspection first unstick a write: recover paymaster/funding readiness on the workflow path recover remote approval: move approval to the hosted relay path',
+    'Where `suite` hands you off next: workflow: flagship pay, approval-based pay, and funding recovery discovery: assets, defaults, and token inspection relay: hosted approval recovery and relay readiness',
+    'For the full first-run to post-flagship map: zk-agent suite --include-onboarding',
+    'Recommended order inside the suite: zk-agent workflow pay --wallet main --to <address> --amount <amount> zk-agent assets --wallet main zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based zk-agent workflow fund --wallet main zk-agent relay inspect --relay-url <url>',
+    'Pass `--wallet` or `--chain` to retarget the entire suite contract. Pass `--include-onboarding` when you want setup, doctor, and wallet bootstrap guidance in the same packaged readout.',
+    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `recommendedCommands.workflowSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Suite help is missing required product-surface contract text: ${snippet}`
+    );
+  }
 }
 
 function assertBridgeHelpContract(helpOutput) {
@@ -1246,6 +1289,85 @@ function assertDoctorSetupPayload(payload) {
   });
 }
 
+function assertDoctorReadyPayload(payload) {
+  assert.equal(payload.ok, true);
+  assert.equal(payload.scope, 'wallet-ready');
+  assert.equal(payload.walletName, 'main');
+  assert.equal(payload.config?.exists, true);
+  assert.equal(payload.config?.defaultChain, 'zksync-sepolia');
+  assert.equal(payload.config?.connectorUrl, 'http://localhost:4444');
+  assert.equal(payload.wallet?.exists, true);
+  assert.equal(payload.wallet?.walletName, 'main');
+  assert.equal(payload.wallet?.walletAddress, '0x1111111111111111111111111111111111111111');
+  assert.equal(payload.wallet?.chain, 'zksync-sepolia');
+  assert.equal(payload.wallet?.chainId, 300);
+  assert.equal(payload.wallet?.accountKind, 'smart-account');
+  assert.equal(payload.wallet?.approvalReady, true);
+  assert.equal(payload.wallet?.localExecutionKeyStored, true);
+  assert.deepEqual(payload.productEntrySummary, {
+    view: 'product-entry',
+    currentSurface: 'doctor',
+    stage: 'wallet-ready',
+    category: 'operate',
+    recommendedMode: 'local-first',
+    nextSurface: 'next',
+    nextAction: 'zk-agent next',
+    suiteAvailable: true,
+    note:
+      'Local readiness is clear. Return to zk-agent next when you want the live operator path instead of a local-only diagnosis.'
+  });
+  assert.deepEqual(payload.onboardingSummary, {
+    stage: 'wallet-ready',
+    baseline: 'local-first',
+    localOnly: true,
+    configExists: true,
+    walletExists: true,
+    approvalReady: true,
+    localExecutionKeyStored: true,
+    defaultChain: 'zksync-sepolia',
+    connectorUrl: 'http://localhost:4444',
+    relayUrl: null,
+    nextAction: 'zk-agent next',
+    notes: [
+      'Local config, approval metadata, and a local execution signer are all present.',
+      'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
+    ]
+  });
+  assert.equal(payload.summary?.stage, 'wallet-ready');
+  assert.equal(payload.summary?.configExists, true);
+  assert.equal(payload.summary?.walletExists, true);
+  assert.equal(payload.summary?.approvalReady, true);
+  assert.equal(payload.summary?.localExecutionKeyStored, true);
+  assert.equal(payload.summary?.relayUrl, null);
+  assert.equal(payload.summary?.nextAction, 'zk-agent next');
+  assert.equal(payload.summary?.localOnly, true);
+  assert.equal(payload.nextAction, 'zk-agent next');
+  assert.deepEqual(payload.suiteHandoffSummary, {
+    currentSurface: 'doctor',
+    recommendedNow: true,
+    command: 'zk-agent suite',
+    useWhen:
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
+    stayOnCurrentSurfaceWhen:
+      'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local-only diagnosis before choosing the live path.',
+    note:
+      'Local readiness is clear. Return to zk-agent next for the shortest live path, or start with the suggested suite journey when the operator question is broader than one immediate flagship workflow step.',
+    recommendedJourney: {
+      id: 'send-value-now',
+      title: 'Send Value Now',
+      command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    }
+  });
+  assert.deepEqual(payload.recommendedCommands, {
+    next: 'zk-agent next',
+    suite: 'zk-agent suite',
+    walletStatus: 'zk-agent wallet status --name main',
+    walletNext: 'zk-agent wallet next --name main',
+    workflowPay: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    inspectDefaults: 'zk-agent defaults'
+  });
+}
+
 function assertOperatorJsonContract(doc) {
   const requiredChecks = [
     [
@@ -1261,7 +1383,7 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the setup onboarding contract.'
     ],
     [
-      /## `zk-agent doctor`[\s\S]*local-only onboarding and wallet-recovery diagnostic[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`scope`[\s\S]*`walletName`[\s\S]*`config`[\s\S]*`wallet`[\s\S]*`onboardingSummary`[\s\S]*`summary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `scope` values:[\s\S]*`setup`[\s\S]*`wallet-bootstrap`[\s\S]*`wallet-recovery`[\s\S]*`wallet-ready`[\s\S]*Current stable `config` fields:[\s\S]*`exists`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`provider`[\s\S]*Current stable `wallet` fields when present:[\s\S]*`exists`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`smartAccountProfileId`[\s\S]*`syncedAt`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`legacySessionKeyStored`[\s\S]*`signerType`[\s\S]*`signerAddress`[\s\S]*`signerSource`[\s\S]*Current stable `summary` fields:[\s\S]*`stage`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`localOnly`[\s\S]*`notes`/,
+      /## `zk-agent doctor`[\s\S]*local-only onboarding and wallet-recovery diagnostic[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`scope`[\s\S]*`walletName`[\s\S]*`config`[\s\S]*`wallet`[\s\S]*`onboardingSummary`[\s\S]*`summary`[\s\S]*`suiteHandoffSummary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `scope` values:[\s\S]*`setup`[\s\S]*`wallet-bootstrap`[\s\S]*`wallet-recovery`[\s\S]*`wallet-ready`[\s\S]*Current stable `config` fields:[\s\S]*`exists`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`provider`[\s\S]*Current stable `wallet` fields when present:[\s\S]*`exists`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`smartAccountProfileId`[\s\S]*`syncedAt`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`legacySessionKeyStored`[\s\S]*`signerType`[\s\S]*`signerAddress`[\s\S]*`signerSource`[\s\S]*Current stable `summary` fields:[\s\S]*`stage`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`localOnly`[\s\S]*`notes`/,
       'Operator JSON contract doc must describe the doctor top-level contract.'
     ],
     [
@@ -1277,7 +1399,7 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the doctor wallet-recovery contract.'
     ],
     [
-      /### `scope = "wallet-ready"`[\s\S]*"scope": "wallet-ready"[\s\S]*"approvalReady": true[\s\S]*"localExecutionKeyStored": true[\s\S]*"nextAction": "zk-agent next"[\s\S]*"recommendedCommands": \{[\s\S]*"next": "zk-agent next"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
+      /### `scope = "wallet-ready"`[\s\S]*"scope": "wallet-ready"[\s\S]*"productEntrySummary": \{[\s\S]*"stage": "wallet-ready"[\s\S]*"nextAction": "zk-agent next"[\s\S]*"suiteAvailable": true[\s\S]*"approvalReady": true[\s\S]*"localExecutionKeyStored": true[\s\S]*"suiteHandoffSummary": \{[\s\S]*"currentSurface": "doctor"[\s\S]*"recommendedNow": true[\s\S]*"command": "zk-agent suite"[\s\S]*"recommendedJourney": \{[\s\S]*"id": "send-value-now"[\s\S]*"title": "Send Value Now"[\s\S]*"command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*\}[\s\S]*"nextAction": "zk-agent next"[\s\S]*"recommendedCommands": \{[\s\S]*"next": "zk-agent next"[\s\S]*"suite": "zk-agent suite"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*Current stable `suiteHandoffSummary` fields on this surface use the same field[\s\S]*described later for top-level `zk-agent next` wallet scope\./,
       'Operator JSON contract doc must describe the doctor wallet-ready contract.'
     ],
     [
@@ -1293,8 +1415,8 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the wallet-bootstrap recommendedCommands contract.'
     ],
     [
-      /"scope": "wallet"[\s\S]*"onboardingSummary": \{[\s\S]*"stage": "wallet-ready"[\s\S]*"baseline": "local-first"[\s\S]*"localOnly": false[\s\S]*"defaultChain": "zksync-sepolia"[\s\S]*"connectorUrl": "http:\/\/localhost:4444"[\s\S]*"nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
-      'Operator JSON contract doc must describe the wallet-scope discovery recommendedCommands contract.'
+      /"scope": "wallet"[\s\S]*"suiteHandoffSummary": \{[\s\S]*"currentSurface": "next"[\s\S]*"recommendedNow": true[\s\S]*"command": "zk-agent suite"[\s\S]*"recommendedJourney": \{[\s\S]*"id": "send-value-now"[\s\S]*"title": "Send Value Now"[\s\S]*"command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*\}[\s\S]*"onboardingSummary": \{[\s\S]*"stage": "wallet-ready"[\s\S]*"baseline": "local-first"[\s\S]*"localOnly": false[\s\S]*"defaultChain": "zksync-sepolia"[\s\S]*"connectorUrl": "http:\/\/localhost:4444"[\s\S]*"nextAction": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"recommendedCommands": \{[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol> --role paymaster-fee-token"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"workflowAuto": "zk-agent workflow auto --wallet main --intent <intent> \[goal flags\] --create-checkpoint --execute-when-ready"/,
+      'Operator JSON contract doc must describe the wallet-scope suite handoff and discovery recommendedCommands contract.'
     ],
     [
       /### `scope = "wallet"`[\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "wallet-scope token recovery summary"\s*\}[\s\S]*When the wallet scope exposes token\/discovery follow-ups[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
@@ -1305,8 +1427,12 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the top-level workflow tokenDiscoverySummary contract.'
     ],
     [
-      /## `zk-agent wallet status\|next`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`inspection`[\s\S]*`summary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When the effective wallet paymaster mode is `approval-based`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`[\s\S]*When wallet-scoped discovery follow-ups are present[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
-      'Operator JSON contract doc must describe the wallet status/next tokenDiscoverySummary contract.'
+      /### `scope = "workflow"`[\s\S]*"recommendedJourney": null[\s\S]*Current stable `suiteHandoffSummary` fields on this surface use the same field[\s\S]*described above for wallet scope\./,
+      'Operator JSON contract doc must describe the top-level workflow suiteHandoffSummary contract.'
+    ],
+    [
+      /## `zk-agent wallet status\|next`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`inspection`[\s\S]*`summary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`suiteHandoffSummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable `suiteHandoffSummary` fields on this surface:[\s\S]*`currentSurface`[\s\S]*`recommendedNow`[\s\S]*`command`[\s\S]*`recommendedJourney`[\s\S]*`useWhen`[\s\S]*`stayOnCurrentSurfaceWhen`[\s\S]*`note`[\s\S]*When the effective wallet paymaster mode is `approval-based`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`[\s\S]*When wallet-scoped discovery follow-ups are present[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
+      'Operator JSON contract doc must describe the wallet status/next suiteHandoffSummary and tokenDiscoverySummary contract.'
     ],
     [
       /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`/,
@@ -1335,6 +1461,10 @@ function assertOperatorJsonContract(doc) {
     [
       /### Token-input workflow errors[\s\S]*`recommendedCommands`[\s\S]*`tokenDiscoverySummary`[\s\S]*Current stable `tokenDiscoverySummary` fields on that error path:[\s\S]*`chain`[\s\S]*`queryType`[\s\S]*`query`[\s\S]*`roleFilter`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`workflowHelp`/,
       'Operator JSON contract doc must describe the workflow token-input error discovery summary contract.'
+    ],
+    [
+      /## `zk-agent suite`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`preflight`[\s\S]*`journeys`[\s\S]*`surfaces`[\s\S]*`flagship`[\s\S]*`slices`[\s\S]*`recommendedCommands`[\s\S]*Current stable `summary` fields:[\s\S]*`suiteId`[\s\S]*`catalogView`[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`stage`[\s\S]*`useWhen`[\s\S]*`entryModes`[\s\S]*`journeyOrder`[\s\S]*`surfaceOrder`[\s\S]*`categoryOrder`[\s\S]*`flagshipId`[\s\S]*`postFlagshipSliceIds`[\s\S]*`recommendedOrder`[\s\S]*`nextAction`[\s\S]*Current stable `flagship` \/ `slices\[\]` fields:[\s\S]*`category`[\s\S]*`surface`[\s\S]*`id`[\s\S]*`title`[\s\S]*`goal`[\s\S]*`useWhen`[\s\S]*`primaryCommand`[\s\S]*`surfaceCommand`[\s\S]*`supportingCommands`[\s\S]*`skillPath`[\s\S]*Current stable `surfaceOrder` values on this surface are:[\s\S]*`workflow`[\s\S]*`discovery`[\s\S]*`relay`[\s\S]*Current stable `surfaces\[\]` fields:[\s\S]*`surface`[\s\S]*`title`[\s\S]*`useWhen`[\s\S]*`command`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `journeys\[\]` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`operatorQuestion`[\s\S]*`useWhen`[\s\S]*`startCommand`[\s\S]*`surface`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `journeyOrder` values on this surface are:[\s\S]*`send-value-now`[\s\S]*`inspect-before-acting`[\s\S]*`unstick-a-write`[\s\S]*`recover-remote-approval`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`suite`[\s\S]*`flagship`[\s\S]*`workflowSurface`[\s\S]*`discoverySurface`[\s\S]*`relaySurface`[\s\S]*`discovery`[\s\S]*`paymaster`[\s\S]*`funding`[\s\S]*`hostedApproval`[\s\S]*`inspectDefaults`/,
+      'Operator JSON contract doc must describe the suite catalog, journey layer, deeper-surface handoff, and direct surface command contract.'
     ],
     [
       /## `zk-agent defaults`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`recommendedCommands`[\s\S]*`defaults`[\s\S]*`localTokenRegistry`[\s\S]*`tokenRegistrySources`[\s\S]*`tokenDirectoryChains`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token"[\s\S]*The current stable `summary` fields are:[\s\S]*`primaryDiscoveryChain`[\s\S]*`exampleTokenSymbol`[\s\S]*`paymasterFeeTokenSymbol`[\s\S]*`localTokenCount`[\s\S]*`tokenDirectoryChainCount`[\s\S]*`tokenRegistrySources`[\s\S]*`resolvedDefaults`/,
@@ -1877,7 +2007,7 @@ function standaloneSessionPayload() {
       contractCall: true,
       paymaster: false
     },
-    sessionExpiresAt: '2026-08-31T00:00:00.000Z',
+    sessionExpiresAt: '2030-01-01T00:00:00.000Z',
     paymaster: {
       mode: 'none',
       address: null
@@ -1886,7 +2016,7 @@ function standaloneSessionPayload() {
     sessionPrivateKey:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
     permissions: {
-      expiresAt: '2026-08-31T00:00:00.000Z'
+      expiresAt: '2030-01-01T00:00:00.000Z'
     },
     connectorUrl: 'http://localhost:4444',
     paymasterAddress: null
@@ -2183,6 +2313,11 @@ function assertStandaloneSmoke(extractedPackageDir) {
     const importPayload = JSON.parse(importOutput);
     assert.equal(importPayload.ok, true);
     assert.equal(importPayload.wallet.walletName, 'main');
+
+    const doctorReadyOutput = runPackedCliJson(extractedPackageDir, homeDir, ['doctor', '--json']);
+    assertNoWorkspaceLeak(doctorReadyOutput);
+    const doctorReadyPayload = JSON.parse(doctorReadyOutput);
+    assertDoctorReadyPayload(doctorReadyPayload);
 
     const predictOutput = runPackedCliJson(
       extractedPackageDir,
@@ -2539,6 +2674,16 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(doctorHelpResult.stdout);
     assertDoctorHelpContract(doctorHelpResult.stdout);
 
+    const suiteHelpResult = runInstalledCli(projectRoot, homeDir, ['suite', '--help']);
+    assertPackedCliStderr(
+      suiteHelpResult.stderr,
+      suiteHelpResult.stdout,
+      'installed zk-agent suite --help'
+    );
+    assert.match(suiteHelpResult.stdout, /Usage: zk-agent suite/);
+    assertNoWorkspaceLeak(suiteHelpResult.stdout);
+    assertSuiteHelpContract(suiteHelpResult.stdout);
+
     const defaultsHelpResult = runInstalledCli(projectRoot, homeDir, ['defaults', '--help']);
     assertPackedCliStderr(
       defaultsHelpResult.stderr,
@@ -2676,6 +2821,67 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.equal(Array.isArray(defaultsPayload.defaults?.builtinChains), true);
     assert.equal(Array.isArray(defaultsPayload.localTokenRegistry), true);
 
+    const suiteOutput = runInstalledCliJson(projectRoot, homeDir, ['suite', '--json']);
+    assertNoWorkspaceLeak(suiteOutput);
+    const suitePayload = JSON.parse(suiteOutput);
+    assert.equal(suitePayload.ok, true);
+    assert.equal(suitePayload.summary?.suiteId, 'zk-agent-operator-suite');
+    assert.equal(suitePayload.summary?.catalogView, 'operator-catalog');
+    assert.deepEqual(suitePayload.summary?.journeyOrder, [
+      'send-value-now',
+      'inspect-before-acting',
+      'unstick-a-write',
+      'recover-remote-approval'
+    ]);
+    assert.deepEqual(suitePayload.summary?.surfaceOrder, ['workflow', 'discovery', 'relay']);
+    assert.equal(Array.isArray(suitePayload.journeys), true);
+    assert.deepEqual(
+      suitePayload.journeys?.map((entry) => entry.id),
+      [
+        'send-value-now',
+        'inspect-before-acting',
+        'unstick-a-write',
+        'recover-remote-approval'
+      ]
+    );
+    assert.equal(suitePayload.journeys?.[0]?.surface, 'workflow');
+    assert.equal(
+      suitePayload.journeys?.[0]?.startCommand,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(suitePayload.journeys?.[1]?.surface, 'discovery');
+    assert.equal(suitePayload.journeys?.[1]?.startCommand, 'zk-agent assets --wallet main');
+    assert.equal(suitePayload.journeys?.[2]?.surface, 'workflow');
+    assert.equal(
+      suitePayload.journeys?.[2]?.startCommand,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based'
+    );
+    assert.equal(suitePayload.journeys?.[3]?.surface, 'relay');
+    assert.equal(
+      suitePayload.journeys?.[3]?.startCommand,
+      'zk-agent relay inspect --relay-url <url>'
+    );
+    assert.equal(Array.isArray(suitePayload.surfaces), true);
+    assert.deepEqual(
+      suitePayload.surfaces?.map((entry) => entry.surface),
+      ['workflow', 'discovery', 'relay']
+    );
+    assert.equal(suitePayload.recommendedCommands?.workflowSurface, 'zk-agent workflow --help');
+    assert.equal(suitePayload.recommendedCommands?.discoverySurface, 'zk-agent defaults');
+    assert.equal(suitePayload.recommendedCommands?.relaySurface, 'zk-agent relay --help');
+    assert.equal(suitePayload.surfaces?.[0]?.command, 'zk-agent workflow --help');
+    assert.equal(suitePayload.surfaces?.[1]?.command, 'zk-agent defaults');
+    assert.equal(suitePayload.surfaces?.[2]?.command, 'zk-agent relay --help');
+    assert.equal(suitePayload.flagship?.surface, 'workflow');
+    assert.equal(suitePayload.flagship?.surfaceCommand, 'zk-agent workflow --help');
+    assert.equal(Array.isArray(suitePayload.slices), true);
+    assert.equal(suitePayload.slices?.[0]?.surface, 'discovery');
+    assert.equal(suitePayload.slices?.[0]?.surfaceCommand, 'zk-agent defaults');
+    assert.equal(suitePayload.slices?.[1]?.surface, 'workflow');
+    assert.equal(suitePayload.slices?.[2]?.surface, 'workflow');
+    assert.equal(suitePayload.slices?.[3]?.surface, 'relay');
+    assert.equal(suitePayload.slices?.[3]?.surfaceCommand, 'zk-agent relay --help');
+
     const profilesOutput = runInstalledCliJson(projectRoot, homeDir, [
       'wallet',
       'smart-account',
@@ -2704,6 +2910,29 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(doctorOutput);
     const doctorPayload = JSON.parse(doctorOutput);
     assertDoctorSetupPayload(doctorPayload);
+
+    const setupOutput = runInstalledCliJson(projectRoot, homeDir, ['setup', '--json']);
+    assertNoWorkspaceLeak(setupOutput);
+    const setupPayload = JSON.parse(setupOutput);
+    assertSetupPayload(setupPayload);
+
+    const importOutput = runInstalledCliJson(projectRoot, homeDir, [
+      'wallet',
+      'import',
+      '--name',
+      'main',
+      '--payload',
+      JSON.stringify(standaloneSessionPayload())
+    ]);
+    assertNoWorkspaceLeak(importOutput);
+    const importPayload = JSON.parse(importOutput);
+    assert.equal(importPayload.ok, true);
+    assert.equal(importPayload.wallet.walletName, 'main');
+
+    const doctorReadyOutput = runInstalledCliJson(projectRoot, homeDir, ['doctor', '--json']);
+    assertNoWorkspaceLeak(doctorReadyOutput);
+    const doctorReadyPayload = JSON.parse(doctorReadyOutput);
+    assertDoctorReadyPayload(doctorReadyPayload);
 
     await assertInstalledRelayServe(projectRoot, homeDir);
   } finally {

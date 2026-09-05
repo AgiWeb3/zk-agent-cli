@@ -144,8 +144,15 @@ function expectedWalletSuiteHandoff(recommendedNow) {
     stayOnCurrentSurfaceWhen:
       'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
     note: recommendedNow
-      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface.'
-      : 'Suite is not the current recommendation because wallet-specific remediation is still the blocker.'
+      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite journey when the operator question is broader than one wallet-status remediation step.'
+      : 'Suite is not the current recommendation because wallet-specific remediation is still the blocker.',
+    recommendedJourney: recommendedNow
+      ? {
+          id: 'send-value-now',
+          title: 'Send Value Now',
+          command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+        }
+      : null
   };
 }
 

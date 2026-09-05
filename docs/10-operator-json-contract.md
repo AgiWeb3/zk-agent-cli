@@ -316,6 +316,10 @@ Current stable top-level fields:
 - `productEntrySummary`
 - `onboardingSummary`
 - `summary`
+- `suiteHandoffSummary`
+  appears when local readiness is clear enough that `doctor` can expose the
+  broader post-flagship `suite` surface without changing its own local-only
+  nextAction
 - `agentProfile`
 - `agentFollowup`
 - `nextAction`
@@ -565,6 +569,16 @@ Key fields:
 {
   "scope": "wallet-ready",
   "walletName": "main",
+  "productEntrySummary": {
+    "view": "product-entry",
+    "currentSurface": "doctor",
+    "stage": "wallet-ready",
+    "category": "operate",
+    "recommendedMode": "local-first",
+    "nextSurface": "next",
+    "nextAction": "zk-agent next",
+    "suiteAvailable": true
+  },
   "summary": {
     "stage": "wallet-ready",
     "configExists": true,
@@ -575,9 +589,20 @@ Key fields:
     "nextAction": "zk-agent next",
     "localOnly": true
   },
+  "suiteHandoffSummary": {
+    "currentSurface": "doctor",
+    "recommendedNow": true,
+    "command": "zk-agent suite",
+    "recommendedJourney": {
+      "id": "send-value-now",
+      "title": "Send Value Now",
+      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+    }
+  },
   "nextAction": "zk-agent next",
   "recommendedCommands": {
     "next": "zk-agent next",
+    "suite": "zk-agent suite",
     "walletStatus": "zk-agent wallet status --name main",
     "walletNext": "zk-agent wallet next --name main",
     "workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
@@ -585,6 +610,9 @@ Key fields:
   }
 }
 ```
+
+Current stable `suiteHandoffSummary` fields on this surface use the same field
+set described later for top-level `zk-agent next` wallet scope.
 
 ## `zk-agent next`
 
@@ -771,7 +799,12 @@ Key fields:
   "suiteHandoffSummary": {
     "currentSurface": "next",
     "recommendedNow": true,
-    "command": "zk-agent suite"
+    "command": "zk-agent suite",
+    "recommendedJourney": {
+      "id": "send-value-now",
+      "title": "Send Value Now",
+      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+    }
   },
   "nextCommand": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
   "onboardingSummary": {
@@ -816,9 +849,16 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `currentSurface`
 - `recommendedNow`
 - `command`
+- `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
 - `note`
+
+`recommendedJourney` is either `null` or a compressed suite-journey hint with:
+
+- `id`
+- `title`
+- `command`
 
 When the wallet scope exposes token/discovery follow-ups, `tokenDiscoverySummary`
 compresses that routing contract into:
@@ -869,7 +909,8 @@ Key fields:
   "suiteHandoffSummary": {
     "currentSurface": "workflow",
     "recommendedNow": false,
-    "command": "zk-agent suite"
+    "command": "zk-agent suite",
+    "recommendedJourney": null
   },
   "result": { "...": "workflow status payload" },
   "checkpoint": { "...": "stored checkpoint payload" },
@@ -955,6 +996,7 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `currentSurface`
 - `recommendedNow`
 - `command`
+- `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
 - `note`
@@ -1167,6 +1209,7 @@ Current stable `suiteHandoffSummary` fields on workflow runtime surfaces:
 - `currentSurface`
 - `recommendedNow`
 - `command`
+- `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
 - `note`
@@ -1678,6 +1721,8 @@ Current stable top-level fields:
 - `summary`
 - `preflight`
   appears only when `zk-agent suite --include-onboarding` is used
+- `journeys`
+- `surfaces`
 - `flagship`
 - `slices`
 - `recommendedCommands`
@@ -1691,6 +1736,8 @@ Current stable `summary` fields:
 - `stage`
 - `useWhen`
 - `entryModes`
+- `journeyOrder`
+- `surfaceOrder`
 - `categoryOrder`
 - `flagshipId`
 - `postFlagshipSliceIds`
@@ -1700,20 +1747,84 @@ Current stable `summary` fields:
 Current stable `flagship` / `slices[]` fields:
 
 - `category`
+- `surface`
 - `id`
 - `title`
 - `goal`
 - `useWhen`
 - `primaryCommand`
+- `surfaceCommand`
 - `supportingCommands`
 - `skillPath`
 - `smokeCommand`
   appears selectively when the slice has a bounded smoke entrypoint
 
+Current stable `surfaceOrder` values on this surface are:
+
+- `workflow`
+- `discovery`
+- `relay`
+
+Current stable `surface` semantics on `flagship` / `slices[]`:
+
+- `workflow`
+  The suite is handing the operator to the workflow surface next.
+- `discovery`
+  The suite is handing the operator to the discovery/defaults surface next.
+- `relay`
+  The suite is handing the operator to the hosted relay recovery surface next.
+
+`surfaceCommand` is the stable deeper-surface entrypoint that owns that suite
+slice after the initial suite classification. Current examples include
+`zk-agent workflow --help`, `zk-agent defaults`, and `zk-agent relay --help`.
+
+Current stable `surfaces[]` fields:
+
+- `surface`
+- `title`
+- `useWhen`
+- `command`
+- `categoryIds`
+- `entryIds`
+
+Current stable `journeys[]` fields:
+
+- `id`
+- `title`
+- `operatorQuestion`
+- `useWhen`
+- `startCommand`
+- `surface`
+- `categoryIds`
+- `entryIds`
+
+`journeys[]` is the higher-level operator-routing layer above the raw slice
+catalog. It compresses the current packaged surface into the most common
+questions a public operator is actually asking before they care about the
+underlying slice ids.
+
+Current stable `journeyOrder` values on this surface are:
+
+- `send-value-now`
+- `inspect-before-acting`
+- `unstick-a-write`
+- `recover-remote-approval`
+
+`surfaces[]` is the top-level deeper-surface catalog that `suite` hands off
+to after its first classification pass. It compresses the current post-
+flagship product surface into the stable handoff layers:
+
+- `workflow`
+- `discovery`
+- `relay`
+
 Current stable `recommendedCommands` shape on this surface:
 
 - `suite`
 - `flagship`
+- `workflowSurface`
+- `discoverySurface`
+- `relaySurface`
 - `discovery`
 - `paymaster`
 - `funding`

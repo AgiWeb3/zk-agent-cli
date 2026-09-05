@@ -43,6 +43,10 @@ Use the two surfaces differently:
 - `suite --include-onboarding`: when you want one readout from first-run
   bootstrap through the packaged operator surface
 
+If readiness is still unclear, use `zk-agent doctor` first. When `doctor`
+shows readiness is clear but the question is broader than one immediate next
+step, move to `zk-agent suite`.
+
 If you want the full product map from fresh install through wallet bootstrap
 and into the packaged operator surface, use:
 
@@ -58,6 +62,19 @@ operator is actually asking:
 - `pay`: stay on the approval-based paymaster path
 - `fund`: recover from gas and funding blockers
 - `recover`: switch to hosted relay approval when the browser is remote
+
+Those categories currently hand off into three deeper surfaces:
+
+- `workflow`: flagship pay, approval-based pay, and funding recovery
+- `discover`: assets/defaults/token inspection
+- `relay`: hosted approval recovery
+
+The same surface now also exposes four simpler operator journeys:
+
+- send value now
+- inspect before acting
+- unstick a write
+- recover remote approval
 
 ## Use It From
 

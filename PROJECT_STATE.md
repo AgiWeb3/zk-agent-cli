@@ -2,12 +2,12 @@
 
 ## Snapshot
 
-- updated: `2026-09-03`
+- updated: `2026-09-05`
 - branch: `main`
 - package stage: `0.1.0-rc.2`
-- current focus: RC hardening and productization closeout
+- current focus: RC closeout, release-gate hardening, and state-doc cleanup
 - latest RC review artifact:
-  `docs/release-stage-reviews/2026-09-01-main-rc.md`
+  `docs/release-stage-reviews/2026-09-03-main-rc.md`
 
 ## Landed baseline
 
@@ -51,6 +51,20 @@
   top-level help and front-door docs, reducing drift between help surfaces
 - relay and agent help now follow the same surface-routing contract as well,
   making the CLI help layer more consistent end to end
+- `suite` now also groups its categories under explicit deeper surfaces
+  (`workflow`, `discovery`, `relay`) so the packaged catalog reads more like a
+  unified product surface and less like unrelated slices
+- `suite` now also emits a top-level `surfaces[]` catalog so callers can jump
+  directly to the correct deeper surface without inferring it from per-slice
+  fields alone
+- `suite` now also emits a top-level `journeys[]` layer so public operators
+  can choose a product path by question, not only by slice or deeper-surface
+  taxonomy
+- `doctor`, `next`, `wallet status|next`, and workflow follow-up surfaces now
+  expose aligned `suiteHandoffSummary` guidance and can point to a concrete
+  suite journey when the operator is ready to leave the current surface
+- packaged validation now checks `doctor --json` in both setup and wallet-ready
+  states, including the stable `doctor -> suite` handoff
 
 ## Current priorities
 
@@ -63,12 +77,10 @@
 
 ## Main remaining gaps
 
-- public onboarding is lighter now, though the package manual can still be
-  tightened further before `1.0.0`
-- hosted approval product framing is clearer, but can still get shorter and
-  more market-facing
-- post-flagship packaging still needs stronger cohesion
-- release validation still needs more automation
+- the public shell can still be shortened further before `1.0.0`
+- hosted approval framing can still get shorter and more market-facing
+- the post-flagship narrative can still be simpler for public users
+- release validation still needs less human judgment on the final promotion
 
 ## Deferred
 

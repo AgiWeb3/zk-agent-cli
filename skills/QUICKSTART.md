@@ -89,6 +89,13 @@ If readiness is unclear before you choose a fix, use:
 zk-agent doctor
 ```
 
+When `doctor` says local readiness is clear but the question is broader than
+one immediate next step, move to:
+
+```bash
+zk-agent suite
+```
+
 ## 3. Recover an existing wallet
 
 If approval is missing or expired:
@@ -149,6 +156,19 @@ zk-agent suite
 
 Use `--wallet <name>` or `--chain <chain>` when the returned commands should
 stay on a non-default wallet or chain.
+
+That packaged surface currently hands off into three deeper surfaces:
+
+- `workflow`: flagship pay, approval-based pay, and funding recovery
+- `discovery`: assets/defaults/token inspection
+- `relay`: hosted approval recovery
+
+It also now exposes four simpler operator journeys:
+
+- `send value now`
+- `inspect before acting`
+- `unstick a write`
+- `recover remote approval`
 
 If you want the narrower discovery/defaults commands directly, prefer:
 

@@ -201,6 +201,13 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
+When `doctor` shows local readiness is clear but the operator question is
+broader than one immediate flagship step, move to:
+
+```bash
+zk-agent suite
+```
+
 Use `suite` instead of assembling post-flagship discovery/funding/paymaster
 commands manually:
 
