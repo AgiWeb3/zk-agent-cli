@@ -23,6 +23,8 @@ Current implementation status:
 - a first payment application-service layer now exists inside `agent-pay`
 - a first execution-plan contract now exists inside `agent-pay`, so the CLI
   consumes execution planning instead of inventing it ad hoc
+- a first append-only payment history baseline now exists on payment records,
+  with legacy local records migrated forward on read
 - the current implementation is still an early primitive, not the final
   architecture described below
 

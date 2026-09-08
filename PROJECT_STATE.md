@@ -41,6 +41,8 @@
   surface and renderer
 - `packages/agent-pay` now also owns the first explicit execution-plan
   contract for payment create/show/set-status outputs
+- payment request records now also keep a first append-only `history[]`
+  baseline, with legacy local records migrated on read
 - release support exists through:
   `release:prepare`, `release:checklist`, `release:publish`,
   `validate:release`, and `validate:rc`

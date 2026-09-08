@@ -4,11 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { AgentError } from '@zk-agent/agent-core';
+import { AgentError, saveEncryptedStorageRecord } from '@zk-agent/agent-core';
 
 import {
   applyPaymentRequestStatusUpdate,
   createPaymentRequestRecord,
+  migratePaymentRequestRecord,
   type PaymentRequestRecord
 } from '../src/payment-request.ts';
 import {
@@ -112,14 +113,33 @@ test('payment request record captures payer, payee, execution preference, and me
   assert.equal(record.executionPreference.surface, 'send-token');
   assert.equal(record.executionPreference.paymasterMode, 'none');
   assert.equal(record.settlement.status, 'draft');
+  assert.equal(record.history.length, 1);
+  assert.equal(record.history[0].type, 'created');
+  assert.equal(record.history[0].status, 'draft');
   assert.deepEqual(record.metadata, { invoice: '2026-001' });
 });
 
 test('payment request status updates allow draft/ready transitions and terminal settlement states', () => {
-  const record = createSamplePaymentRequest({
-    settlement: {
-      status: 'draft'
-    }
+  const record = createPaymentRequestRecord({
+    requestId: 'payreq-draft',
+    walletId: 'wal_testmain00000000000001',
+    walletName: 'main',
+    walletAddress: '0x1111111111111111111111111111111111111111',
+    chain: 'zksync-sepolia',
+    chainId: 300,
+    payerName: 'SED Operator',
+    payeeAddress: '0x3333333333333333333333333333333333333333',
+    payeeName: 'Vendor',
+    asset: {
+      kind: 'native',
+      amount: '0.25',
+      symbol: 'ETH'
+    },
+    metadata: {
+      orderId: '42'
+    },
+    paymasterMode: 'approval-based',
+    status: 'draft'
   });
 
   const readyRecord = applyPaymentRequestStatusUpdate(record, {
@@ -128,6 +148,11 @@ test('payment request status updates allow draft/ready transitions and terminal 
   });
   assert.equal(readyRecord.settlement.status, 'ready');
   assert.equal(readyRecord.settlement.note, 'Validated by operator');
+  assert.equal(readyRecord.history.length, 2);
+  assert.equal(readyRecord.history[1].type, 'status-updated');
+  assert.equal(readyRecord.history[1].previousStatus, 'draft');
+  assert.equal(readyRecord.history[1].status, 'ready');
+  assert.equal(readyRecord.history[1].note, 'Validated by operator');
 
   const paidRecord = applyPaymentRequestStatusUpdate(readyRecord, {
     status: 'paid',
@@ -136,12 +161,30 @@ test('payment request status updates allow draft/ready transitions and terminal 
   assert.equal(paidRecord.settlement.status, 'paid');
   assert.equal(paidRecord.settlement.txHash, '0x' + '55'.repeat(32));
   assert.equal(typeof paidRecord.settlement.paidAt, 'string');
+  assert.equal(paidRecord.history.length, 3);
+  assert.equal(paidRecord.history[2].type, 'status-updated');
+  assert.equal(paidRecord.history[2].previousStatus, 'ready');
+  assert.equal(paidRecord.history[2].status, 'paid');
+  assert.equal(paidRecord.history[2].txHash, '0x' + '55'.repeat(32));
 
   assert.throws(
     () => applyPaymentRequestStatusUpdate(paidRecord, { status: 'ready' }),
     (error: unknown) =>
       error instanceof AgentError && error.code === 'PAYMENT_STATUS_TRANSITION_INVALID'
   );
+});
+
+test('payment request migration backfills condensed history for legacy records', () => {
+  const legacyRecord = createSamplePaymentRequest();
+  const migrated = migratePaymentRequestRecord({
+    ...legacyRecord,
+    history: undefined
+  });
+
+  assert.equal(migrated.history.length, 1);
+  assert.equal(migrated.history[0].type, 'created');
+  assert.equal(migrated.history[0].status, legacyRecord.settlement.status);
+  assert.equal(migrated.history[0].eventId, 'payevt-payreq-001-legacy-created');
 });
 
 test('payment request storage can save, load, list, delete, and rename wallet references', async () => {
@@ -159,6 +202,7 @@ test('payment request storage can save, load, list, delete, and rename wallet re
       assert.equal(loaded?.walletName, 'main');
       assert.equal(loaded?.executionPreference.surface, 'workflow-pay');
       assert.equal(loaded?.metadata.orderId, '42');
+      assert.equal(loaded?.history.length, 1);
 
       const updatedRequestIds = await renamePaymentRequestWalletReferences({
         walletId: 'wal_testmain00000000000001',
@@ -176,6 +220,25 @@ test('payment request storage can save, load, list, delete, and rename wallet re
       const removed = await deletePaymentRequest('payreq-001');
       assert.equal(removed, true);
       assert.equal(await loadPaymentRequest('payreq-001'), null);
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('payment request storage migrates legacy records without history on load', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-payment-legacy-'));
+
+  try {
+    await withHome(homeDir, async () => {
+      const paymentRequest = createSamplePaymentRequest();
+      const { history: _history, ...legacyPaymentRequest } = paymentRequest;
+      await saveEncryptedStorageRecord('payments', paymentRequest.requestId, legacyPaymentRequest);
+
+      const loaded = await loadPaymentRequest(paymentRequest.requestId);
+      assert.equal(loaded?.history.length, 1);
+      assert.equal(loaded?.history[0].type, 'created');
+      assert.equal(loaded?.history[0].eventId, 'payevt-payreq-001-legacy-created');
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -210,9 +273,11 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       assert.equal(created.executionPlan.walletId, 'wal_service00000000000001');
       assert.equal(created.executionPlan.chain, 'zksync-sepolia');
       assert.equal(created.executionPlan.chainId, 300);
+      assert.equal(created.paymentRequest.history.length, 1);
 
       const loaded = await getStoredPaymentRequest('payreq-service');
       assert.equal(loaded.paymentRequest.walletId, 'wal_service00000000000001');
+      assert.equal(loaded.paymentRequest.history.length, 1);
 
       const listed = await listStoredPaymentRequests({
         walletName: 'main',
@@ -229,6 +294,8 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       assert.equal(paid.paymentRequest.settlement.status, 'paid');
       assert.equal(paid.executionPlan.action, 'native-transfer');
       assert.equal(paid.executionPlan.surface, 'workflow-pay');
+      assert.equal(paid.paymentRequest.history.length, 2);
+      assert.equal(paid.paymentRequest.history[1].status, 'paid');
 
       const removed = await removeStoredPaymentRequest('payreq-service');
       assert.equal(removed, true);

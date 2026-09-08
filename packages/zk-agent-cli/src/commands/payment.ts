@@ -217,6 +217,7 @@ function paymentRequestLines(
   if (record.settlement.note) lines.push(['note', record.settlement.note]);
   if (record.settlement.paidAt) lines.push(['paid at', record.settlement.paidAt]);
   if (record.settlement.cancelledAt) lines.push(['cancelled at', record.settlement.cancelledAt]);
+  lines.push(['history events', String(record.history.length)]);
   lines.push(['metadata keys', String(Object.keys(record.metadata).length)]);
 
   return lines;

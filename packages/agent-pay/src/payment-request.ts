@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 
 import { AgentError } from '@zk-agent/agent-core';
@@ -39,6 +41,18 @@ export interface PaymentRequestSettlement {
   note?: string;
 }
 
+export type PaymentHistoryEventType = 'created' | 'status-updated';
+
+export interface PaymentHistoryEvent {
+  eventId: string;
+  type: PaymentHistoryEventType;
+  at: string;
+  status: PaymentRequestStatus;
+  previousStatus?: PaymentRequestStatus;
+  txHash?: string;
+  note?: string;
+}
+
 export interface PaymentRequestRecord {
   format: 'zk-agent-payment-request';
   version: 1;
@@ -56,6 +70,7 @@ export interface PaymentRequestRecord {
   metadata: Record<string, string>;
   executionPreference: PaymentExecutionPreference;
   settlement: PaymentRequestSettlement;
+  history: PaymentHistoryEvent[];
   createdAt: string;
   updatedAt: string;
 }
@@ -96,6 +111,10 @@ const PAYMENT_REQUEST_STATUS_TRANSITIONS: Record<
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function createPaymentHistoryEventId(): string {
+  return `payevt-${randomBytes(4).toString('hex')}`;
 }
 
 function normalizeOptionalString(value: string | undefined): string | undefined {
@@ -160,6 +179,56 @@ function inferExecutionSurface(asset: PaymentRequestAsset): PaymentExecutionSurf
   return asset.kind === 'native' ? 'workflow-pay' : 'send-token';
 }
 
+function createPaymentHistoryEvent(input: {
+  type: PaymentHistoryEventType;
+  at: string;
+  status: PaymentRequestStatus;
+  previousStatus?: PaymentRequestStatus;
+  txHash?: string;
+  note?: string;
+}): PaymentHistoryEvent {
+  return {
+    eventId: createPaymentHistoryEventId(),
+    type: input.type,
+    at: input.at,
+    status: input.status,
+    previousStatus: input.previousStatus,
+    txHash: normalizeOptionalString(input.txHash),
+    note: normalizeOptionalString(input.note)
+  };
+}
+
+function buildLegacyPaymentHistory(
+  record: Omit<PaymentRequestRecord, 'history'> & { history?: PaymentHistoryEvent[] }
+): PaymentHistoryEvent[] {
+  return [
+    {
+      eventId: `payevt-${record.requestId}-legacy-created`,
+      type: 'created',
+      at: record.createdAt,
+      status: record.settlement.status,
+      txHash: record.settlement.txHash,
+      note: record.settlement.note
+    }
+  ];
+}
+
+export function migratePaymentRequestRecord(
+  record: Omit<PaymentRequestRecord, 'history'> & { history?: PaymentHistoryEvent[] }
+): PaymentRequestRecord {
+  return {
+    ...record,
+    history:
+      Array.isArray(record.history) && record.history.length > 0
+        ? record.history.map((event) => ({
+            ...event,
+            txHash: normalizeOptionalString(event.txHash),
+            note: normalizeOptionalString(event.note)
+          }))
+        : buildLegacyPaymentHistory(record)
+  };
+}
+
 export function createPaymentRequestRecord(
   input: CreatePaymentRequestRecordInput
 ): PaymentRequestRecord {
@@ -202,6 +271,13 @@ export function createPaymentRequestRecord(
     settlement: {
       status
     },
+    history: [
+      createPaymentHistoryEvent({
+        type: 'created',
+        at: timestamp,
+        status
+      })
+    ],
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -226,15 +302,30 @@ export function applyPaymentRequestStatusUpdate(
     );
   }
 
+  const timestamp = nowIso();
+  const nextTxHash = normalizeOptionalString(input.txHash);
+  const nextNote = normalizeOptionalString(input.note);
+
   return {
     ...record,
-    updatedAt: nowIso(),
+    updatedAt: timestamp,
     settlement: {
       status: nextStatus,
-      paidAt: nextStatus === 'paid' ? nowIso() : record.settlement.paidAt,
-      cancelledAt: nextStatus === 'cancelled' ? nowIso() : record.settlement.cancelledAt,
-      txHash: normalizeOptionalString(input.txHash) ?? record.settlement.txHash,
-      note: normalizeOptionalString(input.note) ?? record.settlement.note
-    }
+      paidAt: nextStatus === 'paid' ? timestamp : record.settlement.paidAt,
+      cancelledAt: nextStatus === 'cancelled' ? timestamp : record.settlement.cancelledAt,
+      txHash: nextTxHash ?? record.settlement.txHash,
+      note: nextNote ?? record.settlement.note
+    },
+    history: [
+      ...record.history,
+      createPaymentHistoryEvent({
+        type: 'status-updated',
+        at: timestamp,
+        status: nextStatus,
+        previousStatus: record.settlement.status,
+        txHash: nextTxHash,
+        note: nextNote
+      })
+    ]
   };
 }

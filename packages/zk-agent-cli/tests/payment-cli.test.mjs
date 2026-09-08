@@ -193,6 +193,8 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     assert.equal(created.paymentRequest.asset.kind, 'native');
     assert.equal(created.paymentRequest.executionPreference.surface, 'workflow-pay');
     assert.equal(created.paymentRequest.executionPreference.paymasterMode, 'approval-based');
+    assert.equal(created.paymentRequest.history.length, 1);
+    assert.equal(created.paymentRequest.history[0].type, 'created');
     assert.equal(created.executionPlan.action, 'native-transfer');
     assert.equal(created.executionPlan.surface, 'workflow-pay');
     assert.equal(created.executionPlan.walletId, created.paymentRequest.walletId);
@@ -207,6 +209,7 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     const shown = await runCliJson(['payment', 'show', '--request-id', requestId], env);
     assert.equal(shown.paymentRequest.requestId, requestId);
     assert.equal(shown.paymentRequest.description, 'Ops payout');
+    assert.equal(shown.paymentRequest.history.length, 1);
     assert.equal(shown.executionPlan.action, 'native-transfer');
     assert.equal(shown.executionPlan.walletId, created.paymentRequest.walletId);
 
@@ -225,6 +228,9 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     );
     assert.equal(paid.paymentRequest.settlement.status, 'paid');
     assert.equal(paid.paymentRequest.settlement.txHash, '0x' + '44'.repeat(32));
+    assert.equal(paid.paymentRequest.history.length, 2);
+    assert.equal(paid.paymentRequest.history[1].type, 'status-updated');
+    assert.equal(paid.paymentRequest.history[1].status, 'paid');
     assert.equal(paid.executionPlan.action, 'native-transfer');
     assert.equal(paid.executionPlan.walletId, created.paymentRequest.walletId);
 
@@ -272,6 +278,7 @@ test('payment command supports explicit ERC-20 requests and help text explains t
     assert.equal(created.paymentRequest.asset.kind, 'erc20');
     assert.match(created.paymentRequest.walletId, /^wal_[a-f0-9]{24}$/);
     assert.equal(created.paymentRequest.asset.decimals, 6);
+    assert.equal(created.paymentRequest.history.length, 1);
     assert.equal(created.executionPlan.action, 'erc20-transfer');
     assert.equal(created.executionPlan.surface, 'send-token');
     assert.equal(created.executionPlan.walletId, created.paymentRequest.walletId);

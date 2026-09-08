@@ -48,6 +48,8 @@ vertical integrations.
   payment branching inside CLI command code
 - `packages/agent-pay` now also owns the first stable payment execution-plan
   contract, so CLI JSON no longer invents plan fields ad hoc
+- payment records now keep a first append-only `history[]` baseline so state
+  changes are no longer only represented by the latest settlement snapshot
 - `suite` now exposes both top-level `journeys[]` and `surfaces[]` so callers
   can choose by operator question or jump directly to the deeper owning
   surface

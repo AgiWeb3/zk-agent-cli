@@ -5,21 +5,29 @@ import {
   saveEncryptedStorageRecord
 } from '@zk-agent/agent-core';
 
-import type { PaymentRequestRecord } from './payment-request.js';
+import {
+  migratePaymentRequestRecord,
+  type PaymentRequestRecord
+} from './payment-request.js';
 
 const PAYMENT_REQUEST_COLLECTION = 'payments';
 
 export async function savePaymentRequest(record: PaymentRequestRecord): Promise<void> {
-  await saveEncryptedStorageRecord(PAYMENT_REQUEST_COLLECTION, record.requestId, record);
+  await saveEncryptedStorageRecord(
+    PAYMENT_REQUEST_COLLECTION,
+    record.requestId,
+    migratePaymentRequestRecord(record)
+  );
 }
 
 export async function loadPaymentRequest(
   requestId: string
 ): Promise<PaymentRequestRecord | null> {
-  return loadEncryptedStorageRecord<PaymentRequestRecord>(
+  const record = await loadEncryptedStorageRecord<PaymentRequestRecord>(
     PAYMENT_REQUEST_COLLECTION,
     requestId
   );
+  return record ? migratePaymentRequestRecord(record) : null;
 }
 
 export async function listPaymentRequestIds(): Promise<string[]> {

@@ -2504,6 +2504,7 @@ Current stable `paymentRequest` fields:
 - `metadata`
 - `executionPreference`
 - `settlement`
+- `history`
 - `createdAt`
 - `updatedAt`
 
@@ -2532,12 +2533,31 @@ Current stable `paymentRequest.settlement` fields:
 - `txHash`
 - `note`
 
+Current stable `paymentRequest.history[]` fields:
+
+- `eventId`
+- `type`
+- `at`
+- `status`
+- `previousStatus`
+- `txHash`
+- `note`
+
 Current stable settlement statuses on this surface are:
 
 - `draft`
 - `ready`
 - `paid`
 - `cancelled`
+
+Current stable `paymentRequest.history[].type` values on this surface are:
+
+- `created`
+- `status-updated`
+
+Legacy local records created before history support may be auto-migrated to a
+single condensed `created` event on read. New records and new status changes
+append explicit history entries.
 
 Current stable `executionPlan` fields:
 
