@@ -199,6 +199,14 @@ function assertPackageReadme(readme) {
       'Package README must document the doctor-to-suite handoff once local readiness is clear.'
     ],
     [
+      /The packaged default story is payment-first:[\s\S]*send native[\s\S]*value now[\s\S]*approval-based pay[\s\S]*recover[\s\S]*funding only when the workflow says the write path is[\s\S]*blocked\./,
+      'Package README must keep the short payment-first product story visible.'
+    ],
+    [
+      /The first Agent Pay platform primitive now exists as a local-first payment[\s\S]*zk-agent payment create --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment list/,
+      'Package README must keep the first local payment-request primitive visible.'
+    ],
+    [
       /zk-agent suite[\s\S]*(post-flagship|packaged surface)/,
       'Package README must keep the operator-suite surface visible.'
     ],
@@ -273,6 +281,16 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       rootReadme,
       /If readiness is still unclear, use `zk-agent doctor` first\.[\s\S]*move to `zk-agent suite`\./,
       'Root README must keep the doctor-to-suite product routing visible.'
+    ],
+    [
+      rootReadme,
+      /The public default story is payment-first:[\s\S]*get a ready wallet[\s\S]*send native[\s\S]*value now[\s\S]*approval-based pay path[\s\S]*recover[\s\S]*funding only when the workflow says the write path is[\s\S]*blocked\./,
+      'Root README must keep the short payment-first public story visible.'
+    ],
+    [
+      rootReadme,
+      /The first Agent Pay platform primitive now exists as a local-first payment[\s\S]*zk-agent payment create --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment list/,
+      'Root README must keep the first local payment-request primitive visible.'
     ],
     [
       rootReadme,
@@ -572,12 +590,12 @@ function assertReleaseStageDocs({
     ],
     [
       projectState,
-      /## Snapshot[\s\S]*package stage: `[^`]+`[\s\S]*current focus: RC closeout, release-gate hardening, and state-doc cleanup/,
+      /## Snapshot[\s\S]*package stage: `[^`]+`[\s\S]*current focus: RC closeout, benchmark-gap assessment versus[\s\S]*Agent Pay platform planning/,
       'PROJECT_STATE.md must keep the release-stage assessment explicit.'
     ],
     [
       projectState,
-      /## Current priorities[\s\S]*hosted approval operated baseline[\s\S]*post-flagship product surface centered on `suite`[\s\S]*release validation and dist-tag behavior/,
+      /## Current priorities[\s\S]*hosted approval operated baseline[\s\S]*post-flagship product surface centered on `suite`[\s\S]*polygon-agent-cli[\s\S]*Agent Pay[\s\S]*release validation and dist-tag behavior/,
       'PROJECT_STATE.md must keep the current RC workstreams explicit.'
     ]
   ];
@@ -627,6 +645,8 @@ function assertTopLevelHelpContract(helpOutput) {
     'One-shot CLI: npx zk-agent-cli --help',
     'Global CLI: npm install -g zk-agent-cli',
     'Canonical terminal path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    'First local Agent Pay primitive: zk-agent payment create --wallet main --to <address> --amount <amount> zk-agent payment list',
+    'Payment-first default path after wallet readiness: send native value now -> stay on approval-based pay when fee-token/default state matters -> recover funding only when blocked Default start inside suite: send value now',
     'Validated first-run baseline: setup defaults to zksync-sepolia and the local connector at http://localhost:4444',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
     'Add RPC env vars later, before live reads or broadcasts.',
@@ -883,11 +903,12 @@ function assertSuiteHelpContract(helpOutput) {
     'Use `suite` after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship slices.',
     'What `suite` answers right now: operate: send native value through the flagship workflow path discover: inspect owned assets and defaults before tokenized actions pay: stay on the approval-based paymaster path with exact fee-token follow-up fund: recover from gas/funding blockers without guessing the route recover: switch to hosted relay approval when the browser is remote',
     'Most common operator journeys: send value now: go straight to the flagship pay path inspect before acting: open assets/defaults/token inspection first unstick a write: recover paymaster/funding readiness on the workflow path recover remote approval: move approval to the hosted relay path',
+    'If you only need one default starting point inside suite: send value now',
     'Where `suite` hands you off next: workflow: flagship pay, approval-based pay, and funding recovery discovery: assets, defaults, and token inspection relay: hosted approval recovery and relay readiness',
     'For the full first-run to post-flagship map: zk-agent suite --include-onboarding',
     'Recommended order inside the suite: zk-agent workflow pay --wallet main --to <address> --amount <amount> zk-agent assets --wallet main zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based zk-agent workflow fund --wallet main zk-agent relay inspect --relay-url <url>',
     'Pass `--wallet` or `--chain` to retarget the entire suite contract. Pass `--include-onboarding` when you want setup, doctor, and wallet bootstrap guidance in the same packaged readout.',
-    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `recommendedCommands.workflowSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands.'
+    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.startHereJourneyId`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `recommendedJourney`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `recommendedCommands.workflowSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands.'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -1463,7 +1484,7 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the workflow token-input error discovery summary contract.'
     ],
     [
-      /## `zk-agent suite`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`preflight`[\s\S]*`journeys`[\s\S]*`surfaces`[\s\S]*`flagship`[\s\S]*`slices`[\s\S]*`recommendedCommands`[\s\S]*Current stable `summary` fields:[\s\S]*`suiteId`[\s\S]*`catalogView`[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`stage`[\s\S]*`useWhen`[\s\S]*`entryModes`[\s\S]*`journeyOrder`[\s\S]*`surfaceOrder`[\s\S]*`categoryOrder`[\s\S]*`flagshipId`[\s\S]*`postFlagshipSliceIds`[\s\S]*`recommendedOrder`[\s\S]*`nextAction`[\s\S]*Current stable `flagship` \/ `slices\[\]` fields:[\s\S]*`category`[\s\S]*`surface`[\s\S]*`id`[\s\S]*`title`[\s\S]*`goal`[\s\S]*`useWhen`[\s\S]*`primaryCommand`[\s\S]*`surfaceCommand`[\s\S]*`supportingCommands`[\s\S]*`skillPath`[\s\S]*Current stable `surfaceOrder` values on this surface are:[\s\S]*`workflow`[\s\S]*`discovery`[\s\S]*`relay`[\s\S]*Current stable `surfaces\[\]` fields:[\s\S]*`surface`[\s\S]*`title`[\s\S]*`useWhen`[\s\S]*`command`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `journeys\[\]` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`operatorQuestion`[\s\S]*`useWhen`[\s\S]*`startCommand`[\s\S]*`surface`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `journeyOrder` values on this surface are:[\s\S]*`send-value-now`[\s\S]*`inspect-before-acting`[\s\S]*`unstick-a-write`[\s\S]*`recover-remote-approval`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`suite`[\s\S]*`flagship`[\s\S]*`workflowSurface`[\s\S]*`discoverySurface`[\s\S]*`relaySurface`[\s\S]*`discovery`[\s\S]*`paymaster`[\s\S]*`funding`[\s\S]*`hostedApproval`[\s\S]*`inspectDefaults`/,
+      /## `zk-agent suite`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`preflight`[\s\S]*`recommendedJourney`[\s\S]*`journeys`[\s\S]*`surfaces`[\s\S]*`flagship`[\s\S]*`slices`[\s\S]*`recommendedCommands`[\s\S]*Current stable `summary` fields:[\s\S]*`suiteId`[\s\S]*`catalogView`[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`stage`[\s\S]*`useWhen`[\s\S]*`entryModes`[\s\S]*`startHereJourneyId`[\s\S]*`journeyOrder`[\s\S]*`surfaceOrder`[\s\S]*`categoryOrder`[\s\S]*`flagshipId`[\s\S]*`postFlagshipSliceIds`[\s\S]*`recommendedOrder`[\s\S]*`nextAction`[\s\S]*Current stable `flagship` \/ `slices\[\]` fields:[\s\S]*`category`[\s\S]*`surface`[\s\S]*`id`[\s\S]*`title`[\s\S]*`goal`[\s\S]*`useWhen`[\s\S]*`primaryCommand`[\s\S]*`surfaceCommand`[\s\S]*`supportingCommands`[\s\S]*`skillPath`[\s\S]*Current stable `surfaceOrder` values on this surface are:[\s\S]*`workflow`[\s\S]*`discovery`[\s\S]*`relay`[\s\S]*Current stable `surfaces\[\]` fields:[\s\S]*`surface`[\s\S]*`title`[\s\S]*`useWhen`[\s\S]*`command`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `journeys\[\]` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`operatorQuestion`[\s\S]*`useWhen`[\s\S]*`startCommand`[\s\S]*`surface`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `recommendedJourney` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`startCommand`[\s\S]*`surface`[\s\S]*`useWhen`[\s\S]*Current stable `journeyOrder` values on this surface are:[\s\S]*`send-value-now`[\s\S]*`inspect-before-acting`[\s\S]*`unstick-a-write`[\s\S]*`recover-remote-approval`[\s\S]*Current stable `startHereJourneyId` value on this surface is:[\s\S]*`send-value-now`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`suite`[\s\S]*`flagship`[\s\S]*`workflowSurface`[\s\S]*`discoverySurface`[\s\S]*`relaySurface`[\s\S]*`discovery`[\s\S]*`paymaster`[\s\S]*`funding`[\s\S]*`hostedApproval`[\s\S]*`inspectDefaults`/,
       'Operator JSON contract doc must describe the suite catalog, journey layer, deeper-surface handoff, and direct surface command contract.'
     ],
     [
@@ -2827,6 +2848,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.equal(suitePayload.ok, true);
     assert.equal(suitePayload.summary?.suiteId, 'zk-agent-operator-suite');
     assert.equal(suitePayload.summary?.catalogView, 'operator-catalog');
+    assert.equal(suitePayload.summary?.startHereJourneyId, 'send-value-now');
     assert.deepEqual(suitePayload.summary?.journeyOrder, [
       'send-value-now',
       'inspect-before-acting',
@@ -2834,6 +2856,13 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       'recover-remote-approval'
     ]);
     assert.deepEqual(suitePayload.summary?.surfaceOrder, ['workflow', 'discovery', 'relay']);
+    assert.equal(suitePayload.recommendedJourney?.id, 'send-value-now');
+    assert.equal(suitePayload.recommendedJourney?.title, 'Send Value Now');
+    assert.equal(
+      suitePayload.recommendedJourney?.startCommand,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(suitePayload.recommendedJourney?.surface, 'workflow');
     assert.equal(Array.isArray(suitePayload.journeys), true);
     assert.deepEqual(
       suitePayload.journeys?.map((entry) => entry.id),

@@ -34,6 +34,19 @@ After the flagship path is live, use `zk-agent suite` as the packaged
 post-flagship entrypoint for discovery, defaults, funding, paymaster
 readiness, and hosted approval recovery.
 
+The public default story is payment-first: get a ready wallet, send native
+value now, stay on the approval-based pay path when fee-token/default state
+matters, and recover funding only when the workflow says the write path is
+blocked.
+
+The first Agent Pay platform primitive now exists as a local-first payment
+request surface:
+
+```bash
+zk-agent payment create --wallet main --to <address> --amount <amount>
+zk-agent payment list
+```
+
 Use the two surfaces differently:
 
 - `next`: when the CLI still needs to choose the shortest path across setup,
@@ -75,6 +88,9 @@ The same surface now also exposes four simpler operator journeys:
 - inspect before acting
 - unstick a write
 - recover remote approval
+
+If you only need one default starting point inside `suite`, start with
+`send value now`.
 
 ## Use It From
 

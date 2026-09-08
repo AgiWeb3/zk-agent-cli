@@ -55,6 +55,15 @@ importers:
         specifier: workspace:*
         version: link:../agent-session-protocol
 
+  packages/agent-pay:
+    dependencies:
+      '@zk-agent/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@zk-agent/agent-session-protocol':
+        specifier: workspace:*
+        version: link:../agent-session-protocol
+
   packages/agent-session-protocol:
     dependencies:
       '@noble/ciphers':
@@ -177,24 +186,6 @@ importers:
       '@noble/hashes':
         specifier: ^1.7.2
         version: 1.8.0
-      '@zk-agent/account-profiles':
-        specifier: workspace:*
-        version: link:../account-profiles
-      '@zk-agent/agent-core':
-        specifier: workspace:*
-        version: link:../agent-core
-      '@zk-agent/agent-session-protocol':
-        specifier: workspace:*
-        version: link:../agent-session-protocol
-      '@zk-agent/plugin-identity':
-        specifier: workspace:*
-        version: link:../plugin-identity
-      '@zk-agent/provider-zksync-defi':
-        specifier: workspace:*
-        version: link:../provider-zksync-defi
-      '@zk-agent/provider-zksync-wallet':
-        specifier: workspace:*
-        version: link:../provider-zksync-wallet
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -208,6 +199,27 @@ importers:
         specifier: ^6.21.2
         version: 6.21.2(ethers@6.16.0)
     devDependencies:
+      '@zk-agent/account-profiles':
+        specifier: workspace:*
+        version: link:../account-profiles
+      '@zk-agent/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@zk-agent/agent-pay':
+        specifier: workspace:*
+        version: link:../agent-pay
+      '@zk-agent/agent-session-protocol':
+        specifier: workspace:*
+        version: link:../agent-session-protocol
+      '@zk-agent/plugin-identity':
+        specifier: workspace:*
+        version: link:../plugin-identity
+      '@zk-agent/provider-zksync-defi':
+        specifier: workspace:*
+        version: link:../provider-zksync-defi
+      '@zk-agent/provider-zksync-wallet':
+        specifier: workspace:*
+        version: link:../provider-zksync-wallet
       esbuild:
         specifier: ^0.28.0
         version: 0.28.1

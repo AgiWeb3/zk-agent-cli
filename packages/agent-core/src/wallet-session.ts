@@ -1,9 +1,18 @@
+import { createHash } from 'node:crypto';
+
 import { deriveEthereumAddressFromPrivateKey } from '@zk-agent/agent-session-protocol';
 
 import type { LocalExecutionAuthorityRecord, WalletSessionRecord } from './providers.js';
 
 function isHexPrivateKey(value: string): boolean {
   return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
+export function deriveStableWalletId(
+  wallet: Pick<WalletSessionRecord, 'walletAddress' | 'chainId' | 'createdAt'>
+): string {
+  const seed = `${wallet.walletAddress.trim().toLowerCase()}:${wallet.chainId}:${wallet.createdAt.trim()}`;
+  return `wal_${createHash('sha256').update(seed).digest('hex').slice(0, 24)}`;
 }
 
 export function deriveLocalExecutionSignerAddress(privateKey?: string): string | undefined {
@@ -42,18 +51,28 @@ export function resolveLocalExecutionPrivateKey(
 export function migrateWalletSessionRecord(wallet: WalletSessionRecord): WalletSessionRecord {
   const legacyPrivateKey = wallet.sessionPayload?.sessionPrivateKey;
   const existingAuthority = wallet.localExecutionAuthority;
+  const walletId = wallet.walletId || deriveStableWalletId(wallet);
 
   if (!existingAuthority && !legacyPrivateKey) {
-    return wallet;
+    if (wallet.walletId === walletId) return wallet;
+    return {
+      ...wallet,
+      walletId
+    };
   }
 
   const privateKey = existingAuthority?.privateKey || legacyPrivateKey;
   if (!privateKey) {
-    return wallet;
+    if (wallet.walletId === walletId) return wallet;
+    return {
+      ...wallet,
+      walletId
+    };
   }
 
   return {
     ...wallet,
+    walletId,
     localExecutionAuthority: {
       privateKey,
       signerAddress:

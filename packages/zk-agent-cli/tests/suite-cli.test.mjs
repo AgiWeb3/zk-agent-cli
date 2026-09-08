@@ -86,12 +86,21 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
     assert.equal(result.summary.stage, 'wallet-ready-post-flagship');
     assert.match(result.summary.useWhen, /Use suite after wallet readiness/);
     assert.deepEqual(result.summary.entryModes, ['local-first', 'hosted-recovery']);
+    assert.equal(result.summary.startHereJourneyId, 'send-value-now');
     assert.deepEqual(result.summary.journeyOrder, [
       'send-value-now',
       'inspect-before-acting',
       'unstick-a-write',
       'recover-remote-approval'
     ]);
+    assert.deepEqual(result.recommendedJourney, {
+      id: 'send-value-now',
+      title: 'Send Value Now',
+      startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      surface: 'workflow',
+      useWhen:
+        'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.'
+    });
     assert.deepEqual(result.summary.surfaceOrder, ['workflow', 'discovery', 'relay']);
     assert.deepEqual(result.summary.categoryOrder, [
       'operate',
@@ -293,12 +302,21 @@ test('suite command preserves wallet and chain context across the packaged contr
     assert.equal(result.summary.chain, 'zksync-era');
     assert.equal(result.summary.stage, 'wallet-ready-post-flagship');
     assert.deepEqual(result.summary.entryModes, ['local-first', 'hosted-recovery']);
+    assert.equal(result.summary.startHereJourneyId, 'send-value-now');
     assert.deepEqual(result.summary.journeyOrder, [
       'send-value-now',
       'inspect-before-acting',
       'unstick-a-write',
       'recover-remote-approval'
     ]);
+    assert.deepEqual(result.recommendedJourney, {
+      id: 'send-value-now',
+      title: 'Send Value Now',
+      startCommand: 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+      surface: 'workflow',
+      useWhen:
+        'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.'
+    });
     assert.deepEqual(result.summary.surfaceOrder, ['workflow', 'discovery', 'relay']);
     assert.deepEqual(
       result.journeys.map((entry) => entry.id),
@@ -391,6 +409,8 @@ test('suite help exposes the operator suite entrypoint', async () => {
     assert.match(help, /inspect before acting: open assets\/defaults\/token inspection first/);
     assert.match(help, /unstick a write: recover paymaster\/funding readiness on the workflow path/);
     assert.match(help, /recover remote approval: move approval to the hosted relay path/);
+    assert.match(help, /If you only need one default starting point inside suite:/);
+    assert.match(help, /send value now/);
     assert.match(help, /Where `suite` hands you off next:/);
     assert.match(help, /workflow: flagship pay, approval-based pay, and funding recovery/);
     assert.match(help, /discovery: assets, defaults, and token inspection/);
@@ -409,8 +429,10 @@ test('suite help exposes the operator suite entrypoint', async () => {
     assert.match(help, /Pass `--include-onboarding` when you want setup, doctor, and wallet bootstrap/);
     assert.match(help, /summary\.catalogView/);
     assert.match(help, /summary\.entryModes/);
+    assert.match(help, /summary\.startHereJourneyId/);
     assert.match(help, /summary\.journeyOrder/);
     assert.match(help, /summary\.surfaceOrder/);
+    assert.match(help, /recommendedJourney/);
     assert.match(help, /journeys\[\]/);
     assert.match(help, /surfaces\[\]/);
     assert.match(help, /summary\.categoryOrder/);

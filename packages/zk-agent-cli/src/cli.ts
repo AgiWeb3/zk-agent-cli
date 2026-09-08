@@ -23,6 +23,7 @@ import { createNextCommand } from './commands/next.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createAgentCommand } from './commands/agent.js';
 import { createDefaultsCommand } from './commands/defaults.js';
+import { createPaymentCommand } from './commands/payment.js';
 import { createResolveTokenCommand } from './commands/resolve-token.js';
 import { createSuiteCommand } from './commands/suite.js';
 import { createTokensCommand } from './commands/tokens.js';
@@ -56,9 +57,17 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zk-agent suite',
     '  zk-agent suite --include-onboarding',
     '',
+    'First local Agent Pay primitive:',
+    '  zk-agent payment create --wallet main --to <address> --amount <amount>',
+    '  zk-agent payment list',
+    '',
     'Product routing by operator question:',
     '  next  -> bootstrap | recover | operate | workflow',
     '  suite -> operate | discover | pay | fund | recover',
+    '',
+    'Payment-first default path after wallet readiness:',
+    '  send native value now -> stay on approval-based pay when fee-token/default state matters -> recover funding only when blocked',
+    '  Default start inside suite: send value now',
     '',
     'Use `next` while the CLI still needs to choose across setup, wallet readiness, or stored workflow continuation.',
     'Use `suite` once wallet readiness is no longer the blocker and you want the packaged post-flagship surface.',
@@ -88,6 +97,7 @@ const ROOT_HELP_COMMAND_ORDER = [
   'wallet',
   'workflow',
   'suite',
+  'payment',
   'assets',
   'balances',
   'fund',
@@ -141,6 +151,7 @@ function createProgram(): Command {
   program.addCommand(createAgentCommand());
   program.addCommand(createDefaultsCommand());
   program.addCommand(createSuiteCommand());
+  program.addCommand(createPaymentCommand());
   program.addCommand(createTokensCommand());
   program.addCommand(createResolveTokenCommand());
   program.addCommand(createRelayCommand());

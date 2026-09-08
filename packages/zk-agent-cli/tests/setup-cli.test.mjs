@@ -215,9 +215,21 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /Operator suite beyond flagship pay:/);
     assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent suite --include-onboarding/);
+    assert.match(help, /First local Agent Pay primitive:/);
+    assert.match(
+      help,
+      /zk-agent payment create --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(help, /zk-agent payment list/);
     assert.match(help, /Product routing by operator question:/);
     assert.match(help, /next\s+-> bootstrap \| recover \| operate \| workflow/);
     assert.match(help, /suite -> operate \| discover \| pay \| fund \| recover/);
+    assert.match(help, /Payment-first default path after wallet readiness:/);
+    assert.match(
+      help,
+      /send native value now -> stay on approval-based pay when fee-token\/default state matters -> recover funding only when blocked/
+    );
+    assert.match(help, /Default start inside suite: send value now/);
     assert.match(
       help,
       /Use `next` while the CLI still needs to choose across setup, wallet readiness, or stored workflow continuation\./

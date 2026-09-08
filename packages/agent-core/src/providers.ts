@@ -22,6 +22,7 @@ export interface WalletBalance {
 }
 
 export interface WalletSessionRecord {
+  walletId?: string;
   walletName: string;
   walletAddress: string;
   ownerAddress?: string;

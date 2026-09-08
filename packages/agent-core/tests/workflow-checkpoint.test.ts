@@ -13,6 +13,7 @@ import {
   applyWorkflowRunToCheckpoint,
   createWorkflowCheckpointRecord
 } from '../src/workflow-checkpoint.ts';
+import { deriveStableWalletId } from '../src/wallet-session.ts';
 
 const sampleWallet: WalletSessionRecord = {
   walletName: 'main',
@@ -148,6 +149,28 @@ test('wallet rename updates stored workflow checkpoints that reference the walle
 
       const renamed = await storage.loadWorkflowCheckpoint('wf-rename');
       assert.equal(renamed?.walletName, 'renamed-wallet');
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('wallet storage assigns a stable walletId and preserves it across rename', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-wallet-id-'));
+
+  try {
+    await withHome(homeDir, async () => {
+      await storage.saveWalletSession(sampleWallet);
+
+      const loaded = await storage.loadWalletSession('main');
+      assert.ok(loaded?.walletId);
+      assert.equal(loaded?.walletId, deriveStableWalletId(sampleWallet));
+
+      const renamed = await storage.renameWalletSession('main', 'treasury');
+      assert.equal(renamed.wallet.walletId, loaded?.walletId);
+
+      const renamedLoaded = await storage.loadWalletSession('treasury');
+      assert.equal(renamedLoaded?.walletId, loaded?.walletId);
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });

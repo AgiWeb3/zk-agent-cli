@@ -51,6 +51,7 @@ export interface OperatorSuiteSummary {
   stage: 'wallet-ready-post-flagship';
   useWhen: string;
   entryModes: Array<'local-first' | 'hosted-recovery'>;
+  startHereJourneyId: OperatorSuiteJourneyId;
   journeyOrder: OperatorSuiteJourneyId[];
   surfaceOrder: OperatorSuiteSurface[];
   categoryOrder: OperatorSuiteEntry['category'][];
@@ -96,10 +97,19 @@ export interface OperatorSuiteJourneySummary {
   entryIds: OperatorSuiteEntry['id'][];
 }
 
+export interface OperatorSuiteRecommendedJourney {
+  id: OperatorSuiteJourneyId;
+  title: string;
+  startCommand: string;
+  surface: OperatorSuiteSurface;
+  useWhen: string;
+}
+
 export interface OperatorSuitePayload {
   ok: true;
   summary: OperatorSuiteSummary;
   preflight?: OperatorSuitePreflight;
+  recommendedJourney: OperatorSuiteRecommendedJourney;
   journeys: OperatorSuiteJourneySummary[];
   surfaces: OperatorSuiteSurfaceSummary[];
   flagship: OperatorSuiteEntry;
@@ -331,6 +341,13 @@ export function buildOperatorSuitePayload(
       entryIds: ['hosted-approval-recovery']
     }
   ];
+  const recommendedJourney: OperatorSuiteRecommendedJourney = {
+    id: journeys[0].id,
+    title: journeys[0].title,
+    startCommand: journeys[0].startCommand,
+    surface: journeys[0].surface,
+    useWhen: journeys[0].useWhen
+  };
 
   return {
     ok: true,
@@ -343,6 +360,7 @@ export function buildOperatorSuitePayload(
       useWhen:
         'Use suite after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
       entryModes: ['local-first', 'hosted-recovery'],
+      startHereJourneyId: recommendedJourney.id,
       journeyOrder: journeys.map((entry) => entry.id),
       surfaceOrder: ['workflow', 'discovery', 'relay'],
       categoryOrder: [flagship.category, ...slices.map((entry) => entry.category)],
@@ -352,6 +370,7 @@ export function buildOperatorSuitePayload(
       nextAction: flagship.primaryCommand
     },
     ...(preflight ? { preflight } : {}),
+    recommendedJourney,
     journeys,
     surfaces,
     flagship,
@@ -414,6 +433,10 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     ['stage', payload.summary.stage],
     ['use when', payload.summary.useWhen],
     ['entry modes', payload.summary.entryModes.join(' -> ')],
+    ['start here journey', payload.summary.startHereJourneyId],
+    ['start here', payload.recommendedJourney.startCommand],
+    ['start here surface', payload.recommendedJourney.surface],
+    ['start here when', payload.recommendedJourney.useWhen],
     ['journey order', payload.summary.journeyOrder.join(' -> ')],
     ['surface order', payload.summary.surfaceOrder.join(' -> ')],
     ['category order', payload.summary.categoryOrder.join(' -> ')],

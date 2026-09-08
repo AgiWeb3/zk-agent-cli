@@ -132,6 +132,55 @@ export function storageDir(): string {
   return ensureStorageDir();
 }
 
+function ensureStorageCollectionDir(collectionName: string): string {
+  const storageDirectory = ensureStorageDir();
+  const collectionDirectory = path.join(storageDirectory, collectionName);
+
+  if (!fs.existsSync(collectionDirectory)) {
+    fs.mkdirSync(collectionDirectory, { recursive: true, mode: 0o700 });
+  }
+
+  return collectionDirectory;
+}
+
+export async function saveEncryptedStorageRecord<T>(
+  collectionName: string,
+  recordId: string,
+  value: T
+): Promise<void> {
+  const collectionDirectory = ensureStorageCollectionDir(collectionName);
+  writeEncryptedJson(path.join(collectionDirectory, `${recordId}.json`), value);
+}
+
+export async function loadEncryptedStorageRecord<T>(
+  collectionName: string,
+  recordId: string
+): Promise<T | null> {
+  const filePath = storagePath(collectionName, `${recordId}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  return readEncryptedJson<T>(filePath);
+}
+
+export async function listEncryptedStorageRecordIds(
+  collectionName: string
+): Promise<string[]> {
+  const collectionDirectory = ensureStorageCollectionDir(collectionName);
+  return fs
+    .readdirSync(collectionDirectory)
+    .filter((entry) => entry.endsWith('.json'))
+    .map((entry) => entry.replace(/\.json$/, ''));
+}
+
+export async function deleteEncryptedStorageRecord(
+  collectionName: string,
+  recordId: string
+): Promise<boolean> {
+  const filePath = storagePath(collectionName, `${recordId}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  fs.unlinkSync(filePath);
+  return true;
+}
+
 export async function saveProjectConfig(config: ProjectConfig): Promise<void> {
   const storageDirectory = ensureStorageDir();
   writeJson(path.join(storageDirectory, 'config.json'), config);
@@ -144,25 +193,16 @@ export async function loadProjectConfig(): Promise<ProjectConfig | null> {
 }
 
 export async function saveWalletSession(record: WalletSessionRecord): Promise<void> {
-  const storageDirectory = ensureStorageDir();
-  writeEncryptedJson(
-    path.join(storageDirectory, 'wallets', `${record.walletName}.json`),
-    migrateWalletSessionRecord(record)
-  );
+  await saveEncryptedStorageRecord('wallets', record.walletName, migrateWalletSessionRecord(record));
 }
 
 export async function loadWalletSession(walletName: string): Promise<WalletSessionRecord | null> {
-  const filePath = storagePath('wallets', `${walletName}.json`);
-  if (!fs.existsSync(filePath)) return null;
-  return migrateWalletSessionRecord(readEncryptedJson<WalletSessionRecord>(filePath));
+  const record = await loadEncryptedStorageRecord<WalletSessionRecord>('wallets', walletName);
+  return record ? migrateWalletSessionRecord(record) : null;
 }
 
 export async function listWalletNames(): Promise<string[]> {
-  const storageDirectory = ensureStorageDir();
-  return fs
-    .readdirSync(path.join(storageDirectory, 'wallets'))
-    .filter((entry) => entry.endsWith('.json'))
-    .map((entry) => entry.replace(/\.json$/, ''));
+  return listEncryptedStorageRecordIds('wallets');
 }
 
 export async function listWalletRequestIds(): Promise<string[]> {
@@ -174,56 +214,37 @@ export async function listWalletRequestIds(): Promise<string[]> {
 }
 
 export async function deleteWalletSession(walletName: string): Promise<boolean> {
-  const filePath = storagePath('wallets', `${walletName}.json`);
-  if (!fs.existsSync(filePath)) return false;
-  fs.unlinkSync(filePath);
-  return true;
+  return deleteEncryptedStorageRecord('wallets', walletName);
 }
 
 export async function saveWalletRequest(record: WalletRequestRecord): Promise<void> {
-  const storageDirectory = ensureStorageDir();
-  writeEncryptedJson(path.join(storageDirectory, 'requests', `${record.requestId}.json`), record);
+  await saveEncryptedStorageRecord('requests', record.requestId, record);
 }
 
 export async function loadWalletRequest(requestId: string): Promise<WalletRequestRecord | null> {
-  const filePath = storagePath('requests', `${requestId}.json`);
-  if (!fs.existsSync(filePath)) return null;
-  return readEncryptedJson<WalletRequestRecord>(filePath);
+  return loadEncryptedStorageRecord<WalletRequestRecord>('requests', requestId);
 }
 
 export async function deleteWalletRequest(requestId: string): Promise<boolean> {
-  const filePath = storagePath('requests', `${requestId}.json`);
-  if (!fs.existsSync(filePath)) return false;
-  fs.unlinkSync(filePath);
-  return true;
+  return deleteEncryptedStorageRecord('requests', requestId);
 }
 
 export async function saveWorkflowCheckpoint(record: WorkflowCheckpointRecord): Promise<void> {
-  const storageDirectory = ensureStorageDir();
-  writeEncryptedJson(path.join(storageDirectory, 'workflows', `${record.requestId}.json`), record);
+  await saveEncryptedStorageRecord('workflows', record.requestId, record);
 }
 
 export async function loadWorkflowCheckpoint(
   requestId: string
 ): Promise<WorkflowCheckpointRecord | null> {
-  const filePath = storagePath('workflows', `${requestId}.json`);
-  if (!fs.existsSync(filePath)) return null;
-  return readEncryptedJson<WorkflowCheckpointRecord>(filePath);
+  return loadEncryptedStorageRecord<WorkflowCheckpointRecord>('workflows', requestId);
 }
 
 export async function listWorkflowCheckpointIds(): Promise<string[]> {
-  const storageDirectory = ensureStorageDir();
-  return fs
-    .readdirSync(path.join(storageDirectory, 'workflows'))
-    .filter((entry) => entry.endsWith('.json'))
-    .map((entry) => entry.replace(/\.json$/, ''));
+  return listEncryptedStorageRecordIds('workflows');
 }
 
 export async function deleteWorkflowCheckpoint(requestId: string): Promise<boolean> {
-  const filePath = storagePath('workflows', `${requestId}.json`);
-  if (!fs.existsSync(filePath)) return false;
-  fs.unlinkSync(filePath);
-  return true;
+  return deleteEncryptedStorageRecord('workflows', requestId);
 }
 
 export interface WalletRenameResult {
@@ -257,7 +278,7 @@ export async function renameWalletSession(
     throw new Error(`Wallet already exists: ${targetName}`);
   }
 
-  const wallet = readEncryptedJson<WalletSessionRecord>(currentFilePath);
+  const wallet = migrateWalletSessionRecord(readEncryptedJson<WalletSessionRecord>(currentFilePath));
   wallet.walletName = targetName;
   writeEncryptedJson(targetFilePath, wallet);
   fs.unlinkSync(currentFilePath);

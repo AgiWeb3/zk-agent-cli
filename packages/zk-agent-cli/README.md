@@ -34,6 +34,18 @@ What each step is doing:
 - `workflow pay` is the flagship zkSync-native AA native-send path
 - `suite` is the packaged surface
 
+The packaged default story is payment-first: send native value now, stay on
+the approval-based pay path when fee-token/default state matters, and recover
+funding only when the workflow says the write path is blocked.
+
+The first Agent Pay platform primitive now exists as a local-first payment
+request surface:
+
+```bash
+zk-agent payment create --wallet main --to <address> --amount <amount>
+zk-agent payment list
+```
+
 If readiness is unclear before you choose a fix, use:
 
 ```bash
@@ -116,6 +128,7 @@ ZK_AGENT_STORAGE_DIR=
   `zk-agent wallet next --name <wallet>`: wallet-scoped repair and readiness
 - `zk-agent workflow ...`: explicit workflow planning, persistence, status, and
   resume questions
+- `zk-agent payment ...`: local-first payment request capture and settlement-state tracking for the Agent Pay platform layer
 - `zk-agent suite`: the packaged post-flagship catalog once wallet readiness is
   no longer the blocker
 
@@ -224,6 +237,9 @@ Current `suite` operator journeys:
 - `inspect before acting`
 - `unstick a write`
 - `recover remote approval`
+
+If you only need one default starting point inside `suite`, start with
+`send value now`.
 
 Use `--wallet <name>` or `--chain <chain>` when the returned suite commands
 should stay on a non-default wallet or chain.

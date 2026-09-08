@@ -326,6 +326,54 @@ export function buildWorkflowPayRecommendedCommand(
   return appendPaymasterMode(command, paymasterMode);
 }
 
+export function buildSendTokenRecommendedCommand(input: {
+  walletName: string;
+  to?: string;
+  amount?: string;
+  tokenAddress?: string;
+  symbol?: string;
+  decimals?: number;
+  paymasterMode?: PaymasterMode;
+}): string {
+  let command = `zk-agent send-token --wallet ${input.walletName}`;
+  command += ` --to ${input.to || '<address>'}`;
+  command += ` --amount ${input.amount || '<amount>'}`;
+  if (input.symbol) {
+    command += ` --symbol ${input.symbol}`;
+  }
+  if (input.tokenAddress) {
+    command += ` --token ${input.tokenAddress}`;
+  }
+  if (input.decimals !== undefined) {
+    command += ` --decimals ${input.decimals}`;
+  }
+  return appendPaymasterMode(command, input.paymasterMode);
+}
+
+export function buildPaymentListRecommendedCommand(): string {
+  return 'zk-agent payment list';
+}
+
+export function buildPaymentShowRecommendedCommand(requestId: string): string {
+  return `zk-agent payment show --request-id ${requestId}`;
+}
+
+export function buildPaymentSetStatusRecommendedCommand(
+  requestId: string,
+  status: 'draft' | 'ready' | 'paid' | 'cancelled',
+  txHash?: string
+): string {
+  let command = `zk-agent payment set-status --request-id ${requestId} --status ${status}`;
+  if (txHash) {
+    command += ` --tx-hash ${txHash}`;
+  }
+  return command;
+}
+
+export function buildPaymentRemoveRecommendedCommand(requestId: string): string {
+  return `zk-agent payment remove --request-id ${requestId}`;
+}
+
 export function buildWorkflowFundRecommendedCommand(walletName: string): string {
   return `zk-agent workflow fund --wallet ${walletName}`;
 }

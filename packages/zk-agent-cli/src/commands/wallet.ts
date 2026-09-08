@@ -85,6 +85,7 @@ import {
   type WalletRequestRecord,
   type WalletSessionRecord
 } from '@zk-agent/agent-core';
+import { renamePaymentRequestWalletReferences } from '@zk-agent/agent-pay';
 import {
   buildApprovedSessionPayload,
   decryptSession,
@@ -244,8 +245,9 @@ function stripSensitiveWalletRecord(wallet: WalletSessionRecord): WalletSessionR
 }
 
 export function sanitizeWalletRecord(wallet: WalletSessionRecord): Record<string, unknown> {
+  const { walletId: _walletId, ...rest } = stripSensitiveWalletRecord(wallet);
   return {
-    ...stripSensitiveWalletRecord(wallet),
+    ...rest,
     sessionPayload: sanitizeSessionPayload(wallet.sessionPayload)
   };
 }
@@ -3980,6 +3982,13 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
     .requiredOption('--new-name <name>', 'New wallet name')
     .action(async (options: { name: string; newName: string }) => {
       const result = await renameWalletSession(options.name, options.newName);
+      const updatedPaymentRequestIds = await renamePaymentRequestWalletReferences(
+        {
+          walletId: result.wallet.walletId,
+          previousWalletName: options.name,
+          nextWalletName: options.newName
+        }
+      );
 
       printResult(
         [
@@ -3988,6 +3997,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           ['to', result.wallet.walletName],
           ['address', result.wallet.walletAddress],
           ['requests updated', String(result.updatedRequestIds.length)],
+          ['payment requests updated', String(updatedPaymentRequestIds.length)],
           ['workflow checkpoints updated', String(result.updatedWorkflowRequestIds.length)],
           ...walletFollowUpLines(result.wallet)
         ],
@@ -3997,6 +4007,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           previousWalletName: options.name,
           wallet: sanitizeWalletRecord(result.wallet),
           updatedRequestIds: result.updatedRequestIds,
+          updatedPaymentRequestIds,
           updatedWorkflowRequestIds: result.updatedWorkflowRequestIds,
           recommendedCommands: buildWalletFollowUpRecommendedCommands(result.wallet)
         }

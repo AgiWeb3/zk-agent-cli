@@ -1721,6 +1721,7 @@ Current stable top-level fields:
 - `summary`
 - `preflight`
   appears only when `zk-agent suite --include-onboarding` is used
+- `recommendedJourney`
 - `journeys`
 - `surfaces`
 - `flagship`
@@ -1736,6 +1737,7 @@ Current stable `summary` fields:
 - `stage`
 - `useWhen`
 - `entryModes`
+- `startHereJourneyId`
 - `journeyOrder`
 - `surfaceOrder`
 - `categoryOrder`
@@ -1798,10 +1800,22 @@ Current stable `journeys[]` fields:
 - `categoryIds`
 - `entryIds`
 
+Current stable `recommendedJourney` fields:
+
+- `id`
+- `title`
+- `startCommand`
+- `surface`
+- `useWhen`
+
 `journeys[]` is the higher-level operator-routing layer above the raw slice
 catalog. It compresses the current packaged surface into the most common
 questions a public operator is actually asking before they care about the
 underlying slice ids.
+
+`recommendedJourney` is the compressed "start here" answer on this surface.
+It tells callers which journey to choose when they want one default
+post-flagship entrypoint instead of reading the whole catalog first.
 
 Current stable `journeyOrder` values on this surface are:
 
@@ -1809,6 +1823,10 @@ Current stable `journeyOrder` values on this surface are:
 - `inspect-before-acting`
 - `unstick-a-write`
 - `recover-remote-approval`
+
+Current stable `startHereJourneyId` value on this surface is:
+
+- `send-value-now`
 
 `surfaces[]` is the top-level deeper-surface catalog that `suite` hands off
 to after its first classification pass. It compresses the current post-
@@ -2448,6 +2466,113 @@ The most important fields in the current `summary` are:
 
 In other words, the aggregate smoke now preserves not only the execution path
 but also the agent-identity layer.
+
+## `zk-agent payment`
+
+Current stable subcommands on this surface are:
+
+- `create`
+- `list`
+- `show`
+- `set-status`
+- `remove`
+
+### `payment create` / `payment show` / `payment set-status`
+
+Current stable top-level fields:
+
+- `ok`
+- `paymentRequest`
+- `executionPlan`
+- `recommendedCommands`
+
+Current stable `paymentRequest` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `walletId`
+- `walletName`
+- `walletAddress`
+- `chain`
+- `chainId`
+- `payer`
+- `payee`
+- `asset`
+- `description`
+- `memo`
+- `metadata`
+- `executionPreference`
+- `settlement`
+- `createdAt`
+- `updatedAt`
+
+`walletId` is the stable payer-wallet identifier for new records. Legacy local
+records created before the wallet-id migration may omit it until they are
+rewritten.
+
+Current stable `paymentRequest.asset` fields:
+
+- `kind`
+- `amount`
+- `symbol`
+- `tokenAddress`
+- `decimals`
+
+Current stable `paymentRequest.executionPreference` fields:
+
+- `surface`
+- `paymasterMode`
+
+Current stable `paymentRequest.settlement` fields:
+
+- `status`
+- `paidAt`
+- `cancelledAt`
+- `txHash`
+- `note`
+
+Current stable settlement statuses on this surface are:
+
+- `draft`
+- `ready`
+- `paid`
+- `cancelled`
+
+Current stable `executionPlan` fields:
+
+- `action`
+- `surface`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `paymasterMode`
+- `payeeAddress`
+- `asset`
+- `command`
+
+### `payment list`
+
+Current stable top-level fields:
+
+- `ok`
+- `count`
+- `filters`
+- `requests`
+- `recommendedCommands`
+
+`requests[]` reuses the same stable `paymentRequest` record shape described
+above.
+
+### `payment remove`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `removed`
+- `recommendedCommands`
 
 ## Current stability boundary
 
