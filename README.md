@@ -4,7 +4,7 @@
 approval, workflow execution, hosted relay recovery, and post-flagship
 discovery/funding/paymaster guidance.
 
-Current public stage: `0.1.0-rc.3`.
+Current public stage: `0.1.0-rc.4`.
 
 This README is only the repo front door.
 

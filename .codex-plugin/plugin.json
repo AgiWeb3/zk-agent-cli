@@ -1,6 +1,6 @@
 {
   "name": "zk-agent-cli",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0-rc.4",
   "description": "Local-first zkSync Era and ZK Stack agent plugin with wallet-session recovery, hosted relay approval, workflow guidance, and SED smart-account operations.",
   "author": {
     "name": "AgiWeb3",
