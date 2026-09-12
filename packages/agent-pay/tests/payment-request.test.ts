@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { AgentError, saveEncryptedStorageRecord } from '@zk-agent/agent-core';
+import {
+  AgentError,
+  deleteEncryptedStorageRecord,
+  saveEncryptedStorageRecord
+} from '@zk-agent/agent-core';
 
 import { buildPaymentRequestApprovalView } from '../src/approval.ts';
 import {
@@ -1131,6 +1135,99 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       const removed = await removeStoredPaymentRequest('payreq-service');
       assert.equal(removed, true);
       assert.equal(await loadPaymentRequest('payreq-service'), null);
+    });
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('payment service resolves the linked wallet by walletId before walletName fallback', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-payment-wallet-id-link-'));
+
+  try {
+    await withHome(homeDir, async () => {
+      await saveEncryptedStorageRecord('wallets', 'main', {
+        walletId: 'wal_servicewalletid000001',
+        walletName: 'main',
+        walletAddress: '0x1111111111111111111111111111111111111111',
+        ownerAddress: '0x2222222222222222222222222222222222222222',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        provider: 'zksync-sso',
+        accountKind: 'smart-account',
+        createdAt: '2026-09-10T00:00:00.000Z',
+        localExecutionAuthority: {
+          privateKey: '0x' + '11'.repeat(32),
+          signerAddress: '0x1234567890123456789012345678901234567890',
+          signerType: 'local',
+          attachedAt: '2026-09-10T01:00:00.000Z'
+        },
+        sessionPayload: {
+          version: 1,
+          provider: 'zksync-sso',
+          chain: 'zksync-sepolia',
+          chainId: 300,
+          walletAddress: '0x1111111111111111111111111111111111111111',
+          sessionExpiresAt: '2026-12-31T00:00:00.000Z',
+          sessionPrivateKey: '0x' + '11'.repeat(32)
+        }
+      });
+
+      await createStoredPaymentRequest({
+        requestId: 'payreq-walletid-link',
+        walletId: 'wal_servicewalletid000001',
+        walletName: 'main',
+        walletAddress: '0x1111111111111111111111111111111111111111',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        payeeAddress: '0x3333333333333333333333333333333333333333',
+        asset: {
+          kind: 'native',
+          amount: '0.75',
+          symbol: 'ETH'
+        },
+        paymasterMode: 'approval-based',
+        status: 'ready'
+      });
+
+      await deleteEncryptedStorageRecord('wallets', 'main');
+      await saveEncryptedStorageRecord('wallets', 'treasury', {
+        walletId: 'wal_servicewalletid000001',
+        walletName: 'treasury',
+        walletAddress: '0x1111111111111111111111111111111111111111',
+        ownerAddress: '0x2222222222222222222222222222222222222222',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        provider: 'zksync-sso',
+        accountKind: 'smart-account',
+        createdAt: '2026-09-10T00:00:00.000Z',
+        localExecutionAuthority: {
+          privateKey: '0x' + '11'.repeat(32),
+          signerAddress: '0x1234567890123456789012345678901234567890',
+          signerType: 'local',
+          attachedAt: '2026-09-10T01:00:00.000Z'
+        },
+        sessionPayload: {
+          version: 1,
+          provider: 'zksync-sso',
+          chain: 'zksync-sepolia',
+          chainId: 300,
+          walletAddress: '0x1111111111111111111111111111111111111111',
+          sessionExpiresAt: '2026-12-31T00:00:00.000Z',
+          sessionPrivateKey: '0x' + '11'.repeat(32)
+        }
+      });
+
+      const approval = await getStoredPaymentRequestApproval('payreq-walletid-link');
+      assert.equal(approval.approval.walletFound, true);
+      assert.equal(approval.approval.walletState, 'linked');
+      assert.equal(approval.approval.walletIdMatched, true);
+      assert.equal(approval.approval.approvalReady, true);
+      assert.equal(approval.approval.recommendedAction, 'continue-payment');
+
+      const next = await getStoredPaymentRequestNext('payreq-walletid-link');
+      assert.equal(next.next.route.kind, 'execute');
+      assert.equal(next.next.recommendedAction, 'execute-payment');
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });

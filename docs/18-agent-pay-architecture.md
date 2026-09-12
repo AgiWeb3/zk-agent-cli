@@ -21,6 +21,8 @@ Current implementation status:
 - a dedicated `packages/agent-pay` package now exists
 - local-first payment request records exist through `zk-agent payment`
 - a first payment application-service layer now exists inside `agent-pay`
+- linked-wallet resolution inside `agent-pay` now prefers stable `walletId`
+  and only falls back to mutable `walletName` for older records
 - a first compact payment ingress write surface now exists through
   `zk-agent payment submit`
 - a first dedicated payment intent read surface now exists through

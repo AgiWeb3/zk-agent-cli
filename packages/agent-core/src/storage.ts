@@ -201,6 +201,21 @@ export async function loadWalletSession(walletName: string): Promise<WalletSessi
   return record ? migrateWalletSessionRecord(record) : null;
 }
 
+export async function loadWalletSessionById(
+  walletId: string
+): Promise<WalletSessionRecord | null> {
+  const targetWalletId = walletId.trim();
+  if (!targetWalletId) return null;
+
+  for (const walletName of await listWalletNames()) {
+    const wallet = await loadWalletSession(walletName);
+    if (!wallet?.walletId) continue;
+    if (wallet.walletId === targetWalletId) return wallet;
+  }
+
+  return null;
+}
+
 export async function listWalletNames(): Promise<string[]> {
   return listEncryptedStorageRecordIds('wallets');
 }

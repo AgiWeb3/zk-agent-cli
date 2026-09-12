@@ -43,6 +43,8 @@ vertical integrations.
   `packages/agent-pay` instead of living inside `agent-core`
 - wallet records now have a stable `walletId`, and Agent Pay linkage is moving
   off mutable wallet names toward that identifier
+- linked-wallet resolution inside Agent Pay now prefers `walletId` and only
+  falls back to `walletName` for older records
 - `packages/agent-pay` now also owns a first application-service layer for
   payment submit/create/show/list/set-status/remove orchestration, reducing
   direct payment branching inside CLI command code

@@ -1,4 +1,4 @@
-import { AgentError, loadWalletSession } from '@zk-agent/agent-core';
+import { AgentError, loadWalletSession, loadWalletSessionById } from '@zk-agent/agent-core';
 import {
   buildPaymentRequestApprovalView,
   type PaymentRequestApprovalView
@@ -199,13 +199,25 @@ async function requirePaymentRequest(requestId: string): Promise<PaymentRequestR
 async function buildLinkedWalletAwareNextView(
   paymentRequest: PaymentRequestRecord
 ): Promise<PaymentRequestNextView> {
-  const wallet = await loadWalletSession(paymentRequest.walletName);
+  const wallet = await resolveLinkedWalletSession(paymentRequest);
   const approval = buildPaymentRequestApprovalView(paymentRequest, wallet);
 
   return overlayPaymentRequestNextWithApproval(
     buildPaymentRequestNextView(paymentRequest),
     approval
   );
+}
+
+async function resolveLinkedWalletSession(
+  paymentRequest: Pick<PaymentRequestRecord, 'walletId' | 'walletName'>
+) {
+  const walletId = paymentRequest.walletId?.trim();
+  if (walletId) {
+    const walletById = await loadWalletSessionById(walletId);
+    if (walletById) return walletById;
+  }
+
+  return loadWalletSession(paymentRequest.walletName);
 }
 
 export async function createStoredPaymentRequest(
@@ -268,7 +280,7 @@ export async function getStoredPaymentRequestApproval(
 ): Promise<PaymentRequestApprovalResult> {
   const paymentRequest = await requirePaymentRequest(requestId);
   const executionPlan = buildPaymentExecutionPlan(paymentRequest);
-  const wallet = await loadWalletSession(paymentRequest.walletName);
+  const wallet = await resolveLinkedWalletSession(paymentRequest);
 
   return {
     paymentRequest,
@@ -368,7 +380,7 @@ export async function syncStoredPaymentRequestApproval(
   requestId: string
 ): Promise<PaymentRequestApprovalSyncResult> {
   const paymentRequest = await requirePaymentRequest(requestId);
-  const wallet = await loadWalletSession(paymentRequest.walletName);
+  const wallet = await resolveLinkedWalletSession(paymentRequest);
   const approval = buildPaymentRequestApprovalView(paymentRequest, wallet);
   const attemptedAt = new Date().toISOString();
 

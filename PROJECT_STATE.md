@@ -36,6 +36,8 @@
   workspace package instead of being embedded inside `agent-core`
 - wallet records now carry a stable `walletId`, and Agent Pay records can link
   to that identifier instead of relying only on mutable wallet names
+- Agent Pay linked-wallet resolution now also prefers `walletId` and only
+  falls back to `walletName` for older or partial records
 - `packages/agent-pay` now includes a first application-service layer for
   payment submit/create/show/list/set-status/remove flows, with the CLI
   staying as a surface and renderer

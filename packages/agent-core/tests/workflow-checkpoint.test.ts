@@ -165,12 +165,17 @@ test('wallet storage assigns a stable walletId and preserves it across rename', 
       const loaded = await storage.loadWalletSession('main');
       assert.ok(loaded?.walletId);
       assert.equal(loaded?.walletId, deriveStableWalletId(sampleWallet));
+      assert.equal((await storage.loadWalletSessionById(loaded.walletId))?.walletName, 'main');
 
       const renamed = await storage.renameWalletSession('main', 'treasury');
       assert.equal(renamed.wallet.walletId, loaded?.walletId);
 
       const renamedLoaded = await storage.loadWalletSession('treasury');
       assert.equal(renamedLoaded?.walletId, loaded?.walletId);
+      assert.equal(
+        (await storage.loadWalletSessionById(loaded.walletId))?.walletName,
+        'treasury'
+      );
     });
   } finally {
     await rm(homeDir, { recursive: true, force: true });
