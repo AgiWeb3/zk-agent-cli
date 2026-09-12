@@ -593,6 +593,8 @@ Key fields:
     "currentSurface": "doctor",
     "recommendedNow": true,
     "command": "zk-agent suite",
+    "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.",
     "recommendedJourney": {
       "id": "send-value-now",
       "title": "Send Value Now",
@@ -800,6 +802,8 @@ Key fields:
     "currentSurface": "next",
     "recommendedNow": true,
     "command": "zk-agent suite",
+    "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.",
     "recommendedJourney": {
       "id": "send-value-now",
       "title": "Send Value Now",
@@ -849,6 +853,8 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `currentSurface`
 - `recommendedNow`
 - `command`
+- `paymentCommand`
+- `paymentUseWhen`
 - `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
@@ -859,6 +865,12 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `id`
 - `title`
 - `command`
+
+`paymentCommand` is the compact local-first Agent Pay ingress command for the
+same wallet context.
+
+`paymentUseWhen` explains when the caller should choose `payment` instead of
+staying on the current direct execution or suite-routing surface.
 
 When the wallet scope exposes token/discovery follow-ups, `tokenDiscoverySummary`
 compresses that routing contract into:
@@ -911,6 +923,8 @@ Key fields:
     "currentSurface": "workflow",
     "recommendedNow": false,
     "command": "zk-agent suite",
+    "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.",
     "recommendedJourney": null
   },
   "result": { "...": "workflow status payload" },
@@ -997,6 +1011,8 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `currentSurface`
 - `recommendedNow`
 - `command`
+- `paymentCommand`
+- `paymentUseWhen`
 - `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
@@ -1210,6 +1226,8 @@ Current stable `suiteHandoffSummary` fields on workflow runtime surfaces:
 - `currentSurface`
 - `recommendedNow`
 - `command`
+- `paymentCommand`
+- `paymentUseWhen`
 - `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
