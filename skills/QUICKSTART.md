@@ -68,18 +68,43 @@ zk-agent suite
 What each step is doing:
 
 - `setup` writes local defaults
-- `next` gives the shortest valid follow-up step
+- `next` gives the shortest valid follow-up step and labels the current
+  product question as `bootstrap`, `recover`, `operate`, or `workflow`
 - `wallet create --await-local` is the preferred local approval path
 - `workflow pay` is the flagship zkSync-native AA native-send path
 - `suite` is the packaged post-flagship entrypoint for discovery, defaults,
   funding, and paymaster readiness
 
+The packaged default story is payment-first: send native value now, stay on
+the approval-based pay path when fee-token/default state matters, and recover
+funding only when the workflow says the write path is blocked.
+
+The current local-first Agent Pay entry surface is:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment queue
+zk-agent payment report
+zk-agent payment approval --request-id <id>
+```
+
+Use those four commands when the write path is not the whole question:
+
+- `submit`: capture one payment request through the compact ingress surface
+- `queue`: review the current actionable request queue
+- `report`: summarize cross-request state and next-action distribution
+- `approval`: inspect whether the linked wallet is still blocking execution
+
 Choose the surface by question:
 
 - `next`: the CLI still needs to choose across setup, wallet readiness,
   recovery, or workflow continuation
+- `workflow pay`: the wallet is ready and you want the flagship native-send
+  path now
 - `suite`: wallet readiness is already clear and you want the packaged
   post-flagship operator catalog
+- `payment`: you need local request capture, queueing, reporting, or approval
+  tracking around the same write path
 - `suite --include-onboarding`: you want the full map from first-run bootstrap
   through the packaged operator surface
 
@@ -177,6 +202,16 @@ zk-agent assets --wallet main
 zk-agent defaults
 zk-agent resolve-token --chain zksync-sepolia --symbol USDC
 zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
+```
+
+When you already know the wallet is ready and the need is request tracking
+rather than the broader operator catalog, prefer:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment queue
+zk-agent payment report
+zk-agent payment approval --request-id <id>
 ```
 
 ## 6. Fund only when the CLI tells you to

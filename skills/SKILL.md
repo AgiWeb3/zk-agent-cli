@@ -1,6 +1,6 @@
 ---
 name: zk-agent-cli
-description: Agent-facing routing guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or harness choose the default path across setup, wallet create/reapprove, workflow pay, suite, relay-backed approval, funding follow-up, or direct zkSync command escape hatches. The preferred product path is setup -> next -> wallet create/reapprove -> next -> workflow pay -> suite, with workflow auto kept for broader multi-intent flows.
+description: Agent-facing routing guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or harness choose the default path across setup, wallet create/reapprove, workflow pay, payment, suite, relay-backed approval, funding follow-up, or direct zkSync command escape hatches. The preferred product path is setup -> next -> wallet create/reapprove -> next -> workflow pay -> suite, with payment used for local request capture and workflow auto kept for broader multi-intent flows.
 ---
 
 # zk-agent-cli Skill
@@ -14,6 +14,7 @@ path:
 - wallet recovery and reapproval
 - readiness inspection
 - flagship workflow execution
+- local-first Agent Pay request routing
 - post-flagship `suite` routing
 - funding follow-up
 - balances and asset inspection
@@ -127,6 +128,20 @@ Interpret the steps like this:
   default packaged surface for discovery/defaults, funding, and
   paymaster readiness
 
+The packaged default story is payment-first: send native value now, stay on
+the approval-based pay path when fee-token/default state matters, and recover
+funding only when the workflow says the write path is blocked.
+
+Use the current local-first Agent Pay entry surface when the write path is not
+the whole question:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment queue
+zk-agent payment report
+zk-agent payment approval --request-id <id>
+```
+
 Use `zk-agent doctor` before choosing a remediation path when readiness is
 unclear.
 
@@ -190,7 +205,7 @@ zk-agent wallet request approve --request-id <id> --encrypted-payload @encrypted
 Use `relay inspect` before sharing a hosted URL. It exposes readiness, URL
 shape, persistence mode, and the exact create/reapprove follow-up path.
 
-## Readiness, suite, and funding
+## Readiness, suite, funding, and payment
 
 Preferred routing after setup:
 
@@ -214,6 +229,27 @@ commands manually:
 ```bash
 zk-agent suite
 ```
+
+Use `payment` instead of direct execution when the workflow needs local request
+capture, queueing, reporting, or approval tracking around the same wallet:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment queue
+zk-agent payment report
+zk-agent payment approval --request-id <id>
+```
+
+Route by question:
+
+- `next`: the CLI still needs to choose across setup, recovery, or workflow
+  continuation
+- `workflow pay`: the wallet is ready and you want the flagship native-send
+  path now
+- `suite`: wallet readiness is already clear and the question is broader than
+  one immediate flagship step
+- `payment`: you need local request capture, queueing, reporting, or approval
+  repair around that write path
 
 Only fund when the CLI says funding is required:
 
