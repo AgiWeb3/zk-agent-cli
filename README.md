@@ -94,7 +94,7 @@ operator is actually asking:
 Those categories currently hand off into three deeper surfaces:
 
 - `workflow`: flagship pay, approval-based pay, and funding recovery
-- `discover`: assets/defaults/token inspection
+- `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
 The same surface now also exposes four simpler operator journeys:
