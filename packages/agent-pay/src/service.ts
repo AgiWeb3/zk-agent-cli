@@ -60,6 +60,10 @@ import {
   type PaymentRequestsReportView
 } from './report.js';
 import {
+  buildPaymentRequestShare,
+  type PaymentRequestShareView
+} from './share.js';
+import {
   buildPaymentRequestSettlement,
   type PaymentRequestSettlementView
 } from './settlement.js';
@@ -151,6 +155,10 @@ export interface PaymentRequestNextResult extends PaymentRequestResult {
 
 export interface PaymentRequestDescriptorResult extends PaymentRequestResult {
   descriptor: PaymentRequestDescriptor;
+}
+
+export interface PaymentRequestShareResult extends PaymentRequestResult {
+  share: PaymentRequestShareView;
 }
 
 export interface PaymentRequestQuoteResult extends PaymentRequestResult {
@@ -332,6 +340,18 @@ export async function describeStoredPaymentRequest(
     paymentRequest,
     executionPlan: buildPaymentExecutionPlan(paymentRequest),
     descriptor: buildPaymentRequestDescriptor(paymentRequest)
+  };
+}
+
+export async function shareStoredPaymentRequest(
+  requestId: string
+): Promise<PaymentRequestShareResult> {
+  const paymentRequest = await requirePaymentRequest(requestId);
+
+  return {
+    paymentRequest,
+    executionPlan: buildPaymentExecutionPlan(paymentRequest),
+    share: buildPaymentRequestShare(paymentRequest)
   };
 }
 

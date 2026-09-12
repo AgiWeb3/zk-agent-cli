@@ -80,6 +80,8 @@
   wallet-aware follow-up route on first write, reducing the extra read step
 - `zk-agent payment describe` now exposes the first stable request-descriptor
   read surface for one stored payment request
+- `zk-agent payment share` now exposes the first stable share-safe payee-facing
+  request view for one stored payment request
 - `zk-agent payment execution` now exposes the first stable execution-state
   read surface for one stored payment request
 - `zk-agent payment quote` now exposes the first stable local execution-quote

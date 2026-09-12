@@ -27,6 +27,7 @@ import { buildPaymentRequestIntent } from '../src/intent.ts';
 import { buildPaymentRequestNextView } from '../src/next.ts';
 import { buildPaymentRequestQuote } from '../src/quote.ts';
 import { buildPaymentRequestsReport } from '../src/report.ts';
+import { buildPaymentRequestShare } from '../src/share.ts';
 import { buildPaymentRequestSettlement } from '../src/settlement.ts';
 import {
   buildStoredPaymentRequestsQueue,
@@ -46,6 +47,7 @@ import {
   refreshStoredPaymentRequestQuote,
   removeStoredPaymentRequest,
   settleStoredPaymentRequest,
+  shareStoredPaymentRequest,
   submitStoredPaymentRequest,
   syncStoredPaymentRequestApproval,
   updateStoredPaymentRequestStatus
@@ -299,6 +301,29 @@ test('payment request intent exposes the business intent without execution metad
   assert.equal(intent.description, record.description);
   assert.equal(intent.memo, record.memo);
   assert.deepEqual(intent.metadata, record.metadata);
+});
+
+test('payment request share view stays payee-facing and hides payer wallet linkage', () => {
+  const record = createSamplePaymentRequest();
+  const share = buildPaymentRequestShare(record);
+
+  assert.equal(share.format, 'zk-agent-payment-request-share');
+  assert.equal(share.version, 1);
+  assert.equal(share.requestId, record.requestId);
+  assert.equal(share.chain, record.chain);
+  assert.equal(share.chainId, record.chainId);
+  assert.equal(share.payer.label, 'SED Operator');
+  assert.equal(share.payer.displayName, 'SED Operator');
+  assert.equal('walletId' in share.payer, false);
+  assert.equal('walletName' in share.payer, false);
+  assert.equal('walletAddress' in share.payer, false);
+  assert.equal(share.payee.address, record.payee.address);
+  assert.equal(share.asset.kind, record.asset.kind);
+  assert.equal(share.status, record.settlement.status);
+  assert.equal(share.lifecycleState, 'ready-to-execute');
+  assert.equal(share.description, record.description);
+  assert.equal(share.memo, record.memo);
+  assert.equal(share.historyCount, record.history.length);
 });
 
 test('payment request inspection summary exposes stable aggregate status fields', () => {
@@ -1050,6 +1075,15 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       assert.equal(intent.intent.payer.walletId, 'wal_service00000000000001');
       assert.equal(intent.intent.asset.kind, 'native');
       assert.equal(intent.executionPlan.walletId, 'wal_service00000000000001');
+
+      const share = await shareStoredPaymentRequest('payreq-service');
+      assert.equal(share.share.requestId, 'payreq-service');
+      assert.equal(share.share.format, 'zk-agent-payment-request-share');
+      assert.equal(share.share.payer.label, 'payer');
+      assert.equal(share.share.payee.address, '0x3333333333333333333333333333333333333333');
+      assert.equal(share.share.status, 'paid');
+      assert.equal(share.share.lifecycleState, 'confirmed');
+      assert.equal(share.executionPlan.walletId, 'wal_service00000000000001');
 
       const inspected = await inspectStoredPaymentRequest('payreq-service');
       assert.equal(inspected.summary.requestId, 'payreq-service');

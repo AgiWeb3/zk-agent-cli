@@ -87,6 +87,8 @@ vertical integrations.
   wallet-aware follow-up route immediately instead of forcing a second read
 - `zk-agent payment describe` now exposes the first stable request-descriptor
   read surface for payer/payee payment intent
+- `zk-agent payment share` now exposes the first stable share-safe payee-facing
+  request view for one stored payment request
 - `zk-agent payment execution` now exposes the first stable execution-state
   read surface above the current selected execution path
 - `zk-agent payment quote` now exposes the first stable local execution-quote

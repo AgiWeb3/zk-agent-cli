@@ -199,6 +199,8 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
         '0x3333333333333333333333333333333333333333',
         '--amount',
         '0.015',
+        '--payer-name',
+        'Ops Treasury',
         '--description',
         'Ops payout',
         '--memo',
@@ -310,6 +312,22 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     assert.equal(described.descriptor.executionPreference.surface, 'workflow-pay');
     assert.equal(described.descriptor.settlement.status, 'ready');
     assert.match(described.recommendedCommands.describe, /zk-agent payment describe --request-id/);
+
+    const shared = await runCliJson(['payment', 'share', '--request-id', requestId], env);
+    assert.equal(shared.requestId, requestId);
+    assert.equal(shared.share.format, 'zk-agent-payment-request-share');
+    assert.equal(shared.share.payer.label, 'Ops Treasury');
+    assert.equal(shared.share.payer.displayName, 'Ops Treasury');
+    assert.equal(shared.share.payee.address, '0x3333333333333333333333333333333333333333');
+    assert.equal(shared.share.asset.kind, 'native');
+    assert.equal(shared.share.status, 'ready');
+    assert.equal(shared.share.lifecycleState, 'ready-to-execute');
+    assert.equal('walletId' in shared.share.payer, false);
+    assert.equal('walletName' in shared.share.payer, false);
+    assert.equal('walletAddress' in shared.share.payer, false);
+    assert.equal(shared.share.description, 'Ops payout');
+    assert.equal(shared.share.memo, 'invoice-42');
+    assert.match(shared.recommendedCommands.share, /zk-agent payment share --request-id/);
 
     const execution = await runCliJson(['payment', 'execution', '--request-id', requestId], env);
     assert.equal(execution.requestId, requestId);
@@ -969,6 +987,7 @@ test('payment submit exposes the compact ingress contract and help text explains
     const help = await runCliText(['payment', '--help'], env);
     assert.match(help, /Payment request surface:/);
     assert.match(help, /`submit` is the compact ingress write surface; `create` remains the lower-level local record primitive/);
+    assert.match(help, /`share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences/);
     assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment queue/);
     assert.match(help, /zk-agent payment report/);
@@ -980,6 +999,7 @@ test('payment submit exposes the compact ingress contract and help text explains
     assert.match(help, /zk-agent payment inspect --request-id <id>/);
     assert.match(help, /zk-agent payment intent --request-id <id>/);
     assert.match(help, /zk-agent payment describe --request-id <id>/);
+    assert.match(help, /zk-agent payment share --request-id <id>/);
     assert.match(help, /zk-agent payment execution --request-id <id>/);
     assert.match(help, /zk-agent payment quote --request-id <id>/);
     assert.match(help, /zk-agent payment refresh-quote --request-id <id>/);

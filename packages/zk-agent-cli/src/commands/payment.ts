@@ -14,6 +14,7 @@ import {
   describeStoredPaymentRequest,
   reconcileStoredPaymentRequest,
   refreshStoredPaymentRequestQuote,
+  shareStoredPaymentRequest,
   syncStoredPaymentRequestApproval,
   submitStoredPaymentRequest,
   type CreateStoredPaymentRequestInput,
@@ -36,6 +37,7 @@ import {
   type PaymentRequestIntentView,
   type PaymentRequestExecutionView,
   type PaymentRequestDescriptor,
+  type PaymentRequestShareView,
   type PaymentRequestNextView,
   type PaymentRequestQuote,
   type PaymentRequestRecord,
@@ -61,6 +63,7 @@ import {
   buildPaymentReconcileRecommendedCommand,
   buildPaymentRefreshQuoteRecommendedCommand,
   buildPaymentRemoveRecommendedCommand,
+  buildPaymentShareRecommendedCommand,
   buildPaymentSubmitRecommendedCommand,
   buildPaymentSyncApprovalRecommendedCommand,
   buildPaymentSettlementRecommendedCommand,
@@ -131,6 +134,10 @@ interface PaymentNextOptions {
 }
 
 interface PaymentDescribeOptions {
+  requestId: string;
+}
+
+interface PaymentShareOptions {
   requestId: string;
 }
 
@@ -347,6 +354,7 @@ function buildPaymentRecommendedCommands(
     next: buildPaymentNextRecommendedCommand(record.requestId),
     intent: buildPaymentIntentRecommendedCommand(record.requestId),
     describe: buildPaymentDescribeRecommendedCommand(record.requestId),
+    share: buildPaymentShareRecommendedCommand(record.requestId),
     execution: buildPaymentExecutionRecommendedCommand(record.requestId),
     quote: buildPaymentQuoteRecommendedCommand(record.requestId),
     refreshQuote: buildPaymentRefreshQuoteRecommendedCommand(record.requestId),
@@ -661,6 +669,7 @@ function paymentIntentLines(
   intent: PaymentRequestIntentView,
   inspectCommand: string,
   descriptorCommand: string,
+  shareCommand: string,
   executionCommand: string,
   quoteCommand: string,
   settlementCommand: string,
@@ -675,6 +684,7 @@ function paymentIntentLines(
     ['updated', intent.updatedAt],
     ['inspect', inspectCommand],
     ['describe', descriptorCommand],
+    ['share', shareCommand],
     ['execution', executionCommand],
     ['quote', quoteCommand],
     ['settlement', settlementCommand],
@@ -734,7 +744,8 @@ function paymentSettlementLines(
 
 function paymentDescriptorLines(
   descriptor: PaymentRequestDescriptor,
-  executeCommand: string
+  executeCommand: string,
+  shareCommand: string
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [
     ['request', descriptor.requestId],
@@ -752,6 +763,7 @@ function paymentDescriptorLines(
     ['show', buildPaymentShowRecommendedCommand(descriptor.requestId)],
     ['inspect', buildPaymentInspectRecommendedCommand(descriptor.requestId)],
     ['intent', buildPaymentIntentRecommendedCommand(descriptor.requestId)],
+    ['share', shareCommand],
     ['execution', buildPaymentExecutionRecommendedCommand(descriptor.requestId)],
     ['settlement', buildPaymentSettlementRecommendedCommand(descriptor.requestId)],
     ['history', buildPaymentHistoryRecommendedCommand(descriptor.requestId)],
@@ -775,6 +787,43 @@ function paymentDescriptorLines(
     lines.push(['cancelled at', descriptor.settlement.cancelledAt]);
   }
   lines.push(['metadata keys', String(Object.keys(descriptor.metadata).length)]);
+
+  return lines;
+}
+
+function paymentShareLines(
+  share: PaymentRequestShareView,
+  inspectCommand: string,
+  settlementCommand: string,
+  historyCommand: string
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['request', share.requestId],
+    ['status', share.status],
+    ['lifecycle', share.lifecycleState],
+    ['payer', share.payer.label],
+    ['payee', `${share.payee.name || 'payee'} ${share.payee.address}`],
+    ['asset', formatPaymentAsset(share)],
+    ['created', share.createdAt],
+    ['updated', share.updatedAt],
+    ['history events', String(share.historyCount)],
+    ['share', buildPaymentShareRecommendedCommand(share.requestId)],
+    ['inspect', inspectCommand],
+    ['settlement', settlementCommand],
+    ['history', historyCommand]
+  ];
+
+  if (share.description) lines.splice(6, 0, ['description', share.description]);
+  if (share.memo) lines.splice(share.description ? 7 : 6, 0, ['memo', share.memo]);
+  if (share.approvalPendingAt) lines.push(['approval pending at', share.approvalPendingAt]);
+  if (share.broadcastedAt) lines.push(['broadcasted at', share.broadcastedAt]);
+  if (share.txHash) lines.push(['txHash', share.txHash]);
+  if (share.paidAt) lines.push(['paid at', share.paidAt]);
+  if (share.failedAt) lines.push(['failed at', share.failedAt]);
+  if (share.expiredAt) lines.push(['expired at', share.expiredAt]);
+  if (share.cancelledAt) lines.push(['cancelled at', share.cancelledAt]);
+  if (share.latestEventType) lines.push(['latest event', share.latestEventType]);
+  if (share.latestEventAt) lines.push(['latest event at', share.latestEventAt]);
 
   return lines;
 }
@@ -1183,6 +1232,7 @@ export function createPaymentCommand(): Command {
       '  Payment request surface:',
       '    Use this layer to capture payer/payee intent and local settlement state before or after execution.',
       '    `submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
+      '    `share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
       '    `workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle.',
       '',
       '  Start here:',
@@ -1199,6 +1249,7 @@ export function createPaymentCommand(): Command {
       '    zk-agent payment show --request-id <id>',
       '    zk-agent payment intent --request-id <id>',
       '    zk-agent payment describe --request-id <id>',
+      '    zk-agent payment share --request-id <id>',
       '    zk-agent payment execution --request-id <id>',
       '    zk-agent payment quote --request-id <id>',
       '    zk-agent payment refresh-quote --request-id <id>',
@@ -1640,6 +1691,7 @@ export function createPaymentCommand(): Command {
           result.intent,
           buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentDescribeRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentShareRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentExecutionRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentQuoteRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentSettlementRecommendedCommand(result.paymentRequest.requestId),
@@ -1667,12 +1719,39 @@ export function createPaymentCommand(): Command {
       printResult(
         paymentDescriptorLines(
           result.descriptor,
-          buildPaymentExecuteCommand(result.executionPlan)
+          buildPaymentExecuteCommand(result.executionPlan),
+          buildPaymentShareRecommendedCommand(result.paymentRequest.requestId)
         ),
         {
           ok: true,
           requestId: result.paymentRequest.requestId,
           descriptor: result.descriptor,
+          recommendedCommands: buildPaymentRecommendedCommands(
+            result.paymentRequest,
+            result.executionPlan
+          )
+        }
+      );
+    });
+
+  payment
+    .command('share')
+    .description('Render one stored payment request as a share-safe payee-facing request view')
+    .requiredOption('--request-id <id>', 'Stored payment request id')
+    .action(async (options: PaymentShareOptions) => {
+      const result = await shareStoredPaymentRequest(options.requestId);
+
+      printResult(
+        paymentShareLines(
+          result.share,
+          buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentSettlementRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentHistoryRecommendedCommand(result.paymentRequest.requestId)
+        ),
+        {
+          ok: true,
+          requestId: result.paymentRequest.requestId,
+          share: result.share,
           recommendedCommands: buildPaymentRecommendedCommands(
             result.paymentRequest,
             result.executionPlan

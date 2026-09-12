@@ -12,5 +12,6 @@ export * from './queue.js';
 export * from './quote.js';
 export * from './report.js';
 export * from './service.js';
+export * from './share.js';
 export * from './settlement.js';
 export * from './storage.js';

@@ -47,6 +47,8 @@ Current implementation status:
   through `zk-agent payment sync-approval`
 - a first dedicated payment request-descriptor read surface now exists through
   `zk-agent payment describe`
+- a first share-safe payee-facing request view now exists through
+  `zk-agent payment share`
 - a first dedicated payment execution read surface now exists through
   `zk-agent payment execution`
 - a first dedicated payment quote read surface now exists through

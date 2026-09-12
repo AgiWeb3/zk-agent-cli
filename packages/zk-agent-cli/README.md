@@ -61,11 +61,16 @@ Use those four commands for the public "start here" path:
 - `approval`: inspect whether the linked wallet is still blocking execution
 
 When you already have a request id and need the deeper local lifecycle,
-routing, quote, settlement, or reconciliation views, use:
+share-safe request view, routing, quote, settlement, or reconciliation views,
+use:
 
 ```bash
 zk-agent payment --help
 ```
+
+Use `zk-agent payment share --request-id <id>` when the request must be shared
+with a payee or external reviewer without exposing local wallet linkage or
+execution-preference details.
 
 If readiness is unclear before you choose a fix, use:
 

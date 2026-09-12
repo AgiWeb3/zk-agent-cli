@@ -390,6 +390,10 @@ export function buildPaymentDescribeRecommendedCommand(requestId: string): strin
   return `zk-agent payment describe --request-id ${requestId}`;
 }
 
+export function buildPaymentShareRecommendedCommand(requestId: string): string {
+  return `zk-agent payment share --request-id ${requestId}`;
+}
+
 export function buildPaymentIntentRecommendedCommand(requestId: string): string {
   return `zk-agent payment intent --request-id ${requestId}`;
 }
