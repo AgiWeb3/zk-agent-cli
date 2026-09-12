@@ -39,6 +39,8 @@ Current implementation status:
   `zk-agent payment history`
 - a first dedicated cross-request payment reporting surface now exists through
   `zk-agent payment report`
+- that local report now also emits wallet-level aggregates suitable for a
+  later control-plane or platform reporting layer
 - a first dedicated payment-approval inspection surface now exists through
   `zk-agent payment approval`
 - a first dedicated local approval-orchestration write surface now exists

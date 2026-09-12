@@ -531,10 +531,28 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     );
     assert.equal(report.report.format, 'zk-agent-payment-report');
     assert.equal(report.report.summary.totalRequests, 2);
+    assert.equal(report.report.summary.distinctWalletCount, 1);
     assert.equal(report.report.summary.openRequests, 1);
     assert.equal(report.report.summary.failedRequests, 1);
     assert.equal(report.report.filters.walletName, 'main');
     assert.equal(report.report.filters.recentActivityLimit, 3);
+    assert.equal(report.report.wallets.length, 1);
+    assert.equal(report.report.wallets[0].walletName, 'main');
+    assert.equal(report.report.wallets[0].requestCount, 2);
+    assert.equal(report.report.wallets[0].openRequests, 1);
+    assert.equal(report.report.wallets[0].failedRequests, 1);
+    assert.equal(
+      report.report.wallets[0].countsByNextAction.find(
+        (entry) => entry.recommendedAction === 'mark-ready'
+      )?.count,
+      1
+    );
+    assert.equal(
+      report.report.wallets[0].countsByNextAction.find(
+        (entry) => entry.recommendedAction === 'retry-payment'
+      )?.count,
+      1
+    );
     assert.equal(report.report.requests.length, 2);
     const failedReportRequest = report.report.requests.find((entry) => entry.requestId === requestId);
     assert.equal(failedReportRequest?.routeKind, 'set-status');

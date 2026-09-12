@@ -961,6 +961,7 @@ function paymentReportLines(report: PaymentRequestsReportView): Array<[string, s
   const lines: Array<[string, string]> = [
     ['generated', report.generatedAt],
     ['requests', String(report.summary.totalRequests)],
+    ['wallet groups', String(report.summary.distinctWalletCount)],
     ['open', String(report.summary.openRequests)],
     ['blocked', String(report.summary.blockedRequests)],
     ['completed', String(report.summary.completedRequests)],
@@ -1024,6 +1025,13 @@ function paymentReportLines(report: PaymentRequestsReportView): Array<[string, s
     valueKey: 'routeKind'
   });
   if (routeKindCounts) lines.push(['route counts', routeKindCounts]);
+
+  for (const wallet of report.wallets.slice(0, 3)) {
+    lines.push([
+      'wallet',
+      `${wallet.walletName} ${wallet.requestCount} requests open=${wallet.openRequests} failed=${wallet.failedRequests} blocked=${wallet.blockedRequests}`
+    ]);
+  }
 
   for (const request of report.requests.slice(0, 5)) {
     lines.push([

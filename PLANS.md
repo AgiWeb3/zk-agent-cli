@@ -69,6 +69,9 @@ vertical integrations.
 - `zk-agent payment report` now also exposes wallet-aware next-action and
   route-kind distribution across stored requests, so cross-request reporting no
   longer stops at raw lifecycle/status counts
+- `zk-agent payment report` now also emits wallet-level aggregates, so later
+  control-plane style consumers can read wallet-scoped payment posture without
+  recomputing it outside the CLI
 - `zk-agent payment queue` now exposes the first stable cross-request
   actionable queue surface that bundles descriptor, execution plan, and
   wallet-aware next-route data for platform-style request follow-up

@@ -691,9 +691,26 @@ test('payment report aggregates cross-request status counts and recent activity'
 
   assert.equal(report.format, 'zk-agent-payment-report');
   assert.equal(report.summary.totalRequests, 2);
+  assert.equal(report.summary.distinctWalletCount, 2);
   assert.equal(report.summary.openRequests, 1);
   assert.equal(report.summary.failedRequests, 1);
   assert.equal(report.summary.historyEventCount, 5);
+  assert.equal(report.wallets.length, 2);
+  assert.equal(report.wallets[0]?.walletName, 'ops');
+  assert.equal(report.wallets[0]?.requestCount, 1);
+  assert.equal(report.wallets[0]?.failedRequests, 1);
+  assert.equal(
+    report.wallets[0]?.countsByNextAction.find(
+      (entry) => entry.recommendedAction === 'retry-payment'
+    )?.count,
+    1
+  );
+  assert.equal(
+    report.wallets[1]?.countsByNextAction.find(
+      (entry) => entry.recommendedAction === 'execute-payment'
+    )?.count,
+    1
+  );
   assert.equal(report.requests.length, 2);
   assert.equal(report.recentActivity.length, 3);
   assert.equal(report.requests[0]?.nextAction, 'retry-payment');
