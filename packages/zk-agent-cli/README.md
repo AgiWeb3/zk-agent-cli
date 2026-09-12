@@ -39,10 +39,24 @@ the approval-based pay path when fee-token/default state matters, and recover
 funding only when the workflow says the write path is blocked.
 
 The first Agent Pay platform primitive now exists as a local-first payment
-request surface:
+ingress, request, routing, and approval-orchestration surface:
 
 ```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment queue
+zk-agent payment report
+zk-agent payment approval --request-id <id>
+zk-agent payment sync-approval --request-id <id>
 zk-agent payment create --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment inspect --request-id <id>
+zk-agent payment intent --request-id <id>
+zk-agent payment describe --request-id <id>
+zk-agent payment execution --request-id <id>
+zk-agent payment quote --request-id <id>
+zk-agent payment refresh-quote --request-id <id>
+zk-agent payment settlement --request-id <id>
+zk-agent payment reconcile --request-id <id> --status <status>
 zk-agent payment list
 ```
 
@@ -128,7 +142,8 @@ ZK_AGENT_STORAGE_DIR=
   `zk-agent wallet next --name <wallet>`: wallet-scoped repair and readiness
 - `zk-agent workflow ...`: explicit workflow planning, persistence, status, and
   resume questions
-- `zk-agent payment ...`: local-first payment request capture and settlement-state tracking for the Agent Pay platform layer
+- `zk-agent payment ...`: local-first payment ingress, request capture, routing,
+  and settlement-state tracking for the Agent Pay platform layer
 - `zk-agent suite`: the packaged post-flagship catalog once wallet readiness is
   no longer the blocker
 

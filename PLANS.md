@@ -38,18 +38,68 @@ vertical integrations.
   same readout
 - a first local-first Agent Pay primitive now exists through
   `zk-agent payment`:
-  create, list, show, set-status, and remove payment request records
+  submit, create, list, show, set-status, and remove payment request records
 - the Agent Pay request domain now has a dedicated workspace boundary under
   `packages/agent-pay` instead of living inside `agent-core`
 - wallet records now have a stable `walletId`, and Agent Pay linkage is moving
   off mutable wallet names toward that identifier
 - `packages/agent-pay` now also owns a first application-service layer for
-  payment create/show/list/set-status/remove orchestration, reducing direct
-  payment branching inside CLI command code
+  payment submit/create/show/list/set-status/remove orchestration, reducing
+  direct payment branching inside CLI command code
 - `packages/agent-pay` now also owns the first stable payment execution-plan
   contract, so CLI JSON no longer invents plan fields ad hoc
+- `zk-agent payment intent` now exposes the first stable business-intent read
+  surface for payer/payee payment semantics
+- `zk-agent payment inspect` now exposes the first stable aggregate read
+  surface that bundles the current payment-domain object set
+- `zk-agent payment next` now exposes the first stable compact follow-up route
+  surface for one stored payment request
+- `zk-agent payment submit` now exposes the first stable compact ingress write
+  surface for one local-first payment submission
+- `payment inspect.summary` now exposes the first stable action-oriented
+  aggregate contract for agent consumers
 - payment records now keep a first append-only `history[]` baseline so state
   changes are no longer only represented by the latest settlement snapshot
+- `zk-agent payment history` now exposes the first dedicated history read
+  surface on top of that append-only payment-event baseline
+- `zk-agent payment report` now exposes the first stable local cross-request
+  reporting surface above that payment-event baseline
+- `zk-agent payment report` now also exposes wallet-aware next-action and
+  route-kind distribution across stored requests, so cross-request reporting no
+  longer stops at raw lifecycle/status counts
+- `zk-agent payment queue` now exposes the first stable cross-request
+  actionable queue surface that bundles descriptor, execution plan, and
+  wallet-aware next-route data for platform-style request follow-up
+- `zk-agent payment approval` now exposes the first stable approval-readiness
+  inspection surface above one stored payment request and its linked wallet
+- `zk-agent payment sync-approval` now exposes the first stable local
+  approval-orchestration write surface above linked wallet state
+- `zk-agent payment next` and `zk-agent payment inspect` now also overlay
+  linked wallet approval and signer blockers on top of the raw payment record
+  route, so execution is no longer suggested when wallet repair is still the
+  real blocker
+- `zk-agent payment create` and `zk-agent payment submit` now also emit that
+  wallet-aware follow-up route immediately instead of forcing a second read
+- `zk-agent payment describe` now exposes the first stable request-descriptor
+  read surface for payer/payee payment intent
+- `zk-agent payment execution` now exposes the first stable execution-state
+  read surface above the current selected execution path
+- `zk-agent payment quote` now exposes the first stable local execution-quote
+  read surface above the current execution-plan contract
+- `zk-agent payment refresh-quote` now exposes the first stable quote-refresh
+  write surface above that local quote contract
+- `zk-agent payment settlement` now exposes the first stable settlement-state
+  read surface above the local payment status baseline
+- `zk-agent payment reconcile` now exposes the first stable settlement-
+  reconciliation write surface above that local settlement contract
+- the local Agent Pay read model now distinguishes
+  `ready-to-execute`, `broadcasted`, and `confirmed` lifecycle states without
+  breaking the original `draft|ready|paid|cancelled` storage baseline
+- the local request status model now also carries explicit
+  `approval_pending`, `failed`, and `expired` states for blocked or stale
+  payment handling
+- the local request history now also distinguishes approval required from
+  approval satisfied through dedicated append-only events
 - `suite` now exposes both top-level `journeys[]` and `surfaces[]` so callers
   can choose by operator question or jump directly to the deeper owning
   surface
@@ -97,10 +147,12 @@ vertical integrations.
   not yet compressed into a simpler market-facing story
 - the current product shell still needs a more obvious “why this product” and
   “start here” path for first-time public users
-- Agent Pay is not yet a first-class product surface: there is no payer/payee
-  contract, quote/invoice/checkpoint surface, settlement history layer, or
-  service-facing payment entrypoint built on top of the current wallet session
-  and workflow primitives
+- Agent Pay is still not a first-class product surface yet: the local request
+  domain now has intent/descriptor/execution/quote/settlement/history reads,
+  `submit`, `report`, `approval`, `sync-approval`, `next`, `refresh-quote`,
+  and `reconcile` service surfaces, and first explicit blocked/failure states,
+  but it still lacks the service-facing payer/payee request model and
+  hosted/platform-grade reporting above the current local request store
 - local agent identity exists, but zkSync-native public identity/reputation is
   still intentionally deferred
 - release discipline is better, but repeated RC and final `1.0.0` promotion

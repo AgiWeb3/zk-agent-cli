@@ -865,6 +865,7 @@ compresses that routing contract into:
 
 - `walletName`
 - `chain`
+- `submit`
 - `intent`
 - `nextAction`
 - `paymasterMode`
@@ -2471,20 +2472,103 @@ but also the agent-identity layer.
 
 Current stable subcommands on this surface are:
 
+- `submit`
+- `queue`
+- `report`
 - `create`
 - `list`
 - `show`
+- `inspect`
+- `intent`
+- `describe`
+- `execution`
+- `quote`
+- `refresh-quote`
+- `settlement`
+- `reconcile`
+- `history`
 - `set-status`
 - `remove`
 
-### `payment create` / `payment show` / `payment set-status`
+### `payment submit`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `ingress`
+- `next`
+- `nextCommand`
+- `recommendedCommands`
+
+`payment submit` is the compact local-first payment ingress write surface. It
+accepts the same payment-intent input shape as `payment create`, persists the
+request locally, and returns a smaller service-facing contract than the raw
+stored record. The returned `next` surface is already wallet-aware, so wallet
+repair can win over raw execution when approval or signer readiness is still
+missing.
+
+Current stable `ingress` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `assetKind`
+- `settlementStatus`
+- `lifecycleState`
+- `action`
+- `surface`
+- `paymasterMode`
+- `submissionState`
+- `ingressMode`
+- `acceptedAt`
+- `historyCount`
+- `route`
+
+Current stable `submissionState` values are:
+
+- `accepted`
+
+Current stable `ingressMode` values are:
+
+- `local-first`
+
+`ingress.route` reuses the same stable route shape described under
+`payment next`.
+
+### `payment create`
 
 Current stable top-level fields:
 
 - `ok`
 - `paymentRequest`
 - `executionPlan`
+- `next`
+- `nextCommand`
 - `recommendedCommands`
+
+`payment create` is the lower-level local record write surface. It now also
+returns the wallet-aware `payment next` decision immediately so callers do not
+need an extra round-trip to discover approval or signer blockers.
+
+### `payment show` / `payment set-status`
+
+Current stable top-level fields:
+
+- `ok`
+- `paymentRequest`
+- `executionPlan`
+- `next`
+- `nextCommand`
+- `recommendedCommands`
+
+`payment show` and `payment set-status` both return the same wallet-aware
+compact `next` route used by `payment next`, so callers can keep one read/write
+loop without separately re-deriving wallet approval or signer blockers.
 
 Current stable `paymentRequest` fields:
 
@@ -2528,7 +2612,11 @@ Current stable `paymentRequest.executionPreference` fields:
 Current stable `paymentRequest.settlement` fields:
 
 - `status`
+- `approvalPendingAt`
+- `broadcastedAt`
 - `paidAt`
+- `failedAt`
+- `expiredAt`
 - `cancelledAt`
 - `txHash`
 - `note`
@@ -2546,14 +2634,25 @@ Current stable `paymentRequest.history[]` fields:
 Current stable settlement statuses on this surface are:
 
 - `draft`
+- `approval_pending`
 - `ready`
 - `paid`
+- `failed`
+- `expired`
 - `cancelled`
 
 Current stable `paymentRequest.history[].type` values on this surface are:
 
 - `created`
 - `status-updated`
+- `approval-pending`
+- `approval-satisfied`
+- `quote-refreshed`
+- `broadcasted`
+- `confirmed`
+- `failed`
+- `expired`
+- `reconciled`
 
 Legacy local records created before history support may be auto-migrated to a
 single condensed `created` event on read. New records and new status changes
@@ -2584,6 +2683,583 @@ Current stable top-level fields:
 
 `requests[]` reuses the same stable `paymentRequest` record shape described
 above.
+
+### `payment queue`
+
+Current stable top-level fields:
+
+- `ok`
+- `queue`
+- `recommendedCommands`
+
+`payment queue` is the first cross-request actionable Agent Pay queue surface.
+It bundles a stable payer/payee request descriptor, the current execution plan,
+and the wallet-aware `next` route for each matching stored request so later
+API or platform consumers can reuse one queue contract instead of re-reading
+each request individually.
+
+Current stable `queue` fields:
+
+- `format`
+- `version`
+- `generatedAt`
+- `filters`
+- `count`
+- `items`
+
+Current stable `queue.filters` fields:
+
+- `walletName`
+- `status`
+- `limit`
+
+Current stable `queue.items[]` fields:
+
+- `descriptor`
+- `executionPlan`
+- `next`
+
+`queue.items[].descriptor` reuses the same stable descriptor shape documented
+under `payment describe`.
+
+`queue.items[].executionPlan` reuses the same stable execution-plan field set
+documented under `payment create` / `payment show`.
+
+`queue.items[].next` reuses the same wallet-aware compact route shape
+documented under `payment next`.
+
+### `payment report`
+
+Current stable top-level fields:
+
+- `ok`
+- `report`
+- `recommendedCommands`
+
+`payment report` is the first stable local cross-request reporting surface for
+Agent Pay. It aggregates filtered stored payment requests, summarizes their
+current status distribution, and exposes recent activity across requests.
+
+Current stable `report` fields:
+
+- `format`
+- `version`
+- `generatedAt`
+- `filters`
+- `summary`
+- `countsByStatus`
+- `countsByLifecycle`
+- `countsBySurface`
+- `countsByPaymasterMode`
+- `countsByNextAction`
+- `countsByRouteKind`
+- `requests`
+- `recentActivity`
+
+Current stable `report.filters` fields:
+
+- `walletName`
+- `status`
+- `recentActivityLimit`
+
+Current stable `report.summary` fields:
+
+- `totalRequests`
+- `openRequests`
+- `blockedRequests`
+- `completedRequests`
+- `failedRequests`
+- `expiredRequests`
+- `cancelledRequests`
+- `historyEventCount`
+- `latestActivityAt`
+
+Current stable `report.requests[]` fields:
+
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `assetKind`
+- `amount`
+- `symbol`
+- `payeeAddress`
+- `settlementStatus`
+- `lifecycleState`
+- `action`
+- `surface`
+- `paymasterMode`
+- `nextAction`
+- `routeKind`
+- `updatedAt`
+- `historyCount`
+
+Current stable `report.recentActivity[]` fields:
+
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `action`
+- `surface`
+- `eventId`
+- `type`
+- `at`
+- `status`
+- `previousStatus`
+- `txHash`
+- `note`
+
+Current stable `report.countsByNextAction[]` fields:
+
+- `recommendedAction`
+- `count`
+
+Current stable `report.countsByRouteKind[]` fields:
+
+- `routeKind`
+- `count`
+
+`payment report` now reuses the wallet-aware next-route overlay from the stored
+payment service layer, so `report.requests[].nextAction`,
+`report.requests[].routeKind`, and the corresponding count arrays describe the
+real next-step distribution after wallet approval and signer blockers are
+applied, not only the raw settlement lifecycle.
+
+### `payment approval`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `approval`
+- `nextCommand`
+- `recommendedCommands`
+
+`payment approval` is the stable per-request approval-readiness inspection
+surface. It evaluates the stored payment request against its linked wallet
+session and returns the shortest local remediation or continuation route.
+
+Current stable `approval` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `settlementStatus`
+- `lifecycleState`
+- `executionState`
+- `historyCount`
+- `walletState`
+- `approvalState`
+- `approvalReady`
+- `approvalExpired`
+- `walletFound`
+- `walletIdMatched`
+- `walletChainMatched`
+- `sessionExpiresAt`
+- `localExecutionReady`
+- `localExecutionSignerType`
+- `orchestrationStatus`
+- `recommendedAction`
+- `inspectionRecommendedAction`
+- `route`
+- `notes`
+
+Current stable `approval.route` fields:
+
+- `kind`
+- `status`
+
+Current stable `approval.route.kind` values are:
+
+- `wallet-list`
+- `wallet-reapprove`
+- `wallet-attach-signer`
+- `payment-set-status`
+- `payment-next`
+- `none`
+
+### `payment sync-approval`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `sync`
+- `approval`
+- `paymentRequest`
+- `executionPlan`
+- `nextCommand`
+- `recommendedCommands`
+
+`payment sync-approval` is the stable local approval-orchestration write
+surface. It synchronizes `approval_pending <-> ready` based on the currently
+linked wallet session without executing the payment itself.
+
+Current stable `sync` fields:
+
+- `attemptedAt`
+- `applied`
+- `action`
+- `previousStatus`
+- `nextStatus`
+- `reason`
+
+### `payment next`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `nextCommand`
+- `next`
+- `recommendedCommands`
+
+`payment next` is the compact follow-up route surface for one stored payment
+request. It is the smallest stable payment read surface when the caller only
+needs the current follow-up decision instead of the full aggregate inspect
+payload.
+
+Current stable `next` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `lifecycleState`
+- `settlementStatus`
+- `executionState`
+- `recommendedAction`
+- `action`
+- `surface`
+- `paymasterMode`
+- `historyCount`
+- `route`
+
+Current stable `next.route.kind` values are:
+
+- `set-status`
+- `wallet-list`
+- `wallet-reapprove`
+- `wallet-attach-signer`
+- `execute`
+- `none`
+
+`payment next` may override the raw payment-record route when linked wallet
+recovery is more urgent than execution itself. In practice this means a
+`ready-to-execute` payment can still route to wallet repair when approval is
+missing, expired, or the local signer is absent.
+
+When `next.route.kind` is `set-status`, the route object currently also carries
+these stable fields:
+
+- `status`
+- `txHash`
+- `txHashPolicy`
+
+Current stable `txHashPolicy` values are:
+
+- `not-applicable`
+- `required`
+- `stored`
+
+### `payment inspect`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `nextCommand`
+- `next`
+- `summary`
+- `intent`
+- `descriptor`
+- `execution`
+- `quote`
+- `settlement`
+- `history`
+- `recommendedCommands`
+
+`inspect` is the aggregate read surface for one stored payment request. It
+reuses the stable object shapes documented under `payment intent`,
+`payment describe`, `payment execution`, `payment quote`, `payment settlement`,
+`paymentRequest.history[]`, and `payment next`.
+
+`nextCommand` is the exact CLI follow-up for `summary.recommendedAction` when
+one exists on the current request. `inspect.next` is the same compact route
+contract returned by `payment next`, while `nextCommand` is the exact CLI
+follow-up rendered from that route object. It is currently either the concrete
+`payment set-status --status ready` command for drafts, the concrete execution
+command for ready-to-execute requests, the concrete wallet reapproval command
+for `approval_pending` requests, the concrete `payment set-status --status paid
+--tx-hash ...` command for broadcasted requests, the concrete
+`payment set-status --status ready` command for failed requests, the concrete
+`payment set-status --status draft` command for expired requests, or `null`
+when no next command is implied.
+
+Current stable `summary` fields:
+
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `assetKind`
+- `lifecycleState`
+- `settlementStatus`
+- `executionState`
+- `action`
+- `surface`
+- `paymasterMode`
+- `historyCount`
+- `statusClass`
+- `readinessClass`
+- `recommendedAction`
+
+Current stable `lifecycleState` values on these payment read surfaces are:
+
+- `draft`
+- `approval-pending`
+- `ready-to-execute`
+- `broadcasted`
+- `confirmed`
+- `failed`
+- `expired`
+- `cancelled`
+
+Current stable `executionState` values on `summary` and `execution` are:
+
+- `pending-approval`
+- `planned`
+- `broadcasted`
+- `completed`
+- `failed`
+- `expired`
+- `cancelled`
+
+### `payment intent`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `intent`
+- `recommendedCommands`
+
+Current stable `intent` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `payer`
+- `payee`
+- `asset`
+- `description`
+- `memo`
+- `metadata`
+- `createdAt`
+- `updatedAt`
+
+### `payment describe`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `descriptor`
+- `recommendedCommands`
+
+Current stable `descriptor` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `chain`
+- `chainId`
+- `payer`
+- `payee`
+- `asset`
+- `description`
+- `memo`
+- `metadata`
+- `executionPreference`
+- `settlement`
+- `createdAt`
+- `updatedAt`
+
+`descriptor.payer`, `descriptor.payee`, `descriptor.asset`,
+`descriptor.executionPreference`, and `descriptor.settlement` reuse the same
+stable field shapes described under `paymentRequest`.
+
+### `payment execution`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `execution`
+- `recommendedCommands`
+
+Current stable `execution` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `executionState`
+- `lifecycleState`
+- `settlementStatus`
+- `action`
+- `surface`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `paymasterMode`
+- `payeeAddress`
+- `asset`
+- `approvalPendingAt`
+- `broadcastedAt`
+- `paidAt`
+- `failedAt`
+- `expiredAt`
+- `txHash`
+- `note`
+- `updatedAt`
+
+### `payment quote`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `quote`
+- `recommendedCommands`
+
+Current stable `quote` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `quoteKind`
+- `lifecycleState`
+- `settlementStatus`
+- `broadcastedAt`
+- `quotedAt`
+- `execution`
+
+Current stable `quote.execution` fields:
+
+- `action`
+- `surface`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `paymasterMode`
+- `payeeAddress`
+- `asset`
+
+`quote.quotedAt` is currently the last explicit local quote-refresh timestamp
+when one exists, or the payment-request creation time when no explicit quote
+refresh has been recorded yet.
+
+The current `quote` surface is a stable local execution quote, not a market
+price or DEX routing quote.
+
+### `payment refresh-quote`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `quote`
+- `recommendedCommands`
+
+`payment refresh-quote` persists a local quote-refresh history event and then
+returns the same stable `quote` object shape documented above.
+
+### `payment settlement`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `settlement`
+- `next`
+- `nextCommand`
+- `recommendedCommands`
+
+`payment settlement` returns the same wallet-aware `next` route documented
+under `payment next`, so settlement readers can still receive the shortest
+follow-up command without an extra `payment next` call.
+
+Current stable `settlement` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `lifecycleState`
+- `status`
+- `approvalPendingAt`
+- `broadcastedAt`
+- `paidAt`
+- `failedAt`
+- `expiredAt`
+- `cancelledAt`
+- `reconciledAt`
+- `txHash`
+- `note`
+- `updatedAt`
+- `historyCount`
+- `latestEventAt`
+- `latestEventType`
+
+### `payment reconcile`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `settlement`
+- `next`
+- `nextCommand`
+- `recommendedCommands`
+
+`payment reconcile` applies an explicit local settlement correction and then
+returns the same stable `settlement` object shape documented above plus the
+same compact `next` route shape documented under `payment next`.
+
+### `payment history`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `count`
+- `filters`
+- `history`
+- `recommendedCommands`
+
+Current stable `filters` fields:
+
+- `type`
+- `status`
+
+`history[]` reuses the same stable `paymentRequest.history[]` event shape
+described above.
 
 ### `payment remove`
 

@@ -21,10 +21,45 @@ Current implementation status:
 - a dedicated `packages/agent-pay` package now exists
 - local-first payment request records exist through `zk-agent payment`
 - a first payment application-service layer now exists inside `agent-pay`
+- a first compact payment ingress write surface now exists through
+  `zk-agent payment submit`
+- a first dedicated payment intent read surface now exists through
+  `zk-agent payment intent`
+- a first dedicated aggregate payment inspection read surface now exists
+  through `zk-agent payment inspect`
+- a first compact payment follow-up route surface now exists through
+  `zk-agent payment next`
 - a first execution-plan contract now exists inside `agent-pay`, so the CLI
   consumes execution planning instead of inventing it ad hoc
 - a first append-only payment history baseline now exists on payment records,
   with legacy local records migrated forward on read
+- a first dedicated payment-history read surface now exists through
+  `zk-agent payment history`
+- a first dedicated cross-request payment reporting surface now exists through
+  `zk-agent payment report`
+- a first dedicated payment-approval inspection surface now exists through
+  `zk-agent payment approval`
+- a first dedicated local approval-orchestration write surface now exists
+  through `zk-agent payment sync-approval`
+- a first dedicated payment request-descriptor read surface now exists through
+  `zk-agent payment describe`
+- a first dedicated payment execution read surface now exists through
+  `zk-agent payment execution`
+- a first dedicated payment quote read surface now exists through
+  `zk-agent payment quote`
+- a first dedicated payment quote-refresh write surface now exists through
+  `zk-agent payment refresh-quote`
+- a first dedicated payment settlement read surface now exists through
+  `zk-agent payment settlement`
+- a first dedicated payment reconciliation write surface now exists through
+  `zk-agent payment reconcile`
+- the current read surfaces now also distinguish
+  `ready-to-execute -> broadcasted -> confirmed` without breaking the original
+  local settlement-status compatibility layer
+- the local request layer now also carries first explicit blocked/failed
+  operator states through `approval_pending`, `failed`, and `expired`
+- the local request history now also distinguishes approval-required from
+  approval-satisfied through dedicated append-only events
 - the current implementation is still an early primitive, not the final
   architecture described below
 

@@ -40,10 +40,24 @@ matters, and recover funding only when the workflow says the write path is
 blocked.
 
 The first Agent Pay platform primitive now exists as a local-first payment
-request surface:
+ingress, request, routing, and approval-orchestration surface:
 
 ```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment queue
+zk-agent payment report
+zk-agent payment approval --request-id <id>
+zk-agent payment sync-approval --request-id <id>
 zk-agent payment create --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment inspect --request-id <id>
+zk-agent payment intent --request-id <id>
+zk-agent payment describe --request-id <id>
+zk-agent payment execution --request-id <id>
+zk-agent payment quote --request-id <id>
+zk-agent payment refresh-quote --request-id <id>
+zk-agent payment settlement --request-id <id>
+zk-agent payment reconcile --request-id <id> --status <status>
 zk-agent payment list
 ```
 

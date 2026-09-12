@@ -4,7 +4,14 @@ import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 
 import { AgentError } from '@zk-agent/agent-core';
 
-export type PaymentRequestStatus = 'draft' | 'ready' | 'paid' | 'cancelled';
+export type PaymentRequestStatus =
+  | 'draft'
+  | 'approval_pending'
+  | 'ready'
+  | 'paid'
+  | 'failed'
+  | 'expired'
+  | 'cancelled';
 export type PaymentRequestAssetKind = 'native' | 'erc20';
 export type PaymentExecutionSurface = 'workflow-pay' | 'send-token';
 
@@ -35,13 +42,27 @@ export interface PaymentExecutionPreference {
 
 export interface PaymentRequestSettlement {
   status: PaymentRequestStatus;
+  approvalPendingAt?: string;
+  broadcastedAt?: string;
   paidAt?: string;
+  failedAt?: string;
+  expiredAt?: string;
   cancelledAt?: string;
   txHash?: string;
   note?: string;
 }
 
-export type PaymentHistoryEventType = 'created' | 'status-updated';
+export type PaymentHistoryEventType =
+  | 'created'
+  | 'status-updated'
+  | 'approval-pending'
+  | 'approval-satisfied'
+  | 'quote-refreshed'
+  | 'broadcasted'
+  | 'confirmed'
+  | 'failed'
+  | 'expired'
+  | 'reconciled';
 
 export interface PaymentHistoryEvent {
   eventId: string;
@@ -99,13 +120,40 @@ export interface PaymentRequestStatusUpdateInput {
   note?: string;
 }
 
+export interface PaymentRequestQuoteRefreshInput {
+  note?: string;
+  quotedAt?: string;
+}
+
+export interface PaymentRequestReconciliationInput {
+  status: PaymentRequestStatus;
+  txHash?: string;
+  note?: string;
+}
+
 const PAYMENT_REQUEST_STATUS_TRANSITIONS: Record<
   PaymentRequestStatus,
   PaymentRequestStatus[]
 > = {
-  draft: ['draft', 'ready', 'cancelled'],
-  ready: ['draft', 'ready', 'paid', 'cancelled'],
+  draft: ['draft', 'approval_pending', 'ready', 'expired', 'cancelled'],
+  approval_pending: ['draft', 'approval_pending', 'ready', 'failed', 'expired', 'cancelled'],
+  ready: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
   paid: ['paid'],
+  failed: ['draft', 'approval_pending', 'ready', 'failed', 'expired', 'cancelled'],
+  expired: ['draft', 'approval_pending', 'ready', 'expired', 'cancelled'],
+  cancelled: ['cancelled']
+};
+
+const PAYMENT_REQUEST_RECONCILIATION_TRANSITIONS: Record<
+  PaymentRequestStatus,
+  PaymentRequestStatus[]
+> = {
+  draft: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
+  approval_pending: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
+  ready: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
+  paid: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
+  failed: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
+  expired: ['draft', 'approval_pending', 'ready', 'paid', 'failed', 'expired', 'cancelled'],
   cancelled: ['cancelled']
 };
 
@@ -218,6 +266,17 @@ export function migratePaymentRequestRecord(
 ): PaymentRequestRecord {
   return {
     ...record,
+    settlement: {
+      ...record.settlement,
+      approvalPendingAt: normalizeOptionalString(record.settlement.approvalPendingAt),
+      broadcastedAt: normalizeOptionalString(record.settlement.broadcastedAt),
+      paidAt: normalizeOptionalString(record.settlement.paidAt),
+      failedAt: normalizeOptionalString(record.settlement.failedAt),
+      expiredAt: normalizeOptionalString(record.settlement.expiredAt),
+      cancelledAt: normalizeOptionalString(record.settlement.cancelledAt),
+      txHash: normalizeOptionalString(record.settlement.txHash),
+      note: normalizeOptionalString(record.settlement.note)
+    },
     history:
       Array.isArray(record.history) && record.history.length > 0
         ? record.history.map((event) => ({
@@ -305,21 +364,155 @@ export function applyPaymentRequestStatusUpdate(
   const timestamp = nowIso();
   const nextTxHash = normalizeOptionalString(input.txHash);
   const nextNote = normalizeOptionalString(input.note);
+  const isApprovalPendingEvent =
+    nextStatus === 'approval_pending' &&
+    (record.settlement.status !== 'approval_pending' || !record.settlement.approvalPendingAt);
+  const isApprovalSatisfiedEvent =
+    nextStatus === 'ready' &&
+    record.settlement.status === 'approval_pending' &&
+    !nextTxHash;
+  const isBroadcastedEvent =
+    nextStatus === 'ready' &&
+    Boolean(nextTxHash) &&
+    (record.settlement.txHash !== nextTxHash || !record.settlement.broadcastedAt);
+  const eventType: PaymentHistoryEventType =
+    nextStatus === 'approval_pending'
+      ? 'approval-pending'
+      : isApprovalSatisfiedEvent
+      ? 'approval-satisfied'
+      : nextStatus === 'paid'
+      ? 'confirmed'
+      : nextStatus === 'failed'
+        ? 'failed'
+        : nextStatus === 'expired'
+          ? 'expired'
+      : isBroadcastedEvent
+        ? 'broadcasted'
+        : 'status-updated';
 
   return {
     ...record,
     updatedAt: timestamp,
     settlement: {
       status: nextStatus,
-      paidAt: nextStatus === 'paid' ? timestamp : record.settlement.paidAt,
-      cancelledAt: nextStatus === 'cancelled' ? timestamp : record.settlement.cancelledAt,
+      approvalPendingAt: isApprovalPendingEvent
+        ? timestamp
+        : record.settlement.approvalPendingAt,
+      broadcastedAt: isBroadcastedEvent ? timestamp : record.settlement.broadcastedAt,
+      paidAt:
+        nextStatus === 'paid' ? (record.settlement.paidAt ?? timestamp) : record.settlement.paidAt,
+      failedAt:
+        nextStatus === 'failed'
+          ? (record.settlement.failedAt ?? timestamp)
+          : record.settlement.failedAt,
+      expiredAt:
+        nextStatus === 'expired'
+          ? (record.settlement.expiredAt ?? timestamp)
+          : record.settlement.expiredAt,
+      cancelledAt:
+        nextStatus === 'cancelled'
+          ? (record.settlement.cancelledAt ?? timestamp)
+          : record.settlement.cancelledAt,
       txHash: nextTxHash ?? record.settlement.txHash,
       note: nextNote ?? record.settlement.note
     },
     history: [
       ...record.history,
       createPaymentHistoryEvent({
-        type: 'status-updated',
+        type: eventType,
+        at: timestamp,
+        status: nextStatus,
+        previousStatus: record.settlement.status,
+        txHash: nextTxHash,
+        note: nextNote
+      })
+    ]
+  };
+}
+
+export function refreshPaymentRequestQuote(
+  record: PaymentRequestRecord,
+  input: PaymentRequestQuoteRefreshInput = {}
+): PaymentRequestRecord {
+  const timestamp = normalizeOptionalString(input.quotedAt) ?? nowIso();
+  const nextNote = normalizeOptionalString(input.note);
+
+  return {
+    ...record,
+    updatedAt: timestamp,
+    history: [
+      ...record.history,
+      createPaymentHistoryEvent({
+        type: 'quote-refreshed',
+        at: timestamp,
+        status: record.settlement.status,
+        note: nextNote
+      })
+    ]
+  };
+}
+
+export function reconcilePaymentRequest(
+  record: PaymentRequestRecord,
+  input: PaymentRequestReconciliationInput
+): PaymentRequestRecord {
+  const nextStatus = input.status;
+  const allowedTransitions =
+    PAYMENT_REQUEST_RECONCILIATION_TRANSITIONS[record.settlement.status];
+
+  if (!allowedTransitions.includes(nextStatus)) {
+    throw new AgentError(
+      'PAYMENT_RECONCILIATION_TRANSITION_INVALID',
+      `Cannot reconcile payment request ${record.requestId} from ${record.settlement.status} to ${nextStatus}.`,
+      {
+        currentStatus: record.settlement.status,
+        nextStatus,
+        allowedTransitions
+      }
+    );
+  }
+
+  const timestamp = nowIso();
+  const nextTxHash = normalizeOptionalString(input.txHash);
+  const nextNote = normalizeOptionalString(input.note);
+  const isApprovalPendingEvent =
+    nextStatus === 'approval_pending' &&
+    (record.settlement.status !== 'approval_pending' || !record.settlement.approvalPendingAt);
+  const isBroadcastedEvent =
+    nextStatus === 'ready' &&
+    Boolean(nextTxHash) &&
+    (record.settlement.txHash !== nextTxHash || !record.settlement.broadcastedAt);
+
+  return {
+    ...record,
+    updatedAt: timestamp,
+    settlement: {
+      status: nextStatus,
+      approvalPendingAt: isApprovalPendingEvent
+        ? timestamp
+        : record.settlement.approvalPendingAt,
+      broadcastedAt: isBroadcastedEvent ? timestamp : record.settlement.broadcastedAt,
+      paidAt:
+        nextStatus === 'paid' ? (record.settlement.paidAt ?? timestamp) : record.settlement.paidAt,
+      failedAt:
+        nextStatus === 'failed'
+          ? (record.settlement.failedAt ?? timestamp)
+          : record.settlement.failedAt,
+      expiredAt:
+        nextStatus === 'expired'
+          ? (record.settlement.expiredAt ?? timestamp)
+          : record.settlement.expiredAt,
+      cancelledAt:
+        nextStatus === 'cancelled'
+          ? (record.settlement.cancelledAt ?? timestamp)
+          : record.settlement.cancelledAt,
+      txHash: nextTxHash ?? record.settlement.txHash,
+      note: nextNote ?? record.settlement.note
+    },
+    history: [
+      ...record.history,
+      createPaymentHistoryEvent({
+        type: 'reconciled',
         at: timestamp,
         status: nextStatus,
         previousStatus: record.settlement.status,

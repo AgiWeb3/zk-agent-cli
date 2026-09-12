@@ -354,13 +354,83 @@ export function buildPaymentListRecommendedCommand(): string {
   return 'zk-agent payment list';
 }
 
+export function buildPaymentQueueRecommendedCommand(): string {
+  return 'zk-agent payment queue';
+}
+
+export function buildPaymentSubmitRecommendedCommand(): string {
+  return 'zk-agent payment submit --wallet main --to <address> --amount <amount>';
+}
+
+export function buildPaymentReportRecommendedCommand(): string {
+  return 'zk-agent payment report';
+}
+
+export function buildPaymentApprovalRecommendedCommand(requestId: string): string {
+  return `zk-agent payment approval --request-id ${requestId}`;
+}
+
+export function buildPaymentSyncApprovalRecommendedCommand(requestId: string): string {
+  return `zk-agent payment sync-approval --request-id ${requestId}`;
+}
+
 export function buildPaymentShowRecommendedCommand(requestId: string): string {
   return `zk-agent payment show --request-id ${requestId}`;
 }
 
+export function buildPaymentInspectRecommendedCommand(requestId: string): string {
+  return `zk-agent payment inspect --request-id ${requestId}`;
+}
+
+export function buildPaymentNextRecommendedCommand(requestId: string): string {
+  return `zk-agent payment next --request-id ${requestId}`;
+}
+
+export function buildPaymentDescribeRecommendedCommand(requestId: string): string {
+  return `zk-agent payment describe --request-id ${requestId}`;
+}
+
+export function buildPaymentIntentRecommendedCommand(requestId: string): string {
+  return `zk-agent payment intent --request-id ${requestId}`;
+}
+
+export function buildPaymentExecutionRecommendedCommand(requestId: string): string {
+  return `zk-agent payment execution --request-id ${requestId}`;
+}
+
+export function buildPaymentQuoteRecommendedCommand(requestId: string): string {
+  return `zk-agent payment quote --request-id ${requestId}`;
+}
+
+export function buildPaymentRefreshQuoteRecommendedCommand(requestId: string): string {
+  return `zk-agent payment refresh-quote --request-id ${requestId}`;
+}
+
+export function buildPaymentSettlementRecommendedCommand(requestId: string): string {
+  return `zk-agent payment settlement --request-id ${requestId}`;
+}
+
+export function buildPaymentHistoryRecommendedCommand(requestId: string): string {
+  return `zk-agent payment history --request-id ${requestId}`;
+}
+
+export function buildPaymentReconcileRecommendedCommand(
+  requestId: string,
+  status = '<status>'
+): string {
+  return `zk-agent payment reconcile --request-id ${requestId} --status ${status}`;
+}
+
 export function buildPaymentSetStatusRecommendedCommand(
   requestId: string,
-  status: 'draft' | 'ready' | 'paid' | 'cancelled',
+  status:
+    | 'draft'
+    | 'approval_pending'
+    | 'ready'
+    | 'paid'
+    | 'failed'
+    | 'expired'
+    | 'cancelled',
   txHash?: string
 ): string {
   let command = `zk-agent payment set-status --request-id ${requestId} --status ${status}`;
