@@ -152,7 +152,8 @@ export function buildChecklist(options) {
       required: true,
       commands: [buildPublishCommand(options)],
       notes: [
-        'Use --promote-latest only when this cut should also move the latest dist-tag.'
+        'Use --promote-latest only when this cut should also move the latest dist-tag.',
+        'If npm already accepted the publish but post-publish readback failed, rerun release:publish with --skip-publish to resume final verification and optional latest promotion.'
       ]
     }
   ];

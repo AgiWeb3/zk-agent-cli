@@ -199,7 +199,9 @@ directory before it declares success. In practice that propagation can lag by
 several minutes after npm already acknowledges the publish, so slow registry
 readback should be treated as a publish-verification delay first, not
 immediately as proof that the publish itself failed. When needed, rerun with a
-higher `--readback-attempts`.
+higher `--readback-attempts`, or rerun with `--skip-publish` once the target
+version is already visible on npm and only the finalize/readback phase needs
+to resume.
 
 If you need the lower-level building blocks separately, sync the local version
 references first:
@@ -591,6 +593,14 @@ Prefer the supported wrapper for the actual post-publish path:
 
 ```bash
 pnpm release:publish --tag rc --promote-latest
+```
+
+If npm already accepted the publish but the wrapper stopped before final
+readback or `latest` promotion, resume from the post-publish phase only:
+
+```bash
+pnpm release:publish --tag rc --skip-publish
+pnpm release:publish --tag rc --skip-publish --promote-latest
 ```
 
 If you run the three manual readback commands yourself, run them from a

@@ -40,7 +40,7 @@ export function buildExecutionEnv(baseEnv = process.env) {
 
 const executionEnv = buildExecutionEnv();
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = {
     version: null,
     tag: null,
@@ -48,6 +48,7 @@ function parseArgs(argv) {
     readbackAttempts: DEFAULT_READBACK_ATTEMPTS,
     readbackDelayMs: DEFAULT_READBACK_DELAY_MS,
     promoteLatest: false,
+    skipPublish: false,
     skipValidate: false,
     skipNpxSmoke: false,
     dryRun: false,
@@ -93,6 +94,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--skip-publish') {
+      args.skipPublish = true;
+      continue;
+    }
+
     if (arg === '--skip-validate') {
       args.skipValidate = true;
       continue;
@@ -129,7 +135,7 @@ function printHelp() {
     [
       'Usage:',
       '  pnpm release:publish [--version <version>] [--tag <tag>] [--promote-latest] [--otp <code>] [--dry-run]',
-      '    [--skip-validate] [--skip-npx-smoke] [--readback-attempts <count>]',
+      '    [--skip-publish] [--skip-validate] [--skip-npx-smoke] [--readback-attempts <count>]',
       '    [--readback-delay-ms <ms>] [--allow-dirty]',
       '',
       'Behavior:',
@@ -143,6 +149,8 @@ function printHelp() {
       '  --tag defaults to packages/zk-agent-cli publishConfig.tag or latest.',
       '  --promote-latest runs npm dist-tag add <pkg>@<version> latest after',
       '    successful post-publish readback.',
+      '  --skip-publish skips npm publish and only reruns post-publish readback,',
+      '    npx smoke, and optional latest promotion for an already-published version.',
       '  --dry-run keeps the publish step non-destructive and skips post-publish',
       '    readback assertions.',
       '  --skip-validate skips pnpm validate:release.',
@@ -283,7 +291,7 @@ export function readNpmVersionWithRetry({
     [
       `npm view ${spec} version did not converge to ${expectedVersion}.`,
       summarizeFailure(lastResult),
-      'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts.'
+      'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts or --skip-publish once the version is visible.'
     ]
       .filter(Boolean)
       .join('\n')
@@ -362,7 +370,7 @@ export function readNpmDistTagsWithRetry({
       [
         `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.`,
         `Observed: ${parsed ? JSON.stringify(parsed) : lastResult}`,
-        'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts.'
+        'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts or --skip-publish once the version is visible.'
       ].join('\n')
     );
   }
@@ -371,7 +379,7 @@ export function readNpmDistTagsWithRetry({
     [
       `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.`,
       summarizeFailure(lastResult),
-      'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts.'
+      'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts or --skip-publish once the version is visible.'
     ]
       .filter(Boolean)
       .join('\n')
@@ -390,6 +398,11 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   validatePositiveInteger(args.readbackAttempts, '--readback-attempts');
   validatePositiveInteger(args.readbackDelayMs, '--readback-delay-ms');
+  assert.equal(
+    !(args.skipPublish && args.dryRun),
+    true,
+    '--skip-publish cannot be combined with --dry-run because no publish step would remain to simulate.'
+  );
   ensureCleanWorktree({
     commandLabel: 'release:publish',
     allowDirty: args.allowDirty
@@ -453,7 +466,7 @@ function main() {
       }
     }
 
-    if (typeof existingTarget === 'string' && existingTarget === version && !args.dryRun) {
+    if (typeof existingTarget === 'string' && existingTarget === version && !args.dryRun && !args.skipPublish) {
       throw new Error(`${packageName}@${version} is already published on npm.`);
     }
 
@@ -463,18 +476,29 @@ function main() {
       );
     }
 
-    const publishArgs = ['publish', '--tag', tag];
-    if (args.otp) {
-      publishArgs.push('--otp', args.otp);
-    }
-    if (args.dryRun) {
-      publishArgs.push('--dry-run');
-    }
+    if (args.skipPublish) {
+      assert.equal(
+        typeof existingTarget === 'string' && existingTarget === version,
+        true,
+        `--skip-publish requires ${packageName}@${version} to already be visible on npm.`
+      );
+      process.stdout.write(
+        `Skipping npm publish and resuming post-publish verification for ${packageName}@${version}.\n`
+      );
+    } else {
+      const publishArgs = ['publish', '--tag', tag];
+      if (args.otp) {
+        publishArgs.push('--otp', args.otp);
+      }
+      if (args.dryRun) {
+        publishArgs.push('--dry-run');
+      }
 
-    process.stdout.write(
-      `Publishing ${packageName}@${version} from packages/zk-agent-cli with tag ${tag}${args.dryRun ? ' (dry-run)' : ''}...\n`
-    );
-    runInherited('npm', publishArgs, { cwd: packageDir });
+      process.stdout.write(
+        `Publishing ${packageName}@${version} from packages/zk-agent-cli with tag ${tag}${args.dryRun ? ' (dry-run)' : ''}...\n`
+      );
+      runInherited('npm', publishArgs, { cwd: packageDir });
+    }
 
     if (args.dryRun) {
       process.stdout.write(
@@ -568,6 +592,7 @@ function main() {
         'Release publish completed.',
         `  package: ${packageName}@${version}`,
         `  account: ${npmAccount}`,
+        `  publish step: ${args.skipPublish ? 'skipped (resume mode)' : 'executed'}`,
         `  tag ${tag}: ${finalDistTags[tag]}`,
         `  latest: ${finalDistTags.latest || '(unset)'}`,
         `  neutral cwd: ${neutralDir}`

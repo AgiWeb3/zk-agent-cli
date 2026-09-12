@@ -4,9 +4,40 @@ import test from 'node:test';
 
 import {
   buildExecutionEnv,
+  parseArgs,
   readNpmDistTagsWithRetry,
   readNpmVersionWithRetry
 } from './release-publish.mjs';
+
+test('parseArgs supports resume-style publish finalization', () => {
+  assert.deepEqual(
+    parseArgs([
+      '--version',
+      '0.1.0-rc.5',
+      '--tag',
+      'rc',
+      '--promote-latest',
+      '--skip-publish',
+      '--readback-attempts',
+      '60',
+      '--readback-delay-ms',
+      '7000'
+    ]),
+    {
+      version: '0.1.0-rc.5',
+      tag: 'rc',
+      otp: null,
+      readbackAttempts: 60,
+      readbackDelayMs: 7000,
+      promoteLatest: true,
+      skipPublish: true,
+      skipValidate: false,
+      skipNpxSmoke: false,
+      dryRun: false,
+      allowDirty: false
+    }
+  );
+});
 
 test('buildExecutionEnv strips noisy pnpm npm config env but keeps auth-relevant values', () => {
   const env = buildExecutionEnv({
@@ -69,6 +100,27 @@ test('readNpmVersionWithRetry retries stale dist-tag readback until the expected
   });
 
   assert.equal(result, '0.1.0-rc.0');
+});
+
+test('readNpmVersionWithRetry failure explains skip-publish recovery', () => {
+  assert.throws(
+    () =>
+      readNpmVersionWithRetry({
+        packageName: 'zk-agent-cli',
+        spec: 'zk-agent-cli@0.1.0-rc.5',
+        expectedVersion: '0.1.0-rc.5',
+        attempts: 1,
+        delayMs: 0,
+        log: () => {},
+        run: () => ({
+          ok: false,
+          status: 1,
+          stdout: '',
+          stderr: 'npm error code E404\nnpm error 404 No match found for version 0.1.0-rc.5'
+        })
+      }),
+    /--skip-publish/
+  );
 });
 
 test('readNpmDistTagsWithRetry retries until the expected tag map converges', () => {

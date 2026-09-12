@@ -50,6 +50,15 @@ pnpm release:publish --tag rc
 pnpm release:publish --tag rc --promote-latest
 ```
 
+If npm accepted the publish but the wrapper later failed only on registry
+readback or final dist-tag promotion, resume the post-publish verification
+without republishing:
+
+```bash
+pnpm release:publish --tag rc --skip-publish
+pnpm release:publish --tag rc --skip-publish --promote-latest
+```
+
 ## Supported helper
 
 Use:
