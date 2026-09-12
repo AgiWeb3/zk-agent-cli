@@ -38,26 +38,27 @@ The packaged default story is payment-first: send native value now, stay on
 the approval-based pay path when fee-token/default state matters, and recover
 funding only when the workflow says the write path is blocked.
 
-The first Agent Pay platform primitive now exists as a local-first payment
-ingress, request, routing, and approval-orchestration surface:
+The current local-first Agent Pay entry surface is:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
-zk-agent payment sync-approval --request-id <id>
-zk-agent payment create --wallet main --to <address> --amount <amount>
-zk-agent payment next --request-id <id>
-zk-agent payment inspect --request-id <id>
-zk-agent payment intent --request-id <id>
-zk-agent payment describe --request-id <id>
-zk-agent payment execution --request-id <id>
-zk-agent payment quote --request-id <id>
-zk-agent payment refresh-quote --request-id <id>
-zk-agent payment settlement --request-id <id>
-zk-agent payment reconcile --request-id <id> --status <status>
-zk-agent payment list
+```
+
+Use those four commands for the public "start here" path:
+
+- `submit`: capture one payment request through the compact ingress surface
+- `queue`: review the current actionable request queue
+- `report`: summarize cross-request state and next-action distribution
+- `approval`: inspect whether the linked wallet is still blocking execution
+
+When you already have a request id and need the deeper local lifecycle,
+routing, quote, settlement, or reconciliation views, use:
+
+```bash
+zk-agent payment --help
 ```
 
 If readiness is unclear before you choose a fix, use:
