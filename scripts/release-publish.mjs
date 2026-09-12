@@ -12,15 +12,33 @@ const workspaceRoot = resolve(rootDir, '..');
 const packageDir = join(workspaceRoot, 'packages', 'zk-agent-cli');
 const workspacePackagePath = join(workspaceRoot, 'package.json');
 const publishedPackagePath = join(packageDir, 'package.json');
-const DEFAULT_READBACK_ATTEMPTS = 24;
+const DEFAULT_READBACK_ATTEMPTS = 48;
 const DEFAULT_READBACK_DELAY_MS = 5000;
 const preferredBinDir = dirname(process.execPath);
-const executionEnv = {
-  ...process.env,
-  PATH: process.env.PATH
-    ? `${preferredBinDir}:${process.env.PATH}`
-    : preferredBinDir
-};
+const NOISY_NPM_ENV_KEYS = [
+  'npm_config_npm_globalconfig',
+  'NPM_CONFIG_NPM_GLOBALCONFIG',
+  'npm_config_verify_deps_before_run',
+  'NPM_CONFIG_VERIFY_DEPS_BEFORE_RUN',
+  'npm_config__jsr_registry',
+  'NPM_CONFIG__JSR_REGISTRY'
+];
+
+export function buildExecutionEnv(baseEnv = process.env) {
+  const env = {
+    ...baseEnv,
+    PATH: baseEnv.PATH ? `${preferredBinDir}:${baseEnv.PATH}` : preferredBinDir
+  };
+
+  // Strip known pnpm-injected npm config keys that only add warning noise.
+  for (const key of NOISY_NPM_ENV_KEYS) {
+    delete env[key];
+  }
+
+  return env;
+}
+
+const executionEnv = buildExecutionEnv();
 
 function parseArgs(argv) {
   const args = {
@@ -132,7 +150,7 @@ function printHelp() {
       `  --readback-attempts defaults to ${DEFAULT_READBACK_ATTEMPTS}.`,
       `  --readback-delay-ms defaults to ${DEFAULT_READBACK_DELAY_MS}.`,
       '  These readback settings matter because npm registry propagation can',
-      '  lag behind the initial publish acknowledgement by more than one minute.',
+      '  lag behind the initial publish acknowledgement by several minutes.',
       '  By default the command requires a clean git worktree before publish.',
       '  --allow-dirty bypasses that guard when you intentionally publish from a dirty tree.'
     ].join('\n') + '\n'
@@ -262,7 +280,13 @@ export function readNpmVersionWithRetry({
   }
 
   throw new Error(
-    `npm view ${spec} version did not converge to ${expectedVersion}.\n${summarizeFailure(lastResult)}`
+    [
+      `npm view ${spec} version did not converge to ${expectedVersion}.`,
+      summarizeFailure(lastResult),
+      'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts.'
+    ]
+      .filter(Boolean)
+      .join('\n')
   );
 }
 
@@ -335,14 +359,22 @@ export function readNpmDistTagsWithRetry({
     } catch {}
 
     throw new Error(
-      `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.\nObserved: ${
-        parsed ? JSON.stringify(parsed) : lastResult
-      }`
+      [
+        `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.`,
+        `Observed: ${parsed ? JSON.stringify(parsed) : lastResult}`,
+        'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts.'
+      ].join('\n')
     );
   }
 
   throw new Error(
-    `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.\n${summarizeFailure(lastResult)}`
+    [
+      `npm dist-tags for ${packageName} did not converge to ${JSON.stringify(expectedTags)}.`,
+      summarizeFailure(lastResult),
+      'The publish may have succeeded but npm registry propagation is still lagging; retry the readback or rerun release:publish with higher --readback-attempts.'
+    ]
+      .filter(Boolean)
+      .join('\n')
   );
 }
 

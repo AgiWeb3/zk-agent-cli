@@ -1,10 +1,32 @@
 import assert from 'node:assert/strict';
+import { dirname } from 'node:path';
 import test from 'node:test';
 
 import {
+  buildExecutionEnv,
   readNpmDistTagsWithRetry,
   readNpmVersionWithRetry
 } from './release-publish.mjs';
+
+test('buildExecutionEnv strips noisy pnpm npm config env but keeps auth-relevant values', () => {
+  const env = buildExecutionEnv({
+    PATH: '/usr/bin',
+    HOME: '/tmp/home',
+    NODE_AUTH_TOKEN: 'secret',
+    npm_config_npm_globalconfig: '/tmp/global.npmrc',
+    npm_config_verify_deps_before_run: 'true',
+    npm_config__jsr_registry: 'https://npm.jsr.io',
+    NPM_CONFIG_USERCONFIG: '/tmp/user.npmrc'
+  });
+
+  assert.equal(env.PATH.startsWith(`${dirname(process.execPath)}:`), true);
+  assert.equal(env.HOME, '/tmp/home');
+  assert.equal(env.NODE_AUTH_TOKEN, 'secret');
+  assert.equal(env.NPM_CONFIG_USERCONFIG, '/tmp/user.npmrc');
+  assert.equal('npm_config_npm_globalconfig' in env, false);
+  assert.equal('npm_config_verify_deps_before_run' in env, false);
+  assert.equal('npm_config__jsr_registry' in env, false);
+});
 
 test('readNpmVersionWithRetry retries transient npm 404 until the version becomes visible', () => {
   const attempts = [

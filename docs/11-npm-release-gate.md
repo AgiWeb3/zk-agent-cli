@@ -194,6 +194,13 @@ Both wrappers now require a clean git worktree by default before they mutate
 version/docs or publish to npm. Only bypass that guard with `--allow-dirty`
 when the dirty state is explicitly intentional.
 
+`release:publish` also waits for npm registry readback from a neutral temp
+directory before it declares success. In practice that propagation can lag by
+several minutes after npm already acknowledges the publish, so slow registry
+readback should be treated as a publish-verification delay first, not
+immediately as proof that the publish itself failed. When needed, rerun with a
+higher `--readback-attempts`.
+
 If you need the lower-level building blocks separately, sync the local version
 references first:
 
