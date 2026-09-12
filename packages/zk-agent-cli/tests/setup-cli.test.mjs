@@ -215,12 +215,14 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /Operator suite beyond flagship pay:/);
     assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent suite --include-onboarding/);
-    assert.match(help, /First local Agent Pay primitive:/);
+    assert.match(help, /Current local Agent Pay surface:/);
     assert.match(
       help,
-      /zk-agent payment create --wallet main --to <address> --amount <amount>/
+      /zk-agent payment submit --wallet main --to <address> --amount <amount>/
     );
-    assert.match(help, /zk-agent payment list/);
+    assert.match(help, /zk-agent payment queue/);
+    assert.match(help, /zk-agent payment report/);
+    assert.match(help, /zk-agent payment approval --request-id <id>/);
     assert.match(help, /Product routing by operator question:/);
     assert.match(help, /next\s+-> bootstrap \| recover \| operate \| workflow/);
     assert.match(help, /suite -> operate \| discover \| pay \| fund \| recover/);
