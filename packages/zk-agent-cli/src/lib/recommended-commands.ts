@@ -358,8 +358,8 @@ export function buildPaymentQueueRecommendedCommand(): string {
   return 'zk-agent payment queue';
 }
 
-export function buildPaymentSubmitRecommendedCommand(): string {
-  return 'zk-agent payment submit --wallet main --to <address> --amount <amount>';
+export function buildPaymentSubmitRecommendedCommand(walletName = 'main'): string {
+  return `zk-agent payment submit --wallet ${walletName} --to <address> --amount <amount>`;
 }
 
 export function buildPaymentReportRecommendedCommand(): string {

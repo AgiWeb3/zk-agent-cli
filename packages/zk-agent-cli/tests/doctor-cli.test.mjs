@@ -241,6 +241,9 @@ function expectedDoctorSuiteHandoff() {
     command: 'zk-agent suite',
     useWhen:
       'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
+    paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+    paymentUseWhen:
+      'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.',
     stayOnCurrentSurfaceWhen:
       'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local-only diagnosis before choosing the live path.',
     note:

@@ -1,6 +1,7 @@
 import type { OperatorSuiteJourneyId } from './operator-suite.js';
 import {
   buildAssetsRecommendedCommand,
+  buildPaymentSubmitRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildSuiteRecommendedCommand,
   buildWorkflowPayRecommendedCommand
@@ -19,6 +20,8 @@ export interface SuiteHandoffSummary {
   recommendedNow: boolean;
   command: string;
   useWhen: string;
+  paymentCommand: string;
+  paymentUseWhen: string;
   stayOnCurrentSurfaceWhen: string;
   note: string;
   recommendedJourney: SuiteHandoffJourneySummary | null;
@@ -72,12 +75,15 @@ export function buildSuiteHandoffSummary(input: {
 }): SuiteHandoffSummary {
   const walletName = input.walletName?.trim() || 'main';
   const command = buildSuiteRecommendedCommand(input.walletName, input.chain);
+  const paymentCommand = buildPaymentSubmitRecommendedCommand(walletName);
   const recommendedJourney =
     input.recommendedNow === true
       ? buildSuiteHandoffJourney(input.recommendedJourneyId ?? null, walletName)
       : null;
   const useWhen =
     'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.';
+  const paymentUseWhen =
+    'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.';
 
   switch (input.currentSurface) {
     case 'doctor':
@@ -86,6 +92,8 @@ export function buildSuiteHandoffSummary(input: {
         recommendedNow: input.recommendedNow,
         command,
         useWhen,
+        paymentCommand,
+        paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local-only diagnosis before choosing the live path.',
         note: input.recommendedNow
@@ -99,6 +107,8 @@ export function buildSuiteHandoffSummary(input: {
         recommendedNow: input.recommendedNow,
         command,
         useWhen,
+        paymentCommand,
+        paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on next when you still need the CLI to choose across setup, wallet readiness, and the shortest flagship workflow entry.',
         note: input.recommendedNow
@@ -112,6 +122,8 @@ export function buildSuiteHandoffSummary(input: {
         recommendedNow: input.recommendedNow,
         command,
         useWhen,
+        paymentCommand,
+        paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
         note: input.recommendedNow
@@ -125,6 +137,8 @@ export function buildSuiteHandoffSummary(input: {
         recommendedNow: input.recommendedNow,
         command,
         useWhen,
+        paymentCommand,
+        paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
         note:
@@ -145,6 +159,8 @@ export function suiteHandoffLines(
     ['suite', summary.command],
     ['suite ready', summary.recommendedNow ? 'yes' : 'no'],
     ['suite when', summary.useWhen],
+    ['payment', summary.paymentCommand],
+    ['payment when', summary.paymentUseWhen],
     ...(summary.recommendedJourney
       ? [
           [
