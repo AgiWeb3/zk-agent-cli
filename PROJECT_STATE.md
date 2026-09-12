@@ -105,6 +105,9 @@
   as a single-host, same-origin, externally reachable operator path
 - root README, package README, and docs index are now shorter and more clearly
   separated by role
+- root README, package README, and top-level help now also open with explicit
+  local-first, zkSync-native, and Agent Pay positioning instead of only
+  operator-path wording
 - root help, README, package README, quickstart, and docs index now describe
   the `next` versus `suite` boundary with the same product-routing language
 - the package README now also routes operators to the correct deeper surface
@@ -133,8 +136,8 @@
 
 ## Current priorities
 
-1. Keep the public onboarding shell short and aligned across README, package
-   README, help, skills, and runtime JSON.
+1. Keep the public onboarding shell short, market-facing, and aligned across
+   README, package README, help, skills, and runtime JSON.
 2. Keep the hosted approval operated baseline explicit and repeatable.
 3. Keep the post-flagship product surface centered on `suite`.
 4. Turn the `polygon-agent-cli` comparison into explicit release-critical
@@ -146,9 +149,9 @@
 
 ## Main remaining gaps
 
-- the public shell can still be shortened further before `1.0.0`
+- the public shell is clearer now, but it still needs stronger public proof
+  points and examples before `1.0.0`
 - hosted approval framing can still get shorter and more market-facing
-- the post-flagship narrative can still be simpler for public users
 - the product still lacks the service-facing and platform-grade Agent Pay
   layer above the current local request, routing, and wallet/workflow
   primitives

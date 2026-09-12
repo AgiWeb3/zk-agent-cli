@@ -114,6 +114,8 @@ vertical integrations.
   product terms instead of only listing commands
 - root README, package README, and docs index are now shorter and more clearly
   separated by role
+- root README, package README, and top-level help now also carry explicit
+  local-first, zkSync-native, and Agent Pay positioning in the first screen
 - release support exists through:
   `release:*`, `release:checklist`, `validate:release`, and `validate:rc`
 - a short publish runbook now exists at:
@@ -124,7 +126,8 @@ vertical integrations.
 ## Current priorities
 
 1. Keep one canonical onboarding story across README, package README, help,
-   skills, and runtime JSON, with a tighter “start here” product shell.
+   skills, and runtime JSON, with a tighter and more market-facing “start
+   here” product shell.
 2. Keep the hosted approval operated baseline documented, repeatable, and
    supportable as a single-host contract.
 3. Keep `suite`, discovery, defaults, funding, and paymaster readiness
@@ -145,8 +148,8 @@ vertical integrations.
 - `zk-agent-cli` is stronger on zkSync-native session control, local-first
   recovery, AA policy depth, and hosted relay approval, but that advantage is
   not yet compressed into a simpler market-facing story
-- the current product shell still needs a more obvious “why this product” and
-  “start here” path for first-time public users
+- the current product shell is clearer now, but it still needs stronger public
+  proof points and examples for first-time users
 - Agent Pay is still not a first-class product surface yet: the local request
   domain now has intent/descriptor/execution/quote/settlement/history reads,
   `submit`, `report`, `approval`, `sync-approval`, `next`, `refresh-quote`,
