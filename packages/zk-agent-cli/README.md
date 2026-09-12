@@ -85,8 +85,12 @@ Use the surfaces this way:
 
 - `next`: the CLI is still deciding the shortest path across setup, wallet
   readiness, recovery, or workflow continuation
+- `workflow pay`: the wallet is already ready and you want the flagship
+  native-send path now
 - `suite`: the wallet is already ready and you want the packaged operator
-  catalog after the flagship pay path
+  catalog because the question is broader than one immediate flagship pay step
+- `payment`: the execution path is no longer the whole story and you need
+  local request capture, queueing, reporting, or approval tracking around it
 - `suite --include-onboarding`: you want one combined readout from first-run
   bootstrap through the packaged post-flagship surface
 
@@ -138,15 +142,18 @@ ZK_AGENT_STORAGE_DIR=
 
 - `zk-agent next`: the top-level product entrypoint when the CLI still needs to
   choose the shortest path
+- `zk-agent workflow pay ...`: the direct flagship execution surface when you
+  already know the wallet is ready and the goal is "send value now"
+- `zk-agent suite`: the packaged post-flagship catalog once wallet readiness is
+  no longer the blocker and the question is broader than one immediate write
 - `zk-agent doctor`: local-only diagnosis before you choose a fix
 - `zk-agent wallet status --name <wallet>` and
   `zk-agent wallet next --name <wallet>`: wallet-scoped repair and readiness
-- `zk-agent workflow ...`: explicit workflow planning, persistence, status, and
-  resume questions
+- `zk-agent workflow ...`: explicit workflow planning, persistence, status,
+  resume questions, and the flagship pay execution path
 - `zk-agent payment ...`: local-first payment ingress, request capture, routing,
-  and settlement-state tracking for the Agent Pay platform layer
-- `zk-agent suite`: the packaged post-flagship catalog once wallet readiness is
-  no longer the blocker
+  queueing, approval tracking, and settlement-state tracking for the Agent Pay
+  platform layer
 
 ## Repair locally first
 

@@ -62,12 +62,16 @@ routing, quote, settlement, or reconciliation views, use:
 zk-agent payment --help
 ```
 
-Use the two surfaces differently:
+Use the public entry surfaces this way:
 
 - `next`: when the CLI still needs to choose the shortest path across setup,
   wallet readiness, recovery, or workflow continuation
-- `suite`: when wallet readiness is already clear and you want the packaged
-  post-flagship operator catalog
+- `workflow pay`: when the wallet is ready and you already know you want the
+  flagship native-send path now
+- `suite`: when wallet readiness is already clear but the question is broader
+  than one immediate flagship pay step
+- `payment`: when you need a local request, queue, report, or approval-repair
+  layer around the write path instead of a direct execution step
 - `suite --include-onboarding`: when you want one readout from first-run
   bootstrap through the packaged operator surface
 

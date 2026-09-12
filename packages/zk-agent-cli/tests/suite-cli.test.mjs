@@ -401,6 +401,9 @@ test('suite help exposes the operator suite entrypoint', async () => {
 
     assert.match(help, /Show the flagship and post-flagship zkSync-native operator suite/);
     assert.match(help, /Use `suite` after wallet readiness when you want one packaged surface/);
+    assert.match(help, /Use `workflow pay` when the route is already clear and you want to execute now\./);
+    assert.match(help, /Use `payment` when the real need is local request capture, queueing, reporting,/);
+    assert.match(help, /or approval tracking around that write path\./);
     assert.match(help, /What `suite` answers right now:/);
     assert.match(help, /operate: send native value through the flagship workflow path/);
     assert.match(help, /recover: switch to hosted relay approval when the browser is remote/);
