@@ -1,12 +1,19 @@
 # zk-agent-cli
 
 `zk-agent-cli` is a local-first zkSync-native operator toolkit for wallet
-approval, workflow execution, hosted relay recovery, and post-flagship
-discovery/funding/paymaster guidance.
+approval, flagship pay execution, hosted relay recovery, and Agent Pay request
+routing.
 
 Current public stage: `0.1.0-rc.5`.
 
 This README is only the repo front door.
+
+## Why zk-agent-cli
+
+- local-first wallet and session control instead of managed-browser assumptions
+- zkSync-native smart-account and paymaster path centered on `sed-lite`
+- Agent Pay request capture, queueing, reporting, and approval repair on top
+  of the same wallet runtime
 
 ## Fastest Path
 

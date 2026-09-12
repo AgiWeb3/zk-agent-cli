@@ -46,6 +46,11 @@ function buildDefaultOperatorPathHelpText(): string {
     '  One-shot CLI:  npx zk-agent-cli --help',
     '  Global CLI:    npm install -g zk-agent-cli',
     '',
+    'Why operators use it:',
+    '  local-first wallet and session control',
+    '  zkSync-native smart-account and paymaster path centered on sed-lite',
+    '  Agent Pay request capture, queueing, reporting, and approval repair on top',
+    '',
     'Canonical terminal path:',
     '  zk-agent setup',
     '  zk-agent next',
@@ -144,7 +149,7 @@ function createProgram(): Command {
   const program = new Command()
     .name('zk-agent')
     .description(
-      'Local-first zkSync-native CLI for wallet approval, workflow execution, and single-host hosted relay recovery'
+      'Local-first zkSync-native CLI for wallet approval, flagship pay execution, Agent Pay request routing, and single-host hosted relay recovery'
     )
     .showHelpAfterError()
     .option('--json', 'Force JSON output for agent harnesses', false)

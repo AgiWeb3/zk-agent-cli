@@ -204,12 +204,16 @@ test('top-level help prints the default operator path around zk-agent next', asy
 
     assert.match(
       help,
-      /Local-first zkSync-native CLI for wallet approval, workflow execution, and\s+single-host hosted\s+relay recovery/
+      /Local-first zkSync-native CLI for wallet approval, flagship pay execution, Agent\s+Pay request routing, and\s+single-host hosted\s+relay recovery/
     );
     assert.match(help, /Public entrypoints:/);
     assert.match(help, /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli/);
     assert.match(help, /npx zk-agent-cli --help/);
     assert.match(help, /npm install -g zk-agent-cli/);
+    assert.match(help, /Why operators use it:/);
+    assert.match(help, /local-first wallet and session control/);
+    assert.match(help, /zkSync-native smart-account and paymaster path centered on sed-lite/);
+    assert.match(help, /Agent Pay request capture, queueing, reporting, and approval repair on top/);
     assert.match(help, /Canonical terminal path:/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /Operator suite beyond flagship pay:/);

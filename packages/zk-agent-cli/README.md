@@ -5,6 +5,12 @@ zkSync Era and zkSync Sepolia.
 
 This is the canonical CLI operator manual.
 
+## Why This CLI Exists
+
+- keep wallet and session control local-first
+- keep the default execution story zkSync-native and `sed-lite`-first
+- add an Agent Pay request layer above direct workflow execution
+
 Use:
 
 - [`skills/QUICKSTART.md`](../../skills/QUICKSTART.md) for the shortest
