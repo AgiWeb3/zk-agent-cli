@@ -2,6 +2,11 @@ import { buildSetupRecommendedPaths, formatRecommendedPath } from './onboarding-
 import {
   buildAssetsRecommendedCommand,
   buildDefaultsRecommendedCommand,
+  buildPaymentApprovalRecommendedCommand,
+  buildPaymentDashboardRecommendedCommand,
+  buildPaymentFeedRecommendedCommand,
+  buildPaymentReportRecommendedCommand,
+  buildPaymentSubmitRecommendedCommand,
   buildPaymasterFeeTokenResolveRecommendedCommand,
   buildPaymasterFeeTokensRecommendedCommand,
   buildRelayInspectRecommendedCommand,
@@ -17,18 +22,20 @@ import {
   buildWorkflowStatusRecommendedCommand
 } from './recommended-commands.js';
 
-export type OperatorSuiteSurface = 'workflow' | 'discovery' | 'relay';
+export type OperatorSuiteSurface = 'workflow' | 'payment' | 'discovery' | 'relay';
 export type OperatorSuiteJourneyId =
   | 'send-value-now'
+  | 'capture-and-track-payments'
   | 'inspect-before-acting'
   | 'unstick-a-write'
   | 'recover-remote-approval';
 
 export interface OperatorSuiteEntry {
-  category: 'operate' | 'discover' | 'pay' | 'fund' | 'recover';
+  category: 'operate' | 'request' | 'discover' | 'pay' | 'fund' | 'recover';
   surface: OperatorSuiteSurface;
   id:
     | 'flagship-pay'
+    | 'agent-pay-requests'
     | 'discovery-defaults'
     | 'paymaster-readiness'
     | 'funding-readiness'
@@ -59,7 +66,11 @@ export interface OperatorSuiteSummary {
   postFlagshipSliceIds: Array<
     Extract<
       OperatorSuiteEntry['id'],
-      'discovery-defaults' | 'paymaster-readiness' | 'funding-readiness' | 'hosted-approval-recovery'
+      | 'agent-pay-requests'
+      | 'discovery-defaults'
+      | 'paymaster-readiness'
+      | 'funding-readiness'
+      | 'hosted-approval-recovery'
     >
   >;
   recommendedOrder: OperatorSuiteEntry['id'][];
@@ -118,8 +129,10 @@ export interface OperatorSuitePayload {
     suite: string;
     flagship: string;
     workflowSurface: string;
+    paymentSurface: string;
     discoverySurface: string;
     relaySurface: string;
+    payment: string;
     discovery: string;
     paymaster: string;
     funding: string;
@@ -143,8 +156,10 @@ export function buildOperatorSuitePayload(
   const flagshipCommand = buildWorkflowPayRecommendedCommand(walletName);
   const inspectDefaults = buildDefaultsRecommendedCommand();
   const workflowSurfaceCommand = 'zk-agent workflow --help';
+  const paymentSurfaceCommand = 'zk-agent payment --help';
   const relaySurfaceCommand = 'zk-agent relay --help';
   const discoveryCommand = buildAssetsRecommendedCommand(walletName);
+  const paymentCommand = buildPaymentSubmitRecommendedCommand(walletName);
   const paymasterCommand = buildWorkflowPayRecommendedCommand(walletName, 'approval-based');
   const fundingCommand = buildWorkflowFundRecommendedCommand(walletName);
   const nextCommand = buildTopLevelNextRecommendedCommand(undefined, undefined, walletName);
@@ -195,6 +210,24 @@ export function buildOperatorSuitePayload(
   };
 
   const slices: OperatorSuiteEntry[] = [
+    {
+      category: 'request',
+      surface: 'payment',
+      id: 'agent-pay-requests',
+      title: 'Agent Pay Requests',
+      goal: 'Capture one payment request, inspect the queue/feed/report surfaces, and repair approval when execution is no longer the whole story.',
+      useWhen:
+        'Use this when local request capture, queueing, reporting, feed export, or approval repair is the real operator question around the same wallet write path.',
+      primaryCommand: paymentCommand,
+      surfaceCommand: paymentSurfaceCommand,
+      supportingCommands: [
+        buildPaymentDashboardRecommendedCommand(),
+        buildPaymentFeedRecommendedCommand(),
+        buildPaymentReportRecommendedCommand(),
+        buildPaymentApprovalRecommendedCommand('<request-id>')
+      ],
+      skillPath: 'skills/zk-agent-pay/SKILL.md'
+    },
     {
       category: 'discover',
       surface: 'discovery',
@@ -276,6 +309,15 @@ export function buildOperatorSuitePayload(
       entryIds: [flagship.id, 'paymaster-readiness', 'funding-readiness']
     },
     {
+      surface: 'payment',
+      title: 'Payment Surface',
+      useWhen:
+        'Use this when the question is about request capture, queueing, reporting, share-safe handoff, or approval repair around the write path.',
+      command: paymentSurfaceCommand,
+      categoryIds: ['request'],
+      entryIds: ['agent-pay-requests']
+    },
+    {
       surface: 'discovery',
       title: 'Discovery Surface',
       useWhen:
@@ -306,6 +348,18 @@ export function buildOperatorSuitePayload(
       surface: 'workflow',
       categoryIds: ['operate'],
       entryIds: [flagship.id]
+    },
+    {
+      id: 'capture-and-track-payments',
+      title: 'Capture And Track Payments',
+      operatorQuestion:
+        'I need a payment request layer around the write path so I can capture, queue, share, or repair payments instead of only executing immediately.',
+      useWhen:
+        'Use this when Agent Pay request capture, queueing, approval repair, or service-facing feed export is the real operator question.',
+      startCommand: paymentCommand,
+      surface: 'payment',
+      categoryIds: ['request'],
+      entryIds: ['agent-pay-requests']
     },
     {
       id: 'inspect-before-acting',
@@ -358,11 +412,11 @@ export function buildOperatorSuitePayload(
       chain,
       stage: 'wallet-ready-post-flagship',
       useWhen:
-        'Use suite after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
+        'Use suite after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
       entryModes: ['local-first', 'hosted-recovery'],
       startHereJourneyId: recommendedJourney.id,
       journeyOrder: journeys.map((entry) => entry.id),
-      surfaceOrder: ['workflow', 'discovery', 'relay'],
+      surfaceOrder: ['workflow', 'payment', 'discovery', 'relay'],
       categoryOrder: [flagship.category, ...slices.map((entry) => entry.category)],
       flagshipId: flagship.id,
       postFlagshipSliceIds: slices.map((entry) => entry.id) as OperatorSuiteSummary['postFlagshipSliceIds'],
@@ -379,8 +433,10 @@ export function buildOperatorSuitePayload(
       suite: suiteCommand,
       flagship: flagshipCommand,
       workflowSurface: workflowSurfaceCommand,
+      paymentSurface: paymentSurfaceCommand,
       discoverySurface: inspectDefaults,
       relaySurface: relaySurfaceCommand,
+      payment: paymentCommand,
       discovery: discoveryCommand,
       paymaster: paymasterCommand,
       funding: fundingCommand,

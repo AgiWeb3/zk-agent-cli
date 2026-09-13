@@ -20,24 +20,32 @@ import {
   type PaymentRequestRecord
 } from '../src/payment-request.ts';
 import { buildPaymentRequestDescriptor } from '../src/descriptor.ts';
+import { buildPaymentRequestsDashboard } from '../src/dashboard.ts';
 import { buildPaymentRequestExecution } from '../src/execution.ts';
+import { buildPaymentRequestsFeed } from '../src/feed.ts';
+import { buildPaymentRequestHandoff } from '../src/handoff.ts';
 import { buildPaymentRequestIngressView } from '../src/ingress.ts';
 import { buildPaymentRequestInspectionSummary } from '../src/inspection-summary.ts';
 import { buildPaymentRequestIntent } from '../src/intent.ts';
 import { buildPaymentRequestNextView } from '../src/next.ts';
+import { buildPaymentRequestParties } from '../src/parties.ts';
 import { buildPaymentRequestQuote } from '../src/quote.ts';
 import { buildPaymentRequestsReport } from '../src/report.ts';
 import { buildPaymentRequestShare } from '../src/share.ts';
 import { buildPaymentRequestSettlement } from '../src/settlement.ts';
 import {
   buildStoredPaymentRequestsQueue,
+  buildStoredPaymentRequestsDashboard,
+  buildStoredPaymentRequestsFeed,
   buildStoredPaymentRequestsReport,
   createStoredPaymentRequest,
   describeStoredPaymentRequest,
   getStoredPaymentRequestApproval,
   getStoredPaymentRequestExecution,
+  getStoredPaymentRequestHandoff,
   getStoredPaymentRequestIntent,
   getStoredPaymentRequestNext,
+  getStoredPaymentRequestParties,
   getStoredPaymentRequest,
   inspectStoredPaymentRequest,
   listStoredPaymentRequestHistory,
@@ -301,6 +309,62 @@ test('payment request intent exposes the business intent without execution metad
   assert.equal(intent.description, record.description);
   assert.equal(intent.memo, record.memo);
   assert.deepEqual(intent.metadata, record.metadata);
+});
+
+test('payment request parties expose stable local and share-safe payer projections', () => {
+  const record = createSamplePaymentRequest();
+  const parties = buildPaymentRequestParties(record);
+
+  assert.equal(parties.format, 'zk-agent-payment-request-parties');
+  assert.equal(parties.version, 1);
+  assert.equal(parties.requestId, record.requestId);
+  assert.equal(parties.chain, record.chain);
+  assert.equal(parties.chainId, record.chainId);
+  assert.equal(parties.linkage.type, 'wallet-id');
+  assert.equal(parties.linkage.walletIdPresent, true);
+  assert.equal(parties.payer.role, 'payer');
+  assert.equal(parties.payer.local.walletId, record.walletId);
+  assert.equal(parties.payer.local.walletNameSnapshot, record.walletName);
+  assert.equal(parties.payer.local.walletAddressSnapshot, record.walletAddress);
+  assert.equal(parties.payer.local.displayName, record.payer.name);
+  assert.equal(parties.payer.shareSafe.label, 'SED Operator');
+  assert.equal(parties.payer.shareSafe.displayName, 'SED Operator');
+  assert.equal(parties.payee.role, 'payee');
+  assert.equal(parties.payee.profile.address, record.payee.address);
+  assert.equal(parties.payee.profile.displayName, record.payee.name);
+});
+
+test('payment request handoff exposes a service-facing entry bundle', () => {
+  const record = createSamplePaymentRequest();
+  const summary = buildPaymentRequestInspectionSummary(record);
+  const intent = buildPaymentRequestIntent(record);
+  const parties = buildPaymentRequestParties(record);
+  const share = buildPaymentRequestShare(record);
+  const settlement = buildPaymentRequestSettlement(record);
+  const next = buildPaymentRequestNextView(record);
+  const handoff = buildPaymentRequestHandoff({
+    exportedAt: '2026-09-12T00:00:00.000Z',
+    summary,
+    intent,
+    parties,
+    share,
+    settlement,
+    next
+  });
+
+  assert.equal(handoff.format, 'zk-agent-payment-handoff');
+  assert.equal(handoff.version, 1);
+  assert.equal(handoff.exportedAt, '2026-09-12T00:00:00.000Z');
+  assert.equal(handoff.source, 'local-first');
+  assert.equal(handoff.requestId, record.requestId);
+  assert.equal(handoff.chain, record.chain);
+  assert.equal(handoff.chainId, record.chainId);
+  assert.equal(handoff.summary.requestId, record.requestId);
+  assert.equal(handoff.intent.requestId, record.requestId);
+  assert.equal(handoff.parties.requestId, record.requestId);
+  assert.equal(handoff.share.requestId, record.requestId);
+  assert.equal(handoff.settlement.requestId, record.requestId);
+  assert.equal(handoff.next.requestId, record.requestId);
 });
 
 test('payment request share view stays payee-facing and hides payer wallet linkage', () => {
@@ -760,6 +824,157 @@ test('payment report aggregates cross-request status counts and recent activity'
   );
 });
 
+test('payment dashboard compresses report data into a control-plane style view', () => {
+  const readyRecord = refreshPaymentRequestQuote(createSamplePaymentRequest(), {
+    quotedAt: '2026-09-10T00:00:00.000Z'
+  });
+  const failedRecord = reconcilePaymentRequest(
+    applyPaymentRequestStatusUpdate(
+      createPaymentRequestRecord({
+        requestId: 'payreq-dashboard-failed',
+        walletId: 'wal_dashboardfailed0000001',
+        walletName: 'ops',
+        walletAddress: '0x1111111111111111111111111111111111111111',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        payeeAddress: '0x5555555555555555555555555555555555555555',
+        asset: {
+          kind: 'erc20',
+          amount: '15',
+          symbol: 'USDC',
+          tokenAddress: '0x4444444444444444444444444444444444444444',
+          decimals: 6
+        },
+        paymasterMode: 'none',
+        status: 'ready'
+      }),
+      {
+        status: 'paid',
+        txHash: '0x' + 'ab'.repeat(32)
+      }
+    ),
+    {
+      status: 'failed',
+      note: 'reconciled failure'
+    }
+  );
+
+  const report = buildPaymentRequestsReport([readyRecord, failedRecord], {
+    recentActivityLimit: 3
+  });
+  const dashboard = buildPaymentRequestsDashboard(report, {
+    queueLimit: 1,
+    walletLimit: 1,
+    recentActivityLimit: 3
+  });
+
+  assert.equal(dashboard.format, 'zk-agent-payment-dashboard');
+  assert.equal(dashboard.summary.totalRequests, 2);
+  assert.equal(dashboard.summary.distinctWalletCount, 2);
+  assert.equal(dashboard.summary.actionableRequests, 2);
+  assert.equal(dashboard.summary.readyToExecuteRequests, 1);
+  assert.equal(dashboard.summary.retryableRequests, 1);
+  assert.equal(dashboard.summary.approvalBlockedRequests, 0);
+  assert.equal(dashboard.summary.signerBlockedRequests, 0);
+  assert.equal(dashboard.queue.length, 1);
+  assert.equal(dashboard.queue[0]?.requestId, 'payreq-dashboard-failed');
+  assert.equal(dashboard.queue[0]?.nextAction, 'retry-payment');
+  assert.equal(dashboard.wallets.length, 1);
+  assert.equal(dashboard.wallets[0]?.walletName, 'ops');
+  assert.equal(dashboard.wallets[0]?.actionableRequests, 1);
+  assert.equal(dashboard.wallets[0]?.primaryNextAction, 'retry-payment');
+  assert.equal(dashboard.wallets[0]?.primaryRouteKind, 'set-status');
+  assert.equal(dashboard.recentActivity.length, 3);
+});
+
+test('payment feed exposes a service-facing cross-request batch handoff contract', () => {
+  const readyRecord = refreshPaymentRequestQuote(createSamplePaymentRequest(), {
+    quotedAt: '2026-09-10T00:00:00.000Z'
+  });
+  const failedRecord = reconcilePaymentRequest(
+    applyPaymentRequestStatusUpdate(
+      createPaymentRequestRecord({
+        requestId: 'payreq-feed-failed',
+        walletId: 'wal_feedfailed00000000001',
+        walletName: 'ops',
+        walletAddress: '0x1111111111111111111111111111111111111111',
+        chain: 'zksync-sepolia',
+        chainId: 300,
+        payeeAddress: '0x5555555555555555555555555555555555555555',
+        asset: {
+          kind: 'erc20',
+          amount: '15',
+          symbol: 'USDC',
+          tokenAddress: '0x4444444444444444444444444444444444444444',
+          decimals: 6
+        },
+        paymasterMode: 'none',
+        status: 'ready'
+      }),
+      {
+        status: 'paid',
+        txHash: '0x' + 'ab'.repeat(32)
+      }
+    ),
+    {
+      status: 'failed',
+      note: 'reconciled failure'
+    }
+  );
+
+  const report = buildPaymentRequestsReport([readyRecord, failedRecord]);
+  const readySummary = buildPaymentRequestInspectionSummary(readyRecord);
+  const readyIntent = buildPaymentRequestIntent(readyRecord);
+  const readyParties = buildPaymentRequestParties(readyRecord);
+  const readyShare = buildPaymentRequestShare(readyRecord);
+  const readySettlement = buildPaymentRequestSettlement(readyRecord);
+  const failedSummary = buildPaymentRequestInspectionSummary(failedRecord);
+  const failedIntent = buildPaymentRequestIntent(failedRecord);
+  const failedParties = buildPaymentRequestParties(failedRecord);
+  const failedShare = buildPaymentRequestShare(failedRecord);
+  const failedSettlement = buildPaymentRequestSettlement(failedRecord);
+
+  const feed = buildPaymentRequestsFeed({
+    report,
+    filters: {
+      limit: 1
+    },
+    handoffsByRequestId: {
+      [readyRecord.requestId]: buildPaymentRequestHandoff({
+        summary: readySummary,
+        intent: readyIntent,
+        parties: readyParties,
+        share: readyShare,
+        settlement: readySettlement,
+        next: buildPaymentRequestNextView(readyRecord)
+      }),
+      [failedRecord.requestId]: buildPaymentRequestHandoff({
+        summary: failedSummary,
+        intent: failedIntent,
+        parties: failedParties,
+        share: failedShare,
+        settlement: failedSettlement,
+        next: buildPaymentRequestNextView(failedRecord)
+      })
+    }
+  });
+
+  assert.equal(feed.format, 'zk-agent-payment-feed');
+  assert.equal(feed.source, 'local-first');
+  assert.equal(feed.summary.totalRequests, 2);
+  assert.equal(feed.summary.distinctWalletCount, 2);
+  assert.equal(feed.summary.actionableRequests, 2);
+  assert.equal(feed.summary.readyToExecuteRequests, 1);
+  assert.equal(feed.summary.retryableRequests, 1);
+  assert.equal(feed.filters.limit, 1);
+  assert.equal(feed.items.length, 1);
+  assert.equal(feed.items[0]?.requestId, 'payreq-feed-failed');
+  assert.equal(feed.items[0]?.actionable, true);
+  assert.equal(feed.items[0]?.nextAction, 'retry-payment');
+  assert.equal(feed.items[0]?.routeKind, 'set-status');
+  assert.equal(feed.items[0]?.handoff.requestId, 'payreq-feed-failed');
+});
+
 test('payment request settlement exposes a stable settlement-state view', () => {
   const record = applyPaymentRequestStatusUpdate(createSamplePaymentRequest(), {
     status: 'ready',
@@ -954,6 +1169,44 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       assert.equal(queueBeforeApprovalItem?.next.route.kind, 'wallet-reapprove');
       assert.equal(queueBeforeApprovalItem?.next.recommendedAction, 'reapprove-wallet');
 
+      const dashboardBeforeApproval = await buildStoredPaymentRequestsDashboard({
+        walletName: 'main',
+        queueLimit: 2,
+        walletLimit: 2,
+        recentActivityLimit: 2
+      });
+      assert.equal(dashboardBeforeApproval.dashboard.format, 'zk-agent-payment-dashboard');
+      assert.equal(dashboardBeforeApproval.dashboard.summary.totalRequests, 2);
+      assert.equal(dashboardBeforeApproval.dashboard.summary.actionableRequests, 2);
+      assert.equal(dashboardBeforeApproval.dashboard.summary.approvalBlockedRequests, 1);
+      assert.equal(dashboardBeforeApproval.dashboard.summary.readyToExecuteRequests, 0);
+      assert.equal(dashboardBeforeApproval.dashboard.queue.length, 2);
+      const dashboardServiceItem = dashboardBeforeApproval.dashboard.queue.find(
+        (item) => item.requestId === 'payreq-service'
+      );
+      assert.equal(dashboardServiceItem?.nextAction, 'reapprove-wallet');
+      assert.equal(dashboardBeforeApproval.dashboard.wallets[0]?.walletName, 'main');
+
+      const feedBeforeApproval = await buildStoredPaymentRequestsFeed({
+        walletName: 'main',
+        limit: 2
+      });
+      assert.equal(feedBeforeApproval.feed.format, 'zk-agent-payment-feed');
+      assert.equal(feedBeforeApproval.feed.source, 'local-first');
+      assert.equal(feedBeforeApproval.feed.summary.totalRequests, 2);
+      assert.equal(feedBeforeApproval.feed.summary.approvalBlockedRequests, 1);
+      assert.equal(feedBeforeApproval.feed.summary.actionableRequests, 2);
+      assert.equal(feedBeforeApproval.feed.filters.walletName, 'main');
+      assert.equal(feedBeforeApproval.feed.filters.limit, 2);
+      assert.equal(feedBeforeApproval.feed.items.length, 2);
+      const feedServiceItem = feedBeforeApproval.feed.items.find(
+        (item) => item.requestId === 'payreq-service'
+      );
+      assert.equal(feedServiceItem?.nextAction, 'reapprove-wallet');
+      assert.equal(feedServiceItem?.routeKind, 'wallet-reapprove');
+      assert.equal(feedServiceItem?.handoff.requestId, 'payreq-service');
+      assert.equal(feedServiceItem?.handoff.parties.payer.local.walletId, 'wal_service00000000000001');
+
       const loaded = await getStoredPaymentRequest('payreq-service');
       assert.equal(loaded.paymentRequest.walletId, 'wal_service00000000000001');
       assert.equal(loaded.paymentRequest.history.length, 1);
@@ -1076,6 +1329,31 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       assert.equal(intent.intent.asset.kind, 'native');
       assert.equal(intent.executionPlan.walletId, 'wal_service00000000000001');
 
+      const parties = await getStoredPaymentRequestParties('payreq-service');
+      assert.equal(parties.parties.requestId, 'payreq-service');
+      assert.equal(parties.parties.format, 'zk-agent-payment-request-parties');
+      assert.equal(parties.parties.linkage.type, 'wallet-id');
+      assert.equal(parties.parties.payer.local.walletId, 'wal_service00000000000001');
+      assert.equal(parties.parties.payer.local.walletNameSnapshot, 'main');
+      assert.equal(parties.parties.payer.shareSafe.label, 'payer');
+      assert.equal(
+        parties.parties.payee.profile.address,
+        '0x3333333333333333333333333333333333333333'
+      );
+      assert.equal(parties.executionPlan.walletId, 'wal_service00000000000001');
+
+      const handoff = await getStoredPaymentRequestHandoff('payreq-service');
+      assert.equal(handoff.handoff.requestId, 'payreq-service');
+      assert.equal(handoff.handoff.format, 'zk-agent-payment-handoff');
+      assert.equal(handoff.handoff.source, 'local-first');
+      assert.equal(handoff.handoff.summary.requestId, 'payreq-service');
+      assert.equal(handoff.handoff.intent.requestId, 'payreq-service');
+      assert.equal(handoff.handoff.parties.requestId, 'payreq-service');
+      assert.equal(handoff.handoff.share.requestId, 'payreq-service');
+      assert.equal(handoff.handoff.settlement.requestId, 'payreq-service');
+      assert.equal(handoff.handoff.next.requestId, 'payreq-service');
+      assert.equal(handoff.executionPlan.walletId, 'wal_service00000000000001');
+
       const share = await shareStoredPaymentRequest('payreq-service');
       assert.equal(share.share.requestId, 'payreq-service');
       assert.equal(share.share.format, 'zk-agent-payment-request-share');
@@ -1095,6 +1373,10 @@ test('payment service creates, loads, lists, updates, and removes stored payment
       assert.equal(inspected.summary.readinessClass, 'completed');
       assert.equal(inspected.summary.recommendedAction, 'none');
       assert.equal(inspected.intent.requestId, 'payreq-service');
+      assert.equal(inspected.handoff.format, 'zk-agent-payment-handoff');
+      assert.equal(inspected.handoff.requestId, 'payreq-service');
+      assert.equal(inspected.parties.format, 'zk-agent-payment-request-parties');
+      assert.equal(inspected.parties.payer.local.walletId, 'wal_service00000000000001');
       assert.equal(inspected.descriptor.format, 'zk-agent-payment-request-descriptor');
       assert.equal(inspected.execution.format, 'zk-agent-payment-request-execution');
       assert.equal(inspected.quote.format, 'zk-agent-payment-request-quote');

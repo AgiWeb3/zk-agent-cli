@@ -4,6 +4,10 @@ import {
   type PaymentRequestApprovalView
 } from './approval.js';
 import {
+  buildPaymentRequestsDashboard,
+  type PaymentRequestsDashboardView
+} from './dashboard.js';
+import {
   buildPaymentRequestDescriptor,
   type PaymentRequestDescriptor
 } from './descriptor.js';
@@ -30,6 +34,14 @@ import {
   type PaymentExecutionPlan
 } from './execution-plan.js';
 import {
+  buildPaymentRequestsFeed,
+  type PaymentRequestsFeedView
+} from './feed.js';
+import {
+  buildPaymentRequestHandoff,
+  type PaymentRequestHandoffView
+} from './handoff.js';
+import {
   buildPaymentRequestIngressView,
   type PaymentRequestIngressView
 } from './ingress.js';
@@ -46,6 +58,10 @@ import {
   overlayPaymentRequestNextWithApproval,
   type PaymentRequestNextView
 } from './next.js';
+import {
+  buildPaymentRequestParties,
+  type PaymentRequestPartiesView
+} from './parties.js';
 import {
   buildPaymentRequestQuote,
   type PaymentRequestQuote
@@ -102,6 +118,16 @@ export interface BuildStoredPaymentRequestsQueueInput extends ListPaymentRequest
   limit?: number;
 }
 
+export interface BuildStoredPaymentRequestsDashboardInput extends ListPaymentRequestsInput {
+  recentActivityLimit?: number;
+  queueLimit?: number;
+  walletLimit?: number;
+}
+
+export interface BuildStoredPaymentRequestsFeedInput extends ListPaymentRequestsInput {
+  limit?: number;
+}
+
 export interface ListStoredPaymentRequestHistoryInput {
   requestId: string;
   type?: PaymentHistoryEventType;
@@ -138,9 +164,19 @@ export interface PaymentRequestIntentResult extends PaymentRequestResult {
   intent: PaymentRequestIntentView;
 }
 
+export interface PaymentRequestPartiesResult extends PaymentRequestResult {
+  parties: PaymentRequestPartiesView;
+}
+
+export interface PaymentRequestHandoffResult extends PaymentRequestResult {
+  handoff: PaymentRequestHandoffView;
+}
+
 export interface PaymentRequestInspectionResult extends PaymentRequestResult {
   summary: PaymentRequestInspectionSummary;
   intent: PaymentRequestIntentView;
+  handoff: PaymentRequestHandoffView;
+  parties: PaymentRequestPartiesView;
   descriptor: PaymentRequestDescriptor;
   execution: PaymentRequestExecutionView;
   quote: PaymentRequestQuote;
@@ -175,6 +211,14 @@ export interface PaymentRequestReconciliationResult extends PaymentRequestFollow
 
 export interface PaymentRequestsReportResult {
   report: PaymentRequestsReportView;
+}
+
+export interface PaymentRequestsDashboardResult {
+  dashboard: PaymentRequestsDashboardView;
+}
+
+export interface PaymentRequestsFeedResult {
+  feed: PaymentRequestsFeedView;
 }
 
 export interface PaymentRequestsQueueResult {
@@ -310,22 +354,75 @@ export async function getStoredPaymentRequestIntent(
   };
 }
 
+export async function getStoredPaymentRequestParties(
+  requestId: string
+): Promise<PaymentRequestPartiesResult> {
+  const paymentRequest = await requirePaymentRequest(requestId);
+  const executionPlan = buildPaymentExecutionPlan(paymentRequest);
+
+  return {
+    paymentRequest,
+    executionPlan,
+    parties: buildPaymentRequestParties(paymentRequest)
+  };
+}
+
+export async function getStoredPaymentRequestHandoff(
+  requestId: string
+): Promise<PaymentRequestHandoffResult> {
+  const paymentRequest = await requirePaymentRequest(requestId);
+  const executionPlan = buildPaymentExecutionPlan(paymentRequest);
+  const next = await buildLinkedWalletAwareNextView(paymentRequest);
+  const summary = buildPaymentRequestInspectionSummary(paymentRequest);
+  const intent = buildPaymentRequestIntent(paymentRequest);
+  const parties = buildPaymentRequestParties(paymentRequest);
+  const share = buildPaymentRequestShare(paymentRequest);
+  const settlement = buildPaymentRequestSettlement(paymentRequest);
+
+  return {
+    paymentRequest,
+    executionPlan,
+    handoff: buildPaymentRequestHandoff({
+      summary,
+      intent,
+      parties,
+      share,
+      settlement,
+      next
+    })
+  };
+}
+
 export async function inspectStoredPaymentRequest(
   requestId: string
 ): Promise<PaymentRequestInspectionResult> {
   const paymentRequest = await requirePaymentRequest(requestId);
   const executionPlan = buildPaymentExecutionPlan(paymentRequest);
   const next = await buildLinkedWalletAwareNextView(paymentRequest);
+  const summary = buildPaymentRequestInspectionSummary(paymentRequest);
+  const intent = buildPaymentRequestIntent(paymentRequest);
+  const parties = buildPaymentRequestParties(paymentRequest);
+  const share = buildPaymentRequestShare(paymentRequest);
+  const settlement = buildPaymentRequestSettlement(paymentRequest);
 
   return {
     paymentRequest,
     executionPlan,
-    summary: buildPaymentRequestInspectionSummary(paymentRequest),
-    intent: buildPaymentRequestIntent(paymentRequest),
+    summary,
+    intent,
+    handoff: buildPaymentRequestHandoff({
+      summary,
+      intent,
+      parties,
+      share,
+      settlement,
+      next
+    }),
+    parties,
     descriptor: buildPaymentRequestDescriptor(paymentRequest),
     execution: buildPaymentRequestExecution(paymentRequest, executionPlan),
     quote: buildPaymentRequestQuote(paymentRequest, executionPlan),
-    settlement: buildPaymentRequestSettlement(paymentRequest),
+    settlement,
     history: paymentRequest.history,
     next
   };
@@ -532,6 +629,101 @@ export async function buildStoredPaymentRequestsReport(
       recentActivityLimit: input.recentActivityLimit
     }, {
       nextByRequestId: Object.fromEntries(nextViews)
+    })
+  };
+}
+
+export async function buildStoredPaymentRequestsDashboard(
+  input: BuildStoredPaymentRequestsDashboardInput = {}
+): Promise<PaymentRequestsDashboardResult> {
+  const requests = await listStoredPaymentRequests({
+    walletName: input.walletName,
+    status: input.status
+  });
+  const nextViews = await Promise.all(
+    requests.map(async (paymentRequest) => [
+      paymentRequest.requestId,
+      await buildLinkedWalletAwareNextView(paymentRequest)
+    ] as const)
+  );
+  const report = buildPaymentRequestsReport(
+    requests,
+    {
+      walletName: input.walletName,
+      status: input.status,
+      recentActivityLimit: input.recentActivityLimit
+    },
+    {
+      nextByRequestId: Object.fromEntries(nextViews)
+    }
+  );
+
+  return {
+    dashboard: buildPaymentRequestsDashboard(report, {
+      walletName: input.walletName,
+      status: input.status,
+      recentActivityLimit: input.recentActivityLimit,
+      queueLimit: input.queueLimit,
+      walletLimit: input.walletLimit
+    })
+  };
+}
+
+export async function buildStoredPaymentRequestsFeed(
+  input: BuildStoredPaymentRequestsFeedInput = {}
+): Promise<PaymentRequestsFeedResult> {
+  const requests = await listStoredPaymentRequests({
+    walletName: input.walletName,
+    status: input.status
+  });
+  const nextViews = await Promise.all(
+    requests.map(async (paymentRequest) => [
+      paymentRequest.requestId,
+      await buildLinkedWalletAwareNextView(paymentRequest)
+    ] as const)
+  );
+  const nextByRequestId = Object.fromEntries(nextViews);
+  const report = buildPaymentRequestsReport(
+    requests,
+    {
+      walletName: input.walletName,
+      status: input.status
+    },
+    {
+      nextByRequestId
+    }
+  );
+
+  return {
+    feed: buildPaymentRequestsFeed({
+      report,
+      handoffsByRequestId: Object.fromEntries(
+        requests.map((paymentRequest) => {
+          const next = nextByRequestId[paymentRequest.requestId];
+          const summary = buildPaymentRequestInspectionSummary(paymentRequest);
+          const intent = buildPaymentRequestIntent(paymentRequest);
+          const parties = buildPaymentRequestParties(paymentRequest);
+          const share = buildPaymentRequestShare(paymentRequest);
+          const settlement = buildPaymentRequestSettlement(paymentRequest);
+
+          return [
+            paymentRequest.requestId,
+            buildPaymentRequestHandoff({
+              summary,
+              intent,
+              parties,
+              share,
+              settlement,
+              next
+            })
+          ] as const;
+        })
+      ),
+      filters: {
+        walletName: input.walletName,
+        status: input.status,
+        limit: input.limit
+      }
     })
   };
 }

@@ -2,7 +2,7 @@
 
 ## Snapshot
 
-- updated: `2026-09-12`
+- updated: `2026-09-13`
 - branch: `main`
 - package stage: `0.1.0-rc.5`
 - current focus: RC closeout, benchmark-gap assessment versus
@@ -29,6 +29,9 @@
   recovery are exposed through `suite` and the CLI discovery surface
 - `suite --include-onboarding` can now expose the first-run preflight and the
   post-flagship operator surface together
+- `suite` now also treats Agent Pay as a first-class packaged slice through
+  the `request` category, `payment` surface, and the
+  `capture-and-track-payments` journey
 - a first local-first Agent Pay primitive now exists through
   `zk-agent payment`:
   create, list, show, set-status, and remove payment request records
@@ -45,6 +48,11 @@
   surface for one local-first payment submission
 - `zk-agent payment intent` now exposes the first stable business-intent read
   surface for one stored payment request
+- `zk-agent payment handoff` now exposes the first stable service-facing
+  payment entry bundle for one stored payment request
+- `zk-agent payment parties` now exposes the first stable payer/payee request
+  model with separate local and share-safe payer projections for one stored
+  payment request
 - `zk-agent payment inspect` now exposes the first stable aggregate read
   surface for one stored payment request
 - `zk-agent payment next` now exposes the first stable compact follow-up route
@@ -66,6 +74,10 @@
 - `zk-agent payment report` now also emits wallet-level aggregates, so later
   control-plane style consumers can read wallet-scoped payment posture without
   recomputing it outside the CLI
+- `zk-agent payment dashboard` now exposes the first control-plane style
+  cross-request runtime view above the current report and actionable queue
+- `zk-agent payment feed` now exposes the first service-facing cross-request
+  batch contract above the current report/queue/handoff layer
 - `zk-agent payment queue` now exposes the first stable cross-request
   actionable queue surface that bundles descriptor, execution plan, and
   wallet-aware next-route data for later platform-style request handling
@@ -159,9 +171,8 @@
 - the public shell is clearer now, but it still needs stronger public proof
   points and examples before `1.0.0`
 - hosted approval framing can still get shorter and more market-facing
-- the product still lacks the service-facing and platform-grade Agent Pay
-  layer above the current local request, routing, and wallet/workflow
-  primitives
+- the product still lacks the hosted/platform-grade Agent Pay layer above the
+  current local dashboard, request, routing, and wallet/workflow primitives
 - local identity exists, but public zkSync-native identity/reputation does not
 - release validation still needs less human judgment on the final promotion
 
@@ -211,8 +222,7 @@ Foundation already present:
 
 Still missing for the platform layer:
 
-- payer/payee request model on top of wallet sessions
-- hosted/platform-grade reporting above the current local cross-request report
+- hosted control plane and multi-tenant persistence
 
 ## Deferred
 

@@ -229,7 +229,7 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /zk-agent payment approval --request-id <id>/);
     assert.match(help, /Product routing by operator question:/);
     assert.match(help, /next\s+-> bootstrap \| recover \| operate \| workflow/);
-    assert.match(help, /suite -> operate \| discover \| pay \| fund \| recover/);
+    assert.match(help, /suite -> operate \| request \| discover \| pay \| fund \| recover/);
     assert.match(help, /Payment-first default path after wallet readiness:/);
     assert.match(
       help,

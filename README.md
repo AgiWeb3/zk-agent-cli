@@ -38,8 +38,8 @@ operator question into one of four categories:
 - `workflow`
 
 After the flagship path is live, use `zk-agent suite` as the packaged
-post-flagship entrypoint for discovery, defaults, funding, paymaster
-readiness, and hosted approval recovery.
+post-flagship entrypoint for Agent Pay request work, discovery, defaults,
+funding, paymaster readiness, and hosted approval recovery.
 
 The public default story is payment-first: get a ready wallet, send native
 value now, stay on the approval-based pay path when fee-token/default state
@@ -50,21 +50,27 @@ The current local-first Agent Pay entry surface is:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment dashboard
+zk-agent payment feed
 zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
 ```
 
-Use those four commands for the public "start here" path:
+Use those commands for the public "start here" path:
 
 - `submit`: capture one payment request through the compact ingress surface
+- `dashboard`: review one control-plane style summary above wallet groups,
+  actionable queue items, and recent payment activity
+- `feed`: expose the first service-facing cross-request batch contract for
+  hosted control-plane or agent-platform ingestion
 - `queue`: review the current actionable request queue
 - `report`: summarize cross-request state and next-action distribution
 - `approval`: inspect whether the linked wallet is still blocking execution
 
 When you already have a request id and need the deeper local lifecycle,
-share-safe request view, routing, quote, settlement, or reconciliation views,
-use:
+service-facing handoff bundle, payer/payee request model, share-safe request
+view, routing, quote, settlement, or reconciliation views, use:
 
 ```bash
 zk-agent payment --help
@@ -73,6 +79,18 @@ zk-agent payment --help
 Use `zk-agent payment share --request-id <id>` when the request must be shared
 with a payee or external reviewer without exposing local wallet linkage or
 execution-preference details.
+
+Use `zk-agent payment parties --request-id <id>` when an agent or service
+needs the stable payer/payee request model with separate local and
+share-safe payer projections.
+
+Use `zk-agent payment handoff --request-id <id>` when a hosted control plane
+or agent platform needs one stable service-facing bundle instead of
+reassembling local reads.
+
+Use `zk-agent payment feed` when that same hosted control plane or agent
+platform needs the stable cross-request batch surface instead of one request
+at a time.
 
 Use the public entry surfaces this way:
 
@@ -102,20 +120,23 @@ Inside `suite`, the current operator catalog is organized by the question the
 operator is actually asking:
 
 - `operate`: run the flagship native send path
+- `request`: capture, queue, report, export, and repair Agent Pay requests
 - `discover`: inspect assets/defaults before tokenized actions
 - `pay`: stay on the approval-based paymaster path
 - `fund`: recover from gas and funding blockers
 - `recover`: switch to hosted relay approval when the browser is remote
 
-Those categories currently hand off into three deeper surfaces:
+Those categories currently hand off into four deeper surfaces:
 
 - `workflow`: flagship pay, approval-based pay, and funding recovery
+- `payment`: request capture, queueing, reporting, feed export, and approval repair
 - `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
-The same surface now also exposes four simpler operator journeys:
+The same surface now also exposes five simpler operator journeys:
 
 - send value now
+- capture and track payments
 - inspect before acting
 - unstick a write
 - recover remote approval
@@ -160,8 +181,8 @@ pnpm zk-agent --help
   [docs/README.md](./docs/README.md)
 
 Focused product slices live under [skills/](./skills/):
-`zk-aa`, `zk-discovery`, `zk-funding`, `zk-paymaster`, `zk-relay`, and
-`zk-defi`.
+`zk-aa`, `zk-agent-pay`, `zk-discovery`, `zk-funding`, `zk-paymaster`,
+`zk-relay`, and `zk-defi`.
 
 If you are working on the repo itself, start with:
 

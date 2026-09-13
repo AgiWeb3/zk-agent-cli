@@ -140,10 +140,10 @@ function expectedWalletSuiteHandoff(recommendedNow) {
     recommendedNow,
     command: 'zk-agent suite',
     useWhen:
-      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
     paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
     paymentUseWhen:
-      'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.',
+      'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
     stayOnCurrentSurfaceWhen:
       'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
     note: recommendedNow

@@ -286,6 +286,10 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     assert.equal(inspected.next.route.kind, 'wallet-reapprove');
     assert.equal(inspected.nextCommand, 'zk-agent wallet reapprove --name main --await-local');
     assert.equal(inspected.intent.format, 'zk-agent-payment-request-intent');
+    assert.equal(inspected.handoff.format, 'zk-agent-payment-handoff');
+    assert.equal(inspected.handoff.requestId, requestId);
+    assert.equal(inspected.parties.format, 'zk-agent-payment-request-parties');
+    assert.equal(inspected.parties.payer.local.walletId, created.paymentRequest.walletId);
     assert.equal(inspected.descriptor.format, 'zk-agent-payment-request-descriptor');
     assert.equal(inspected.execution.format, 'zk-agent-payment-request-execution');
     assert.equal(inspected.quote.format, 'zk-agent-payment-request-quote');
@@ -303,6 +307,36 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     assert.equal(intent.intent.asset.kind, 'native');
     assert.equal(intent.intent.description, 'Ops payout');
     assert.match(intent.recommendedCommands.intent, /zk-agent payment intent --request-id/);
+
+    const handoff = await runCliJson(['payment', 'handoff', '--request-id', requestId], env);
+    assert.equal(handoff.requestId, requestId);
+    assert.equal(handoff.handoff.format, 'zk-agent-payment-handoff');
+    assert.equal(handoff.handoff.source, 'local-first');
+    assert.equal(handoff.handoff.summary.requestId, requestId);
+    assert.equal(handoff.handoff.intent.requestId, requestId);
+    assert.equal(handoff.handoff.parties.requestId, requestId);
+    assert.equal(handoff.handoff.share.requestId, requestId);
+    assert.equal(handoff.handoff.next.requestId, requestId);
+    assert.match(handoff.recommendedCommands.handoff, /zk-agent payment handoff --request-id/);
+
+    const parties = await runCliJson(['payment', 'parties', '--request-id', requestId], env);
+    assert.equal(parties.requestId, requestId);
+    assert.equal(parties.parties.format, 'zk-agent-payment-request-parties');
+    assert.equal(parties.parties.linkage.type, 'wallet-id');
+    assert.equal(parties.parties.payer.local.walletId, created.paymentRequest.walletId);
+    assert.equal(parties.parties.payer.local.walletNameSnapshot, 'main');
+    assert.equal(
+      parties.parties.payer.local.walletAddressSnapshot,
+      created.paymentRequest.walletAddress
+    );
+    assert.equal(parties.parties.payer.local.displayName, 'Ops Treasury');
+    assert.equal(parties.parties.payer.shareSafe.label, 'Ops Treasury');
+    assert.equal(
+      parties.parties.payee.profile.address,
+      '0x3333333333333333333333333333333333333333'
+    );
+    assert.equal(parties.parties.payee.profile.displayName, undefined);
+    assert.match(parties.recommendedCommands.parties, /zk-agent payment parties --request-id/);
 
     const described = await runCliJson(['payment', 'describe', '--request-id', requestId], env);
     assert.equal(described.requestId, requestId);
@@ -592,6 +626,57 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
       2
     );
     assert.match(report.recommendedCommands.report, /zk-agent payment report/);
+
+    const dashboard = await runCliJson(
+      [
+        'payment',
+        'dashboard',
+        '--wallet',
+        'main',
+        '--queue-limit',
+        '2',
+        '--wallet-limit',
+        '1',
+        '--activity-limit',
+        '2'
+      ],
+      env
+    );
+    assert.equal(dashboard.dashboard.format, 'zk-agent-payment-dashboard');
+    assert.equal(dashboard.dashboard.summary.totalRequests, 2);
+    assert.equal(dashboard.dashboard.summary.actionableRequests, 2);
+    assert.equal(dashboard.dashboard.summary.retryableRequests, 1);
+    assert.equal(dashboard.dashboard.summary.readyToExecuteRequests, 0);
+    assert.equal(dashboard.dashboard.filters.walletName, 'main');
+    assert.equal(dashboard.dashboard.filters.queueLimit, 2);
+    assert.equal(dashboard.dashboard.filters.walletLimit, 1);
+    assert.equal(dashboard.dashboard.filters.recentActivityLimit, 2);
+    assert.equal(dashboard.dashboard.wallets.length, 1);
+    assert.equal(dashboard.dashboard.wallets[0].walletName, 'main');
+    assert.equal(dashboard.dashboard.wallets[0].primaryNextAction, 'retry-payment');
+    assert.equal(dashboard.dashboard.queue.length, 2);
+    assert.equal(
+      dashboard.dashboard.queue.find((item) => item.requestId === requestId)?.nextAction,
+      'retry-payment'
+    );
+    assert.match(dashboard.recommendedCommands.dashboard, /zk-agent payment dashboard/);
+
+    const feed = await runCliJson(
+      ['payment', 'feed', '--wallet', 'main', '--status', 'failed', '--limit', '1'],
+      env
+    );
+    assert.equal(feed.feed.format, 'zk-agent-payment-feed');
+    assert.equal(feed.feed.source, 'local-first');
+    assert.equal(feed.feed.summary.totalRequests, 1);
+    assert.equal(feed.feed.summary.retryableRequests, 1);
+    assert.equal(feed.feed.filters.walletName, 'main');
+    assert.equal(feed.feed.filters.status, 'failed');
+    assert.equal(feed.feed.filters.limit, 1);
+    assert.equal(feed.feed.items.length, 1);
+    assert.equal(feed.feed.items[0].requestId, requestId);
+    assert.equal(feed.feed.items[0].nextAction, 'retry-payment');
+    assert.equal(feed.feed.items[0].handoff.requestId, requestId);
+    assert.match(feed.recommendedCommands.feed, /zk-agent payment feed/);
 
     const listed = await runCliJson(['payment', 'list', '--status', 'failed'], env);
     assert.equal(listed.count, 1);
@@ -987,8 +1072,14 @@ test('payment submit exposes the compact ingress contract and help text explains
     const help = await runCliText(['payment', '--help'], env);
     assert.match(help, /Payment request surface:/);
     assert.match(help, /`submit` is the compact ingress write surface; `create` remains the lower-level local record primitive/);
+    assert.match(help, /`dashboard` is the control-plane style cross-request summary above the local report and queue primitives/);
+    assert.match(help, /`feed` is the first service-facing cross-request batch contract for hosted control-plane or agent-platform ingestion/);
+    assert.match(help, /`handoff` is the first service-facing entry bundle for hosted control-plane or agent-platform ingestion/);
+    assert.match(help, /`parties` is the stable payer\/payee request model with separate local and share-safe payer views/);
     assert.match(help, /`share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences/);
     assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent payment dashboard/);
+    assert.match(help, /zk-agent payment feed/);
     assert.match(help, /zk-agent payment queue/);
     assert.match(help, /zk-agent payment report/);
     assert.match(help, /zk-agent payment approval --request-id <id>/);
@@ -998,6 +1089,8 @@ test('payment submit exposes the compact ingress contract and help text explains
     assert.match(help, /zk-agent payment next --request-id <id>/);
     assert.match(help, /zk-agent payment inspect --request-id <id>/);
     assert.match(help, /zk-agent payment intent --request-id <id>/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment parties --request-id <id>/);
     assert.match(help, /zk-agent payment describe --request-id <id>/);
     assert.match(help, /zk-agent payment share --request-id <id>/);
     assert.match(help, /zk-agent payment execution --request-id <id>/);

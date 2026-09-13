@@ -38,6 +38,12 @@ function buildSuiteHandoffJourney(
         title: 'Send Value Now',
         command: buildWorkflowPayRecommendedCommand(walletName)
       };
+    case 'capture-and-track-payments':
+      return {
+        id: journeyId,
+        title: 'Capture And Track Payments',
+        command: buildPaymentSubmitRecommendedCommand(walletName)
+      };
     case 'inspect-before-acting':
       return {
         id: journeyId,
@@ -81,9 +87,9 @@ export function buildSuiteHandoffSummary(input: {
       ? buildSuiteHandoffJourney(input.recommendedJourneyId ?? null, walletName)
       : null;
   const useWhen =
-    'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.';
+    'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.';
   const paymentUseWhen =
-    'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.';
+    'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.';
 
   switch (input.currentSurface) {
     case 'doctor':

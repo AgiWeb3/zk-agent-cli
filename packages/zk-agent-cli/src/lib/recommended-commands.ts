@@ -366,6 +366,14 @@ export function buildPaymentReportRecommendedCommand(): string {
   return 'zk-agent payment report';
 }
 
+export function buildPaymentDashboardRecommendedCommand(): string {
+  return 'zk-agent payment dashboard';
+}
+
+export function buildPaymentFeedRecommendedCommand(): string {
+  return 'zk-agent payment feed';
+}
+
 export function buildPaymentApprovalRecommendedCommand(requestId: string): string {
   return `zk-agent payment approval --request-id ${requestId}`;
 }
@@ -386,8 +394,16 @@ export function buildPaymentNextRecommendedCommand(requestId: string): string {
   return `zk-agent payment next --request-id ${requestId}`;
 }
 
+export function buildPaymentHandoffRecommendedCommand(requestId: string): string {
+  return `zk-agent payment handoff --request-id ${requestId}`;
+}
+
 export function buildPaymentDescribeRecommendedCommand(requestId: string): string {
   return `zk-agent payment describe --request-id ${requestId}`;
+}
+
+export function buildPaymentPartiesRecommendedCommand(requestId: string): string {
+  return `zk-agent payment parties --request-id ${requestId}`;
 }
 
 export function buildPaymentShareRecommendedCommand(requestId: string): string {

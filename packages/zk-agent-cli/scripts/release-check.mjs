@@ -203,8 +203,8 @@ function assertPackageReadme(readme) {
       'Package README must keep the short payment-first product story visible.'
     ],
     [
-      /The first Agent Pay platform primitive now exists as a local-first payment[\s\S]*zk-agent payment create --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment list/,
-      'Package README must keep the first local payment-request primitive visible.'
+      /The current local-first Agent Pay entry surface is:[\s\S]*zk-agent payment submit --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment dashboard[\s\S]*zk-agent payment feed[\s\S]*zk-agent payment queue[\s\S]*zk-agent payment report[\s\S]*zk-agent payment approval --request-id <id>/,
+      'Package README must keep the current local-first Agent Pay entry surface visible.'
     ],
     [
       /zk-agent suite[\s\S]*(post-flagship|packaged surface)/,
@@ -289,8 +289,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /The first Agent Pay platform primitive now exists as a local-first payment[\s\S]*zk-agent payment create --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment list/,
-      'Root README must keep the first local payment-request primitive visible.'
+      /The current local-first Agent Pay entry surface is:[\s\S]*zk-agent payment submit --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment dashboard[\s\S]*zk-agent payment feed[\s\S]*zk-agent payment queue[\s\S]*zk-agent payment report[\s\S]*zk-agent payment approval --request-id <id>/,
+      'Root README must keep the current local-first Agent Pay entry surface visible.'
     ],
     [
       rootReadme,
@@ -299,8 +299,8 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /Focused product slices live under \[skills\/\]\(\.\/skills\/\):[\s\S]*`zk-aa`[\s\S]*`zk-discovery`[\s\S]*`zk-funding`[\s\S]*`zk-paymaster`[\s\S]*`zk-relay`[\s\S]*`zk-defi`/,
-      'Root README must keep the split product-skill surface visible, including discovery, funding, and paymaster readiness.'
+      /Focused product slices live under \[skills\/\]\(\.\/skills\/\):[\s\S]*`zk-aa`[\s\S]*`zk-agent-pay`[\s\S]*`zk-discovery`[\s\S]*`zk-funding`[\s\S]*`zk-paymaster`[\s\S]*`zk-relay`[\s\S]*`zk-defi`/,
+      'Root README must keep the split product-skill surface visible, including the Agent Pay, discovery, funding, and paymaster slices.'
     ],
     [
       rootReadme,
@@ -354,6 +354,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
+      /\[zk-agent-pay\/SKILL\.md\]\(\.\/zk-agent-pay\/SKILL\.md\)/,
+      'Quickstart must keep the focused Agent Pay skill visible.'
+    ],
+    [
+      quickstart,
       /\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)/,
       'Quickstart must keep the focused discovery skill visible.'
     ],
@@ -404,13 +409,13 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
-      /\[zk-aa\/SKILL\.md\]\(\.\/zk-aa\/SKILL\.md\)[\s\S]*\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)[\s\S]*\[zk-funding\/SKILL\.md\]\(\.\/zk-funding\/SKILL\.md\)[\s\S]*\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)[\s\S]*\[zk-relay\/SKILL\.md\]\(\.\/zk-relay\/SKILL\.md\)[\s\S]*\[zk-defi\/SKILL\.md\]\(\.\/zk-defi\/SKILL\.md\)/,
-      'Primary skill guide must keep the split sub-skill surface visible, including funding and paymaster readiness.'
+      /\[zk-aa\/SKILL\.md\]\(\.\/zk-aa\/SKILL\.md\)[\s\S]*\[zk-agent-pay\/SKILL\.md\]\(\.\/zk-agent-pay\/SKILL\.md\)[\s\S]*\[zk-discovery\/SKILL\.md\]\(\.\/zk-discovery\/SKILL\.md\)[\s\S]*\[zk-funding\/SKILL\.md\]\(\.\/zk-funding\/SKILL\.md\)[\s\S]*\[zk-paymaster\/SKILL\.md\]\(\.\/zk-paymaster\/SKILL\.md\)[\s\S]*\[zk-relay\/SKILL\.md\]\(\.\/zk-relay\/SKILL\.md\)[\s\S]*\[zk-defi\/SKILL\.md\]\(\.\/zk-defi\/SKILL\.md\)/,
+      'Primary skill guide must keep the split sub-skill surface visible, including the Agent Pay, funding, and paymaster guides.'
     ],
     [
       skillGuide,
-      /## Readiness, suite, and funding[\s\S]*zk-agent workflow fund --wallet main[\s\S]*zk-agent workflow fund --wallet main --amount <amount> --execute/,
-      'Primary skill guide must keep the funding-readiness contract visible.'
+      /## Readiness, suite, funding, and payment[\s\S]*zk-agent workflow fund --wallet main[\s\S]*zk-agent workflow fund --wallet main --amount <amount> --execute/,
+      'Primary skill guide must keep the funding-readiness contract visible inside the broader payment-aware routing section.'
     ],
     [
       skillGuide,
@@ -639,13 +644,14 @@ function assertReleaseArtifact(changelog, releaseNotes) {
 function assertTopLevelHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Local-first zkSync-native CLI for wallet approval, workflow execution, and single-host hosted relay recovery',
+    'Local-first zkSync-native CLI for wallet approval, flagship pay execution, Agent Pay request routing, and single-host hosted relay recovery',
     'Public entrypoints:',
     'Agent harness: npx skills add https://github.com/AgiWeb3/zk-agent-cli',
     'One-shot CLI: npx zk-agent-cli --help',
     'Global CLI: npm install -g zk-agent-cli',
     'Canonical terminal path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount>',
-    'First local Agent Pay primitive: zk-agent payment create --wallet main --to <address> --amount <amount> zk-agent payment list',
+    'Current local Agent Pay surface: zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent payment dashboard zk-agent payment feed zk-agent payment queue zk-agent payment report zk-agent payment approval --request-id <id>',
+    'Product routing by operator question: next -> bootstrap | recover | operate | workflow suite -> operate | request | discover | pay | fund | recover',
     'Payment-first default path after wallet readiness: send native value now -> stay on approval-based pay when fee-token/default state matters -> recover funding only when blocked Default start inside suite: send value now',
     'Validated first-run baseline: setup defaults to zksync-sepolia and the local connector at http://localhost:4444',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
@@ -897,18 +903,45 @@ function assertWorkflowHelpContract(helpOutput) {
   );
 }
 
+function assertPaymentHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Payment request surface:',
+    'Use this layer to capture payer/payee intent and local settlement state before or after execution.',
+    '`submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
+    '`dashboard` is the control-plane style cross-request summary above the local report and queue primitives.',
+    '`feed` is the first service-facing cross-request batch contract for hosted control-plane or agent-platform ingestion.',
+    '`handoff` is the first service-facing entry bundle for hosted control-plane or agent-platform ingestion.',
+    '`parties` is the stable payer/payee request model with separate local and share-safe payer views.',
+    '`share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
+    '`workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle.',
+    'Start here: zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent payment dashboard zk-agent payment feed zk-agent payment queue zk-agent payment report zk-agent payment approval --request-id <id> zk-agent payment sync-approval --request-id <id> zk-agent payment next --request-id <id> zk-agent payment inspect --request-id <id> zk-agent payment handoff --request-id <id> zk-agent payment parties --request-id <id>',
+    'Deeper per-request reads and writes: zk-agent payment create --wallet main --to <address> --amount <amount> zk-agent payment show --request-id <id> zk-agent payment intent --request-id <id> zk-agent payment handoff --request-id <id> zk-agent payment parties --request-id <id> zk-agent payment describe --request-id <id> zk-agent payment share --request-id <id> zk-agent payment execution --request-id <id> zk-agent payment quote --request-id <id> zk-agent payment refresh-quote --request-id <id> zk-agent payment settlement --request-id <id> zk-agent payment reconcile --request-id <id> --status <status> zk-agent payment history --request-id <id> zk-agent payment set-status --request-id <id> --status approval_pending zk-agent payment set-status --request-id <id> --status ready --tx-hash <tx-hash> zk-agent payment set-status --request-id <id> --status paid --tx-hash <tx-hash> zk-agent payment set-status --request-id <id> --status failed --note <reason>',
+    'ERC-20 request path: zk-agent payment create --wallet main --to <address> --amount <amount> --symbol USDC',
+    'Stored request management: zk-agent payment dashboard zk-agent payment feed zk-agent payment queue zk-agent payment report zk-agent payment approval --request-id <id> zk-agent payment sync-approval --request-id <id> zk-agent payment list zk-agent payment history --request-id <id> zk-agent payment remove --request-id <id>'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Payment help is missing required Agent Pay contract text: ${snippet}`
+    );
+  }
+}
+
 function assertSuiteHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
-    'Use `suite` after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship slices.',
-    'What `suite` answers right now: operate: send native value through the flagship workflow path discover: inspect owned assets and defaults before tokenized actions pay: stay on the approval-based paymaster path with exact fee-token follow-up fund: recover from gas/funding blockers without guessing the route recover: switch to hosted relay approval when the browser is remote',
-    'Most common operator journeys: send value now: go straight to the flagship pay path inspect before acting: open assets/defaults/token inspection first unstick a write: recover paymaster/funding readiness on the workflow path recover remote approval: move approval to the hosted relay path',
+    'Use `suite` after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship slices, including Agent Pay.',
+    'What `suite` answers right now: operate: send native value through the flagship workflow path request: capture, queue, report, export, and repair Agent Pay requests discover: inspect owned assets and defaults before tokenized actions pay: stay on the approval-based paymaster path with exact fee-token follow-up fund: recover from gas/funding blockers without guessing the route recover: switch to hosted relay approval when the browser is remote',
+    'Most common operator journeys: send value now: go straight to the flagship pay path capture and track payments: enter the Agent Pay request layer around the write path inspect before acting: open assets/defaults/token inspection first unstick a write: recover paymaster/funding readiness on the workflow path recover remote approval: move approval to the hosted relay path',
     'If you only need one default starting point inside suite: send value now',
-    'Where `suite` hands you off next: workflow: flagship pay, approval-based pay, and funding recovery discovery: assets, defaults, and token inspection relay: hosted approval recovery and relay readiness',
+    'Where `suite` hands you off next: workflow: flagship pay, approval-based pay, and funding recovery payment: request capture, queueing, reporting, feed export, and approval repair discovery: assets, defaults, and token inspection relay: hosted approval recovery and relay readiness',
     'For the full first-run to post-flagship map: zk-agent suite --include-onboarding',
-    'Recommended order inside the suite: zk-agent workflow pay --wallet main --to <address> --amount <amount> zk-agent assets --wallet main zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based zk-agent workflow fund --wallet main zk-agent relay inspect --relay-url <url>',
+    'Recommended order inside the suite: zk-agent workflow pay --wallet main --to <address> --amount <amount> zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent assets --wallet main zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based zk-agent workflow fund --wallet main zk-agent relay inspect --relay-url <url>',
     'Pass `--wallet` or `--chain` to retarget the entire suite contract. Pass `--include-onboarding` when you want setup, doctor, and wallet bootstrap guidance in the same packaged readout.',
-    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.startHereJourneyId`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `recommendedJourney`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `recommendedCommands.workflowSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands.'
+    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.startHereJourneyId`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `recommendedJourney`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `recommendedCommands.workflowSurface|paymentSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands.'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -1368,7 +1401,10 @@ function assertDoctorReadyPayload(payload) {
     recommendedNow: true,
     command: 'zk-agent suite',
     useWhen:
-      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship discovery, paymaster, funding, and hosted recovery slices.',
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
+    paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+    paymentUseWhen:
+      'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
     stayOnCurrentSurfaceWhen:
       'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local-only diagnosis before choosing the live path.',
     note:
@@ -2205,6 +2241,12 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertNoWorkspaceLeak(workflowHelpResult.stdout);
     assertWorkflowHelpContract(workflowHelpResult.stdout);
 
+    const paymentHelpResult = runPackedCli(extractedPackageDir, homeDir, ['payment', '--help']);
+    assertPackedCliStderr(paymentHelpResult.stderr, paymentHelpResult.stdout, 'payment --help');
+    assert.match(paymentHelpResult.stdout, /Usage: zk-agent payment/);
+    assertNoWorkspaceLeak(paymentHelpResult.stdout);
+    assertPaymentHelpContract(paymentHelpResult.stdout);
+
     const bridgeHelpResult = runPackedCli(extractedPackageDir, homeDir, ['bridge', '--help']);
     assertPackedCliStderr(bridgeHelpResult.stderr, bridgeHelpResult.stdout, 'bridge --help');
     assert.match(bridgeHelpResult.stdout, /Usage: zk-agent bridge/);
@@ -2695,6 +2737,16 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(doctorHelpResult.stdout);
     assertDoctorHelpContract(doctorHelpResult.stdout);
 
+    const paymentHelpResult = runInstalledCli(projectRoot, homeDir, ['payment', '--help']);
+    assertPackedCliStderr(
+      paymentHelpResult.stderr,
+      paymentHelpResult.stdout,
+      'installed zk-agent payment --help'
+    );
+    assert.match(paymentHelpResult.stdout, /Usage: zk-agent payment/);
+    assertNoWorkspaceLeak(paymentHelpResult.stdout);
+    assertPaymentHelpContract(paymentHelpResult.stdout);
+
     const suiteHelpResult = runInstalledCli(projectRoot, homeDir, ['suite', '--help']);
     assertPackedCliStderr(
       suiteHelpResult.stderr,
@@ -2851,11 +2903,17 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.equal(suitePayload.summary?.startHereJourneyId, 'send-value-now');
     assert.deepEqual(suitePayload.summary?.journeyOrder, [
       'send-value-now',
+      'capture-and-track-payments',
       'inspect-before-acting',
       'unstick-a-write',
       'recover-remote-approval'
     ]);
-    assert.deepEqual(suitePayload.summary?.surfaceOrder, ['workflow', 'discovery', 'relay']);
+    assert.deepEqual(suitePayload.summary?.surfaceOrder, [
+      'workflow',
+      'payment',
+      'discovery',
+      'relay'
+    ]);
     assert.equal(suitePayload.recommendedJourney?.id, 'send-value-now');
     assert.equal(suitePayload.recommendedJourney?.title, 'Send Value Now');
     assert.equal(
@@ -2868,6 +2926,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       suitePayload.journeys?.map((entry) => entry.id),
       [
         'send-value-now',
+        'capture-and-track-payments',
         'inspect-before-acting',
         'unstick-a-write',
         'recover-remote-approval'
@@ -2878,38 +2937,47 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       suitePayload.journeys?.[0]?.startCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
-    assert.equal(suitePayload.journeys?.[1]?.surface, 'discovery');
-    assert.equal(suitePayload.journeys?.[1]?.startCommand, 'zk-agent assets --wallet main');
-    assert.equal(suitePayload.journeys?.[2]?.surface, 'workflow');
+    assert.equal(suitePayload.journeys?.[1]?.surface, 'payment');
     assert.equal(
-      suitePayload.journeys?.[2]?.startCommand,
-      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based'
+      suitePayload.journeys?.[1]?.startCommand,
+      'zk-agent payment submit --wallet main --to <address> --amount <amount>'
     );
-    assert.equal(suitePayload.journeys?.[3]?.surface, 'relay');
+    assert.equal(suitePayload.journeys?.[2]?.surface, 'discovery');
+    assert.equal(suitePayload.journeys?.[2]?.startCommand, 'zk-agent assets --wallet main');
+    assert.equal(suitePayload.journeys?.[3]?.surface, 'workflow');
     assert.equal(
       suitePayload.journeys?.[3]?.startCommand,
+      'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based'
+    );
+    assert.equal(suitePayload.journeys?.[4]?.surface, 'relay');
+    assert.equal(
+      suitePayload.journeys?.[4]?.startCommand,
       'zk-agent relay inspect --relay-url <url>'
     );
     assert.equal(Array.isArray(suitePayload.surfaces), true);
     assert.deepEqual(
       suitePayload.surfaces?.map((entry) => entry.surface),
-      ['workflow', 'discovery', 'relay']
+      ['workflow', 'payment', 'discovery', 'relay']
     );
     assert.equal(suitePayload.recommendedCommands?.workflowSurface, 'zk-agent workflow --help');
+    assert.equal(suitePayload.recommendedCommands?.paymentSurface, 'zk-agent payment --help');
     assert.equal(suitePayload.recommendedCommands?.discoverySurface, 'zk-agent defaults');
     assert.equal(suitePayload.recommendedCommands?.relaySurface, 'zk-agent relay --help');
     assert.equal(suitePayload.surfaces?.[0]?.command, 'zk-agent workflow --help');
-    assert.equal(suitePayload.surfaces?.[1]?.command, 'zk-agent defaults');
-    assert.equal(suitePayload.surfaces?.[2]?.command, 'zk-agent relay --help');
+    assert.equal(suitePayload.surfaces?.[1]?.command, 'zk-agent payment --help');
+    assert.equal(suitePayload.surfaces?.[2]?.command, 'zk-agent defaults');
+    assert.equal(suitePayload.surfaces?.[3]?.command, 'zk-agent relay --help');
     assert.equal(suitePayload.flagship?.surface, 'workflow');
     assert.equal(suitePayload.flagship?.surfaceCommand, 'zk-agent workflow --help');
     assert.equal(Array.isArray(suitePayload.slices), true);
-    assert.equal(suitePayload.slices?.[0]?.surface, 'discovery');
-    assert.equal(suitePayload.slices?.[0]?.surfaceCommand, 'zk-agent defaults');
-    assert.equal(suitePayload.slices?.[1]?.surface, 'workflow');
+    assert.equal(suitePayload.slices?.[0]?.surface, 'payment');
+    assert.equal(suitePayload.slices?.[0]?.surfaceCommand, 'zk-agent payment --help');
+    assert.equal(suitePayload.slices?.[1]?.surface, 'discovery');
+    assert.equal(suitePayload.slices?.[1]?.surfaceCommand, 'zk-agent defaults');
     assert.equal(suitePayload.slices?.[2]?.surface, 'workflow');
-    assert.equal(suitePayload.slices?.[3]?.surface, 'relay');
-    assert.equal(suitePayload.slices?.[3]?.surfaceCommand, 'zk-agent relay --help');
+    assert.equal(suitePayload.slices?.[3]?.surface, 'workflow');
+    assert.equal(suitePayload.slices?.[4]?.surface, 'relay');
+    assert.equal(suitePayload.slices?.[4]?.surfaceCommand, 'zk-agent relay --help');
 
     const profilesOutput = runInstalledCliJson(projectRoot, homeDir, [
       'wallet',

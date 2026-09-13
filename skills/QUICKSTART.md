@@ -228,6 +228,7 @@ Do not guess the route. Use the exact funding command suggested by `next`,
 
 - full operator guide: [SKILL.md](./SKILL.md)
 - flagship AA path: [zk-aa/SKILL.md](./zk-aa/SKILL.md)
+- Agent Pay request layer: [zk-agent-pay/SKILL.md](./zk-agent-pay/SKILL.md)
 - discovery/defaults: [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
 - funding readiness: [zk-funding/SKILL.md](./zk-funding/SKILL.md)
 - paymaster readiness: [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)

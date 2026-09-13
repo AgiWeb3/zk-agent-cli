@@ -39,6 +39,7 @@ Role boundary:
 Use focused skills when the task is narrower than the full operator flow:
 
 - [zk-aa/SKILL.md](./zk-aa/SKILL.md)
+- [zk-agent-pay/SKILL.md](./zk-agent-pay/SKILL.md)
 - [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
 - [zk-funding/SKILL.md](./zk-funding/SKILL.md)
 - [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)
@@ -125,7 +126,7 @@ Interpret the steps like this:
 - `workflow pay`
   default flagship zkSync-native AA native-send path
 - `suite`
-  default packaged surface for discovery/defaults, funding, and
+  default packaged surface for Agent Pay, discovery/defaults, funding, and
   paymaster readiness
 
 The packaged default story is payment-first: send native value now, stay on
@@ -235,6 +236,8 @@ capture, queueing, reporting, or approval tracking around the same wallet:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment dashboard
+zk-agent payment feed
 zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
@@ -302,6 +305,7 @@ zk-agent suite --help
 - canonical CLI operator manual:
   [../packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
 - flagship AA path: [zk-aa/SKILL.md](./zk-aa/SKILL.md)
+- Agent Pay request layer: [zk-agent-pay/SKILL.md](./zk-agent-pay/SKILL.md)
 - discovery/defaults: [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)
 - funding readiness: [zk-funding/SKILL.md](./zk-funding/SKILL.md)
 - paymaster readiness: [zk-paymaster/SKILL.md](./zk-paymaster/SKILL.md)

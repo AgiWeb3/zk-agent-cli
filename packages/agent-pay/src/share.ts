@@ -42,11 +42,21 @@ export interface PaymentRequestShareView {
   latestEventType?: PaymentHistoryEventType;
 }
 
+export function buildPaymentRequestSharePayer(
+  record: Pick<PaymentRequestRecord, 'payer'>
+): PaymentRequestSharePayer {
+  const payerDisplayName = record.payer.name?.trim();
+
+  return {
+    label: payerDisplayName || 'payer',
+    ...(payerDisplayName ? { displayName: payerDisplayName } : {})
+  };
+}
+
 export function buildPaymentRequestShare(
   record: PaymentRequestRecord
 ): PaymentRequestShareView {
   const latestEvent = record.history[record.history.length - 1];
-  const payerDisplayName = record.payer.name?.trim();
 
   return {
     format: 'zk-agent-payment-request-share',
@@ -54,10 +64,7 @@ export function buildPaymentRequestShare(
     requestId: record.requestId,
     chain: record.chain,
     chainId: record.chainId,
-    payer: {
-      label: payerDisplayName || 'payer',
-      ...(payerDisplayName ? { displayName: payerDisplayName } : {})
-    },
+    payer: buildPaymentRequestSharePayer(record),
     payee: { ...record.payee },
     asset: { ...record.asset },
     status: record.settlement.status,

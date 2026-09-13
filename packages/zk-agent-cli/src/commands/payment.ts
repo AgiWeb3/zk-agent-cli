@@ -7,6 +7,8 @@ import {
   loadWalletSession,
 } from '@zk-agent/agent-core';
 import {
+  buildStoredPaymentRequestsDashboard,
+  buildStoredPaymentRequestsFeed,
   buildStoredPaymentRequestsQueue,
   buildStoredPaymentRequestsReport,
   getStoredPaymentRequestApproval,
@@ -20,8 +22,10 @@ import {
   type CreateStoredPaymentRequestInput,
   type PaymentRequestApprovalView,
   getStoredPaymentRequestExecution,
+  getStoredPaymentRequestHandoff,
   getStoredPaymentRequestIntent,
   getStoredPaymentRequestNext,
+  getStoredPaymentRequestParties,
   getStoredPaymentRequest,
   inspectStoredPaymentRequest,
   listStoredPaymentRequestHistory,
@@ -34,7 +38,11 @@ import {
   type PaymentHistoryEventType,
   type PaymentExecutionPlan,
   type PaymentRequestsReportView,
+  type PaymentRequestsDashboardView,
+  type PaymentRequestsFeedView,
+  type PaymentRequestHandoffView,
   type PaymentRequestIntentView,
+  type PaymentRequestPartiesView,
   type PaymentRequestExecutionView,
   type PaymentRequestDescriptor,
   type PaymentRequestShareView,
@@ -50,12 +58,16 @@ import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 import { printResult } from '../lib/io.js';
 import {
   buildPaymentApprovalRecommendedCommand,
+  buildPaymentDashboardRecommendedCommand,
+  buildPaymentFeedRecommendedCommand,
   buildPaymentInspectRecommendedCommand,
   buildPaymentNextRecommendedCommand,
   buildPaymentDescribeRecommendedCommand,
   buildPaymentExecutionRecommendedCommand,
+  buildPaymentHandoffRecommendedCommand,
   buildPaymentHistoryRecommendedCommand,
   buildPaymentIntentRecommendedCommand,
+  buildPaymentPartiesRecommendedCommand,
   buildPaymentListRecommendedCommand,
   buildPaymentQueueRecommendedCommand,
   buildPaymentQuoteRecommendedCommand,
@@ -113,6 +125,20 @@ interface PaymentReportOptions {
   limit?: string;
 }
 
+interface PaymentDashboardOptions {
+  wallet?: string;
+  status?: string;
+  queueLimit?: string;
+  walletLimit?: string;
+  activityLimit?: string;
+}
+
+interface PaymentFeedOptions {
+  wallet?: string;
+  status?: string;
+  limit?: string;
+}
+
 interface PaymentApprovalOptions {
   requestId: string;
 }
@@ -134,6 +160,14 @@ interface PaymentNextOptions {
 }
 
 interface PaymentDescribeOptions {
+  requestId: string;
+}
+
+interface PaymentHandoffOptions {
+  requestId: string;
+}
+
+interface PaymentPartiesOptions {
   requestId: string;
 }
 
@@ -344,6 +378,8 @@ function buildPaymentRecommendedCommands(
 
   return {
     submit: buildPaymentSubmitRecommendedCommand(),
+    dashboard: buildPaymentDashboardRecommendedCommand(),
+    feed: buildPaymentFeedRecommendedCommand(),
     queue: buildPaymentQueueRecommendedCommand(),
     report: buildPaymentReportRecommendedCommand(),
     approval: buildPaymentApprovalRecommendedCommand(record.requestId),
@@ -352,7 +388,9 @@ function buildPaymentRecommendedCommands(
     show: buildPaymentShowRecommendedCommand(record.requestId),
     inspect: buildPaymentInspectRecommendedCommand(record.requestId),
     next: buildPaymentNextRecommendedCommand(record.requestId),
+    handoff: buildPaymentHandoffRecommendedCommand(record.requestId),
     intent: buildPaymentIntentRecommendedCommand(record.requestId),
+    parties: buildPaymentPartiesRecommendedCommand(record.requestId),
     describe: buildPaymentDescribeRecommendedCommand(record.requestId),
     share: buildPaymentShareRecommendedCommand(record.requestId),
     execution: buildPaymentExecutionRecommendedCommand(record.requestId),
@@ -534,6 +572,8 @@ function paymentRequestLines(
     ['show', buildPaymentShowRecommendedCommand(record.requestId)],
     ['inspect', buildPaymentInspectRecommendedCommand(record.requestId)],
     ['intent', buildPaymentIntentRecommendedCommand(record.requestId)],
+    ['handoff', buildPaymentHandoffRecommendedCommand(record.requestId)],
+    ['parties', buildPaymentPartiesRecommendedCommand(record.requestId)],
     ['describe', buildPaymentDescribeRecommendedCommand(record.requestId)],
     ['execution', buildPaymentExecutionRecommendedCommand(record.requestId)],
     ['quote', buildPaymentQuoteRecommendedCommand(record.requestId)],
@@ -577,6 +617,8 @@ function paymentHistoryLines(
     ['show', buildPaymentShowRecommendedCommand(record.requestId)],
     ['inspect', buildPaymentInspectRecommendedCommand(record.requestId)],
     ['intent', buildPaymentIntentRecommendedCommand(record.requestId)],
+    ['handoff', buildPaymentHandoffRecommendedCommand(record.requestId)],
+    ['parties', buildPaymentPartiesRecommendedCommand(record.requestId)],
     ['describe', buildPaymentDescribeRecommendedCommand(record.requestId)],
     ['execution', buildPaymentExecutionRecommendedCommand(record.requestId)],
     ['quote', buildPaymentQuoteRecommendedCommand(record.requestId)],
@@ -668,6 +710,8 @@ function paymentExecutionLines(
 function paymentIntentLines(
   intent: PaymentRequestIntentView,
   inspectCommand: string,
+  handoffCommand: string,
+  partiesCommand: string,
   descriptorCommand: string,
   shareCommand: string,
   executionCommand: string,
@@ -683,6 +727,8 @@ function paymentIntentLines(
     ['created', intent.createdAt],
     ['updated', intent.updatedAt],
     ['inspect', inspectCommand],
+    ['handoff', handoffCommand],
+    ['parties', partiesCommand],
     ['describe', descriptorCommand],
     ['share', shareCommand],
     ['execution', executionCommand],
@@ -698,10 +744,83 @@ function paymentIntentLines(
   return lines;
 }
 
+function paymentHandoffLines(
+  handoff: PaymentRequestHandoffView,
+  inspectCommand: string,
+  partiesCommand: string,
+  shareCommand: string,
+  settlementCommand: string
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['request', handoff.requestId],
+    ['source', handoff.source],
+    ['chain', `${handoff.chain} (${handoff.chainId})`],
+    ['status', handoff.summary.settlementStatus],
+    ['lifecycle', handoff.summary.lifecycleState],
+    ['readiness', handoff.summary.readinessClass],
+    ['next action', handoff.next.recommendedAction],
+    ['route', handoff.next.route.kind],
+    ['exported', handoff.exportedAt],
+    ['inspect', inspectCommand],
+    ['parties', partiesCommand],
+    ['share', shareCommand],
+    ['settlement', settlementCommand]
+  ];
+
+  if (handoff.next.route.kind === 'set-status' && handoff.next.route.status) {
+    lines.push(['route status', handoff.next.route.status]);
+  }
+
+  return lines;
+}
+
+function paymentPartiesLines(
+  parties: PaymentRequestPartiesView,
+  inspectCommand: string,
+  intentCommand: string,
+  descriptorCommand: string,
+  shareCommand: string
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['request', parties.requestId],
+    ['chain', `${parties.chain} (${parties.chainId})`],
+    ['linkage', parties.linkage.type],
+    ['payer role', parties.payer.role],
+    ...(parties.payer.local.walletId
+      ? ([['payer wallet id', parties.payer.local.walletId]] as Array<[string, string]>)
+      : []),
+    ['payer wallet name', parties.payer.local.walletNameSnapshot],
+    ['payer wallet address', parties.payer.local.walletAddressSnapshot],
+    ...(parties.payer.local.displayName
+      ? ([['payer display', parties.payer.local.displayName]] as Array<[string, string]>)
+      : []),
+    ['payer share label', parties.payer.shareSafe.label],
+    ...(parties.payer.shareSafe.displayName
+      ? ([['payer share display', parties.payer.shareSafe.displayName]] as Array<
+          [string, string]
+        >)
+      : []),
+    ['payee role', parties.payee.role],
+    ['payee address', parties.payee.profile.address],
+    ...(parties.payee.profile.displayName
+      ? ([['payee display', parties.payee.profile.displayName]] as Array<[string, string]>)
+      : []),
+    ['created', parties.createdAt],
+    ['updated', parties.updatedAt],
+    ['inspect', inspectCommand],
+    ['intent', intentCommand],
+    ['describe', descriptorCommand],
+    ['share', shareCommand]
+  ];
+
+  return lines;
+}
+
 function paymentSettlementLines(
   settlement: PaymentRequestSettlementView,
   inspectCommand: string,
   intentCommand: string,
+  partiesCommand: string,
   descriptorCommand: string,
   executionCommand: string,
   quoteCommand: string,
@@ -718,6 +837,7 @@ function paymentSettlementLines(
     ['history events', String(settlement.historyCount)],
     ['inspect', inspectCommand],
     ['intent', intentCommand],
+    ['parties', partiesCommand],
     ['describe', descriptorCommand],
     ['execution', executionCommand],
     ['quote', quoteCommand],
@@ -745,6 +865,7 @@ function paymentSettlementLines(
 function paymentDescriptorLines(
   descriptor: PaymentRequestDescriptor,
   executeCommand: string,
+  partiesCommand: string,
   shareCommand: string
 ): Array<[string, string]> {
   const lines: Array<[string, string]> = [
@@ -763,6 +884,7 @@ function paymentDescriptorLines(
     ['show', buildPaymentShowRecommendedCommand(descriptor.requestId)],
     ['inspect', buildPaymentInspectRecommendedCommand(descriptor.requestId)],
     ['intent', buildPaymentIntentRecommendedCommand(descriptor.requestId)],
+    ['parties', partiesCommand],
     ['share', shareCommand],
     ['execution', buildPaymentExecutionRecommendedCommand(descriptor.requestId)],
     ['settlement', buildPaymentSettlementRecommendedCommand(descriptor.requestId)],
@@ -794,6 +916,7 @@ function paymentDescriptorLines(
 function paymentShareLines(
   share: PaymentRequestShareView,
   inspectCommand: string,
+  partiesCommand: string,
   settlementCommand: string,
   historyCommand: string
 ): Array<[string, string]> {
@@ -809,6 +932,7 @@ function paymentShareLines(
     ['history events', String(share.historyCount)],
     ['share', buildPaymentShareRecommendedCommand(share.requestId)],
     ['inspect', inspectCommand],
+    ['parties', partiesCommand],
     ['settlement', settlementCommand],
     ['history', historyCommand]
   ];
@@ -841,6 +965,8 @@ function paymentInspectLines(input: {
   historyCount: number;
   inspectCommand: string;
   intentCommand: string;
+  handoffCommand: string;
+  partiesCommand: string;
   describeCommand: string;
   executionCommand: string;
   quoteCommand: string;
@@ -860,6 +986,8 @@ function paymentInspectLines(input: {
     ['history events', String(input.historyCount)],
     ['inspect', input.inspectCommand],
     ['intent', input.intentCommand],
+    ['handoff', input.handoffCommand],
+    ['parties', input.partiesCommand],
     ['describe', input.describeCommand],
     ['execution', input.executionCommand],
     ['quote', input.quoteCommand],
@@ -1004,6 +1132,107 @@ function paymentIngressLines(input: {
     ['payment next', input.nextInspectCommand],
     ['history', input.historyCommand]
   ];
+}
+
+function paymentDashboardLines(
+  dashboard: PaymentRequestsDashboardView
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['generated', dashboard.generatedAt],
+    ['requests', String(dashboard.summary.totalRequests)],
+    ['wallet groups', String(dashboard.summary.distinctWalletCount)],
+    ['actionable', String(dashboard.summary.actionableRequests)],
+    ['ready to execute', String(dashboard.summary.readyToExecuteRequests)],
+    ['approval blocked', String(dashboard.summary.approvalBlockedRequests)],
+    ['signer blocked', String(dashboard.summary.signerBlockedRequests)],
+    ['wallet link blocked', String(dashboard.summary.walletLinkBlockedRequests)],
+    ['awaiting confirmation', String(dashboard.summary.awaitingConfirmationRequests)],
+    ['retryable', String(dashboard.summary.retryableRequests)],
+    ['queue shown', String(dashboard.queue.length)],
+    ['wallets shown', String(dashboard.wallets.length)],
+    ['dashboard', buildPaymentDashboardRecommendedCommand()],
+    ['feed', buildPaymentFeedRecommendedCommand()],
+    ['queue', buildPaymentQueueRecommendedCommand()],
+    ['report', buildPaymentReportRecommendedCommand()]
+  ];
+
+  if (dashboard.filters.walletName) {
+    lines.splice(1, 0, ['wallet filter', dashboard.filters.walletName]);
+  }
+  if (dashboard.filters.status) {
+    lines.splice(dashboard.filters.walletName ? 2 : 1, 0, [
+      'status filter',
+      dashboard.filters.status
+    ]);
+  }
+  if (dashboard.summary.latestActivityAt) {
+    lines.push(['latest activity', dashboard.summary.latestActivityAt]);
+  }
+
+  for (const wallet of dashboard.wallets.slice(0, 3)) {
+    lines.push([
+      'wallet',
+      `${wallet.walletName} actionable=${wallet.actionableRequests} next=${wallet.primaryNextAction} route=${wallet.primaryRouteKind}`
+    ]);
+  }
+
+  for (const item of dashboard.queue.slice(0, 5)) {
+    lines.push([
+      'queue item',
+      `${item.requestId} ${item.amount} ${item.symbol || item.assetKind} -> ${item.payeeAddress} (${item.walletName})`
+    ]);
+    lines.push(['next action', `${item.nextAction} (${item.routeKind})`]);
+  }
+
+  for (const event of dashboard.recentActivity.slice(0, 3)) {
+    lines.push([
+      'activity',
+      `${event.at} ${event.type} ${event.requestId} ${event.status} (${event.walletName})`
+    ]);
+  }
+
+  return lines;
+}
+
+function paymentFeedLines(feed: PaymentRequestsFeedView): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['generated', feed.generatedAt],
+    ['source', feed.source],
+    ['requests', String(feed.summary.totalRequests)],
+    ['wallet groups', String(feed.summary.distinctWalletCount)],
+    ['actionable', String(feed.summary.actionableRequests)],
+    ['ready to execute', String(feed.summary.readyToExecuteRequests)],
+    ['approval blocked', String(feed.summary.approvalBlockedRequests)],
+    ['signer blocked', String(feed.summary.signerBlockedRequests)],
+    ['wallet link blocked', String(feed.summary.walletLinkBlockedRequests)],
+    ['awaiting confirmation', String(feed.summary.awaitingConfirmationRequests)],
+    ['retryable', String(feed.summary.retryableRequests)],
+    ['items shown', String(feed.items.length)],
+    ['feed', buildPaymentFeedRecommendedCommand()],
+    ['dashboard', buildPaymentDashboardRecommendedCommand()],
+    ['queue', buildPaymentQueueRecommendedCommand()],
+    ['report', buildPaymentReportRecommendedCommand()]
+  ];
+
+  if (feed.filters.walletName) {
+    lines.splice(2, 0, ['wallet filter', feed.filters.walletName]);
+  }
+  if (feed.filters.status) {
+    lines.splice(feed.filters.walletName ? 3 : 2, 0, ['status filter', feed.filters.status]);
+  }
+  if (feed.summary.latestActivityAt) {
+    lines.push(['latest activity', feed.summary.latestActivityAt]);
+  }
+
+  for (const item of feed.items.slice(0, 5)) {
+    lines.push([
+      'feed item',
+      `${item.requestId} ${item.handoff.intent.asset.amount} ${item.handoff.intent.asset.symbol || item.handoff.intent.asset.kind} -> ${item.handoff.intent.payee.address} (${item.walletName})`
+    ]);
+    lines.push(['next action', `${item.nextAction} (${item.routeKind})`]);
+  }
+
+  return lines;
 }
 
 function paymentReportLines(report: PaymentRequestsReportView): Array<[string, string]> {
@@ -1232,22 +1461,32 @@ export function createPaymentCommand(): Command {
       '  Payment request surface:',
       '    Use this layer to capture payer/payee intent and local settlement state before or after execution.',
       '    `submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
+      '    `dashboard` is the control-plane style cross-request summary above the local report and queue primitives.',
+      '    `feed` is the first service-facing cross-request batch contract for hosted control-plane or agent-platform ingestion.',
+      '    `handoff` is the first service-facing entry bundle for hosted control-plane or agent-platform ingestion.',
+      '    `parties` is the stable payer/payee request model with separate local and share-safe payer views.',
       '    `share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
       '    `workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle.',
       '',
       '  Start here:',
       '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
+      '    zk-agent payment dashboard',
+      '    zk-agent payment feed',
       '    zk-agent payment queue',
       '    zk-agent payment report',
       '    zk-agent payment approval --request-id <id>',
       '    zk-agent payment sync-approval --request-id <id>',
       '    zk-agent payment next --request-id <id>',
       '    zk-agent payment inspect --request-id <id>',
+      '    zk-agent payment handoff --request-id <id>',
+      '    zk-agent payment parties --request-id <id>',
       '',
       '  Deeper per-request reads and writes:',
       '    zk-agent payment create --wallet main --to <address> --amount <amount>',
       '    zk-agent payment show --request-id <id>',
       '    zk-agent payment intent --request-id <id>',
+      '    zk-agent payment handoff --request-id <id>',
+      '    zk-agent payment parties --request-id <id>',
       '    zk-agent payment describe --request-id <id>',
       '    zk-agent payment share --request-id <id>',
       '    zk-agent payment execution --request-id <id>',
@@ -1265,6 +1504,8 @@ export function createPaymentCommand(): Command {
       '    zk-agent payment create --wallet main --to <address> --amount <amount> --symbol USDC',
       '',
       '  Stored request management:',
+      '    zk-agent payment dashboard',
+      '    zk-agent payment feed',
       '    zk-agent payment queue',
       '    zk-agent payment report',
       '    zk-agent payment approval --request-id <id>',
@@ -1424,6 +1665,81 @@ export function createPaymentCommand(): Command {
     });
 
   payment
+    .command('dashboard')
+    .description(
+      'Build a control-plane style Agent Pay dashboard above the current local report and queue'
+    )
+    .option('--wallet <name>', 'Optional payer wallet filter')
+    .option(
+      '--status <status>',
+      'Optional status filter: draft, approval_pending, ready, paid, failed, expired, or cancelled'
+    )
+    .option('--queue-limit <count>', 'Optional maximum number of actionable queue items')
+    .option('--wallet-limit <count>', 'Optional maximum number of wallet summaries')
+    .option('--activity-limit <count>', 'Optional recent-activity limit')
+    .action(async (options: PaymentDashboardOptions) => {
+      const statusFilter = options.status ? resolvePaymentStatus(options.status) : undefined;
+      const queueLimit = resolvePositiveInteger(options.queueLimit, '--queue-limit');
+      const walletLimit = resolvePositiveInteger(options.walletLimit, '--wallet-limit');
+      const recentActivityLimit = resolvePositiveInteger(
+        options.activityLimit,
+        '--activity-limit'
+      );
+      const result = await buildStoredPaymentRequestsDashboard({
+        walletName: options.wallet,
+        status: statusFilter,
+        queueLimit,
+        walletLimit,
+        recentActivityLimit
+      });
+
+      printResult(paymentDashboardLines(result.dashboard), {
+        ok: true,
+        dashboard: result.dashboard,
+        recommendedCommands: {
+          dashboard: buildPaymentDashboardRecommendedCommand(),
+          feed: buildPaymentFeedRecommendedCommand(),
+          queue: buildPaymentQueueRecommendedCommand(),
+          report: buildPaymentReportRecommendedCommand(),
+          submit: buildPaymentSubmitRecommendedCommand()
+        }
+      });
+    });
+
+  payment
+    .command('feed')
+    .description(
+      'Build a service-facing cross-request Agent Pay feed for hosted control-plane ingestion'
+    )
+    .option('--wallet <name>', 'Optional payer wallet filter')
+    .option(
+      '--status <status>',
+      'Optional status filter: draft, approval_pending, ready, paid, failed, expired, or cancelled'
+    )
+    .option('--limit <count>', 'Optional maximum number of feed items to return')
+    .action(async (options: PaymentFeedOptions) => {
+      const statusFilter = options.status ? resolvePaymentStatus(options.status) : undefined;
+      const limit = resolvePositiveInteger(options.limit, '--limit');
+      const result = await buildStoredPaymentRequestsFeed({
+        walletName: options.wallet,
+        status: statusFilter,
+        limit
+      });
+
+      printResult(paymentFeedLines(result.feed), {
+        ok: true,
+        feed: result.feed,
+        recommendedCommands: {
+          dashboard: buildPaymentDashboardRecommendedCommand(),
+          feed: buildPaymentFeedRecommendedCommand(),
+          queue: buildPaymentQueueRecommendedCommand(),
+          report: buildPaymentReportRecommendedCommand(),
+          submit: buildPaymentSubmitRecommendedCommand()
+        }
+      });
+    });
+
+  payment
     .command('queue')
     .description(
       'Build a wallet-aware cross-request Agent Pay queue for platform-style request follow-up'
@@ -1454,6 +1770,8 @@ export function createPaymentCommand(): Command {
           }))
         },
         recommendedCommands: {
+          dashboard: buildPaymentDashboardRecommendedCommand(),
+          feed: buildPaymentFeedRecommendedCommand(),
           queue: buildPaymentQueueRecommendedCommand(),
           report: buildPaymentReportRecommendedCommand(),
           list: buildPaymentListRecommendedCommand(),
@@ -1484,6 +1802,8 @@ export function createPaymentCommand(): Command {
         ok: true,
         report: result.report,
         recommendedCommands: {
+          dashboard: buildPaymentDashboardRecommendedCommand(),
+          feed: buildPaymentFeedRecommendedCommand(),
           queue: buildPaymentQueueRecommendedCommand(),
           report: buildPaymentReportRecommendedCommand(),
           submit: buildPaymentSubmitRecommendedCommand(),
@@ -1642,6 +1962,12 @@ export function createPaymentCommand(): Command {
           intentCommand: buildPaymentIntentRecommendedCommand(
             result.paymentRequest.requestId
           ),
+          handoffCommand: buildPaymentHandoffRecommendedCommand(
+            result.paymentRequest.requestId
+          ),
+          partiesCommand: buildPaymentPartiesRecommendedCommand(
+            result.paymentRequest.requestId
+          ),
           describeCommand: buildPaymentDescribeRecommendedCommand(
             result.paymentRequest.requestId
           ),
@@ -1666,6 +1992,8 @@ export function createPaymentCommand(): Command {
           next: result.next,
           summary: result.summary,
           intent: result.intent,
+          handoff: result.handoff,
+          parties: result.parties,
           descriptor: result.descriptor,
           execution: result.execution,
           quote: result.quote,
@@ -1690,6 +2018,8 @@ export function createPaymentCommand(): Command {
         paymentIntentLines(
           result.intent,
           buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentHandoffRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentPartiesRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentDescribeRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentShareRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentExecutionRecommendedCommand(result.paymentRequest.requestId),
@@ -1710,6 +2040,62 @@ export function createPaymentCommand(): Command {
     });
 
   payment
+    .command('handoff')
+    .description(
+      'Render one stored payment request as a service-facing handoff bundle for hosted control-plane ingestion'
+    )
+    .requiredOption('--request-id <id>', 'Stored payment request id')
+    .action(async (options: PaymentHandoffOptions) => {
+      const result = await getStoredPaymentRequestHandoff(options.requestId);
+
+      printResult(
+        paymentHandoffLines(
+          result.handoff,
+          buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentPartiesRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentShareRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentSettlementRecommendedCommand(result.paymentRequest.requestId)
+        ),
+        {
+          ok: true,
+          requestId: result.paymentRequest.requestId,
+          handoff: result.handoff,
+          recommendedCommands: buildPaymentRecommendedCommands(
+            result.paymentRequest,
+            result.executionPlan
+          )
+        }
+      );
+    });
+
+  payment
+    .command('parties')
+    .description('Render one stored payment request as a stable payer/payee request model')
+    .requiredOption('--request-id <id>', 'Stored payment request id')
+    .action(async (options: PaymentPartiesOptions) => {
+      const result = await getStoredPaymentRequestParties(options.requestId);
+
+      printResult(
+        paymentPartiesLines(
+          result.parties,
+          buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentIntentRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentDescribeRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentShareRecommendedCommand(result.paymentRequest.requestId)
+        ),
+        {
+          ok: true,
+          requestId: result.paymentRequest.requestId,
+          parties: result.parties,
+          recommendedCommands: buildPaymentRecommendedCommands(
+            result.paymentRequest,
+            result.executionPlan
+          )
+        }
+      );
+    });
+
+  payment
     .command('describe')
     .description('Render one stored payment request as a stable Agent Pay request descriptor')
     .requiredOption('--request-id <id>', 'Stored payment request id')
@@ -1720,6 +2106,7 @@ export function createPaymentCommand(): Command {
         paymentDescriptorLines(
           result.descriptor,
           buildPaymentExecuteCommand(result.executionPlan),
+          buildPaymentPartiesRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentShareRecommendedCommand(result.paymentRequest.requestId)
         ),
         {
@@ -1745,6 +2132,7 @@ export function createPaymentCommand(): Command {
         paymentShareLines(
           result.share,
           buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentPartiesRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentSettlementRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentHistoryRecommendedCommand(result.paymentRequest.requestId)
         ),
@@ -1864,6 +2252,7 @@ export function createPaymentCommand(): Command {
             result.settlement,
             buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
             buildPaymentIntentRecommendedCommand(result.paymentRequest.requestId),
+            buildPaymentPartiesRecommendedCommand(result.paymentRequest.requestId),
             buildPaymentDescribeRecommendedCommand(result.paymentRequest.requestId),
             buildPaymentExecutionRecommendedCommand(result.paymentRequest.requestId),
             buildPaymentQuoteRecommendedCommand(result.paymentRequest.requestId),
@@ -1910,6 +2299,7 @@ export function createPaymentCommand(): Command {
           result.settlement,
           buildPaymentInspectRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentIntentRecommendedCommand(result.paymentRequest.requestId),
+          buildPaymentPartiesRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentDescribeRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentExecutionRecommendedCommand(result.paymentRequest.requestId),
           buildPaymentQuoteRecommendedCommand(result.paymentRequest.requestId),

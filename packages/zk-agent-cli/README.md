@@ -48,21 +48,27 @@ The current local-first Agent Pay entry surface is:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment dashboard
+zk-agent payment feed
 zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
 ```
 
-Use those four commands for the public "start here" path:
+Use those commands for the public "start here" path:
 
 - `submit`: capture one payment request through the compact ingress surface
+- `dashboard`: review one control-plane style summary above wallet groups,
+  actionable queue items, and recent payment activity
+- `feed`: expose the first service-facing cross-request batch contract for
+  hosted control-plane or agent-platform ingestion
 - `queue`: review the current actionable request queue
 - `report`: summarize cross-request state and next-action distribution
 - `approval`: inspect whether the linked wallet is still blocking execution
 
 When you already have a request id and need the deeper local lifecycle,
-share-safe request view, routing, quote, settlement, or reconciliation views,
-use:
+service-facing handoff bundle, payer/payee request model, share-safe request
+view, routing, quote, settlement, or reconciliation views, use:
 
 ```bash
 zk-agent payment --help
@@ -71,6 +77,18 @@ zk-agent payment --help
 Use `zk-agent payment share --request-id <id>` when the request must be shared
 with a payee or external reviewer without exposing local wallet linkage or
 execution-preference details.
+
+Use `zk-agent payment parties --request-id <id>` when an agent or service
+needs the stable payer/payee request model with separate local and
+share-safe payer projections.
+
+Use `zk-agent payment handoff --request-id <id>` when a hosted control plane
+or agent platform needs one stable service-facing bundle instead of
+reassembling local reads.
+
+Use `zk-agent payment feed` when that same hosted control plane or agent
+platform needs the stable cross-request batch surface instead of one request
+at a time.
 
 If readiness is unclear before you choose a fix, use:
 
@@ -248,12 +266,13 @@ zk-agent suite
 ```
 
 Use `suite` when the wallet is already ready and you want one packaged surface
-for flagship pay, discovery/defaults, funding readiness, approval-based
-paymaster readiness, and hosted approval recovery.
+for flagship pay, Agent Pay request work, discovery/defaults, funding
+readiness, approval-based paymaster readiness, and hosted approval recovery.
 
 Current `suite` catalog categories:
 
 - `operate`
+- `request`
 - `discover`
 - `pay`
 - `fund`
@@ -262,12 +281,14 @@ Current `suite` catalog categories:
 Current `suite` handoff surfaces:
 
 - `workflow`: flagship pay, approval-based pay, and funding recovery
+- `payment`: request capture, queueing, reporting, feed export, and approval repair
 - `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
 Current `suite` operator journeys:
 
 - `send value now`
+- `capture and track payments`
 - `inspect before acting`
 - `unstick a write`
 - `recover remote approval`
@@ -290,7 +311,7 @@ Do not guess the route. Use the exact funding command suggested by `next`,
 
 ## Leave the default path only on purpose
 
-Prefer `suite` first when you want the packaged discovery/defaults/funding/
+Prefer `suite` first when you want the packaged Agent Pay/discovery/funding/
 paymaster surface. Drop to lower-level commands only when the question is
 already narrower than the packaged catalog.
 

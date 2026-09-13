@@ -594,7 +594,7 @@ Key fields:
     "recommendedNow": true,
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
-    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
     "recommendedJourney": {
       "id": "send-value-now",
       "title": "Send Value Now",
@@ -803,7 +803,7 @@ Key fields:
     "recommendedNow": true,
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
-    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
     "recommendedJourney": {
       "id": "send-value-now",
       "title": "Send Value Now",
@@ -842,8 +842,8 @@ Key fields:
 ```
 
 `recommendedCommands.suite` is the stable post-flagship entrypoint from the
-same wallet-ready state when the operator wants discovery/defaults, funding,
-and paymaster guidance in one packaged surface.
+same wallet-ready state when the operator wants Agent Pay request work,
+discovery/defaults, funding, and paymaster guidance in one packaged surface.
 
 `suiteHandoffSummary` is the stable boundary marker for when `next` should
 hand the operator from the product-entry surface to `suite`.
@@ -924,7 +924,7 @@ Key fields:
     "recommendedNow": false,
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
-    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, or approval tracking around the same wallet.",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
     "recommendedJourney": null
   },
   "result": { "...": "workflow status payload" },
@@ -1003,8 +1003,9 @@ Within that set:
   stay on `wallet status|next` versus move to `suite`.
 
 The stable wallet-scoped follow-up contract now also includes `suite` as the
-packaged post-flagship entrypoint when the operator wants discovery/defaults,
-funding, and paymaster guidance from the same wallet state.
+packaged post-flagship entrypoint when the operator wants Agent Pay request
+work, discovery/defaults, funding, and paymaster guidance from the same
+wallet state.
 
 Current stable `suiteHandoffSummary` fields on this surface:
 
@@ -1731,8 +1732,8 @@ So the current contract layering is:
 ## `zk-agent suite`
 
 This is the current top-level product-surface catalog for the flagship path
-plus the explicit post-flagship operator slices, including the current hosted
-approval recovery surface.
+plus the explicit post-flagship operator slices, including Agent Pay request
+work and the current hosted approval recovery surface.
 
 Current stable top-level fields:
 
@@ -1783,6 +1784,7 @@ Current stable `flagship` / `slices[]` fields:
 Current stable `surfaceOrder` values on this surface are:
 
 - `workflow`
+- `payment`
 - `discovery`
 - `relay`
 
@@ -1790,6 +1792,8 @@ Current stable `surface` semantics on `flagship` / `slices[]`:
 
 - `workflow`
   The suite is handing the operator to the workflow surface next.
+- `payment`
+  The suite is handing the operator to the Agent Pay request surface next.
 - `discovery`
   The suite is handing the operator to the discovery/defaults surface next.
 - `relay`
@@ -1797,7 +1801,8 @@ Current stable `surface` semantics on `flagship` / `slices[]`:
 
 `surfaceCommand` is the stable deeper-surface entrypoint that owns that suite
 slice after the initial suite classification. Current examples include
-`zk-agent workflow --help`, `zk-agent defaults`, and `zk-agent relay --help`.
+`zk-agent workflow --help`, `zk-agent payment --help`,
+`zk-agent defaults`, and `zk-agent relay --help`.
 
 Current stable `surfaces[]` fields:
 
@@ -1839,6 +1844,7 @@ post-flagship entrypoint instead of reading the whole catalog first.
 Current stable `journeyOrder` values on this surface are:
 
 - `send-value-now`
+- `capture-and-track-payments`
 - `inspect-before-acting`
 - `unstick-a-write`
 - `recover-remote-approval`
@@ -1852,6 +1858,7 @@ to after its first classification pass. It compresses the current post-
 flagship product surface into the stable handoff layers:
 
 - `workflow`
+- `payment`
 - `discovery`
 - `relay`
 
@@ -1860,13 +1867,24 @@ Current stable `recommendedCommands` shape on this surface:
 - `suite`
 - `flagship`
 - `workflowSurface`
+- `paymentSurface`
 - `discoverySurface`
 - `relaySurface`
+- `payment`
 - `discovery`
 - `paymaster`
 - `funding`
 - `hostedApproval`
 - `inspectDefaults`
+
+Current stable suite-level category values on this surface now include:
+
+- `operate`
+- `request`
+- `discover`
+- `pay`
+- `fund`
+- `recover`
 
 When `preflight` is present, its current stable fields are:
 
@@ -2491,6 +2509,8 @@ but also the agent-identity layer.
 Current stable subcommands on this surface are:
 
 - `submit`
+- `dashboard`
+- `feed`
 - `queue`
 - `report`
 - `create`
@@ -2498,7 +2518,10 @@ Current stable subcommands on this surface are:
 - `show`
 - `inspect`
 - `intent`
+- `handoff`
+- `parties`
 - `describe`
+- `share`
 - `execution`
 - `quote`
 - `refresh-quote`
@@ -2771,6 +2794,7 @@ Current stable `report` fields:
 - `countsByPaymasterMode`
 - `countsByNextAction`
 - `countsByRouteKind`
+- `wallets`
 - `requests`
 - `recentActivity`
 
@@ -2783,6 +2807,7 @@ Current stable `report.filters` fields:
 Current stable `report.summary` fields:
 
 - `totalRequests`
+- `distinctWalletCount`
 - `openRequests`
 - `blockedRequests`
 - `completedRequests`
@@ -2840,11 +2865,189 @@ Current stable `report.countsByRouteKind[]` fields:
 - `routeKind`
 - `count`
 
+Current stable `report.wallets[]` fields:
+
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `requestCount`
+- `openRequests`
+- `blockedRequests`
+- `completedRequests`
+- `failedRequests`
+- `expiredRequests`
+- `cancelledRequests`
+- `latestUpdatedAt`
+- `latestActivityAt`
+- `countsByNextAction`
+- `countsByRouteKind`
+
 `payment report` now reuses the wallet-aware next-route overlay from the stored
 payment service layer, so `report.requests[].nextAction`,
 `report.requests[].routeKind`, and the corresponding count arrays describe the
 real next-step distribution after wallet approval and signer blockers are
 applied, not only the raw settlement lifecycle.
+
+### `payment dashboard`
+
+Current stable top-level fields:
+
+- `ok`
+- `dashboard`
+- `recommendedCommands`
+
+`payment dashboard` is the first control-plane style Agent Pay reporting
+surface. It compresses the current local report and actionable queue into one
+runtime view that is easier for operator platforms, hosted control planes, or
+agent harnesses to consume without reassembling several lower-level reads.
+
+Current stable `dashboard` fields:
+
+- `format`
+- `version`
+- `generatedAt`
+- `filters`
+- `summary`
+- `wallets`
+- `queue`
+- `recentActivity`
+
+Current stable `dashboard.filters` fields:
+
+- `walletName`
+- `status`
+- `recentActivityLimit`
+- `queueLimit`
+- `walletLimit`
+
+Current stable `dashboard.summary` fields:
+
+- `totalRequests`
+- `distinctWalletCount`
+- `actionableRequests`
+- `readyToExecuteRequests`
+- `approvalBlockedRequests`
+- `signerBlockedRequests`
+- `walletLinkBlockedRequests`
+- `awaitingConfirmationRequests`
+- `retryableRequests`
+- `completedRequests`
+- `failedRequests`
+- `expiredRequests`
+- `cancelledRequests`
+- `latestActivityAt`
+
+Current stable `dashboard.wallets[]` fields:
+
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `requestCount`
+- `actionableRequests`
+- `readyToExecuteRequests`
+- `approvalBlockedRequests`
+- `signerBlockedRequests`
+- `walletLinkBlockedRequests`
+- `awaitingConfirmationRequests`
+- `retryableRequests`
+- `completedRequests`
+- `failedRequests`
+- `primaryNextAction`
+- `primaryRouteKind`
+- `latestUpdatedAt`
+- `latestActivityAt`
+
+Current stable `dashboard.queue[]` fields:
+
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `assetKind`
+- `amount`
+- `symbol`
+- `payeeAddress`
+- `lifecycleState`
+- `settlementStatus`
+- `action`
+- `surface`
+- `paymasterMode`
+- `nextAction`
+- `routeKind`
+- `updatedAt`
+- `historyCount`
+
+### `payment feed`
+
+Current stable top-level fields:
+
+- `ok`
+- `feed`
+- `recommendedCommands`
+
+`payment feed` is the first service-facing cross-request Agent Pay batch
+surface. It exposes one stable summary plus one stable per-request handoff
+envelope per item, so hosted control planes or agent platforms can ingest many
+stored requests without rebuilding that batch contract from `report`, `queue`,
+and repeated per-request `handoff` reads.
+
+Current stable `feed` fields:
+
+- `format`
+- `version`
+- `generatedAt`
+- `source`
+- `filters`
+- `summary`
+- `items`
+
+Current stable `feed.source` values are:
+
+- `local-first`
+
+Current stable `feed.filters` fields:
+
+- `walletName`
+- `status`
+- `limit`
+
+Current stable `feed.summary` fields:
+
+- `totalRequests`
+- `distinctWalletCount`
+- `actionableRequests`
+- `readyToExecuteRequests`
+- `approvalBlockedRequests`
+- `signerBlockedRequests`
+- `walletLinkBlockedRequests`
+- `awaitingConfirmationRequests`
+- `retryableRequests`
+- `completedRequests`
+- `failedRequests`
+- `expiredRequests`
+- `cancelledRequests`
+- `latestActivityAt`
+
+Current stable `feed.items[]` fields:
+
+- `requestId`
+- `walletId`
+- `walletName`
+- `chain`
+- `chainId`
+- `settlementStatus`
+- `lifecycleState`
+- `nextAction`
+- `routeKind`
+- `actionable`
+- `updatedAt`
+- `handoff`
+
+`feed.items[].handoff` reuses the same stable `payment handoff` contract
+documented below.
 
 ### `payment approval`
 
@@ -3000,6 +3203,8 @@ Current stable top-level fields:
 - `next`
 - `summary`
 - `intent`
+- `handoff`
+- `parties`
 - `descriptor`
 - `execution`
 - `quote`
@@ -3009,8 +3214,8 @@ Current stable top-level fields:
 
 `inspect` is the aggregate read surface for one stored payment request. It
 reuses the stable object shapes documented under `payment intent`,
-`payment describe`, `payment execution`, `payment quote`, `payment settlement`,
-`paymentRequest.history[]`, and `payment next`.
+`payment parties`, `payment describe`, `payment execution`, `payment quote`,
+`payment settlement`, `paymentRequest.history[]`, and `payment next`.
 
 `nextCommand` is the exact CLI follow-up for `summary.recommendedAction` when
 one exists on the current request. `inspect.next` is the same compact route
@@ -3087,6 +3292,100 @@ Current stable `intent` fields:
 - `createdAt`
 - `updatedAt`
 
+### `payment handoff`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `handoff`
+- `recommendedCommands`
+
+`payment handoff` is the first service-facing Agent Pay entry bundle. It
+packages the local request into one stable object for hosted control planes,
+agent platforms, or future APIs that do not want to reassemble intent,
+counterparty, share-safe, settlement, and next-step reads separately.
+
+Current stable `handoff` fields:
+
+- `format`
+- `version`
+- `exportedAt`
+- `source`
+- `requestId`
+- `chain`
+- `chainId`
+- `summary`
+- `intent`
+- `parties`
+- `share`
+- `settlement`
+- `next`
+
+Current stable `handoff.source` values are:
+
+- `local-first`
+
+### `payment parties`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `parties`
+- `recommendedCommands`
+
+Current stable `parties` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `chain`
+- `chainId`
+- `linkage`
+- `payer`
+- `payee`
+- `createdAt`
+- `updatedAt`
+
+Current stable `parties.linkage` fields:
+
+- `type`
+- `walletIdPresent`
+
+Current stable `parties.linkage.type` values are:
+
+- `wallet-id`
+- `wallet-name-compat`
+
+Current stable `parties.payer` fields:
+
+- `role`
+- `local`
+- `shareSafe`
+
+Current stable `parties.payer.local` fields:
+
+- `walletId`
+- `walletNameSnapshot`
+- `walletAddressSnapshot`
+- `displayName`
+
+Current stable `parties.payer.shareSafe` fields:
+
+- `label`
+- `displayName`
+
+Current stable `parties.payee` fields:
+
+- `role`
+- `profile`
+
+Current stable `parties.payee.profile` fields:
+
+- `address`
+- `displayName`
+
 ### `payment describe`
 
 Current stable top-level fields:
@@ -3117,6 +3416,47 @@ Current stable `descriptor` fields:
 `descriptor.payer`, `descriptor.payee`, `descriptor.asset`,
 `descriptor.executionPreference`, and `descriptor.settlement` reuse the same
 stable field shapes described under `paymentRequest`.
+
+### `payment share`
+
+Current stable top-level fields:
+
+- `ok`
+- `requestId`
+- `share`
+- `recommendedCommands`
+
+Current stable `share` fields:
+
+- `format`
+- `version`
+- `requestId`
+- `chain`
+- `chainId`
+- `payer`
+- `payee`
+- `asset`
+- `status`
+- `lifecycleState`
+- `description`
+- `memo`
+- `createdAt`
+- `updatedAt`
+- `historyCount`
+- `approvalPendingAt`
+- `broadcastedAt`
+- `paidAt`
+- `failedAt`
+- `expiredAt`
+- `cancelledAt`
+- `txHash`
+- `latestEventAt`
+- `latestEventType`
+
+Current stable `share.payer` fields:
+
+- `label`
+- `displayName`
 
 ### `payment execution`
 

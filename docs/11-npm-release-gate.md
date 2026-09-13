@@ -458,9 +458,13 @@ pnpm codex:plugin:doctor
 npx zk-agent-cli --help
 npx zk-agent-cli doctor --help
 npx zk-agent-cli wallet --help
+npx zk-agent-cli payment --help
 npx zk-agent-cli workflow --help
+npx zk-agent-cli suite --help
 zk-agent --help
 zk-agent doctor --help
+zk-agent payment --help
+zk-agent suite --help
 zksync-agent --help
 PATH=/Users/mac/.nvm/versions/node/v24.14.1/bin:$PATH npx --yes skills add https://github.com/AgiWeb3/zk-agent-cli --list
 ```
@@ -488,6 +492,8 @@ Pass criteria:
   - packed `zk-agent doctor --help`
   - packed `zk-agent setup --help`
   - packed `zk-agent next --help`
+  - packed `zk-agent payment --help`
+  - packed `zk-agent suite --help`
   - packed `zk-agent defaults|assets|tokens|resolve-token --help`
   - packed `zk-agent wallet --help`
   - packed `zk-agent workflow --help`

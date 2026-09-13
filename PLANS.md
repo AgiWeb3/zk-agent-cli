@@ -36,6 +36,9 @@ vertical integrations.
   defaults, funding, paymaster readiness, and hosted approval recovery, and
   can now optionally include the first-run onboarding/preflight map in the
   same readout
+- `suite` now also treats Agent Pay as a first-class packaged slice through
+  the `request` category, `payment` surface, and the
+  `capture-and-track-payments` journey
 - a first local-first Agent Pay primitive now exists through
   `zk-agent payment`:
   submit, create, list, show, set-status, and remove payment request records
@@ -52,6 +55,10 @@ vertical integrations.
   contract, so CLI JSON no longer invents plan fields ad hoc
 - `zk-agent payment intent` now exposes the first stable business-intent read
   surface for payer/payee payment semantics
+- `zk-agent payment handoff` now exposes the first stable service-facing
+  payment entry bundle above the current local request store
+- `zk-agent payment parties` now exposes the first stable payer/payee request
+  model with separate local and share-safe payer projections
 - `zk-agent payment inspect` now exposes the first stable aggregate read
   surface that bundles the current payment-domain object set
 - `zk-agent payment next` now exposes the first stable compact follow-up route
@@ -72,6 +79,10 @@ vertical integrations.
 - `zk-agent payment report` now also emits wallet-level aggregates, so later
   control-plane style consumers can read wallet-scoped payment posture without
   recomputing it outside the CLI
+- `zk-agent payment dashboard` now exposes the first control-plane style
+  cross-request runtime view above the current report and actionable queue
+- `zk-agent payment feed` now exposes the first service-facing cross-request
+  batch contract above the current report/queue/handoff layer
 - `zk-agent payment queue` now exposes the first stable cross-request
   actionable queue surface that bundles descriptor, execution plan, and
   wallet-aware next-route data for platform-style request follow-up
@@ -158,11 +169,12 @@ vertical integrations.
 - the current product shell is clearer now, but it still needs stronger public
   proof points and examples for first-time users
 - Agent Pay is still not a first-class product surface yet: the local request
-  domain now has intent/descriptor/execution/quote/settlement/history reads,
-  `submit`, `report`, `approval`, `sync-approval`, `next`, `refresh-quote`,
-  and `reconcile` service surfaces, and first explicit blocked/failure states,
-  but it still lacks the service-facing payer/payee request model and
-  hosted/platform-grade reporting above the current local request store
+  domain now has intent/handoff/parties/descriptor/share/execution/quote/
+  settlement/history reads, `submit`, `dashboard`, `report`, `approval`,
+  `sync-approval`, `next`, `refresh-quote`, and `reconcile` service surfaces,
+  and first explicit blocked/failure states, but it still lacks a hosted
+  control plane and multi-tenant persistence above the current local request
+  store
 - local agent identity exists, but zkSync-native public identity/reputation is
   still intentionally deferred
 - release discipline is better, but repeated RC and final `1.0.0` promotion
