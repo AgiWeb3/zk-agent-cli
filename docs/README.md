@@ -1,19 +1,19 @@
 # zk-agent-cli Docs
 
 This directory is the repository reference set for protocol decisions, public
-operator contracts, and release rules. It is not the primary getting-started
+CLI/runtime contracts, and release rules. It is not the primary getting-started
 path for CLI users.
 
 Choose the entry surface first:
 
-- repo front door: [README.md](../README.md)
-- canonical CLI operator manual:
+- project front door: [README.md](../README.md)
+- canonical CLI manual:
   [packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
 - shortest verified path: [skills/QUICKSTART.md](../skills/QUICKSTART.md)
 - native Codex plugin path:
   [15-codex-plugin-onboarding.md](./15-codex-plugin-onboarding.md)
 
-Start here when you need repo context rather than day-one operator steps:
+Start here when you need reference context rather than day-one product steps:
 
 1. [10-operator-json-contract.md](./10-operator-json-contract.md)
 2. [11-npm-release-gate.md](./11-npm-release-gate.md)
@@ -37,4 +37,4 @@ Start here when you need repo context rather than day-one operator steps:
 
 Use the root [README.md](../README.md) for the public front door and
 [packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md) for the
-canonical CLI operator manual.
+canonical CLI manual.

@@ -31,7 +31,7 @@ It is not a claim of:
 Use this mode only when the browser is not colocated with the terminal and the
 local `--await-local` approval path is not viable.
 
-The operator-facing path is:
+The public hosted path is:
 
 ```bash
 zk-agent relay inspect --relay-url <url>
@@ -40,7 +40,7 @@ zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-co
 ```
 
 `relay inspect` is the readiness gate. The wallet commands are the supported
-hosted operator surface after that gate passes.
+hosted surface after that gate passes.
 
 ## Current Supported Deployment Profile
 
@@ -65,7 +65,7 @@ It is not currently:
 - horizontally scaled
 - multi-instance active/active
 - stateless
-- multi-tenant with isolated operator controls
+- multi-tenant with isolated user controls
 
 ## Contract That Must Stay True
 
@@ -93,14 +93,14 @@ For the current hosted baseline, the following must be true.
 
 - hosted approval depends on the connector UI being available on the relay
   origin
-- `relay inspect` must report hosted readiness as `ready` before operators are
+- `relay inspect` must report hosted readiness as `ready` before users are
   sent to share links
 - if `connectorUiAvailable = false`, the relay API may still respond, but the
   hosted browser path is not supportable
 
-## What Operators May Rely On
+## What Users May Rely On
 
-The current hosted baseline supports the following operator expectations:
+The current hosted baseline supports the following user expectations:
 
 1. `zk-agent relay inspect --relay-url <url>` is the outside-in readiness gate.
 2. When `hostedReadinessSummary.status = ready`, the relay is advertising:
@@ -109,13 +109,13 @@ The current hosted baseline supports the following operator expectations:
    - the compressed deployment contract through `deploymentSummary`
 3. `wallet create --relay-url <url> --wait-relay --prompt-code` and
    `wallet reapprove --relay-url <url> --wait-relay --prompt-code` are the
-   canonical hosted operator paths.
+   canonical hosted paths.
 4. Reverse proxies and tunnels are acceptable only when they preserve the
    single-host state model.
 
-## What Operators Must Not Assume
+## What Users Must Not Assume
 
-Operators must not assume:
+Users must not assume:
 
 - requests survive a move to another host
 - requests are shared across multiple relay instances
@@ -129,7 +129,7 @@ The current hosted approval request lifecycle is:
 
 1. create or reapprove emits a relay-backed request
 2. relay status is `pending`
-3. browser operator opens the share URL
+3. browser approver opens the share URL
 4. connector produces an approved payload
 5. terminal finalizes via:
    `zk-agent wallet request approve --request-id <id> --relay-url <url> --code <code> --wait`
@@ -157,7 +157,7 @@ Before calling the hosted path "supported", the following should all be true:
 ## Standard Rehearsal Command
 
 When you have a real externally reachable relay URL and want one repeatable
-source-checkout validation path for this operated mode, use:
+source-checkout validation path for this supported hosted mode, use:
 
 ```bash
 pnpm smoke:hosted-operated-baseline -- --wallet <name> --relay-url <url> --reapprove --prompt-code

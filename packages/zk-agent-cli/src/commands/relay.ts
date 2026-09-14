@@ -650,7 +650,7 @@ export function createRelayCommand(): Command {
       '    one same-origin share-link + approval UI surface',
       '    Do not assume multi-host or load-balanced durability.',
       '',
-      '  Use `relay inspect` before sending operators to a hosted share link so',
+      '  Use `relay inspect` before sending users to a hosted share link so',
       '  the public origin, connector UI, and hosted-readiness contract are visible.'
     ].join('\n')
   );

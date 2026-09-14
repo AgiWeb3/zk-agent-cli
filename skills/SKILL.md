@@ -1,14 +1,14 @@
 ---
 name: zk-agent-cli
-description: Agent-facing routing guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever helping an agent or harness choose the default path across setup, wallet create/reapprove, workflow pay, payment, suite, relay-backed approval, funding follow-up, or direct zkSync command escape hatches. The preferred product path is setup -> next -> wallet create/reapprove -> next -> workflow pay -> suite, with payment used for local request capture and workflow auto kept for broader multi-intent flows.
+description: Default-path routing guide for zk-agent-cli on zkSync Era and zkSync Sepolia. Use this skill whenever the current task needs the canonical path across setup, wallet create/reapprove, workflow pay, payment, suite, relay-backed approval, funding follow-up, or direct zkSync command escape hatches. The preferred product path is setup -> next -> wallet create/reapprove -> next -> workflow pay -> suite, with payment used for local request capture and workflow auto kept for broader multi-intent flows.
 ---
 
 # zk-agent-cli Skill
 
 ## Scope
 
-Use this skill as the agent/harness routing contract for the stable product
-path:
+Use this skill as the default-path routing guide for the stable product
+surface:
 
 - local wallet bootstrap
 - wallet recovery and reapproval
@@ -22,21 +22,21 @@ path:
 
 Current posture:
 
-- `sed-lite` is the default AA/operator baseline
+- `sed-lite` is the default AA baseline
 - `daily-spend-limit` remains available only for narrower policy testing
 - do not assume Polygon-style identity, Polymarket, or x402 surfaces exist
 
 Role boundary:
 
 - use [../packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
-  as the canonical CLI operator manual for human users
+  as the canonical CLI manual for terminal users
 - use [QUICKSTART.md](./QUICKSTART.md) for the shortest verified happy path
 - keep this skill focused on default routing, escalation rules, and which
   narrower skill to open next
 
 ## Sub-skills
 
-Use focused skills when the task is narrower than the full operator flow:
+Use focused skills when the task is narrower than the full default flow:
 
 - [zk-aa/SKILL.md](./zk-aa/SKILL.md)
 - [zk-agent-pay/SKILL.md](./zk-agent-pay/SKILL.md)
@@ -68,14 +68,14 @@ npx zk-agent-cli <command>
 pnpm zk-agent <command>
 ```
 
-- compatible harness install:
+- skill-bundle install:
 
 ```bash
 npx skills add https://github.com/AgiWeb3/zk-agent-cli
 ```
 
 This skill assumes the current packaged command name is `zk-agent`. Use the
-package README when a human needs the full install surface or alias details.
+package README when the full install surface or alias details matter.
 
 ## Defaults
 
@@ -115,6 +115,11 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
+For first-time onboarding, stop at the first successful
+`zk-agent workflow pay`. Ignore remote approval and Agent Pay until that
+baseline path works once. Use `suite` only after that first success or when
+the question becomes broader than one immediate write.
+
 Interpret the steps like this:
 
 - `setup`
@@ -142,6 +147,21 @@ zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
 ```
+
+Fastest Agent Pay proof path:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment approval --request-id <id>
+zk-agent payment dashboard
+zk-agent payment handoff --request-id <id>
+zk-agent payment feed
+```
+
+That path shows compact ingress, wallet-aware follow-up, approval readiness,
+dashboard summary, single-request handoff bundling, and cross-request feed
+export without leaving the local-first product surface.
 
 Use `zk-agent doctor` before choosing a remediation path when readiness is
 unclear.
@@ -211,14 +231,16 @@ shape, persistence mode, and the exact create/reapprove follow-up path.
 Preferred routing after setup:
 
 ```bash
-zk-agent doctor
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
-When `doctor` shows local readiness is clear but the operator question is
-broader than one immediate flagship step, move to:
+Use `zk-agent doctor` only when local state is unclear or the normal path
+stops making sense.
+
+When `doctor` shows local readiness is clear but the question is broader than
+one immediate flagship step, move to:
 
 ```bash
 zk-agent suite
@@ -302,7 +324,7 @@ zk-agent suite --help
 ## Use the right deeper guide
 
 - shortest verified path: [QUICKSTART.md](./QUICKSTART.md)
-- canonical CLI operator manual:
+- canonical CLI manual:
   [../packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
 - flagship AA path: [zk-aa/SKILL.md](./zk-aa/SKILL.md)
 - Agent Pay request layer: [zk-agent-pay/SKILL.md](./zk-agent-pay/SKILL.md)

@@ -32,6 +32,9 @@
 - `suite` now also treats Agent Pay as a first-class packaged slice through
   the `request` category, `payment` surface, and the
   `capture-and-track-payments` journey
+- `suite` entries can now also expose an optional bounded `proofPath`, with
+  the Agent Pay slice carrying the canonical
+  `submit -> next -> approval -> dashboard -> handoff -> feed` demo route
 - a first local-first Agent Pay primitive now exists through
   `zk-agent payment`:
   create, list, show, set-status, and remove payment request records
@@ -48,9 +51,9 @@
   surface for one local-first payment submission
 - `zk-agent payment intent` now exposes the first stable business-intent read
   surface for one stored payment request
-- `zk-agent payment handoff` now exposes the first stable service-facing
+- `zk-agent payment handoff` now exposes the first stable integration-ready
   payment entry bundle for one stored payment request
-- `zk-agent payment parties` now exposes the first stable payer/payee request
+- `zk-agent payment parties` now exposes the first stable request parties
   model with separate local and share-safe payer projections for one stored
   payment request
 - `zk-agent payment inspect` now exposes the first stable aggregate read
@@ -72,12 +75,12 @@
   platform surfaces can see the real blocker/next-step mix without separately
   joining per-request reads
 - `zk-agent payment report` now also emits wallet-level aggregates, so later
-  control-plane style consumers can read wallet-scoped payment posture without
+  dashboard or platform consumers can read wallet-scoped payment posture without
   recomputing it outside the CLI
-- `zk-agent payment dashboard` now exposes the first control-plane style
-  cross-request runtime view above the current report and actionable queue
-- `zk-agent payment feed` now exposes the first service-facing cross-request
-  batch contract above the current report/queue/handoff layer
+- `zk-agent payment dashboard` now exposes the first cross-request dashboard
+  runtime view above the current report and actionable queue
+- `zk-agent payment feed` now exposes the first integration-ready cross-request
+  batch feed above the current report/queue/handoff layer
 - `zk-agent payment queue` now exposes the first stable cross-request
   actionable queue surface that bundles descriptor, execution plan, and
   wallet-aware next-route data for later platform-style request handling
@@ -155,21 +158,43 @@
 
 ## Current priorities
 
-1. Keep the public onboarding shell short, market-facing, and aligned across
+1. Reduce first-run friction so the public path feels more like product
+   onboarding and less like operator setup.
+2. Keep the public onboarding shell short, market-facing, and aligned across
    README, package README, help, skills, and runtime JSON.
-2. Keep the hosted approval operated baseline explicit and repeatable.
-3. Keep the post-flagship product surface centered on `suite`.
-4. Turn the `polygon-agent-cli` comparison into explicit release-critical
+3. Keep the hosted approval operated baseline explicit and repeatable.
+4. Keep the post-flagship product surface centered on `suite`, with Agent Pay
+   visible as a first-class slice instead of a hidden deeper layer.
+5. Turn the `polygon-agent-cli` comparison into explicit release-critical
    decisions instead of vague parity language.
-5. Shape the next Agent Pay layer on top of wallet session, workflow, relay,
+6. Shape the next Agent Pay layer on top of wallet session, workflow, relay,
    and provider primitives.
-6. Keep release validation and dist-tag behavior repeatable with less manual
+7. Keep release validation and dist-tag behavior repeatable with less manual
    judgment.
+
+## Next execution sequence
+
+Work the next cycle in this order:
+
+1. tighten first-run onboarding and the first-screen story
+2. make Agent Pay easier to explain and demo from `suite` and `payment`
+3. clarify the hosted Agent Pay platform direction without pretending it is
+   already complete
+4. convert those improvements into public proof paths referenced directly by
+   README/help
+
+Current execution rule:
+
+- if a task does not improve onboarding clarity, Agent Pay legibility, hosted
+  platform direction, or public proof paths, it is probably not the highest
+  value productization work right now
 
 ## Main remaining gaps
 
 - the public shell is clearer now, but it still needs stronger public proof
   points and examples before `1.0.0`
+- first-run success is still more operator-facing than product-like for new
+  users
 - hosted approval framing can still get shorter and more market-facing
 - the product still lacks the hosted/platform-grade Agent Pay layer above the
   current local dashboard, request, routing, and wallet/workflow primitives
@@ -177,6 +202,15 @@
 - release validation still needs less human judgment on the final promotion
 
 ## Benchmark view versus `polygon-agent-cli`
+
+Current judgment:
+
+- `zk-agent-cli` is already strong on engineering quality and wallet/session
+  depth
+- it is **not yet** stronger than `polygon-agent-cli` on overall product
+  competitiveness
+- the remaining gap is mainly onboarding, public packaging, and hosted
+  platform perception rather than raw operator capability
 
 Current `zk-agent-cli` advantages:
 
@@ -190,6 +224,7 @@ Current `zk-agent-cli` advantages:
 Current `polygon-agent-cli` advantages:
 
 - broader market-facing story at first glance
+- zero-setup browser-login feel for a new user
 - first-class payment language and `x402` entrypoint
 - public onchain identity/reputation surface
 - visible ecosystem verticals such as Polymarket
@@ -201,6 +236,14 @@ Release interpretation:
   ship `1.0.0`
 - it does need a comparably clear public product shell, a stronger payment
   narrative, and a more obvious default post-flagship path
+
+Competitive interpretation for the next cycle:
+
+- the fastest route to stronger product competitiveness is not broader DeFi
+  parity first
+- the fastest route is lower-friction onboarding, a more obviously useful
+  Agent Pay platform story, and one or two public proof surfaces that users
+  can understand immediately
 
 ## Agent Pay foundation status
 
@@ -223,6 +266,8 @@ Foundation already present:
 Still missing for the platform layer:
 
 - hosted control plane and multi-tenant persistence
+- a simpler public narrative that makes Agent Pay look like a product surface
+  instead of an internal local request subsystem
 
 ## Deferred
 
@@ -252,10 +297,13 @@ Primary implementation entrypoints:
 - `packages/zk-agent-cli/src/commands/doctor.ts`
 - `packages/zk-agent-cli/src/commands/relay.ts`
 - `packages/zk-agent-cli/src/commands/suite.ts`
+- `packages/zk-agent-cli/src/commands/payment.ts`
 - `packages/zk-agent-cli/src/commands/wallet.ts`
 - `packages/zk-agent-cli/src/commands/workflow.ts`
 - `packages/zk-agent-cli/src/lib/onboarding-paths.ts`
 - `packages/zk-agent-cli/src/lib/operator-suite.ts`
+- `packages/zk-agent-cli/src/lib/suite-handoff.ts`
+- `packages/agent-pay/src/service.ts`
 - `scripts/release-git-state.mjs`
 - `scripts/release-checklist.mjs`
 - `scripts/release-prepare.mjs`

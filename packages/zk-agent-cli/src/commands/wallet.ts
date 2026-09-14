@@ -3659,7 +3659,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           [
             'note',
             relay
-              ? 'Request was published to the relay. Send the share URL to the connector operator, then finalize from the CLI with wallet request approve --relay-url.'
+              ? 'Request was published to the relay. Send the share URL to the browser approver, then finalize from the CLI with wallet request approve --relay-url.'
               : 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.'
           ]
         ],
@@ -3921,7 +3921,7 @@ export function createWalletCommand(deps?: Partial<WalletCommandDeps>): Command 
           [
             'note',
             relay
-              ? 'Request was published to the relay. Send the share URL to the connector operator, then finalize from the CLI with wallet request approve --relay-url.'
+              ? 'Request was published to the relay. Send the share URL to the browser approver, then finalize from the CLI with wallet request approve --relay-url.'
               : 'Use the local await-local path for a colocated browser + terminal flow, or approve in the connector and then finalize with wallet request approve.'
           ]
         ],

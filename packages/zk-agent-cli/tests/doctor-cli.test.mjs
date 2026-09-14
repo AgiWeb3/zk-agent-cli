@@ -191,7 +191,7 @@ function expectedDoctorProductEntrySummary(stage, nextAction) {
         nextSurface: 'setup',
         nextAction,
         suiteAvailable: false,
-        note: 'Start with setup first. The operator path is still in first-run bootstrap.'
+        note: 'Start with setup first. This environment is still at the first local step.'
       };
     case 'wallet-bootstrap':
       return {
@@ -203,7 +203,7 @@ function expectedDoctorProductEntrySummary(stage, nextAction) {
         nextSurface: 'wallet',
         nextAction,
         suiteAvailable: false,
-        note: 'Local defaults exist, but wallet bootstrap is still the current product question.'
+        note: 'Local defaults are ready, but wallet creation is still the next required step.'
       };
     case 'wallet-recovery':
       return {
@@ -227,7 +227,7 @@ function expectedDoctorProductEntrySummary(stage, nextAction) {
         nextSurface: 'next',
         nextAction,
         suiteAvailable: true,
-        note: 'Local readiness is clear. Return to zk-agent next when you want the live operator path instead of a local-only diagnosis.'
+        note: 'Local readiness is clear. Return to zk-agent next for the live path.'
       };
     default:
       throw new Error(`Unsupported doctor product entry stage in test: ${stage}`);
@@ -245,9 +245,9 @@ function expectedDoctorSuiteHandoff() {
     paymentUseWhen:
       'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
     stayOnCurrentSurfaceWhen:
-      'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local-only diagnosis before choosing the live path.',
+      'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local check before choosing the live path.',
     note:
-      'Local readiness is clear. Return to zk-agent next for the shortest live path, or start with the suggested suite journey when the operator question is broader than one immediate flagship workflow step.',
+      'Local readiness is clear. Return to zk-agent next for the live path, or start with the suggested suite journey when the question is broader than one immediate pay step.',
     recommendedJourney: {
       id: 'send-value-now',
       title: 'Send Value Now',
@@ -284,8 +284,8 @@ test('doctor returns setup guidance when local config is missing', async () => {
       relayUrl: null,
       nextAction: 'zk-agent setup',
       notes: [
-        'Local config is missing, so the canonical operator path should start with setup.',
-        'Doctor is local-only by default and does not require live RPC reads.'
+        'Local config is missing, so start with setup.',
+        'Doctor stays local-only and does not require live RPC reads.'
       ]
     });
     assert.equal(result.summary.stage, 'setup');
@@ -352,7 +352,7 @@ test('doctor returns wallet bootstrap guidance when config exists but the wallet
       nextAction: 'zk-agent wallet create --await-local',
       notes: [
         'Local config exists, but no saved wallet record was found for this name yet.',
-        'Use the remote relay path only when the browser is not colocated with this terminal.'
+        'Use remote approval only when the browser is not colocated with this terminal.'
       ]
     });
     assert.equal(result.nextAction, 'zk-agent wallet create --await-local');
@@ -500,7 +500,7 @@ test('doctor returns zk-agent next when local config, approval, and signer state
       nextAction: 'zk-agent next',
       notes: [
         'Local config, approval metadata, and a local execution signer are all present.',
-        'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
+        'Run zk-agent next for the live path; doctor does not confirm RPC reachability, deployment state, or funding.'
       ]
     });
     assert.equal(result.nextAction, 'zk-agent next');
@@ -529,12 +529,15 @@ test('doctor help explains the local-only boundary and relay-url override', asyn
     assert.match(help, /Use `doctor` when local state is unclear:/);
     assert.match(help, /zk-agent doctor --wallet main/);
     assert.match(help, /zk-agent doctor --wallet main --relay-url https:\/\/relay\.example\.com/);
+    assert.match(help, /Start with `zk-agent next` when you are just beginning/);
+    assert.match(help, /Use `doctor` only when the normal path stops making sense or local state is unclear/);
     assert.match(help, /What `doctor` answers right now:/);
     assert.match(help, /bootstrap: local config or wallet bootstrap is still missing/);
     assert.match(help, /recover: local approval or signer state still needs repair/);
     assert.match(help, /operate: local readiness is clear, so return to `zk-agent next` for the live path/);
     assert.match(help, /suite: once readiness is clear, the broader packaged post-flagship surface is available too/);
     assert.match(help, /without requiring live RPC reads/);
+    assert.match(help, /It is a local-only diagnosis surface, not the normal first-run happy path/);
     assert.match(help, /Run this before guessing whether the blocker is setup, wallet approval, or local signer state/);
     assert.match(help, /When doctor shows local readiness is clear and the question is broader than one next step:/);
     assert.match(help, /zk-agent suite/);

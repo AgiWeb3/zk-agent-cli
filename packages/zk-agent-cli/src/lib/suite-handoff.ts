@@ -101,9 +101,9 @@ export function buildSuiteHandoffSummary(input: {
         paymentCommand,
         paymentUseWhen,
         stayOnCurrentSurfaceWhen:
-          'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local-only diagnosis before choosing the live path.',
+          'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local check before choosing the live path.',
         note: input.recommendedNow
-          ? 'Local readiness is clear. Return to zk-agent next for the shortest live path, or start with the suggested suite journey when the operator question is broader than one immediate flagship workflow step.'
+          ? 'Local readiness is clear. Return to zk-agent next for the live path, or start with the suggested suite journey when the question is broader than one immediate pay step.'
           : 'Suite is not the current recommendation because doctor is still diagnosing a local setup or wallet-readiness blocker.',
         recommendedJourney
       };
@@ -133,7 +133,7 @@ export function buildSuiteHandoffSummary(input: {
         stayOnCurrentSurfaceWhen:
           'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
         note: input.recommendedNow
-          ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite journey when the operator question is broader than one wallet-status remediation step.'
+          ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite journey when the question is broader than one wallet-specific fix.'
           : 'Suite is not the current recommendation because wallet-specific remediation is still the blocker.',
         recommendedJourney
       };

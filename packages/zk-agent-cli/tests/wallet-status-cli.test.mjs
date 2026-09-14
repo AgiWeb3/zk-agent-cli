@@ -147,7 +147,7 @@ function expectedWalletSuiteHandoff(recommendedNow) {
     stayOnCurrentSurfaceWhen:
       'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
     note: recommendedNow
-      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite journey when the operator question is broader than one wallet-status remediation step.'
+      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite journey when the question is broader than one wallet-specific fix.'
       : 'Suite is not the current recommendation because wallet-specific remediation is still the blocker.',
     recommendedJourney: recommendedNow
       ? {

@@ -39,7 +39,7 @@ export function buildProductEntrySummary(input: {
         suiteAvailable: false,
         note:
           input.note ??
-          'Start with setup first. The operator path is still in first-run bootstrap.'
+          'Start with setup first. This environment is still at the first local step.'
       };
     case 'wallet-bootstrap':
       return {
@@ -53,7 +53,7 @@ export function buildProductEntrySummary(input: {
         suiteAvailable: false,
         note:
           input.note ??
-          'Local defaults exist, but wallet bootstrap is still the current product question.'
+          'Local defaults are ready, but wallet creation is still the next required step.'
       };
     case 'wallet-recovery':
       return {
@@ -82,8 +82,8 @@ export function buildProductEntrySummary(input: {
         note:
           input.note ??
           (currentSurface === 'doctor'
-            ? 'Local readiness is clear. Return to zk-agent next when you want the live operator path instead of a local-only diagnosis.'
-            : 'The default product action is now the flagship workflow path. Switch to suite when the question becomes broader than one flagship pay step.')
+            ? 'Local readiness is clear. Return to zk-agent next for the live path.'
+            : 'The default next step is the flagship workflow pay path. Switch to suite only when the question is broader than one pay step.')
       };
     case 'workflow':
       return {
@@ -97,7 +97,7 @@ export function buildProductEntrySummary(input: {
         suiteAvailable: input.suiteAvailable === true,
         note:
           input.note ??
-          'A stored workflow checkpoint is now the active product context. Stay on workflow follow-up until the question is no longer workflow-specific.'
+          'A stored workflow is already active. Stay on workflow follow-up until that question is done.'
       };
     default: {
       const exhaustive: never = input.stage;

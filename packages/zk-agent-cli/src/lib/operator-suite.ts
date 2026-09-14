@@ -5,6 +5,8 @@ import {
   buildPaymentApprovalRecommendedCommand,
   buildPaymentDashboardRecommendedCommand,
   buildPaymentFeedRecommendedCommand,
+  buildPaymentHandoffRecommendedCommand,
+  buildPaymentNextRecommendedCommand,
   buildPaymentReportRecommendedCommand,
   buildPaymentSubmitRecommendedCommand,
   buildPaymasterFeeTokenResolveRecommendedCommand,
@@ -46,6 +48,7 @@ export interface OperatorSuiteEntry {
   primaryCommand: string;
   surfaceCommand: string;
   supportingCommands: string[];
+  proofPath?: string[];
   skillPath: string;
   smokeCommand?: string;
 }
@@ -183,9 +186,9 @@ export function buildOperatorSuitePayload(
     ? {
         id: 'first-run-preflight' as const,
         title: 'First-Run Preflight',
-        goal: 'Start from a fresh install, write local defaults, and bootstrap a writable wallet session before using the packaged operator surface.',
+        goal: 'Start from a fresh install, write local defaults, and bootstrap a writable wallet session before using the packaged surface.',
         useWhen:
-          'Use this when the machine is new, the wallet is not ready yet, or you want the full operator map before choosing local-first versus remote-browser approval.',
+          'Use this when the machine is new, the wallet is not ready yet, or you want the full product map before choosing local-first versus remote-browser approval.',
         diagnosticCommand:
           walletName === 'main'
             ? 'zk-agent doctor'
@@ -215,16 +218,26 @@ export function buildOperatorSuitePayload(
       surface: 'payment',
       id: 'agent-pay-requests',
       title: 'Agent Pay Requests',
-      goal: 'Capture one payment request, inspect the queue/feed/report surfaces, and repair approval when execution is no longer the whole story.',
+      goal: 'Capture one payment request, prove the wallet-aware follow-up path, and then move the same request into dashboard, handoff, feed, and report surfaces.',
       useWhen:
-        'Use this when local request capture, queueing, reporting, feed export, or approval repair is the real operator question around the same wallet write path.',
+        'Use this when local request capture, queueing, reporting, feed export, or approval repair is the real need around the same wallet write path.',
       primaryCommand: paymentCommand,
       surfaceCommand: paymentSurfaceCommand,
       supportingCommands: [
+        buildPaymentNextRecommendedCommand('<request-id>'),
+        buildPaymentApprovalRecommendedCommand('<request-id>'),
         buildPaymentDashboardRecommendedCommand(),
+        buildPaymentHandoffRecommendedCommand('<request-id>'),
         buildPaymentFeedRecommendedCommand(),
-        buildPaymentReportRecommendedCommand(),
-        buildPaymentApprovalRecommendedCommand('<request-id>')
+        buildPaymentReportRecommendedCommand()
+      ],
+      proofPath: [
+        paymentCommand,
+        buildPaymentNextRecommendedCommand('<request-id>'),
+        buildPaymentApprovalRecommendedCommand('<request-id>'),
+        buildPaymentDashboardRecommendedCommand(),
+        buildPaymentHandoffRecommendedCommand('<request-id>'),
+        buildPaymentFeedRecommendedCommand()
       ],
       skillPath: 'skills/zk-agent-pay/SKILL.md'
     },
@@ -343,7 +356,7 @@ export function buildOperatorSuitePayload(
       title: 'Send Value Now',
       operatorQuestion: 'I already have a ready wallet and want the shortest path to send native value now.',
       useWhen:
-        'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.',
+        'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
       startCommand: flagshipCommand,
       surface: 'workflow',
       categoryIds: ['operate'],
@@ -355,7 +368,7 @@ export function buildOperatorSuitePayload(
       operatorQuestion:
         'I need a payment request layer around the write path so I can capture, queue, share, or repair payments instead of only executing immediately.',
       useWhen:
-        'Use this when Agent Pay request capture, queueing, approval repair, or service-facing feed export is the real operator question.',
+        'Use this when Agent Pay request capture, queueing, approval repair, or integration-ready feed export is the real need.',
       startCommand: paymentCommand,
       surface: 'payment',
       categoryIds: ['request'],
@@ -470,6 +483,11 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     [`${entry.title.toLowerCase()} surface`, entry.surface],
     [`${entry.title.toLowerCase()} surface command`, entry.surfaceCommand],
     [entry.title.toLowerCase(), formatRecommendedPath([entry.primaryCommand, ...entry.supportingCommands])],
+    ...(
+      entry.proofPath
+        ? [[`${entry.title.toLowerCase()} proof path`, formatRecommendedPath(entry.proofPath)] as [string, string]]
+        : []
+    ),
     [`${entry.title.toLowerCase()} when`, entry.useWhen],
     [`${entry.title.toLowerCase()} skill`, entry.skillPath],
     ...(entry.smokeCommand ? [[`${entry.title.toLowerCase()} smoke`, entry.smokeCommand] as [string, string]] : [])

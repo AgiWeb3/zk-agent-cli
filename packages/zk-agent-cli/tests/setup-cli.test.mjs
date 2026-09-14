@@ -72,7 +72,7 @@ async function runCliText(args, env) {
   return stdout;
 }
 
-test('setup command returns the default operator-path recommendations', async () => {
+test('setup command returns the default first-run recommendations', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-setup-cli-'));
 
   try {
@@ -195,7 +195,7 @@ test('setup help explains the local-first path, relay fallback, and env boundary
   }
 });
 
-test('top-level help prints the default operator path around zk-agent next', async () => {
+test('top-level help prints the default first-run path around zk-agent next', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-help-cli-'));
 
   try {
@@ -210,13 +210,16 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /npx skills add https:\/\/github\.com\/AgiWeb3\/zk-agent-cli/);
     assert.match(help, /npx zk-agent-cli --help/);
     assert.match(help, /npm install -g zk-agent-cli/);
-    assert.match(help, /Why operators use it:/);
+    assert.match(help, /Why use it:/);
     assert.match(help, /local-first wallet and session control/);
     assert.match(help, /zkSync-native smart-account and paymaster path centered on sed-lite/);
     assert.match(help, /Agent Pay request capture, queueing, reporting, and approval repair on top/);
     assert.match(help, /Canonical terminal path:/);
     assert.match(help, /zk-agent next/);
-    assert.match(help, /Operator suite beyond flagship pay:/);
+    assert.match(help, /If you are new, stop there first:/);
+    assert.match(help, /Ignore relay and payment until the first successful workflow pay/);
+    assert.match(help, /Use suite only after that first success or when the question gets broader/);
+    assert.match(help, /Packaged surface beyond flagship pay:/);
     assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent suite --include-onboarding/);
     assert.match(help, /Current local Agent Pay surface:/);
@@ -227,7 +230,11 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /zk-agent payment queue/);
     assert.match(help, /zk-agent payment report/);
     assert.match(help, /zk-agent payment approval --request-id <id>/);
-    assert.match(help, /Product routing by operator question:/);
+    assert.match(help, /Fastest Agent Pay proof path:/);
+    assert.match(help, /zk-agent payment next --request-id <id>/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment feed/);
+    assert.match(help, /Product routing by current question:/);
     assert.match(help, /next\s+-> bootstrap \| recover \| operate \| workflow/);
     assert.match(help, /suite -> operate \| request \| discover \| pay \| fund \| recover/);
     assert.match(help, /Payment-first default path after wallet readiness:/);
@@ -238,7 +245,7 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(help, /Default start inside suite: send value now/);
     assert.match(help, /Execution versus catalog versus request tracking:/);
     assert.match(help, /workflow pay -> execute the flagship native-send path now/);
-    assert.match(help, /suite\s+-> choose the broader ready-wallet operator journey/);
+    assert.match(help, /suite\s+-> choose the broader ready-wallet product journey/);
     assert.match(help, /payment\s+-> capture, queue, report, and repair local Agent Pay requests around that write path/);
     assert.match(
       help,
@@ -247,6 +254,10 @@ test('top-level help prints the default operator path around zk-agent next', asy
     assert.match(
       help,
       /Use `suite` once wallet readiness is no longer the blocker and you want the packaged post-flagship surface\./
+    );
+    assert.match(
+      help,
+      /Use remote approval only when the browser is on another machine or cannot return to this terminal\./
     );
     assert.match(help, /Validated first-run baseline:/);
     assert.match(help, /setup defaults to zksync-sepolia and the local connector at http:\/\/localhost:4444/);
@@ -303,6 +314,8 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     assert.match(help, /Fresh local-first routing:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent wallet create --await-local/);
+    assert.match(help, /If you are new, stay on that path first:/);
+    assert.match(help, /Ignore relay, payment, and suite until the first successful workflow pay/);
     assert.match(help, /Remote-browser variant of the same path:/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
@@ -546,14 +559,14 @@ test('relay and agent help surfaces expose the public product contract', async (
     assert.match(relayHelp, /Do not assume multi-host or load-balanced durability/);
     assert.match(
       relayHelp,
-      /Use `relay inspect` before sending operators to a hosted share link/
+      /Use `relay inspect` before sending users to a hosted share link/
     );
 
     const agentHelp = await runCliText(['agent', '--help'], env);
     assert.match(agentHelp, /Agent profile surface:/);
     assert.match(
       agentHelp,
-      /Use this layer only when you want explicit local operator identity metadata on top of the wallet path/
+      /Use this layer only when you want explicit local identity metadata on top of the wallet path/
     );
     assert.match(
       agentHelp,
@@ -561,7 +574,7 @@ test('relay and agent help surfaces expose the public product contract', async (
     );
     assert.match(agentHelp, /Basic local identity path:/);
     assert.match(agentHelp, /zk-agent agent status/);
-    assert.match(agentHelp, /zk-agent agent set --name "SED Operator" --wallet main/);
+    assert.match(agentHelp, /zk-agent agent set --name "Main Agent" --wallet main/);
     assert.match(agentHelp, /zk-agent agent show/);
     assert.match(agentHelp, /Portable local profile management:/);
     assert.match(agentHelp, /zk-agent agent export/);

@@ -1459,14 +1459,23 @@ export function createPaymentCommand(): Command {
     [
       '',
       '  Payment request surface:',
-      '    Use this layer to capture payer/payee intent and local settlement state before or after execution.',
+      '    Use this layer to capture payment intent, request parties, and local settlement state before or after execution.',
       '    `submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
-      '    `dashboard` is the control-plane style cross-request summary above the local report and queue primitives.',
-      '    `feed` is the first service-facing cross-request batch contract for hosted control-plane or agent-platform ingestion.',
-      '    `handoff` is the first service-facing entry bundle for hosted control-plane or agent-platform ingestion.',
-      '    `parties` is the stable payer/payee request model with separate local and share-safe payer views.',
+      '    `dashboard` is the cross-request dashboard summary above the local report and queue primitives.',
+      '    `feed` is the integration-ready cross-request batch feed for external dashboards, agents, or backend ingestion.',
+      '    `handoff` is the integration-ready single-request bundle for external dashboards, agents, or backend ingestion.',
+      '    `parties` is the stable request parties model with separate local and share-safe payer views.',
       '    `share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
       '    `workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle.',
+      '',
+      '  Fastest proof path:',
+      '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
+      '    zk-agent payment next --request-id <id>',
+      '    zk-agent payment approval --request-id <id>',
+      '    zk-agent payment dashboard',
+      '    zk-agent payment handoff --request-id <id>',
+      '    zk-agent payment feed',
+      '    This proves compact ingress -> wallet-aware follow-up -> approval readiness -> dashboard summary -> integration-ready export.',
       '',
       '  Start here:',
       '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
@@ -1480,6 +1489,12 @@ export function createPaymentCommand(): Command {
       '    zk-agent payment inspect --request-id <id>',
       '    zk-agent payment handoff --request-id <id>',
       '    zk-agent payment parties --request-id <id>',
+      '',
+      '  Choose by question:',
+      '    `next` / `approval`: what is blocking this one request right now?',
+      '    `dashboard`: what is the current dashboard summary across requests?',
+      '    `handoff`: what is the stable single-request integration bundle?',
+      '    `feed`: what is the stable cross-request integration feed?',
       '',
       '  Deeper per-request reads and writes:',
       '    zk-agent payment create --wallet main --to <address> --amount <amount>',
@@ -1667,7 +1682,7 @@ export function createPaymentCommand(): Command {
   payment
     .command('dashboard')
     .description(
-      'Build a control-plane style Agent Pay dashboard above the current local report and queue'
+      'Build a cross-request Agent Pay dashboard summary above the current local report and queue'
     )
     .option('--wallet <name>', 'Optional payer wallet filter')
     .option(
@@ -1709,7 +1724,7 @@ export function createPaymentCommand(): Command {
   payment
     .command('feed')
     .description(
-      'Build a service-facing cross-request Agent Pay feed for hosted control-plane ingestion'
+      'Build an integration-ready cross-request Agent Pay feed for external dashboards, agents, or backend ingestion'
     )
     .option('--wallet <name>', 'Optional payer wallet filter')
     .option(
@@ -2042,7 +2057,7 @@ export function createPaymentCommand(): Command {
   payment
     .command('handoff')
     .description(
-      'Render one stored payment request as a service-facing handoff bundle for hosted control-plane ingestion'
+      'Render one stored payment request as an integration-ready bundle for external dashboards, agents, or backend ingestion'
     )
     .requiredOption('--request-id <id>', 'Stored payment request id')
     .action(async (options: PaymentHandoffOptions) => {
@@ -2070,7 +2085,7 @@ export function createPaymentCommand(): Command {
 
   payment
     .command('parties')
-    .description('Render one stored payment request as a stable payer/payee request model')
+    .description('Render one stored payment request as a stable request parties model')
     .requiredOption('--request-id <id>', 'Stored payment request id')
     .action(async (options: PaymentPartiesOptions) => {
       const result = await getStoredPaymentRequestParties(options.requestId);

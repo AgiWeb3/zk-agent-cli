@@ -58,7 +58,8 @@ Interpretation:
 - `dashboard`
   operator-facing runtime summary above wallets, queue, and recent activity
 - `feed`
-  service-facing cross-request batch contract for hosted/control-plane ingress
+  integration-ready cross-request batch feed for external dashboards, agents,
+  or backend ingestion
 - `report`
   local cross-request status and next-action distribution
 - `approval`
@@ -73,8 +74,9 @@ Use Agent Pay in this order when the request layer is the real question:
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
-zk-agent payment inspect --request-id <id>
+zk-agent payment approval --request-id <id>
 zk-agent payment dashboard
+zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
@@ -82,12 +84,14 @@ Interpretation:
 
 - `next`
   shortest follow-up route for one stored request
-- `inspect`
-  aggregate per-request read when one stable object bundle is needed
+- `approval`
+  linked-wallet approval readiness for one stored request
 - `dashboard`
-  higher-level operator runtime view
+  higher-level dashboard summary
+- `handoff`
+  integration-ready single-request bundle
 - `feed`
-  higher-level service-facing batch export
+  higher-level integration-ready batch export
 
 Use `payment queue` when the task is specifically about actionable stored
 requests, and `payment history` when the task is specifically about audit
@@ -126,7 +130,7 @@ Quick routing:
 - `intent`
   business intent only
 - `handoff`
-  single-request service-facing bundle
+  single-request integration-ready bundle
 - `parties`
   local payer linkage plus share-safe payer projection
 - `share`

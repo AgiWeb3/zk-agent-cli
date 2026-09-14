@@ -220,6 +220,9 @@ function buildNextHelpText(): string {
     '    zk-agent wallet create --await-local',
     '    zk-agent next',
     '',
+    '  If you are new, stay on that path first:',
+    '    Ignore relay, payment, and suite until the first successful workflow pay.',
+    '',
     '  Remote-browser variant of the same path:',
     '    zk-agent relay inspect --relay-url <url>',
     '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
@@ -389,8 +392,8 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           walletExists: false,
           nextAction: recommendedCommands.setup,
           notes: [
-            'No local config was found, so setup is still the first required onboarding step.',
-            'This scope is local-only and does not require live RPC reads.'
+            'No local config was found, so setup is still the first required step.',
+            'This recommendation is based on local state only.'
           ]
         });
         const productEntrySummary = buildProductEntrySummary({
@@ -458,7 +461,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           nextAction: recommendedCommands.createWallet,
           notes: [
             'Config exists, but no saved wallet record was found for this name yet.',
-            'Use the remote approval fallback only when the browser is not colocated with this terminal.'
+            'Use remote approval only when the browser is not colocated with this terminal.'
           ]
         });
         const productEntrySummary = buildProductEntrySummary({
@@ -546,15 +549,15 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
           !inspection.approvalReady
             ? [
                 'Wallet metadata exists, but approved session metadata is still missing.',
-                'Top-level next returns to live workflow guidance after wallet approval is restored.'
+                'Top-level next returns to the live path after wallet approval is restored.'
               ]
             : !inspection.localExecutionKeyStored
               ? [
                   'Approved session metadata exists, but no local execution signer is stored yet.',
-                  'Top-level next returns to live workflow guidance after the signer is attached.'
+                  'Top-level next returns to the live path after the signer is attached.'
                 ]
               : [
-                  'Wallet approval and local signer state are present.',
+                  'Wallet approval and local signer state are ready.',
                   'Top-level next also inspects live deployment and balance state before recommending the workflow step.'
                 ]
       });

@@ -1,6 +1,6 @@
 # Codex Plugin Onboarding
 
-Use this path only when you want Codex to load the checked-out repository
+Use this path only when you want Codex to load the local checkout as a plugin
 through `.codex-plugin/plugin.json`.
 
 Do not use this note for the normal CLI path. For the terminal CLI, use the
@@ -10,7 +10,7 @@ root [README.md](../README.md), the package
 
 ## What this path assumes
 
-The repository ships:
+This checkout already includes:
 
 - `.codex-plugin/plugin.json`
 - `skills/`
@@ -37,7 +37,7 @@ and the default personal source path:
 pnpm codex:plugin:doctor
 ```
 
-2. Wire the repository into the default personal marketplace:
+2. Wire the local checkout into the default personal marketplace:
 
 ```bash
 pnpm codex:plugin:install-local
@@ -67,7 +67,7 @@ Then install `zk-agent-cli` from the Personal marketplace.
 `pnpm codex:plugin:install-local` creates or updates:
 
 - a Personal marketplace entry for `zk-agent-cli`
-- a symlink from `~/plugins/zk-agent-cli` to this checked-out repository
+- a symlink from `~/plugins/zk-agent-cli` to this local checkout
 
 After install, Codex usually caches the installed plugin under a personal cache
 path such as:
@@ -90,7 +90,7 @@ and reports the installed source as:
 - whether `.codex-plugin/plugin.json` exists and matches `zk-agent-cli`
 - whether `~/.agents/plugins/marketplace.json` already contains the expected
   local entry
-- whether `~/plugins/zk-agent-cli` already points at this repository
+- whether `~/plugins/zk-agent-cli` already points at this local checkout
 
 ## Compatibility note
 

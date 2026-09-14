@@ -205,7 +205,7 @@ async function stopChild(child, timeoutMs = RELAY_CLI_TIMEOUT_MS) {
   }
 }
 
-test('relay serve returns operator follow-up commands and serves health endpoint', async () => {
+test('relay serve returns relay follow-up commands and serves health endpoint', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-relay-cli-'));
   let child;
 

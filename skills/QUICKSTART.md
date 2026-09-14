@@ -1,6 +1,6 @@
 # zk-agent-cli Quickstart
 
-This quickstart keeps only the shortest verified operator path.
+This quickstart keeps only the shortest verified default path.
 Use the package README when you need the broader CLI surface, flags, or repair
 details.
 Use the plugin onboarding note only when you intentionally want the native
@@ -54,7 +54,7 @@ pnpm codex:plugin:doctor
 pnpm codex:plugin:install-local
 ```
 
-## 2. Follow the default operator path
+## 2. Follow the default path
 
 ```bash
 zk-agent setup
@@ -64,6 +64,11 @@ zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
+
+If you are new, stop at the first successful `zk-agent workflow pay`. Ignore
+remote approval and Agent Pay until that baseline path works once. Use
+`zk-agent suite` only after that first success or when the question becomes
+broader than one immediate write.
 
 What each step is doing:
 
@@ -88,6 +93,21 @@ zk-agent payment report
 zk-agent payment approval --request-id <id>
 ```
 
+The fastest Agent Pay proof path is:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment approval --request-id <id>
+zk-agent payment dashboard
+zk-agent payment handoff --request-id <id>
+zk-agent payment feed
+```
+
+That path shows compact ingress, wallet-aware follow-up, approval readiness,
+dashboard summary, single-request handoff bundling, and cross-request feed
+export without leaving the local-first surface.
+
 Use those four commands when the write path is not the whole question:
 
 - `submit`: capture one payment request through the compact ingress surface
@@ -102,11 +122,11 @@ Choose the surface by question:
 - `workflow pay`: the wallet is ready and you want the flagship native-send
   path now
 - `suite`: wallet readiness is already clear and you want the packaged
-  post-flagship operator catalog
+  post-flagship product catalog
 - `payment`: you need local request capture, queueing, reporting, or approval
   tracking around the same write path
 - `suite --include-onboarding`: you want the full map from first-run bootstrap
-  through the packaged operator surface
+  through the packaged product surface
 
 If readiness is unclear before you choose a fix, use:
 
@@ -182,18 +202,35 @@ zk-agent suite
 Use `--wallet <name>` or `--chain <chain>` when the returned commands should
 stay on a non-default wallet or chain.
 
-That packaged surface currently hands off into three deeper surfaces:
+That packaged surface currently hands off into four deeper surfaces:
 
 - `workflow`: flagship pay, approval-based pay, and funding recovery
+- `payment`: request capture, queueing, reporting, feed export, and approval repair
 - `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
-It also now exposes four simpler operator journeys:
+It also now exposes five simpler product journeys:
 
 - `send value now`
+- `capture and track payments`
 - `inspect before acting`
 - `unstick a write`
 - `recover remote approval`
+
+For the clearest Agent Pay proof path inside `suite`, follow:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment approval --request-id <id>
+zk-agent payment dashboard
+zk-agent payment handoff --request-id <id>
+zk-agent payment feed
+```
+
+That is the shortest packaged route from one local request write into
+wallet-aware follow-up, approval readiness, dashboard summary, and
+integration-ready export.
 
 If you want the narrower discovery/defaults commands directly, prefer:
 
@@ -205,7 +242,7 @@ zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
 ```
 
 When you already know the wallet is ready and the need is request tracking
-rather than the broader operator catalog, prefer:
+rather than the broader packaged surface, prefer:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
@@ -226,7 +263,7 @@ Do not guess the route. Use the exact funding command suggested by `next`,
 
 ## 7. Use the right deeper guide
 
-- full operator guide: [SKILL.md](./SKILL.md)
+- full routing guide: [SKILL.md](./SKILL.md)
 - flagship AA path: [zk-aa/SKILL.md](./zk-aa/SKILL.md)
 - Agent Pay request layer: [zk-agent-pay/SKILL.md](./zk-agent-pay/SKILL.md)
 - discovery/defaults: [zk-discovery/SKILL.md](./zk-discovery/SKILL.md)

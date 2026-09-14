@@ -40,13 +40,13 @@ Current implementation status:
 - a first dedicated cross-request payment reporting surface now exists through
   `zk-agent payment report`
 - that local report now also emits wallet-level aggregates suitable for a
-  later control-plane or platform reporting layer
-- a first control-plane style Agent Pay dashboard now exists through
+  later dashboard or platform reporting layer
+- a first cross-request Agent Pay dashboard summary now exists through
   `zk-agent payment dashboard`, compressing the current report and actionable
   queue into one higher-level runtime view
-- a first service-facing cross-request Agent Pay feed now exists through
-  `zk-agent payment feed`, so a later hosted control plane can ingest one
-  stable batch contract instead of rebuilding it from `report`, `queue`, and
+- a first integration-ready cross-request Agent Pay feed now exists through
+  `zk-agent payment feed`, so a later external dashboard, agent, or backend
+  can ingest one stable batch contract instead of rebuilding it from `report`, `queue`, and
   repeated per-request `handoff` reads
 - a first dedicated payment-approval inspection surface now exists through
   `zk-agent payment approval`
@@ -54,11 +54,11 @@ Current implementation status:
   through `zk-agent payment sync-approval`
 - a first dedicated payment request-descriptor read surface now exists through
   `zk-agent payment describe`
-- a first stable payer/payee request model now exists through
+- a first stable request parties model now exists through
   `zk-agent payment parties`, separating local payer linkage snapshots from
   the share-safe payer projection
-- a first service-facing payment entry bundle now exists through
-  `zk-agent payment handoff`, so a later hosted control plane can ingest one
+- a first integration-ready payment handoff bundle now exists through
+  `zk-agent payment handoff`, so a later external dashboard, agent, or backend can ingest one
   stable handoff object instead of rebuilding it from several local reads
 - a first share-safe payee-facing request view now exists through
   `zk-agent payment share`

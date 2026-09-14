@@ -1,9 +1,9 @@
 # zk-agent-cli
 
-`zk-agent-cli` is the packaged terminal CLI for the zk-agent operator path on
+`zk-agent-cli` is the packaged terminal CLI for the default zk-agent product path on
 zkSync Era and zkSync Sepolia.
 
-This is the canonical CLI operator manual.
+This is the canonical CLI manual.
 
 ## Why This CLI Exists
 
@@ -16,7 +16,7 @@ Use:
 - [`skills/QUICKSTART.md`](../../skills/QUICKSTART.md) for the shortest
   verified path
 - [`docs/15-codex-plugin-onboarding.md`](../../docs/15-codex-plugin-onboarding.md)
-  for the native Codex plugin/local marketplace path
+  for the native Codex plugin install path
 
 ## One-minute path
 
@@ -30,6 +30,11 @@ zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
+
+If you are new, stop at the first successful `zk-agent workflow pay`. Ignore
+remote approval and Agent Pay until that baseline path works once. Use
+`zk-agent suite` only after that first success or when the question becomes
+broader than one immediate write.
 
 What each step is doing:
 
@@ -55,19 +60,34 @@ zk-agent payment report
 zk-agent payment approval --request-id <id>
 ```
 
+The fastest Agent Pay proof path is:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment approval --request-id <id>
+zk-agent payment dashboard
+zk-agent payment handoff --request-id <id>
+zk-agent payment feed
+```
+
+That path shows compact ingress, wallet-aware follow-up, approval readiness,
+dashboard summary, single-request handoff bundling, and cross-request feed
+export without leaving the local-first surface.
+
 Use those commands for the public "start here" path:
 
 - `submit`: capture one payment request through the compact ingress surface
-- `dashboard`: review one control-plane style summary above wallet groups,
+- `dashboard`: review one cross-request dashboard summary above wallet groups,
   actionable queue items, and recent payment activity
-- `feed`: expose the first service-facing cross-request batch contract for
-  hosted control-plane or agent-platform ingestion
+- `feed`: expose an integration-ready cross-request batch feed for external
+  dashboards, agents, or backend ingestion
 - `queue`: review the current actionable request queue
 - `report`: summarize cross-request state and next-action distribution
 - `approval`: inspect whether the linked wallet is still blocking execution
 
 When you already have a request id and need the deeper local lifecycle,
-service-facing handoff bundle, payer/payee request model, share-safe request
+integration-ready handoff bundle, request parties model, share-safe request
 view, routing, quote, settlement, or reconciliation views, use:
 
 ```bash
@@ -78,17 +98,16 @@ Use `zk-agent payment share --request-id <id>` when the request must be shared
 with a payee or external reviewer without exposing local wallet linkage or
 execution-preference details.
 
-Use `zk-agent payment parties --request-id <id>` when an agent or service
-needs the stable payer/payee request model with separate local and
+Use `zk-agent payment parties --request-id <id>` when an external agent or
+backend needs the stable request parties model with separate local and
 share-safe payer projections.
 
-Use `zk-agent payment handoff --request-id <id>` when a hosted control plane
-or agent platform needs one stable service-facing bundle instead of
+Use `zk-agent payment handoff --request-id <id>` when an external dashboard,
+agent, or backend needs one stable integration bundle instead of
 reassembling local reads.
 
-Use `zk-agent payment feed` when that same hosted control plane or agent
-platform needs the stable cross-request batch surface instead of one request
-at a time.
+Use `zk-agent payment feed` when that same external surface needs the stable
+cross-request batch feed instead of one request at a time.
 
 If readiness is unclear before you choose a fix, use:
 
@@ -104,7 +123,7 @@ zk-agent suite
 ```
 
 If you want one packaged readout that includes both first-run onboarding and
-the post-flagship operator surface, use:
+the post-flagship packaged surface, use:
 
 ```bash
 zk-agent suite --include-onboarding
@@ -116,12 +135,16 @@ Use the surfaces this way:
   readiness, recovery, or workflow continuation
 - `workflow pay`: the wallet is already ready and you want the flagship
   native-send path now
-- `suite`: the wallet is already ready and you want the packaged operator
-  catalog because the question is broader than one immediate flagship pay step
+- `suite`: the wallet is already ready and you want the packaged surface
+  because the question is broader than one immediate flagship pay step
 - `payment`: the execution path is no longer the whole story and you need
   local request capture, queueing, reporting, or approval tracking around it
 - `suite --include-onboarding`: you want one combined readout from first-run
   bootstrap through the packaged post-flagship surface
+
+The remote relay path is a fallback, not part of the default happy path. Only
+open it when the browser is on another machine or cannot return directly to
+the waiting terminal.
 
 ## Install
 
@@ -144,7 +167,7 @@ The package also ships the alias:
 zksync-agent --help
 ```
 
-The `npx skills add ...` path belongs to the repo skill bundle, not the
+The `npx skills add ...` path belongs to the skill bundle, not the
 packaged CLI install surface.
 
 ## Defaults
@@ -285,7 +308,7 @@ Current `suite` handoff surfaces:
 - `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
-Current `suite` operator journeys:
+Current `suite` product journeys:
 
 - `send value now`
 - `capture and track payments`
@@ -295,6 +318,21 @@ Current `suite` operator journeys:
 
 If you only need one default starting point inside `suite`, start with
 `send value now`.
+
+For the clearest Agent Pay proof path inside `suite`, follow:
+
+```bash
+zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment next --request-id <id>
+zk-agent payment approval --request-id <id>
+zk-agent payment dashboard
+zk-agent payment handoff --request-id <id>
+zk-agent payment feed
+```
+
+That is the shortest packaged route from one local request write into
+wallet-aware follow-up, approval readiness, dashboard summary, and
+integration-ready export.
 
 Use `--wallet <name>` or `--chain <chain>` when the returned suite commands
 should stay on a non-default wallet or chain.
@@ -339,7 +377,7 @@ Built-in smart-account profiles remain:
 
 Keep `sed-lite` as the default product baseline. Use
 `zk-agent wallet smart-account --help` when the task is specifically about
-predict, deploy, or profile-level self-calls rather than the normal operator
+predict, deploy, or profile-level self-calls rather than the normal default
 path.
 
 ## Common failures
@@ -355,7 +393,7 @@ path.
   do not guess the route; run the exact `workflow fund` command suggested by
   the CLI
 - locked-down environment blocks local callback or relay binding:
-  rerun from a normal host shell or use the relay/manual approval path that
+  rerun from a normal shell or use the relay/manual approval path that
   matches the environment
 
 ## Reference
@@ -388,4 +426,4 @@ zk-agent relay --help
 
 ## License
 
-MIT. See the repository `LICENSE`.
+MIT. See the project `LICENSE`.

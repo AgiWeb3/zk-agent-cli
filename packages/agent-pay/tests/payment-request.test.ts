@@ -334,7 +334,7 @@ test('payment request parties expose stable local and share-safe payer projectio
   assert.equal(parties.payee.profile.displayName, record.payee.name);
 });
 
-test('payment request handoff exposes a service-facing entry bundle', () => {
+test('payment request handoff exposes an integration-ready entry bundle', () => {
   const record = createSamplePaymentRequest();
   const summary = buildPaymentRequestInspectionSummary(record);
   const intent = buildPaymentRequestIntent(record);
@@ -824,7 +824,7 @@ test('payment report aggregates cross-request status counts and recent activity'
   );
 });
 
-test('payment dashboard compresses report data into a control-plane style view', () => {
+test('payment dashboard compresses report data into a cross-request dashboard view', () => {
   const readyRecord = refreshPaymentRequestQuote(createSamplePaymentRequest(), {
     quotedAt: '2026-09-10T00:00:00.000Z'
   });
@@ -887,7 +887,7 @@ test('payment dashboard compresses report data into a control-plane style view',
   assert.equal(dashboard.recentActivity.length, 3);
 });
 
-test('payment feed exposes a service-facing cross-request batch handoff contract', () => {
+test('payment feed exposes an integration-ready cross-request batch handoff contract', () => {
   const readyRecord = refreshPaymentRequestQuote(createSamplePaymentRequest(), {
     quotedAt: '2026-09-10T00:00:00.000Z'
   });

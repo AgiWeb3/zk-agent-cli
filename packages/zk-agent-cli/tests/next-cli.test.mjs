@@ -250,7 +250,7 @@ function expectedProductEntrySummary(stage, nextAction, suiteAvailable = false) 
         nextSurface: 'setup',
         nextAction,
         suiteAvailable: false,
-        note: 'Start with setup first. The operator path is still in first-run bootstrap.'
+        note: 'Start with setup first. This environment is still at the first local step.'
       };
     case 'wallet-bootstrap':
       return {
@@ -262,7 +262,7 @@ function expectedProductEntrySummary(stage, nextAction, suiteAvailable = false) 
         nextSurface: 'wallet',
         nextAction,
         suiteAvailable: false,
-        note: 'Local defaults exist, but wallet bootstrap is still the current product question.'
+        note: 'Local defaults are ready, but wallet creation is still the next required step.'
       };
     case 'wallet-recovery':
       return {
@@ -287,7 +287,7 @@ function expectedProductEntrySummary(stage, nextAction, suiteAvailable = false) 
         nextAction,
         suiteAvailable,
         note:
-          'The default product action is now the flagship workflow path. Switch to suite when the question becomes broader than one flagship pay step.'
+          'The default next step is the flagship workflow pay path. Switch to suite only when the question is broader than one pay step.'
       };
     case 'workflow':
       return {
@@ -300,7 +300,7 @@ function expectedProductEntrySummary(stage, nextAction, suiteAvailable = false) 
         nextAction,
         suiteAvailable,
         note:
-          'A stored workflow checkpoint is now the active product context. Stay on workflow follow-up until the question is no longer workflow-specific.'
+          'A stored workflow is already active. Stay on workflow follow-up until that question is done.'
       };
     default:
       throw new Error(`Unsupported product entry stage in test: ${stage}`);
@@ -388,8 +388,8 @@ test('top-level next recommends setup when local config is missing', async () =>
       relayUrl: null,
       nextAction: 'zk-agent setup',
       notes: [
-        'No local config was found, so setup is still the first required onboarding step.',
-        'This scope is local-only and does not require live RPC reads.'
+        'No local config was found, so setup is still the first required step.',
+        'This recommendation is based on local state only.'
       ]
     });
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
@@ -452,7 +452,7 @@ test('top-level next recommends wallet creation when config exists but the walle
       nextAction: 'zk-agent wallet create --await-local',
       notes: [
         'Config exists, but no saved wallet record was found for this name yet.',
-        'Use the remote approval fallback only when the browser is not colocated with this terminal.'
+        'Use remote approval only when the browser is not colocated with this terminal.'
       ]
     });
     assert.equal(result.agentFollowup.status, 'zk-agent agent status --wallet main');
@@ -608,7 +608,7 @@ test('top-level next recommends starting a workflow when the wallet is already r
       relayUrl: null,
       nextAction: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
       notes: [
-        'Wallet approval and local signer state are present.',
+        'Wallet approval and local signer state are ready.',
         'Top-level next also inspects live deployment and balance state before recommending the workflow step.'
       ]
     });
@@ -731,7 +731,7 @@ test('top-level next exposes wallet-recovery onboarding guidance when approval e
       nextAction: 'zk-agent wallet signer attach --name main --private-key <hex>',
       notes: [
         'Approved session metadata exists, but no local execution signer is stored yet.',
-        'Top-level next returns to live workflow guidance after the signer is attached.'
+        'Top-level next returns to the live path after the signer is attached.'
       ]
     });
     assert.equal(

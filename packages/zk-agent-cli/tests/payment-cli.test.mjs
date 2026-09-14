@@ -77,6 +77,32 @@ async function runCliText(args, env) {
   return stdout;
 }
 
+test('payment help exposes the compact proof path and integration routing', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-payment-help-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['payment', '--help'], env);
+
+    assert.match(help, /Payment request surface:/);
+    assert.match(help, /Fastest proof path:/);
+    assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent payment next --request-id <id>/);
+    assert.match(help, /zk-agent payment approval --request-id <id>/);
+    assert.match(help, /zk-agent payment dashboard/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment feed/);
+    assert.match(help, /This proves compact ingress -> wallet-aware follow-up -> approval readiness -> dashboard summary -> integration-ready export/);
+    assert.match(help, /Choose by question:/);
+    assert.match(help, /`next` \/ `approval`: what is blocking this one request right now\?/);
+    assert.match(help, /`dashboard`: what is the current dashboard summary across requests\?/);
+    assert.match(help, /`handoff`: what is the stable single-request integration bundle\?/);
+    assert.match(help, /`feed`: what is the stable cross-request integration feed\?/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
 async function loadAgentCoreStorage(homeDir) {
   const storage = await import(
     `${agentCoreStorageModuleUrl}?home=${encodeURIComponent(homeDir)}&ts=${Date.now()}`
@@ -1072,10 +1098,10 @@ test('payment submit exposes the compact ingress contract and help text explains
     const help = await runCliText(['payment', '--help'], env);
     assert.match(help, /Payment request surface:/);
     assert.match(help, /`submit` is the compact ingress write surface; `create` remains the lower-level local record primitive/);
-    assert.match(help, /`dashboard` is the control-plane style cross-request summary above the local report and queue primitives/);
-    assert.match(help, /`feed` is the first service-facing cross-request batch contract for hosted control-plane or agent-platform ingestion/);
-    assert.match(help, /`handoff` is the first service-facing entry bundle for hosted control-plane or agent-platform ingestion/);
-    assert.match(help, /`parties` is the stable payer\/payee request model with separate local and share-safe payer views/);
+    assert.match(help, /`dashboard` is the cross-request dashboard summary above the local report and queue primitives/);
+    assert.match(help, /`feed` is the integration-ready cross-request batch feed for external dashboards, agents, or backend ingestion/);
+    assert.match(help, /`handoff` is the integration-ready single-request bundle for external dashboards, agents, or backend ingestion/);
+    assert.match(help, /`parties` is the stable request parties model with separate local and share-safe payer views/);
     assert.match(help, /`share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences/);
     assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment dashboard/);

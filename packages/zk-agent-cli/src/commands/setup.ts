@@ -55,7 +55,7 @@ function buildSetupHelpText(): string {
 export function createInitCommand(): Command {
   return new Command('init')
     .alias('setup')
-    .description('Initialize local zk-agent configuration for the validated first-run operator path')
+    .description('Initialize local zk-agent configuration for the validated first-run path')
     .addHelpText('after', buildSetupHelpText())
     .option('--default-chain <chain>', 'Default chain key', 'zksync-sepolia')
     .option('--connector-url <url>', 'Connector UI base URL', 'http://localhost:4444')

@@ -81,6 +81,9 @@ function buildDoctorHelpText(): string {
     '  zk-agent doctor --wallet main',
     '  zk-agent doctor --wallet main --relay-url https://relay.example.com',
     '',
+    '  Start with `zk-agent next` when you are just beginning.',
+    '  Use `doctor` only when the normal path stops making sense or local state is unclear.',
+    '',
     '  What `doctor` answers right now:',
     '    bootstrap: local config or wallet bootstrap is still missing',
     '    recover: local approval or signer state still needs repair',
@@ -90,6 +93,7 @@ function buildDoctorHelpText(): string {
     'Default behavior:',
     '  Inspects saved config, local wallet approval metadata, local signer state,',
     '  and the shortest next command without requiring live RPC reads.',
+    '  It is a local-only diagnosis surface, not the normal first-run happy path.',
     '  Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
     '  When doctor shows local readiness is clear and the question is broader than one next step:',
     '    zk-agent suite',
@@ -203,8 +207,8 @@ function buildDoctorResult(options: {
       relayUrl: options.relayUrl || null,
       nextAction: recommendedCommands.setup,
       notes: [
-        'Local config is missing, so the canonical operator path should start with setup.',
-        'Doctor is local-only by default and does not require live RPC reads.'
+        'Local config is missing, so start with setup.',
+        'Doctor stays local-only and does not require live RPC reads.'
       ]
     });
     const productEntrySummary = buildProductEntrySummary({
@@ -228,8 +232,8 @@ function buildDoctorResult(options: {
         nextAction: recommendedCommands.setup,
         localOnly: true,
         notes: [
-          'Local config is missing, so the canonical operator path should start with setup.',
-          'Doctor is local-only by default and does not require live RPC reads.'
+          'Local config is missing, so start with setup.',
+          'Doctor stays local-only and does not require live RPC reads.'
         ]
       },
       recommendedCommands
@@ -252,7 +256,7 @@ function buildDoctorResult(options: {
       nextAction: recommendedCommands.createWallet,
       notes: [
         'Local config exists, but no saved wallet record was found for this name yet.',
-        'Use the remote relay path only when the browser is not colocated with this terminal.'
+        'Use remote approval only when the browser is not colocated with this terminal.'
       ]
     });
     const productEntrySummary = buildProductEntrySummary({
@@ -277,7 +281,7 @@ function buildDoctorResult(options: {
         localOnly: true,
         notes: [
           'Local config exists, but no saved wallet record was found for this name yet.',
-          'Use the remote relay path only when the browser is not colocated with this terminal.'
+          'Use remote approval only when the browser is not colocated with this terminal.'
         ]
       },
       recommendedCommands
@@ -356,7 +360,7 @@ function buildDoctorResult(options: {
       nextAction: attachSigner,
       notes: [
         'Approved session metadata exists, but no local execution signer is stored yet.',
-        'Doctor is local-only: it confirms stored signer state, not live chain deployment or gas balance.'
+        'Doctor only checks stored signer state; it does not confirm live chain deployment or gas balance.'
       ]
     });
     const productEntrySummary = buildProductEntrySummary({
@@ -381,7 +385,7 @@ function buildDoctorResult(options: {
         localOnly: true,
         notes: [
           'Approved session metadata exists, but no local execution signer is stored yet.',
-          'Doctor is local-only: it confirms stored signer state, not live chain deployment or gas balance.'
+          'Doctor only checks stored signer state; it does not confirm live chain deployment or gas balance.'
         ]
       },
       recommendedCommands
@@ -402,7 +406,7 @@ function buildDoctorResult(options: {
     nextAction: recommendedCommands.next,
     notes: [
       'Local config, approval metadata, and a local execution signer are all present.',
-      'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
+      'Run zk-agent next for the live path; doctor does not confirm RPC reachability, deployment state, or funding.'
     ]
   });
   const productEntrySummary = buildProductEntrySummary({
@@ -439,7 +443,7 @@ function buildDoctorResult(options: {
       localOnly: true,
       notes: [
         'Local config, approval metadata, and a local execution signer are all present.',
-        'Run zk-agent next for the current shortest live path; doctor does not confirm RPC reachability, deployment state, or funding.'
+        'Run zk-agent next for the live path; doctor does not confirm RPC reachability, deployment state, or funding.'
       ]
     },
     recommendedCommands
@@ -541,7 +545,7 @@ function buildDoctorLines(input: {
 
 export function createDoctorCommand(): Command {
   return new Command('doctor')
-    .description('Local-only onboarding and wallet-recovery diagnostic for the default operator path')
+    .description('Local-only onboarding and wallet-recovery diagnostic for the default first-run path')
     .addHelpText('after', buildDoctorHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option(

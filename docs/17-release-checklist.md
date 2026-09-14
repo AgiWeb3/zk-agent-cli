@@ -1,6 +1,6 @@
 # Release Checklist
 
-This is the short operator runbook for a real npm release cut.
+This is the short release runbook for a real npm release cut.
 
 Use this when you already understand the broader policy in
 [11-npm-release-gate.md](./11-npm-release-gate.md) and only need the actual

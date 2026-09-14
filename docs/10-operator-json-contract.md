@@ -638,7 +638,7 @@ when the routing decision is still purely local, and flips to
 active decision boundary.
 
 `productEntrySummary` is the compressed product-language companion to
-`onboardingSummary`. It explains which operator question `next` is answering
+`onboardingSummary`. It explains which product question `next` is answering
 right now without forcing callers to infer that from prose or command shape.
 
 Current stable `productEntrySummary` fields:
@@ -1777,6 +1777,8 @@ Current stable `flagship` / `slices[]` fields:
 - `primaryCommand`
 - `surfaceCommand`
 - `supportingCommands`
+- `proofPath`
+  appears selectively when that entry exposes one bounded public demo route
 - `skillPath`
 - `smokeCommand`
   appears selectively when the slice has a bounded smoke entrypoint
@@ -1803,6 +1805,11 @@ Current stable `surface` semantics on `flagship` / `slices[]`:
 slice after the initial suite classification. Current examples include
 `zk-agent workflow --help`, `zk-agent payment --help`,
 `zk-agent defaults`, and `zk-agent relay --help`.
+
+When present, `proofPath` is the compact public proof route for that one entry.
+It is narrower than the broader `supportingCommands` list and is meant for
+repeatable demos, onboarding screenshots, or wrapper-side "show me the exact
+happy path" surfaces.
 
 Current stable `surfaces[]` fields:
 
@@ -2544,7 +2551,7 @@ Current stable top-level fields:
 
 `payment submit` is the compact local-first payment ingress write surface. It
 accepts the same payment-intent input shape as `payment create`, persists the
-request locally, and returns a smaller service-facing contract than the raw
+request locally, and returns a smaller integration-ready contract than the raw
 stored record. The returned `next` surface is already wallet-aware, so wallet
 repair can win over raw execution when approval or signer readiness is still
 missing.
@@ -2734,7 +2741,7 @@ Current stable top-level fields:
 - `recommendedCommands`
 
 `payment queue` is the first cross-request actionable Agent Pay queue surface.
-It bundles a stable payer/payee request descriptor, the current execution plan,
+It bundles a stable request parties descriptor, the current execution plan,
 and the wallet-aware `next` route for each matching stored request so later
 API or platform consumers can reuse one queue contract instead of re-reading
 each request individually.
@@ -2897,10 +2904,10 @@ Current stable top-level fields:
 - `dashboard`
 - `recommendedCommands`
 
-`payment dashboard` is the first control-plane style Agent Pay reporting
-surface. It compresses the current local report and actionable queue into one
-runtime view that is easier for operator platforms, hosted control planes, or
-agent harnesses to consume without reassembling several lower-level reads.
+`payment dashboard` is the first cross-request Agent Pay dashboard surface. It
+compresses the current local report and actionable queue into one runtime view
+that is easier for operator dashboards, backend services, or agent harnesses to
+consume without reassembling several lower-level reads.
 
 Current stable `dashboard` fields:
 
@@ -2988,9 +2995,9 @@ Current stable top-level fields:
 - `feed`
 - `recommendedCommands`
 
-`payment feed` is the first service-facing cross-request Agent Pay batch
+`payment feed` is the first integration-ready cross-request Agent Pay batch
 surface. It exposes one stable summary plus one stable per-request handoff
-envelope per item, so hosted control planes or agent platforms can ingest many
+envelope per item, so external dashboards, agents, or backend services can ingest many
 stored requests without rebuilding that batch contract from `report`, `queue`,
 and repeated per-request `handoff` reads.
 
@@ -3301,9 +3308,9 @@ Current stable top-level fields:
 - `handoff`
 - `recommendedCommands`
 
-`payment handoff` is the first service-facing Agent Pay entry bundle. It
-packages the local request into one stable object for hosted control planes,
-agent platforms, or future APIs that do not want to reassemble intent,
+`payment handoff` is the first integration-ready Agent Pay entry bundle. It
+packages the local request into one stable object for external dashboards,
+agents, backends, or future APIs that do not want to reassemble intent,
 counterparty, share-safe, settlement, and next-step reads separately.
 
 Current stable `handoff` fields:

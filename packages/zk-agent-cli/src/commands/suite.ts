@@ -5,7 +5,7 @@ import { buildOperatorSuitePayload, operatorSuiteLines } from '../lib/operator-s
 
 export function createSuiteCommand(): Command {
   return new Command('suite')
-    .description('Show the flagship and post-flagship zkSync-native operator suite')
+    .description('Show the flagship and post-flagship zkSync-native packaged suite')
     .option('--wallet <name>', 'Wallet name used in example commands', 'main')
     .option('--chain <chain>', 'Chain key used in example commands', 'zksync-sepolia')
     .option('--include-onboarding', 'Include the first-run preflight and wallet-bootstrap map', false)
@@ -27,9 +27,9 @@ export function createSuiteCommand(): Command {
         '    fund: recover from gas/funding blockers without guessing the route',
         '    recover: switch to hosted relay approval when the browser is remote',
         '',
-        '  Most common operator journeys:',
+        '  Most common product journeys:',
         '    send value now: go straight to the flagship pay path',
-        '    capture and track payments: enter the Agent Pay request layer around the write path',
+        '    capture and track payments: follow submit -> next -> approval -> dashboard -> handoff -> feed',
         '    inspect before acting: open assets/defaults/token inspection first',
         '    unstick a write: recover paymaster/funding readiness on the workflow path',
         '    recover remote approval: move approval to the hosted relay path',
@@ -49,6 +49,11 @@ export function createSuiteCommand(): Command {
         '  Recommended order inside the suite:',
         '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
         '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        '    zk-agent payment next --request-id <id>',
+        '    zk-agent payment approval --request-id <id>',
+        '    zk-agent payment dashboard',
+        '    zk-agent payment handoff --request-id <id>',
+        '    zk-agent payment feed',
         '    zk-agent assets --wallet main',
         '    zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
         '    zk-agent workflow fund --wallet main',
@@ -65,6 +70,8 @@ export function createSuiteCommand(): Command {
         '  `summary.recommendedOrder`, optional `preflight`, and each entry',
         '  `category` + `surface` + `surfaceCommand` + `useWhen` field explain',
         '  which slice to choose and which deeper surface owns it next.',
+        '  `proofPath` appears selectively on entries that expose one bounded',
+        '  public demo route.',
         '  `recommendedCommands.workflowSurface|paymentSurface|discoverySurface|relaySurface`',
         '  expose the direct deeper-surface entry commands.'
       ].join('\n')

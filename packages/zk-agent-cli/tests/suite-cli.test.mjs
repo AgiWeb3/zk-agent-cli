@@ -71,7 +71,7 @@ async function runCliText(args, env) {
   return stdout;
 }
 
-test('suite command exposes the flagship and post-flagship operator suite', async () => {
+test('suite command exposes the flagship and post-flagship packaged suite', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-suite-cli-'));
 
   try {
@@ -100,7 +100,7 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
       startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
       surface: 'workflow',
       useWhen:
-        'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.'
+        'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.'
     });
     assert.deepEqual(result.summary.surfaceOrder, ['workflow', 'payment', 'discovery', 'relay']);
     assert.deepEqual(result.summary.categoryOrder, [
@@ -134,7 +134,7 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
         operatorQuestion:
           'I already have a ready wallet and want the shortest path to send native value now.',
         useWhen:
-          'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.',
+          'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
         startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
         surface: 'workflow',
         categoryIds: ['operate'],
@@ -146,7 +146,7 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
         operatorQuestion:
           'I need a payment request layer around the write path so I can capture, queue, share, or repair payments instead of only executing immediately.',
         useWhen:
-          'Use this when Agent Pay request capture, queueing, approval repair, or service-facing feed export is the real operator question.',
+          'Use this when Agent Pay request capture, queueing, approval repair, or integration-ready feed export is the real need.',
         startCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
         surface: 'payment',
         categoryIds: ['request'],
@@ -267,10 +267,20 @@ test('suite command exposes the flagship and post-flagship operator suite', asyn
     assert.equal(result.slices[0].surfaceCommand, 'zk-agent payment --help');
     assert.match(result.slices[0].useWhen, /request capture|queueing|feed export/);
     assert.deepEqual(result.slices[0].supportingCommands, [
+      'zk-agent payment next --request-id <request-id>',
+      'zk-agent payment approval --request-id <request-id>',
       'zk-agent payment dashboard',
+      'zk-agent payment handoff --request-id <request-id>',
       'zk-agent payment feed',
-      'zk-agent payment report',
-      'zk-agent payment approval --request-id <request-id>'
+      'zk-agent payment report'
+    ]);
+    assert.deepEqual(result.slices[0].proofPath, [
+      'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+      'zk-agent payment next --request-id <request-id>',
+      'zk-agent payment approval --request-id <request-id>',
+      'zk-agent payment dashboard',
+      'zk-agent payment handoff --request-id <request-id>',
+      'zk-agent payment feed'
     ]);
     assert.equal(result.slices[0].skillPath, 'skills/zk-agent-pay/SKILL.md');
     assert.equal(result.slices[1].primaryCommand, 'zk-agent assets --wallet main');
@@ -364,7 +374,7 @@ test('suite command preserves wallet and chain context across the packaged contr
       startCommand: 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
       surface: 'workflow',
       useWhen:
-        'Use this when the wallet is already ready and the operator wants the flagship zkSync-native pay path first.'
+        'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.'
     });
     assert.deepEqual(result.summary.surfaceOrder, ['workflow', 'payment', 'discovery', 'relay']);
     assert.deepEqual(
@@ -407,10 +417,20 @@ test('suite command preserves wallet and chain context across the packaged contr
     assert.equal(result.slices[0].surface, 'payment');
     assert.equal(result.slices[0].surfaceCommand, 'zk-agent payment --help');
     assert.deepEqual(result.slices[0].supportingCommands, [
+      'zk-agent payment next --request-id <request-id>',
+      'zk-agent payment approval --request-id <request-id>',
       'zk-agent payment dashboard',
+      'zk-agent payment handoff --request-id <request-id>',
       'zk-agent payment feed',
-      'zk-agent payment report',
-      'zk-agent payment approval --request-id <request-id>'
+      'zk-agent payment report'
+    ]);
+    assert.deepEqual(result.slices[0].proofPath, [
+      'zk-agent payment submit --wallet ops-wallet --to <address> --amount <amount>',
+      'zk-agent payment next --request-id <request-id>',
+      'zk-agent payment approval --request-id <request-id>',
+      'zk-agent payment dashboard',
+      'zk-agent payment handoff --request-id <request-id>',
+      'zk-agent payment feed'
     ]);
     assert.equal(result.slices[1].primaryCommand, 'zk-agent assets --wallet ops-wallet');
     assert.equal(result.slices[1].surface, 'discovery');
@@ -462,14 +482,14 @@ test('suite command preserves wallet and chain context across the packaged contr
   }
 });
 
-test('suite help exposes the operator suite entrypoint', async () => {
+test('suite help exposes the packaged suite entrypoint', async () => {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-suite-help-cli-'));
 
   try {
     const env = createCliEnv(homeDir);
     const help = await runCliText(['suite', '--help'], env);
 
-    assert.match(help, /Show the flagship and post-flagship zkSync-native operator suite/);
+    assert.match(help, /Show the flagship and post-flagship zkSync-native packaged suite/);
     assert.match(help, /Use `suite` after wallet readiness when you want one packaged surface/);
     assert.match(help, /Use `workflow pay` when the route is already clear and you want to execute now\./);
     assert.match(help, /Use `payment` when the real need is local request capture, queueing, reporting,/);
@@ -478,9 +498,9 @@ test('suite help exposes the operator suite entrypoint', async () => {
     assert.match(help, /operate: send native value through the flagship workflow path/);
     assert.match(help, /request: capture, queue, report, export, and repair Agent Pay requests/);
     assert.match(help, /recover: switch to hosted relay approval when the browser is remote/);
-    assert.match(help, /Most common operator journeys:/);
+    assert.match(help, /Most common product journeys:/);
     assert.match(help, /send value now: go straight to the flagship pay path/);
-    assert.match(help, /capture and track payments: enter the Agent Pay request layer around the write path/);
+    assert.match(help, /capture and track payments: follow submit -> next -> approval -> dashboard -> handoff -> feed/);
     assert.match(help, /inspect before acting: open assets\/defaults\/token inspection first/);
     assert.match(help, /unstick a write: recover paymaster\/funding readiness on the workflow path/);
     assert.match(help, /recover remote approval: move approval to the hosted relay path/);
@@ -495,6 +515,11 @@ test('suite help exposes the operator suite entrypoint', async () => {
     assert.match(help, /Recommended order inside the suite:/);
     assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent payment next --request-id <id>/);
+    assert.match(help, /zk-agent payment approval --request-id <id>/);
+    assert.match(help, /zk-agent payment dashboard/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment feed/);
     assert.match(help, /zk-agent assets --wallet main/);
     assert.match(
       help,
@@ -516,6 +541,7 @@ test('suite help exposes the operator suite entrypoint', async () => {
     assert.match(help, /preflight/);
     assert.match(help, /recommendedOrder/);
     assert.match(help, /surfaceCommand/);
+    assert.match(help, /proofPath/);
     assert.match(help, /recommendedCommands\.workflowSurface\|paymentSurface\|discoverySurface\|relaySurface/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -545,9 +571,9 @@ test('suite can include the first-run preflight without changing the packaged su
       id: 'first-run-preflight',
       title: 'First-Run Preflight',
       goal:
-        'Start from a fresh install, write local defaults, and bootstrap a writable wallet session before using the packaged operator surface.',
+        'Start from a fresh install, write local defaults, and bootstrap a writable wallet session before using the packaged surface.',
       useWhen:
-        'Use this when the machine is new, the wallet is not ready yet, or you want the full operator map before choosing local-first versus remote-browser approval.',
+        'Use this when the machine is new, the wallet is not ready yet, or you want the full product map before choosing local-first versus remote-browser approval.',
       diagnosticCommand: 'zk-agent doctor --wallet ops-wallet',
       localPath: [
         'zk-agent setup',
@@ -618,7 +644,15 @@ test('suite text output explains when to use each packaged slice', async () => {
     assert.match(output, /agent pay requests category: request/);
     assert.match(output, /agent pay requests surface: payment/);
     assert.match(output, /agent pay requests surface command: zk-agent payment --help/);
-    assert.match(output, /agent pay requests when: Use this when local request capture, queueing, reporting, feed export, or approval repair is the real operator question around the same wallet write path\./);
+    assert.match(output, /agent pay requests when: Use this when local request capture, queueing, reporting, feed export, or approval repair is the real need around the same wallet write path\./);
+    assert.match(
+      output,
+      /agent pay requests: zk-agent payment submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent payment dashboard -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed -> zk-agent payment report/
+    );
+    assert.match(
+      output,
+      /agent pay requests proof path: zk-agent payment submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent payment dashboard -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed/
+    );
     assert.match(output, /discovery \/ defaults category: discover/);
     assert.match(output, /discovery \/ defaults surface: discovery/);
     assert.match(output, /discovery \/ defaults surface command: zk-agent defaults/);
