@@ -11,15 +11,16 @@ Every shipped version should have:
 ## Current Release
 
 <!-- release-current:start -->
-- version: `0.1.0-rc.5`
-- date: `2026-09-12`
-- dist-tags: `beta -> 0.1.0-beta.11`, `rc -> 0.1.0-rc.5`, `latest -> 0.1.0-rc.5`
-- notes: [0.1.0-rc.5](./docs/releases/0.1.0-rc.5.md)
+- version: `0.1.0-rc.6`
+- date: `2026-09-14`
+- dist-tags: `beta -> 0.1.0-beta.11`, `rc -> 0.1.0-rc.6`, `latest -> 0.1.0-rc.6`
+- notes: [0.1.0-rc.6](./docs/releases/0.1.0-rc.6.md)
 <!-- release-current:end -->
 
 ## History
 
 <!-- release-history:start -->
+- `0.1.0-rc.6` (`2026-09-14`) - [release notes](./docs/releases/0.1.0-rc.6.md)
 - `0.1.0-rc.5` (`2026-09-12`) - [release notes](./docs/releases/0.1.0-rc.5.md)
 - `0.1.0-rc.4` (`2026-09-09`) - [release notes](./docs/releases/0.1.0-rc.4.md)
 - `0.1.0-rc.3` (`2026-09-05`) - [release notes](./docs/releases/0.1.0-rc.3.md)

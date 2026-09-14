@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-- updated: `2026-09-13`
+- updated: `2026-09-14`
 - branch: `main`
-- package stage: `0.1.0-rc.5`
+- package stage: `0.1.0-rc.6`
 - current focus: RC closeout, benchmark-gap assessment versus
   `polygon-agent-cli`, and Agent Pay platform planning
 - latest RC review artifact:

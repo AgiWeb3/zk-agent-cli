@@ -4,7 +4,7 @@
 approval, flagship pay execution, hosted relay recovery, and Agent Pay request
 routing.
 
-Current public stage: `0.1.0-rc.5`.
+Current public stage: `0.1.0-rc.6`.
 
 This README is only the project front door.
 
