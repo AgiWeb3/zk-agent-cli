@@ -2,204 +2,58 @@
 
 ## Snapshot
 
-- updated: `2026-09-14`
+- updated: `2026-09-15`
 - branch: `main`
-- package stage: `0.1.0-rc.6`
+- package stage: `0.1.0-rc.7`
 - current focus: RC closeout, benchmark-gap assessment versus
   `polygon-agent-cli`, and Agent Pay platform planning
 - latest RC review artifact:
-  `docs/release-stage-reviews/2026-09-03-main-rc.md`
+  `docs/release-stage-reviews/2026-09-11-main-rc.md`
 
-## Landed baseline
+## Current public baseline
 
-- workspace and package layout are stable
+- workspace layout is stable
 - `sed-lite` is the default AA profile
-- local-first wallet/session lifecycle exists:
-  create, local approval, reapprove, export/restore, sync, and recovery
-- flagship zkSync-native AA path exists and is validated:
+- flagship path is validated:
   `setup -> next -> wallet create|reapprove -> next -> workflow pay`
-- hosted relay approval exists with public operated evidence
-- relay expiry recovery and local reissue semantics exist
-- `setup`, `next`, and `doctor` emit structured onboarding summaries and
-  follow-up paths
-- `next` now also emits a product-entry summary that classifies the current
-  operator question as bootstrap, recover, operate, or workflow
-- wallet and workflow flows emit structured follow-up contracts
-- discovery, defaults, funding, paymaster readiness, and hosted approval
-  recovery are exposed through `suite` and the CLI discovery surface
-- `suite --include-onboarding` can now expose the first-run preflight and the
-  post-flagship operator surface together
-- `suite` now also treats Agent Pay as a first-class packaged slice through
-  the `request` category, `payment` surface, and the
-  `capture-and-track-payments` journey
-- `suite` entries can now also expose an optional bounded `proofPath`, with
-  the Agent Pay slice carrying the canonical
-  `submit -> next -> approval -> dashboard -> handoff -> feed` demo route
-- a first local-first Agent Pay primitive now exists through
-  `zk-agent payment`:
-  create, list, show, set-status, and remove payment request records
-- the Agent Pay request domain now lives in its own `packages/agent-pay`
-  workspace package instead of being embedded inside `agent-core`
-- wallet records now carry a stable `walletId`, and Agent Pay records can link
-  to that identifier instead of relying only on mutable wallet names
-- Agent Pay linked-wallet resolution now also prefers `walletId` and only
-  falls back to `walletName` for older or partial records
-- `packages/agent-pay` now includes a first application-service layer for
-  payment submit/create/show/list/set-status/remove flows, with the CLI
-  staying as a surface and renderer
-- `zk-agent payment submit` now exposes the first stable compact ingress write
-  surface for one local-first payment submission
-- `zk-agent payment intent` now exposes the first stable business-intent read
-  surface for one stored payment request
-- `zk-agent payment handoff` now exposes the first stable integration-ready
-  payment entry bundle for one stored payment request
-- `zk-agent payment parties` now exposes the first stable request parties
-  model with separate local and share-safe payer projections for one stored
-  payment request
-- `zk-agent payment inspect` now exposes the first stable aggregate read
-  surface for one stored payment request
-- `zk-agent payment next` now exposes the first stable compact follow-up route
-  surface for one stored payment request
-- `payment inspect.summary` now exposes the first stable action-oriented
-  aggregate contract for agent consumers
-- `packages/agent-pay` now also owns the first explicit execution-plan
-  contract for payment create/show/set-status outputs
-- payment request records now also keep a first append-only `history[]`
-  baseline, with legacy local records migrated on read
-- `zk-agent payment history` now exposes the first dedicated filtered history
-  read surface for one stored payment request
-- `zk-agent payment report` now exposes the first stable local cross-request
-  reporting surface across stored payment requests
-- `zk-agent payment report` now also exposes wallet-aware next-action and
-  route-kind distribution across stored requests, so operators and later
-  platform surfaces can see the real blocker/next-step mix without separately
-  joining per-request reads
-- `zk-agent payment report` now also emits wallet-level aggregates, so later
-  dashboard or platform consumers can read wallet-scoped payment posture without
-  recomputing it outside the CLI
-- `zk-agent payment dashboard` now exposes the first cross-request dashboard
-  runtime view above the current report and actionable queue
-- `zk-agent payment feed` now exposes the first integration-ready cross-request
-  batch feed above the current report/queue/handoff layer
-- `zk-agent payment queue` now exposes the first stable cross-request
-  actionable queue surface that bundles descriptor, execution plan, and
-  wallet-aware next-route data for later platform-style request handling
-- `zk-agent payment approval` now exposes the first stable approval-readiness
-  inspection surface for one stored payment request and its linked wallet
-- `zk-agent payment sync-approval` now exposes the first stable local
-  approval-orchestration write surface for one stored payment request
-- `zk-agent payment next` and `zk-agent payment inspect` now also route
-  through linked wallet approval and signer readiness before suggesting
-  execution, so wallet repair blockers win over the raw payment-record route
-- `zk-agent payment create` and `zk-agent payment submit` now also expose that
-  wallet-aware follow-up route on first write, reducing the extra read step
-- `zk-agent payment describe` now exposes the first stable request-descriptor
-  read surface for one stored payment request
-- `zk-agent payment share` now exposes the first stable share-safe payee-facing
-  request view for one stored payment request
-- `zk-agent payment execution` now exposes the first stable execution-state
-  read surface for one stored payment request
-- `zk-agent payment quote` now exposes the first stable local execution-quote
-  read surface for one stored payment request
-- `zk-agent payment refresh-quote` now exposes the first stable quote-refresh
-  write surface for one stored payment request
-- `zk-agent payment settlement` now exposes the first stable settlement-state
-  read surface for one stored payment request
-- `zk-agent payment reconcile` now exposes the first stable settlement-
-  reconciliation write surface for one stored payment request
-- the current local Agent Pay read surfaces now distinguish
-  `ready-to-execute`, `broadcasted`, and `confirmed` lifecycle states while
-  preserving the original settlement-status compatibility layer
-- the local request status model now also carries explicit
-  `approval_pending`, `failed`, and `expired` states for blocked or stale
-  payment handling
-- the local request history now also distinguishes approval required from
-  approval satisfied through dedicated append-only events
-- release support exists through:
-  `release:prepare`, `release:checklist`, `release:publish`,
-  `validate:release`, and `validate:rc`
-- current repo-tracked RC review artifact reflects the live `rc -> 1.0.0`
-  contract
-- a short publish runbook now exists at `docs/17-release-checklist.md`
-- public onboarding docs now separate the CLI manual, quickstart, repo skill
-  path, and native Codex plugin path cleanly
-- hosted approval wording now presents the current supportable claim explicitly
-  as a single-host, same-origin, externally reachable operator path
-- root README, package README, and docs index are now shorter and more clearly
-  separated by role
-- root README, package README, and top-level help now also open with explicit
-  local-first, zkSync-native, and Agent Pay positioning instead of only
-  operator-path wording
-- root help, README, package README, quickstart, and docs index now describe
-  the `next` versus `suite` boundary with the same product-routing language
-- the package README now also routes operators to the correct deeper surface
-  (`doctor`, `wallet`, `workflow`, `suite`, `relay`) instead of keeping long
-  direct-command inventories in the front door
-- the native Codex plugin onboarding note is now shorter and framed as an
-  install-path guide rather than a maintainer-machine narrative
-- wallet and workflow help now use the same product-routing language as the
-  top-level help and front-door docs, reducing drift between help surfaces
-- relay and agent help now follow the same surface-routing contract as well,
-  making the CLI help layer more consistent end to end
-- `suite` now also groups its categories under explicit deeper surfaces
-  (`workflow`, `discovery`, `relay`) so the packaged catalog reads more like a
-  unified product surface and less like unrelated slices
-- `suite` now also emits a top-level `surfaces[]` catalog so callers can jump
-  directly to the correct deeper surface without inferring it from per-slice
-  fields alone
-- `suite` now also emits a top-level `journeys[]` layer so public operators
-  can choose a product path by question, not only by slice or deeper-surface
-  taxonomy
-- `doctor`, `next`, `wallet status|next`, and workflow follow-up surfaces now
-  expose aligned `suiteHandoffSummary` guidance and can point to a concrete
-  suite journey when the operator is ready to leave the current surface
-- packaged validation now checks `doctor --json` in both setup and wallet-ready
-  states, including the stable `doctor -> suite` handoff
+- hosted approval exists as the current single-host operated baseline
+- `start` is the public onboarding command; `next` remains the canonical
+  runtime contract
+- `doctor`, `next`, `wallet`, `workflow`, and `suite` now share one
+  question-first product-routing story
+- `suite` is now the default post-flagship packaged surface
+- `suite` now exposes:
+  - a smallest question-first entry layer
+  - journeys
+  - deeper-surface handoff
+  - bounded proof paths
+- Agent Pay is a first-class slice through `payment` and `suite`
+- packaged validation now checks docs, JSON contracts, help text, install
+  shape, and release-stage invariants
 
 ## Current priorities
 
-1. Reduce first-run friction so the public path feels more like product
-   onboarding and less like operator setup.
-2. Keep the public onboarding shell short, market-facing, and aligned across
-   README, package README, help, skills, and runtime JSON.
-3. Keep the hosted approval operated baseline explicit and repeatable.
-4. Keep the post-flagship product surface centered on `suite`, with Agent Pay
-   visible as a first-class slice instead of a hidden deeper layer.
-5. Turn the `polygon-agent-cli` comparison into explicit release-critical
-   decisions instead of vague parity language.
-6. Shape the next Agent Pay layer on top of wallet session, workflow, relay,
-   and provider primitives.
-7. Keep release validation and dist-tag behavior repeatable with less manual
-   judgment.
-
-## Next execution sequence
-
-Work the next cycle in this order:
-
-1. tighten first-run onboarding and the first-screen story
-2. make Agent Pay easier to explain and demo from `suite` and `payment`
-3. clarify the hosted Agent Pay platform direction without pretending it is
-   already complete
-4. convert those improvements into public proof paths referenced directly by
-   README/help
-
-Current execution rule:
-
-- if a task does not improve onboarding clarity, Agent Pay legibility, hosted
-  platform direction, or public proof paths, it is probably not the highest
-  value productization work right now
+1. Keep the hosted approval operated baseline explicit, repeatable, and short
+   enough to explain as a remote-browser fallback.
+2. Keep the post-flagship product surface centered on `suite`, with one
+   obvious question-first default after wallet readiness.
+3. Keep the benchmark work versus `polygon-agent-cli` explicit and tied to
+   release-critical product gaps instead of broad parity language.
+4. Keep Agent Pay moving from a strong local request layer toward a believable
+   hosted platform direction.
+5. Keep release validation and dist-tag behavior repeatable with minimal
+   manual judgment.
 
 ## Main remaining gaps
 
-- the public shell is clearer now, but it still needs stronger public proof
-  points and examples before `1.0.0`
-- first-run success is still more operator-facing than product-like for new
-  users
-- hosted approval framing can still get shorter and more market-facing
-- the product still lacks the hosted/platform-grade Agent Pay layer above the
-  current local dashboard, request, routing, and wallet/workflow primitives
-- local identity exists, but public zkSync-native identity/reputation does not
-- release validation still needs less human judgment on the final promotion
+- first-run onboarding is still more operator-facing than product-like
+- hosted approval framing is correct but still longer than it should be for a
+  public first screen
+- Agent Pay has strong local surfaces but still lacks a hosted control-plane
+  proof surface
+- public differentiation versus `polygon-agent-cli` is still clearer in
+  engineering terms than in first-screen product terms
+- final `1.0.0` promotion still needs less human judgment
 
 ## Benchmark view versus `polygon-agent-cli`
 
@@ -219,33 +73,23 @@ Current `zk-agent-cli` advantages:
 - stronger local-first recovery and signer repair flows
 - explicit hosted relay recovery with repeated public operated evidence
 - cleaner internal separation across session protocol, wallet provider, DeFi
-  provider, connector UI, and operator CLI
+  provider, connector UI, Agent Pay, and CLI surfaces
 
 Current `polygon-agent-cli` advantages:
 
 - broader market-facing story at first glance
-- zero-setup browser-login feel for a new user
+- lower-friction browser-login feel for new users
 - first-class payment language and `x402` entrypoint
-- public onchain identity/reputation surface
-- visible ecosystem verticals such as Polymarket
-- managed-browser login assumptions that feel more turnkey for new users
+- public identity/reputation surface
+- visible ecosystem verticals
 
 Release interpretation:
 
-- `zk-agent-cli` does not need Polymarket or Polygon-native identity parity to
-  ship `1.0.0`
-- it does need a comparably clear public product shell, a stronger payment
-  narrative, and a more obvious default post-flagship path
+- `zk-agent-cli` does not need Polygon-specific vertical parity for `1.0.0`
+- it does need a comparably clear public shell, a stronger payment narrative,
+  and a more obvious post-flagship path
 
-Competitive interpretation for the next cycle:
-
-- the fastest route to stronger product competitiveness is not broader DeFi
-  parity first
-- the fastest route is lower-friction onboarding, a more obviously useful
-  Agent Pay platform story, and one or two public proof surfaces that users
-  can understand immediately
-
-## Agent Pay foundation status
+## Agent Pay platform status
 
 Architecture source of truth:
 
@@ -253,28 +97,19 @@ Architecture source of truth:
 
 Foundation already present:
 
-- session approval request/payload/encryption protocol in
-  `packages/agent-session-protocol`
-- wallet/session lifecycle and local-first persistence in `agent-core`
-- local-first payment request records and settlement-state tracking through
-  `packages/agent-pay` and `zk-agent payment`
-- zkSync wallet execution in `provider-zksync-wallet`
-- zkSync DeFi routing and status tracking in `provider-zksync-defi`
-- hosted relay and connector UI for remote approval
-- workflow checkpoints and follow-up contracts for resumable execution
+- local-first request records and service orchestration in `packages/agent-pay`
+- payment ingress, queue, dashboard, report, approval, feed, handoff, quote,
+  settlement, and reconcile surfaces
+- wallet-aware follow-up routing through the existing session and workflow
+  foundation
+- relay-backed approval and workflow checkpoint primitives already available
+  underneath the payment layer
 
 Still missing for the platform layer:
 
 - hosted control plane and multi-tenant persistence
-- a simpler public narrative that makes Agent Pay look like a product surface
-  instead of an internal local request subsystem
-
-## Deferred
-
-- broad DeFi expansion and route-count parity
-- multi-host or service-grade hosted relay architecture
-- additional default AA profiles beyond `sed-lite`
-- Polygon-specific vertical parity
+- simpler public narrative for why Agent Pay matters
+- one easy hosted proof surface that reads like product, not only local state
 
 ## Restart points
 
@@ -285,36 +120,28 @@ Read first:
 - `PLANS.md`
 - `docs/10-operator-json-contract.md`
 - `docs/11-npm-release-gate.md`
+- `docs/16-hosted-approval-operated-baseline.md`
 - `docs/17-release-checklist.md`
 - `docs/18-agent-pay-architecture.md`
-- `docs/release-stage-reviews/README.md`
-- `docs/16-hosted-approval-operated-baseline.md`
 
 Primary implementation entrypoints:
 
-- `packages/zk-agent-cli/src/commands/setup.ts`
-- `packages/zk-agent-cli/src/commands/next.ts`
 - `packages/zk-agent-cli/src/commands/doctor.ts`
+- `packages/zk-agent-cli/src/commands/next.ts`
 - `packages/zk-agent-cli/src/commands/relay.ts`
 - `packages/zk-agent-cli/src/commands/suite.ts`
 - `packages/zk-agent-cli/src/commands/payment.ts`
 - `packages/zk-agent-cli/src/commands/wallet.ts`
 - `packages/zk-agent-cli/src/commands/workflow.ts`
-- `packages/zk-agent-cli/src/lib/onboarding-paths.ts`
 - `packages/zk-agent-cli/src/lib/operator-suite.ts`
 - `packages/zk-agent-cli/src/lib/suite-handoff.ts`
 - `packages/agent-pay/src/service.ts`
-- `scripts/release-git-state.mjs`
-- `scripts/release-checklist.mjs`
-- `scripts/release-prepare.mjs`
-- `scripts/release-publish.mjs`
-- `scripts/review-rc.mjs`
-- `scripts/validate-rc.mjs`
+- `packages/zk-agent-cli/scripts/release-check.mjs`
 
 ## Default restart checks
 
 - `pnpm validate:release`
 - `pnpm validate:rc`
 
-If the change is narrower, run the smallest relevant command or test instead of
-defaulting to the full gate.
+If the change is narrower, run the smallest relevant check instead of the full
+gate.

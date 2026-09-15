@@ -77,6 +77,16 @@ npx skills add https://github.com/AgiWeb3/zk-agent-cli
 This skill assumes the current packaged command name is `zk-agent`. Use the
 package README when the full install surface or alias details matter.
 
+Public first-touch command:
+
+```bash
+zk-agent start
+```
+
+`start` is the public onboarding command that keeps the same output contract
+as `zk-agent next`. Keep `next` as the canonical operator/runtime contract in
+scripts and JSON examples.
+
 ## Defaults
 
 - Node.js `>=24`
@@ -115,10 +125,16 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
+If you want the most obvious first-touch command, start with:
+
+```bash
+zk-agent start
+```
+
 For first-time onboarding, stop at the first successful
 `zk-agent workflow pay`. Ignore remote approval and Agent Pay until that
 baseline path works once. Use `suite` only after that first success or when
-the question becomes broader than one immediate write.
+you want the broader question-first packaged surface.
 
 Interpret the steps like this:
 
@@ -131,8 +147,8 @@ Interpret the steps like this:
 - `workflow pay`
   default flagship zkSync-native AA native-send path
 - `suite`
-  default packaged surface for Agent Pay, discovery/defaults, funding, and
-  paymaster readiness
+  default broader question-first packaged surface for Agent Pay,
+  discovery/defaults, funding, and paymaster readiness
 
 The packaged default story is payment-first: send native value now, stay on
 the approval-based pay path when fee-token/default state matters, and recover
@@ -239,12 +255,20 @@ zk-agent suite
 Use `zk-agent doctor` only when local state is unclear or the normal path
 stops making sense.
 
-When `doctor` shows local readiness is clear but the question is broader than
-one immediate flagship step, move to:
+When `doctor` shows local readiness is clear and you want the broader
+question-first packaged surface, move to:
 
 ```bash
 zk-agent suite
 ```
+
+Inside `suite`, the smallest question-first entry layer is:
+
+- `send now`
+- `track payments`
+- `inspect before token action`
+- `unstick write`
+- `recover remote approval`
 
 Use `suite` instead of assembling post-flagship discovery/funding/paymaster
 commands manually:

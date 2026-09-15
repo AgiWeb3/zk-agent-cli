@@ -14,6 +14,7 @@ const agentCoreStorageModuleUrl = pathToFileURL(
 ).href;
 const FIXTURE_CREATED_AT = '2099-06-28T00:00:00.000Z';
 const FIXTURE_EXPIRES_AT = '2099-06-29T00:00:00.000Z';
+const WORKFLOW_CLI_TIMEOUT_MS = 10_000;
 
 function createCliEnv(homeDir) {
   return {
@@ -322,7 +323,7 @@ test('workflow start returns checkpoint follow-up commands through commander', a
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -397,7 +398,7 @@ test('workflow auto can create a checkpoint from fresh goal input through comman
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -471,7 +472,7 @@ test('workflow pay creates a flagship reapproval request with paymaster-aware de
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -596,7 +597,7 @@ test('workflow pay executes the flagship native-send preview immediately when th
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -678,7 +679,7 @@ test('workflow status can await local approval through commander with injected p
     const readStderr = collectOutput(child.stderr);
     await approveReusableRequest(port);
 
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -773,7 +774,7 @@ test('workflow send-native shortcut executes the same path as workflow run with 
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -843,7 +844,7 @@ test('workflow status can emit relay follow-up commands through commander when r
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -957,7 +958,7 @@ test('workflow next can emit relay follow-up commands through commander when rel
 
     const readStdout = collectOutput(child.stdout);
     const readStderr = collectOutput(child.stderr);
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -1032,7 +1033,7 @@ test('workflow resume can await local approval and continue to goal execution th
     const readStderr = collectOutput(child.stderr);
     await approveReusableRequest(port);
 
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -1110,7 +1111,7 @@ test('workflow auto can await local approval and execute immediately when ready 
     const readStderr = collectOutput(child.stderr);
     await approveReusableRequest(port);
 
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 
@@ -1189,7 +1190,7 @@ test('workflow next can await local approval through commander and return the go
     const readStderr = collectOutput(child.stderr);
     await approveReusableRequest(port);
 
-    const exitCode = await waitForExit(child, 5000);
+    const exitCode = await waitForExit(child, WORKFLOW_CLI_TIMEOUT_MS);
     const stdout = readStdout().trim();
     const stderr = readStderr().trim();
 

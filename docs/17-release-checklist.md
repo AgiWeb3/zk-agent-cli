@@ -1,10 +1,26 @@
 # Release Checklist
 
-This is the short release runbook for a real npm release cut.
+This is the short runbook for a real npm release cut.
 
 Use this when you already understand the broader policy in
 [11-npm-release-gate.md](./11-npm-release-gate.md) and only need the actual
 sequence.
+
+## Stage-aware use
+
+- use this file for the real execution order
+- use [11-npm-release-gate.md](./11-npm-release-gate.md) for the actual gate
+  semantics
+- use [release-stage-reviews/README.md](./release-stage-reviews/README.md) for
+  repo-tracked RC evidence
+
+Current practical rule:
+
+- if the package is still on the `rc` track, run both `validate:release` and
+  `validate:rc`
+- if the package is moving on the final stable path later, keep
+  `validate:release` as the minimum machine gate and only keep `validate:rc`
+  when the RC contract still applies to that cut
 
 ## Canonical order
 
@@ -28,7 +44,7 @@ Baseline release gate:
 pnpm validate:release
 ```
 
-RC evidence refresh:
+RC evidence refresh when the cut still lives on the `rc` track:
 
 ```bash
 pnpm validate:rc -- --wallet <name> --relay-url <relay-url>
@@ -73,6 +89,15 @@ pnpm release:checklist --json
 This helper does not mutate the repository or publish anything. It only prints
 the current supported sequence and fills in the RC evidence commands when you
 provide the wallet and relay URL.
+
+## Quick interpretation
+
+- `validate:release` answers: can this package still be built, packed, and
+  claimed safely?
+- `validate:rc` answers: does the current RC hosted-approval contract still
+  hold on the supported path?
+- `review:rc` answers: do we have one repo-tracked review artifact for the
+  current RC evidence set?
 
 ## What this document is not
 

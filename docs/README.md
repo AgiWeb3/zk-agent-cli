@@ -1,10 +1,11 @@
 # zk-agent-cli Docs
 
-This directory is the repository reference set for protocol decisions, public
-CLI/runtime contracts, and release rules. It is not the primary getting-started
-path for CLI users.
+This directory is the reference set for product contracts, release rules, and
+deeper architecture notes.
 
-Choose the entry surface first:
+It is not the primary first-run path for CLI users.
+
+Choose the public entry surface first:
 
 - project front door: [README.md](../README.md)
 - canonical CLI manual:
@@ -13,7 +14,44 @@ Choose the entry surface first:
 - native Codex plugin path:
   [15-codex-plugin-onboarding.md](./15-codex-plugin-onboarding.md)
 
-Start here when you need reference context rather than day-one product steps:
+The current public proof paths live in the root and package READMEs:
+
+- flagship zkSync-native pay
+- Agent Pay request capture and follow-up
+- hosted approval recovery
+
+Treat those three proof paths as the current public product shell before
+dropping into the deeper reference docs below.
+
+The machine-readable contract for those same bounded routes lives in
+[10-operator-json-contract.md](./10-operator-json-contract.md).
+
+## Public Product Docs
+
+- [README.md](../README.md)
+  product front door and current public proof paths
+- [packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
+  canonical CLI manual
+- [../skills/QUICKSTART.md](../skills/QUICKSTART.md)
+  shortest verified path
+- [10-operator-json-contract.md](./10-operator-json-contract.md)
+  machine-readable product and routing contracts
+- [16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md)
+  current hosted approval claim and recovery contract
+
+## Release Docs
+
+- [11-npm-release-gate.md](./11-npm-release-gate.md)
+  full RC and `1.0.0` release policy
+- [17-release-checklist.md](./17-release-checklist.md)
+  short release runbook
+- [release-stage-reviews/README.md](./release-stage-reviews/README.md)
+  repo-tracked RC review artifacts
+
+## Architecture And Reference Docs
+
+Start here when you need repository reference context rather than day-one
+product steps:
 
 1. [10-operator-json-contract.md](./10-operator-json-contract.md)
 2. [11-npm-release-gate.md](./11-npm-release-gate.md)

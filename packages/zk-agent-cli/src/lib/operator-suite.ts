@@ -20,6 +20,7 @@ import {
   buildWalletStatusRecommendedCommand,
   buildWorkflowFundRecommendedCommand,
   buildWorkflowFundRunRecommendedCommand,
+  buildWorkflowNextRecommendedCommand,
   buildWorkflowPayRecommendedCommand,
   buildWorkflowStatusRecommendedCommand
 } from './recommended-commands.js';
@@ -30,6 +31,12 @@ export type OperatorSuiteJourneyId =
   | 'capture-and-track-payments'
   | 'inspect-before-acting'
   | 'unstick-a-write'
+  | 'recover-remote-approval';
+export type OperatorSuiteQuestionId =
+  | 'send-now'
+  | 'track-payments'
+  | 'inspect-before-token-action'
+  | 'unstick-write'
   | 'recover-remote-approval';
 
 export interface OperatorSuiteEntry {
@@ -111,12 +118,39 @@ export interface OperatorSuiteJourneySummary {
   entryIds: OperatorSuiteEntry['id'][];
 }
 
+export interface OperatorSuiteQuestionSummary {
+  id: OperatorSuiteQuestionId;
+  title: string;
+  question: string;
+  journeyId: OperatorSuiteJourneyId;
+  surface: OperatorSuiteSurface;
+  startCommand: string;
+  useWhen: string;
+}
+
 export interface OperatorSuiteRecommendedJourney {
   id: OperatorSuiteJourneyId;
   title: string;
   startCommand: string;
   surface: OperatorSuiteSurface;
   useWhen: string;
+  proofPath?: string[];
+}
+
+export interface OperatorSuiteProofPathSummary {
+  id: Extract<
+    OperatorSuiteEntry['id'],
+    'flagship-pay' | 'agent-pay-requests' | 'hosted-approval-recovery'
+  >;
+  title: string;
+  journeyId: Extract<
+    OperatorSuiteJourneyId,
+    'send-value-now' | 'capture-and-track-payments' | 'recover-remote-approval'
+  >;
+  surface: OperatorSuiteSurface;
+  useWhen: string;
+  startCommand: string;
+  proofPath: string[];
 }
 
 export interface OperatorSuitePayload {
@@ -124,6 +158,8 @@ export interface OperatorSuitePayload {
   summary: OperatorSuiteSummary;
   preflight?: OperatorSuitePreflight;
   recommendedJourney: OperatorSuiteRecommendedJourney;
+  proofPaths: OperatorSuiteProofPathSummary[];
+  questions: OperatorSuiteQuestionSummary[];
   journeys: OperatorSuiteJourneySummary[];
   surfaces: OperatorSuiteSurfaceSummary[];
   flagship: OperatorSuiteEntry;
@@ -307,6 +343,11 @@ export function buildOperatorSuitePayload(
         hostedReapproveCommand,
         `pnpm smoke:hosted-operated-baseline -- --wallet ${walletName} --relay-url <url> --reapprove --prompt-code --plan`
       ],
+      proofPath: [
+        hostedRelayInspectCommand,
+        hostedReapproveCommand,
+        buildWalletStatusRecommendedCommand(walletName)
+      ],
       skillPath: 'skills/zk-relay/SKILL.md'
     }
   ];
@@ -349,6 +390,44 @@ export function buildOperatorSuitePayload(
       entryIds: ['hosted-approval-recovery']
     }
   ];
+
+  function buildJourneyProofPath(journeyId: OperatorSuiteJourneyId): string[] | undefined {
+    switch (journeyId) {
+      case 'send-value-now':
+        return [
+          flagshipCommand,
+          buildWorkflowNextRecommendedCommand('<request-id>'),
+          buildWorkflowStatusRecommendedCommand('<request-id>')
+        ];
+      case 'capture-and-track-payments':
+        return [
+          paymentCommand,
+          buildPaymentNextRecommendedCommand('<request-id>'),
+          buildPaymentApprovalRecommendedCommand('<request-id>'),
+          buildPaymentDashboardRecommendedCommand(),
+          buildPaymentHandoffRecommendedCommand('<request-id>'),
+          buildPaymentFeedRecommendedCommand()
+        ];
+      case 'inspect-before-acting':
+        return [
+          discoveryCommand,
+          inspectDefaults,
+          buildResolveTokenRecommendedCommand(chain, '<symbol>')
+        ];
+      case 'unstick-a-write':
+        return undefined;
+      case 'recover-remote-approval':
+        return [
+          hostedRelayInspectCommand,
+          hostedReapproveCommand,
+          buildWalletStatusRecommendedCommand(walletName)
+        ];
+      default: {
+        const exhaustive: never = journeyId;
+        throw new Error(`Unsupported suite journey proof path: ${String(exhaustive)}`);
+      }
+    }
+  }
 
   const journeys: OperatorSuiteJourneySummary[] = [
     {
@@ -408,13 +487,90 @@ export function buildOperatorSuitePayload(
       entryIds: ['hosted-approval-recovery']
     }
   ];
+  const questions: OperatorSuiteQuestionSummary[] = [
+    {
+      id: 'send-now',
+      title: 'Send Now',
+      question: 'I want to send native value now.',
+      journeyId: 'send-value-now',
+      surface: journeys[0].surface,
+      startCommand: journeys[0].startCommand,
+      useWhen: journeys[0].useWhen
+    },
+    {
+      id: 'track-payments',
+      title: 'Track Payments',
+      question: 'I need to capture, track, share, or repair payments.',
+      journeyId: 'capture-and-track-payments',
+      surface: journeys[1].surface,
+      startCommand: journeys[1].startCommand,
+      useWhen: journeys[1].useWhen
+    },
+    {
+      id: 'inspect-before-token-action',
+      title: 'Inspect Before Token Action',
+      question: 'I need assets, defaults, or token metadata before I act.',
+      journeyId: 'inspect-before-acting',
+      surface: journeys[2].surface,
+      startCommand: journeys[2].startCommand,
+      useWhen: journeys[2].useWhen
+    },
+    {
+      id: 'unstick-write',
+      title: 'Unstick Write',
+      question: 'The write path is blocked and I need the shortest recovery route.',
+      journeyId: 'unstick-a-write',
+      surface: journeys[3].surface,
+      startCommand: journeys[3].startCommand,
+      useWhen: journeys[3].useWhen
+    },
+    {
+      id: 'recover-remote-approval',
+      title: 'Recover Remote Approval',
+      question: 'The browser is remote, so approval must move to the relay path.',
+      journeyId: 'recover-remote-approval',
+      surface: journeys[4].surface,
+      startCommand: journeys[4].startCommand,
+      useWhen: journeys[4].useWhen
+    }
+  ];
   const recommendedJourney: OperatorSuiteRecommendedJourney = {
     id: journeys[0].id,
     title: journeys[0].title,
     startCommand: journeys[0].startCommand,
     surface: journeys[0].surface,
-    useWhen: journeys[0].useWhen
+    useWhen: journeys[0].useWhen,
+    proofPath: buildJourneyProofPath(journeys[0].id)
   };
+  const proofPaths: OperatorSuiteProofPathSummary[] = [
+    {
+      id: 'flagship-pay',
+      title: flagship.title,
+      journeyId: 'send-value-now',
+      surface: flagship.surface,
+      useWhen: journeys[0].useWhen,
+      startCommand: flagship.primaryCommand,
+      proofPath: buildJourneyProofPath('send-value-now') ?? [flagship.primaryCommand]
+    },
+    {
+      id: 'agent-pay-requests',
+      title: slices[0].title,
+      journeyId: 'capture-and-track-payments',
+      surface: slices[0].surface,
+      useWhen: journeys[1].useWhen,
+      startCommand: slices[0].primaryCommand,
+      proofPath: slices[0].proofPath ?? [slices[0].primaryCommand]
+    },
+    {
+      id: 'hosted-approval-recovery',
+      title: slices[4].title,
+      journeyId: 'recover-remote-approval',
+      surface: slices[4].surface,
+      useWhen: journeys[4].useWhen,
+      startCommand: slices[4].primaryCommand,
+      proofPath: slices[4].proofPath ?? [slices[4].primaryCommand]
+    }
+  ];
 
   return {
     ok: true,
@@ -438,6 +594,8 @@ export function buildOperatorSuitePayload(
     },
     ...(preflight ? { preflight } : {}),
     recommendedJourney,
+    proofPaths,
+    questions,
     journeys,
     surfaces,
     flagship,
@@ -471,6 +629,14 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
         ['preflight handoff', payload.preflight.afterWalletReady] as [string, string]
       ]
     : [];
+  const questionLines = payload.questions.flatMap((question): Array<[string, string]> => [
+    [`question ${question.id}`, question.question],
+    [`question ${question.id} title`, question.title],
+    [`question ${question.id} journey`, question.journeyId],
+    [`question ${question.id} surface`, question.surface],
+    [`question ${question.id} start`, question.startCommand],
+    [`question ${question.id} when`, question.useWhen]
+  ]);
   const journeyLines = payload.journeys.flatMap((journey): Array<[string, string]> => [
     [`journey ${journey.id}`, journey.startCommand],
     [`journey ${journey.id} surface`, journey.surface],
@@ -498,6 +664,12 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     [`${surface.surface} surface entries`, surface.entryIds.join(' -> ')],
     [`${surface.surface} surface when`, surface.useWhen]
   ]);
+  const proofPathLines = payload.proofPaths.flatMap((entry): Array<[string, string]> => [
+    [`proof ${entry.id}`, formatRecommendedPath(entry.proofPath)],
+    [`proof ${entry.id} journey`, entry.journeyId],
+    [`proof ${entry.id} surface`, entry.surface],
+    [`proof ${entry.id} when`, entry.useWhen]
+  ]);
 
   return [
     ['suite', payload.summary.suiteId],
@@ -511,10 +683,17 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     ['start here', payload.recommendedJourney.startCommand],
     ['start here surface', payload.recommendedJourney.surface],
     ['start here when', payload.recommendedJourney.useWhen],
+    ...(payload.recommendedJourney.proofPath
+      ? [['start here proof path', formatRecommendedPath(payload.recommendedJourney.proofPath)] as [string, string]]
+      : []),
+    ['proof path ids', payload.proofPaths.map((entry) => entry.id).join(' -> ')],
+    ['question ids', payload.questions.map((entry) => entry.id).join(' -> ')],
     ['journey order', payload.summary.journeyOrder.join(' -> ')],
     ['surface order', payload.summary.surfaceOrder.join(' -> ')],
     ['category order', payload.summary.categoryOrder.join(' -> ')],
     ...preflightLines,
+    ...proofPathLines,
+    ...questionLines,
     ...journeyLines,
     ...surfaceLines,
     ['recommended order', payload.summary.recommendedOrder.join(' -> ')],

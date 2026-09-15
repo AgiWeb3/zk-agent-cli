@@ -19,7 +19,7 @@ import {
   createWithdrawStatusCommand
 } from './commands/operations.js';
 import { createInitCommand } from './commands/setup.js';
-import { createNextCommand } from './commands/next.js';
+import { createNextCommand, createStartCommand } from './commands/next.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createAgentCommand } from './commands/agent.js';
 import { createDefaultsCommand } from './commands/defaults.js';
@@ -42,6 +42,7 @@ function buildDefaultOperatorPathHelpText(): string {
   return [
     '',
     'Public entrypoints:',
+    '  Public first touch: zk-agent start',
     '  Agent harness: npx skills add https://github.com/AgiWeb3/zk-agent-cli',
     '  One-shot CLI:  npx zk-agent-cli --help',
     '  Global CLI:    npm install -g zk-agent-cli',
@@ -51,73 +52,61 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zkSync-native smart-account and paymaster path centered on sed-lite',
     '  Agent Pay request capture, queueing, reporting, and approval repair on top',
     '',
-    'Canonical terminal path:',
+    'Start here first:',
     '  zk-agent setup',
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
     `  ${buildWorkflowPayRecommendedCommand('main')}`,
+    '  Stop after the first successful workflow pay.',
     '',
-    'If you are new, stop there first:',
-    '  Ignore relay and payment until the first successful workflow pay.',
-    '  Use suite only after that first success or when the question gets broader.',
+    'Choose the right surface:',
+    '  start        -> public first touch with the same output contract as next',
+    '  next         -> the CLI still needs to choose bootstrap, recovery, or workflow continuation',
+    '  workflow pay -> the wallet is ready and you want the flagship native send now',
+    '  suite        -> wallet readiness is clear and the question is broader than one immediate pay step',
+    '  payment      -> you need Agent Pay capture, queueing, reporting, handoff, feed, or approval repair',
+    '  relay        -> the browser is remote and approval must move to the hosted fallback path',
     '',
-    'Packaged surface beyond flagship pay:',
-    '  zk-agent suite',
-    '  zk-agent suite --include-onboarding',
-    '',
-    'Current local Agent Pay surface:',
-    '  zk-agent payment submit --wallet main --to <address> --amount <amount>',
-    '  zk-agent payment dashboard',
-    '  zk-agent payment feed',
-    '  zk-agent payment queue',
-    '  zk-agent payment report',
-    '  zk-agent payment approval --request-id <id>',
-    '',
-    '  Fastest Agent Pay proof path:',
+    'Three public proof paths:',
+    '  flagship pay:',
+    '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    '    zk-agent workflow next --request-id <id>',
+    '    zk-agent workflow status --request-id <id>',
+    '  Agent Pay requests:',
     '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
     '    zk-agent payment next --request-id <id>',
     '    zk-agent payment approval --request-id <id>',
     '    zk-agent payment dashboard',
     '    zk-agent payment handoff --request-id <id>',
     '    zk-agent payment feed',
+    '  hosted approval recovery:',
+    '    zk-agent relay inspect --relay-url <url>',
+    '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
+    '    zk-agent wallet status --name main',
     '',
-    'Product routing by current question:',
-    '  next  -> bootstrap | recover | operate | workflow',
-    '  suite -> operate | request | discover | pay | fund | recover',
-    '',
-    'Payment-first default path after wallet readiness:',
-    '  send native value now -> stay on approval-based pay when fee-token/default state matters -> recover funding only when blocked',
-    '  Default start inside suite: send value now',
-    '',
-    'Execution versus catalog versus request tracking:',
-    '  workflow pay -> execute the flagship native-send path now',
-    '  suite        -> choose the broader ready-wallet product journey',
-    '  payment      -> capture, queue, report, and repair local Agent Pay requests around that write path',
-    '',
-    'Use `next` while the CLI still needs to choose across setup, wallet readiness, or stored workflow continuation.',
-    'Use `suite` once wallet readiness is no longer the blocker and you want the packaged post-flagship surface.',
-    'Use `zk-agent suite --include-onboarding` when you want one readout from first-run bootstrap through the packaged product catalog.',
-    'Use remote approval only when the browser is on another machine or cannot return to this terminal.',
+    'Need a broader or different path?',
+    '  zk-agent suite',
+    '  zk-agent suite --include-onboarding',
+    '  zk-agent doctor',
+    '  zk-agent next --request-id <id>',
+    '  zk-agent wallet --help',
+    '  zk-agent workflow --help',
+    '  zk-agent relay inspect --relay-url <url>',
+    '  zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code',
     '',
     'Validated first-run baseline:',
     '  setup defaults to zksync-sepolia and the local connector at http://localhost:4444',
     '  Override those only when you intentionally target a different chain or connector deployment.',
     '',
-    'If local setup or wallet state is unclear:',
-    '  zk-agent doctor',
-    '',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
     'Add RPC env vars later, before live reads or broadcasts.',
-    '',
-    'Use `zk-agent next --request-id <id>` to continue a stored workflow checkpoint.',
-    'Use `zk-agent relay inspect --relay-url <url>` plus `zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code` when the browser is not colocated.',
-    'Current hosted approval claim: one public origin, one relay host, and one same-origin share-link + approval UI surface.',
-    'Use `zk-agent wallet --help` for wallet recovery details and `zk-agent workflow --help` when the intent is broader than the flagship native-send path.'
+    'Use remote approval only when the browser is on another machine or cannot return to this terminal.'
   ].join('\n');
 }
 
 const ROOT_HELP_COMMAND_ORDER = [
+  'start',
   'next',
   'doctor',
   'init',
@@ -173,6 +162,7 @@ function createProgram(): Command {
     });
 
   program.addCommand(createInitCommand());
+  program.addCommand(createStartCommand());
   program.addCommand(createNextCommand());
   program.addCommand(createDoctorCommand());
   program.addCommand(createAgentCommand());

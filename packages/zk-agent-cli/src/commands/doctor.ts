@@ -95,7 +95,7 @@ function buildDoctorHelpText(): string {
     '  and the shortest next command without requiring live RPC reads.',
     '  It is a local-only diagnosis surface, not the normal first-run happy path.',
     '  Run this before guessing whether the blocker is setup, wallet approval, or local signer state.',
-    '  When doctor shows local readiness is clear and the question is broader than one next step:',
+    '  When doctor shows local readiness is clear and you want the broader question-first packaged surface:',
     '    zk-agent suite',
     '',
     'Remote-browser variant:',

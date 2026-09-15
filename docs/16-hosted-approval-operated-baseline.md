@@ -31,6 +31,12 @@ It is not a claim of:
 Use this mode only when the browser is not colocated with the terminal and the
 local `--await-local` approval path is not viable.
 
+Compact product rule:
+
+- existing wallet on a remote browser path: `relay inspect -> wallet reapprove -> wallet status`
+- no saved wallet yet on a remote browser path:
+  `relay inspect -> wallet create -> zk-agent next`
+
 The public hosted path is:
 
 ```bash
@@ -41,6 +47,18 @@ zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-co
 
 `relay inspect` is the readiness gate. The wallet commands are the supported
 hosted surface after that gate passes.
+
+The shortest public proof path for the supported recovery baseline is:
+
+```bash
+zk-agent relay inspect --relay-url <url>
+zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
+zk-agent wallet status --name main
+```
+
+That is the compact route to prove relay readiness, one hosted reapproval, and
+the post-approval wallet-readiness result on the current single-host product
+claim.
 
 ## Current Supported Deployment Profile
 

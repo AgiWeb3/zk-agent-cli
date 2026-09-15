@@ -200,20 +200,34 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         recommendedNow,
         command: 'zk-agent suite',
         useWhen:
-          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
+          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
         paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
         paymentUseWhen:
           'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
         stayOnCurrentSurfaceWhen:
           'Stay on next when you still need the CLI to choose across setup, wallet readiness, and the shortest flagship workflow entry.',
         note: recommendedNow
-          ? 'Wallet readiness is no longer the blocker. The default shortest action can still be workflow pay, while suite is the broader packaged follow-up surface. Start with the suggested suite journey when the question is broader than one immediate workflow pay step.'
+          ? 'Wallet readiness is no longer the blocker. The default shortest action can still be workflow pay, while suite is the broader packaged follow-up surface. Start with the suggested suite question when the task is broader than one immediate workflow pay step.'
           : 'Suite is not the current recommendation because next is still steering setup or wallet remediation.',
+        recommendedQuestion: recommendedNow
+          ? {
+              id: 'send-now',
+              title: 'Send Now',
+              question: 'I want to send native value now.',
+              journeyId: 'send-value-now',
+              command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+            }
+          : null,
         recommendedJourney: recommendedNow
           ? {
               id: 'send-value-now',
               title: 'Send Value Now',
-              command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+              command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+              proofPath: [
+                'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+                'zk-agent workflow next --request-id <request-id>',
+                'zk-agent workflow status --request-id <request-id>'
+              ]
             }
           : null
       };
@@ -223,7 +237,7 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         recommendedNow,
         command: 'zk-agent suite',
         useWhen:
-          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
+          'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
         paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
         paymentUseWhen:
           'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
@@ -231,6 +245,7 @@ function expectedSuiteHandoff(surface, recommendedNow) {
           'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
         note:
           'This workflow surface stays authoritative for the current workflow. Switch to suite only after the question is no longer workflow-specific.',
+        recommendedQuestion: null,
         recommendedJourney: null
       };
     default:

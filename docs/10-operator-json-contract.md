@@ -595,10 +595,22 @@ Key fields:
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
     "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
+    "recommendedQuestion": {
+      "id": "send-now",
+      "title": "Send Now",
+      "question": "I want to send native value now.",
+      "journeyId": "send-value-now",
+      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+    },
     "recommendedJourney": {
       "id": "send-value-now",
       "title": "Send Value Now",
-      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+      "proofPath": [
+        "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+        "zk-agent workflow next --request-id <request-id>",
+        "zk-agent workflow status --request-id <request-id>"
+      ]
     }
   },
   "nextAction": "zk-agent next",
@@ -804,10 +816,22 @@ Key fields:
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
     "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
+    "recommendedQuestion": {
+      "id": "send-now",
+      "title": "Send Now",
+      "question": "I want to send native value now.",
+      "journeyId": "send-value-now",
+      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+    },
     "recommendedJourney": {
       "id": "send-value-now",
       "title": "Send Value Now",
-      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"
+      "command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+      "proofPath": [
+        "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
+        "zk-agent workflow next --request-id <request-id>",
+        "zk-agent workflow status --request-id <request-id>"
+      ]
     }
   },
   "nextCommand": "zk-agent workflow pay --wallet main --to <address> --amount <amount>",
@@ -843,7 +867,8 @@ Key fields:
 
 `recommendedCommands.suite` is the stable post-flagship entrypoint from the
 same wallet-ready state when the operator wants Agent Pay request work,
-discovery/defaults, funding, and paymaster guidance in one packaged surface.
+discovery/defaults, funding, and paymaster guidance in one packaged,
+question-first surface.
 
 `suiteHandoffSummary` is the stable boundary marker for when `next` should
 hand the operator from the product-entry surface to `suite`.
@@ -855,16 +880,29 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `command`
 - `paymentCommand`
 - `paymentUseWhen`
+- `recommendedQuestion`
 - `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
 - `note`
+
+`recommendedQuestion` is either `null` or the smallest question-first suite
+entry hint with:
+
+- `id`
+- `title`
+- `question`
+- `journeyId`
+- `command`
 
 `recommendedJourney` is either `null` or a compressed suite-journey hint with:
 
 - `id`
 - `title`
 - `command`
+- `proofPath`
+  appears selectively when that one recommended journey exposes a bounded
+  public proof route
 
 `paymentCommand` is the compact local-first Agent Pay ingress command for the
 same wallet context.
@@ -925,6 +963,7 @@ Key fields:
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
     "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
+    "recommendedQuestion": null,
     "recommendedJourney": null
   },
   "result": { "...": "workflow status payload" },
@@ -1014,6 +1053,7 @@ Current stable `suiteHandoffSummary` fields on this surface:
 - `command`
 - `paymentCommand`
 - `paymentUseWhen`
+- `recommendedQuestion`
 - `recommendedJourney`
 - `useWhen`
 - `stayOnCurrentSurfaceWhen`
@@ -1742,6 +1782,8 @@ Current stable top-level fields:
 - `preflight`
   appears only when `zk-agent suite --include-onboarding` is used
 - `recommendedJourney`
+- `proofPaths`
+- `questions`
 - `journeys`
 - `surfaces`
 - `flagship`
@@ -1820,6 +1862,16 @@ Current stable `surfaces[]` fields:
 - `categoryIds`
 - `entryIds`
 
+Current stable `questions[]` fields:
+
+- `id`
+- `title`
+- `question`
+- `journeyId`
+- `surface`
+- `startCommand`
+- `useWhen`
+
 Current stable `journeys[]` fields:
 
 - `id`
@@ -1838,15 +1890,39 @@ Current stable `recommendedJourney` fields:
 - `startCommand`
 - `surface`
 - `useWhen`
+- `proofPath`
+  appears selectively when the default start-here journey exposes a bounded
+  public proof route
 
-`journeys[]` is the higher-level operator-routing layer above the raw slice
-catalog. It compresses the current packaged surface into the most common
-questions a public operator is actually asking before they care about the
-underlying slice ids.
+`questions[]` is the smallest question-first routing layer on this surface.
+Use it when the caller wants the shortest compact decision list before it cares
+about richer journey metadata or slice ids.
+
+`journeys[]` is the richer operator-routing layer above the raw slice catalog.
+It compresses the current packaged surface into the most common questions a
+public operator is actually asking while still preserving `categoryIds` and
+`entryIds` for deeper routing.
 
 `recommendedJourney` is the compressed "start here" answer on this surface.
 It tells callers which journey to choose when they want one default
 post-flagship entrypoint instead of reading the whole catalog first.
+
+Current stable `proofPaths[]` fields:
+
+- `id`
+- `title`
+- `journeyId`
+- `surface`
+- `useWhen`
+- `startCommand`
+- `proofPath`
+
+`proofPaths[]` is the compact compare surface for the current three public
+proof routes:
+
+- flagship pay
+- Agent Pay request follow-up
+- hosted approval recovery
 
 Current stable `journeyOrder` values on this surface are:
 

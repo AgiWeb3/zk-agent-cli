@@ -240,18 +240,30 @@ function expectedDoctorSuiteHandoff() {
     recommendedNow: true,
     command: 'zk-agent suite',
     useWhen:
-      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
     paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
     paymentUseWhen:
       'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
     stayOnCurrentSurfaceWhen:
       'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local check before choosing the live path.',
     note:
-      'Local readiness is clear. Return to zk-agent next for the live path, or start with the suggested suite journey when the question is broader than one immediate pay step.',
+      'Local readiness is clear. Return to zk-agent next for the live path, or start with the suggested suite question when the task is broader than one immediate pay step.',
+    recommendedQuestion: {
+      id: 'send-now',
+      title: 'Send Now',
+      question: 'I want to send native value now.',
+      journeyId: 'send-value-now',
+      command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+    },
     recommendedJourney: {
       id: 'send-value-now',
       title: 'Send Value Now',
-      command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+      command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      proofPath: [
+        'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        'zk-agent workflow next --request-id <request-id>',
+        'zk-agent workflow status --request-id <request-id>'
+      ]
     }
   };
 }
@@ -539,7 +551,7 @@ test('doctor help explains the local-only boundary and relay-url override', asyn
     assert.match(help, /without requiring live RPC reads/);
     assert.match(help, /It is a local-only diagnosis surface, not the normal first-run happy path/);
     assert.match(help, /Run this before guessing whether the blocker is setup, wallet approval, or local signer state/);
-    assert.match(help, /When doctor shows local readiness is clear and the question is broader than one next step:/);
+    assert.match(help, /When doctor shows local readiness is clear and you want the broader question-first packaged surface:/);
     assert.match(help, /zk-agent suite/);
     assert.match(help, /Pass --relay-url when you want the remote approval fallback commands/);
   } finally {

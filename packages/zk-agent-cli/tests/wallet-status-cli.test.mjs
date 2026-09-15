@@ -11,6 +11,7 @@ const fixtureEntry = path.join(packageRoot, 'tests', 'fixtures', 'wallet-cli-run
 const agentCoreStorageModuleUrl = pathToFileURL(
   path.resolve(packageRoot, '../agent-core/dist/storage.js')
 ).href;
+const WALLET_CLI_TIMEOUT_MS = 10_000;
 
 function createCliEnv(homeDir) {
   return {
@@ -140,20 +141,34 @@ function expectedWalletSuiteHandoff(recommendedNow) {
     recommendedNow,
     command: 'zk-agent suite',
     useWhen:
-      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
+      'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
     paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
     paymentUseWhen:
       'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
     stayOnCurrentSurfaceWhen:
       'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
     note: recommendedNow
-      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite journey when the question is broader than one wallet-specific fix.'
+      ? 'Wallet readiness is no longer the blocker, so suite is available as the broader packaged surface. Start with the suggested suite question when the task is broader than one wallet-specific fix.'
       : 'Suite is not the current recommendation because wallet-specific remediation is still the blocker.',
+    recommendedQuestion: recommendedNow
+      ? {
+          id: 'send-now',
+          title: 'Send Now',
+          question: 'I want to send native value now.',
+          journeyId: 'send-value-now',
+          command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+        }
+      : null,
     recommendedJourney: recommendedNow
       ? {
           id: 'send-value-now',
           title: 'Send Value Now',
-          command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+          command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+          proofPath: [
+            'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+            'zk-agent workflow next --request-id <request-id>',
+            'zk-agent workflow status --request-id <request-id>'
+          ]
         }
       : null
   };
@@ -168,7 +183,7 @@ async function runWalletCli(args, env) {
 
   const readStdout = collectOutput(child.stdout);
   const readStderr = collectOutput(child.stderr);
-  const exitCode = await waitForExit(child, 5000);
+  const exitCode = await waitForExit(child, WALLET_CLI_TIMEOUT_MS);
   const stdout = readStdout().trim();
   const stderr = readStderr().trim();
 

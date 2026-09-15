@@ -16,6 +16,11 @@ Equivalent entrypoints:
 
 - one-shot: `npx zk-agent-cli <command>`
 - source checkout: `pnpm zk-agent <command>`
+- public first-touch command: `zk-agent start`
+
+`zk-agent start` is the public onboarding command that keeps the same output
+contract as `zk-agent next`. Keep `next` as the canonical operator/runtime
+contract in scripts and JSON examples.
 
 ## Defaults
 
@@ -65,10 +70,16 @@ zk-agent workflow pay --wallet main --to <address> --amount <amount>
 zk-agent suite
 ```
 
+If you want the most obvious first-touch command, start with:
+
+```bash
+zk-agent start
+```
+
 If you are new, stop at the first successful `zk-agent workflow pay`. Ignore
 remote approval and Agent Pay until that baseline path works once. Use
-`zk-agent suite` only after that first success or when the question becomes
-broader than one immediate write.
+`zk-agent suite` only after that first success or when you want the broader
+question-first packaged surface.
 
 What each step is doing:
 
@@ -117,12 +128,14 @@ Use those four commands when the write path is not the whole question:
 
 Choose the surface by question:
 
+- `start`: you are just beginning and want the public onboarding command that
+  mirrors `next`
 - `next`: the CLI still needs to choose across setup, wallet readiness,
   recovery, or workflow continuation
 - `workflow pay`: the wallet is ready and you want the flagship native-send
   path now
 - `suite`: wallet readiness is already clear and you want the packaged
-  post-flagship product catalog
+  question-first post-flagship product catalog
 - `payment`: you need local request capture, queueing, reporting, or approval
   tracking around the same write path
 - `suite --include-onboarding`: you want the full map from first-run bootstrap
@@ -134,8 +147,8 @@ If readiness is unclear before you choose a fix, use:
 zk-agent doctor
 ```
 
-When `doctor` says local readiness is clear but the question is broader than
-one immediate next step, move to:
+When `doctor` says local readiness is clear and you want the broader
+question-first packaged surface, move to:
 
 ```bash
 zk-agent suite
@@ -192,8 +205,8 @@ terminal can be colocated.
 
 ## 5. Use `suite` as the default post-flagship surface
 
-When the wallet is already ready and you want the packaged post-flagship
-surface in one place:
+When the wallet is already ready and you want the broader question-first
+post-flagship surface in one place:
 
 ```bash
 zk-agent suite
@@ -215,6 +228,14 @@ It also now exposes five simpler product journeys:
 - `capture and track payments`
 - `inspect before acting`
 - `unstick a write`
+- `recover remote approval`
+
+Its smallest question-first entry layer is:
+
+- `send now`
+- `track payments`
+- `inspect before token action`
+- `unstick write`
 - `recover remote approval`
 
 For the clearest Agent Pay proof path inside `suite`, follow:
@@ -242,7 +263,7 @@ zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token
 ```
 
 When you already know the wallet is ready and the need is request tracking
-rather than the broader packaged surface, prefer:
+rather than the broader question-first packaged surface, prefer:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
