@@ -28,20 +28,22 @@ interface SetupArgs {
 function buildSetupHelpText(): string {
   return [
     '',
-    'What setup does:',
-    '  Writes the local default chain and connector URL used by the first-run path.',
+    'Use `setup` once at the beginning:',
+    '  It writes the local default chain and connector URL for the default first-run path.',
     '',
     'Validated first-run baseline:',
     '  Default chain:   zksync-sepolia',
     '  Connector URL:   http://localhost:4444',
     '  Override --default-chain or --connector-url only when you intentionally deviate from that path.',
     '',
-    'After setup, stay on the canonical local-first path:',
+    'Then stay on the default local-first path:',
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
+    '  zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    '  Stop after the first successful workflow pay.',
     '',
-    'Remote-browser variant of the same path:',
+    'Use the remote-browser variant only when the browser cannot return to this terminal:',
     '  zk-agent relay inspect --relay-url <url>',
     '  zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
     '  zk-agent next',
@@ -55,7 +57,7 @@ function buildSetupHelpText(): string {
 export function createInitCommand(): Command {
   return new Command('init')
     .alias('setup')
-    .description('Initialize local zk-agent configuration for the validated first-run path')
+    .description('Write local defaults for the default first-run path')
     .addHelpText('after', buildSetupHelpText())
     .option('--default-chain <chain>', 'Default chain key', 'zksync-sepolia')
     .option('--connector-url <url>', 'Connector UI base URL', 'http://localhost:4444')

@@ -50,7 +50,7 @@ function expectedWorkflowSuiteHandoff() {
       'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
     paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
     paymentUseWhen:
-      'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.',
+      'Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.',
     stayOnCurrentSurfaceWhen:
       'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
     note:

@@ -224,7 +224,7 @@ export function buildSuiteHandoffSummary(input: {
   const useWhen =
     'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.';
   const paymentUseWhen =
-    'Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.';
+    'Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.';
 
   switch (input.currentSurface) {
     case 'doctor':

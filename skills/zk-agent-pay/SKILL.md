@@ -45,6 +45,7 @@ the whole question:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment workspace
 zk-agent payment dashboard
 zk-agent payment feed
 zk-agent payment report
@@ -55,6 +56,9 @@ Interpretation:
 
 - `submit`
   compact ingress write surface for one local-first payment request
+- `workspace`
+  product-style cross-request workspace that packages dashboard, queue,
+  report, and feed into one public surface
 - `dashboard`
   operator-facing runtime summary above wallets, queue, and recent activity
 - `feed`
@@ -75,7 +79,7 @@ Use Agent Pay in this order when the request layer is the real question:
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment dashboard
+zk-agent payment workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
@@ -86,6 +90,9 @@ Interpretation:
   shortest follow-up route for one stored request
 - `approval`
   linked-wallet approval readiness for one stored request
+- `workspace`
+  public cross-request proof surface above the lower-level dashboard, queue,
+  report, and feed slices
 - `dashboard`
   higher-level dashboard summary
 - `handoff`

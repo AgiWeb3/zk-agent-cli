@@ -179,13 +179,15 @@ test('setup help explains the local-first path, relay fallback, and env boundary
     const env = createCliEnv(homeDir);
     const help = await runCliText(['setup', '--help'], env);
 
-    assert.match(help, /What setup does:/);
-    assert.match(help, /Writes the local default chain and connector URL/);
+    assert.match(help, /Use `setup` once at the beginning:/);
+    assert.match(help, /It writes the local default chain and connector URL/);
     assert.match(help, /Validated first-run baseline:/);
     assert.match(help, /Default chain:\s+zksync-sepolia/);
     assert.match(help, /Connector URL:\s+http:\/\/localhost:4444/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet create --await-local/);
+    assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /Stop after the first successful workflow pay/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
     assert.match(help, /No custom \.env is required for setup, next, or wallet request creation/);
@@ -214,18 +216,20 @@ test('top-level help prints the default first-run path around zk-agent start and
     assert.match(help, /Why use it:/);
     assert.match(help, /local-first wallet and session control/);
     assert.match(help, /zkSync-native smart-account and paymaster path centered on sed-lite/);
-    assert.match(help, /Agent Pay request capture, queueing, reporting, and approval repair on top/);
+    assert.match(help, /Agent Pay request capture and follow-up surface around the same wallet runtime/);
     assert.match(help, /Start here first:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent next/);
     assert.match(help, /zk-agent wallet create --await-local/);
     assert.match(help, /Stop after the first successful workflow pay/);
+    assert.match(help, /Before that first success:/);
+    assert.match(help, /Ignore suite, payment, and relay unless the CLI points you there or the browser is remote/);
     assert.match(help, /Choose the right surface:/);
     assert.match(help, /start\s+-> public first touch with the same output contract as next/);
     assert.match(help, /next\s+-> the CLI still needs to choose bootstrap, recovery, or workflow continuation/);
     assert.match(help, /workflow pay -> the wallet is ready and you want the flagship native send now/);
     assert.match(help, /suite\s+-> wallet readiness is clear and the question is broader than one immediate pay step/);
-    assert.match(help, /payment\s+-> you need Agent Pay capture, queueing, reporting, handoff, feed, or approval repair/);
+    assert.match(help, /payment\s+-> you need a durable Agent Pay request and follow-up surface around the write path/);
     assert.match(help, /relay\s+-> the browser is remote and approval must move to the hosted fallback path/);
     assert.match(help, /Three public proof paths:/);
     assert.match(help, /flagship pay:/);
@@ -236,12 +240,12 @@ test('top-level help prints the default first-run path around zk-agent start and
     assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment next --request-id <id>/);
     assert.match(help, /zk-agent payment approval --request-id <id>/);
-    assert.match(help, /zk-agent payment dashboard/);
+    assert.match(help, /zk-agent payment workspace/);
     assert.match(help, /zk-agent payment handoff --request-id <id>/);
     assert.match(help, /zk-agent payment feed/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code/);
-    assert.match(help, /Need a broader or different path\?/);
+    assert.match(help, /Open these only when the default path is no longer the whole question:/);
     assert.match(help, /zk-agent suite/);
     assert.match(help, /zk-agent suite --include-onboarding/);
     assert.match(help, /zk-agent doctor/);
@@ -284,12 +288,9 @@ test('start mirrors the public onboarding entrypoint contract of next', async ()
     const help = await runCliText(['start', '--help'], env);
 
     assert.deepEqual(startResult, nextResult);
-    assert.match(help, /Use `start` or `next` as the product entrypoint:/);
-    assert.match(
-      help,
-      /`start` is the public onboarding command and keeps the same output contract as `next`\./
-    );
-    assert.match(help, /Stay on `next` until it points you at a wallet-specific or workflow-specific blocker/);
+    assert.match(help, /Use `start` for public first touch\. Keep `next` as the live routing contract\./);
+    assert.match(help, /Default first-run path:/);
+    assert.match(help, /Stop after the first successful workflow pay/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -302,47 +303,40 @@ test('next help explains when to stay on next, wallet next, or workflow next', a
     const env = createCliEnv(homeDir);
     const help = await runCliText(['next', '--help'], env);
 
-    assert.match(help, /Use `start` or `next` as the product entrypoint:/);
-    assert.match(
-      help,
-      /`start` is the public onboarding command and keeps the same output contract as `next`\./
-    );
-    assert.match(help, /Stay on `next` until it points you at a wallet-specific or workflow-specific blocker/);
-    assert.match(help, /What `next` answers right now:/);
-    assert.match(help, /bootstrap: config or wallet bootstrap is still the current blocker/);
+    assert.match(help, /Use `start` for public first touch\. Keep `next` as the live routing contract\./);
+    assert.match(help, /Default first-run path:/);
+    assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /Before that first success:/);
+    assert.match(help, /Ignore suite, payment, and relay unless the CLI points you there or the browser is remote/);
+    assert.match(help, /What `next` routes right now:/);
+    assert.match(help, /bootstrap: config or wallet bootstrap is still the blocker/);
     assert.match(help, /recover: wallet approval or local signer readiness still needs repair/);
     assert.match(help, /operate: wallet readiness is clear, so the flagship workflow path is next/);
     assert.match(help, /workflow: a stored checkpoint is already the active question/);
     assert.match(help, /suite: switch only when the question becomes broader than one immediate next step/);
-    assert.match(help, /Fresh local-first routing:/);
     assert.match(help, /zk-agent setup/);
     assert.match(help, /zk-agent wallet create --await-local/);
-    assert.match(help, /If you are new, stay on that path first:/);
-    assert.match(help, /Ignore relay, payment, and suite until the first successful workflow pay/);
     assert.match(help, /Remote-browser variant of the same path:/);
     assert.match(help, /zk-agent relay inspect --relay-url <url>/);
     assert.match(help, /zk-agent wallet create --relay-url <url> --wait-relay --prompt-code/);
-    assert.match(help, /If setup has not run yet, `next` will send you back to `zk-agent setup` first/);
+    assert.match(help, /When to leave the default path:/);
+    assert.match(help, /doctor: local state is unclear and the normal path stopped making sense/);
+    assert.match(help, /wallet next\/status: the blocker is already wallet-specific/);
+    assert.match(help, /workflow next: the active question is already one stored checkpoint/);
+    assert.match(help, /suite: the wallet is ready and the question is broader than one immediate pay step/);
+    assert.match(help, /If setup has not run yet, `next` sends you back to `zk-agent setup` first/);
     assert.match(help, /zk-agent next --request-id <id>/);
-    assert.match(
-      help,
-      /Switch to the hosted remote-approval path only when the browser is not colocated:/
-    );
+    assert.match(help, /Hosted remote-approval fallback:/);
     assert.match(
       help,
       /zk-agent wallet create\|reapprove --relay-url <url> --wait-relay --prompt-code/
     );
-    assert.match(
-      help,
-      /Use wallet-layer commands when you already know the blocker is wallet-specific:/
-    );
+    assert.match(help, /Wallet-specific follow-up:/);
     assert.match(help, /zk-agent wallet next --name main/);
     assert.match(help, /zk-agent wallet status --name main/);
-    assert.match(
-      help,
-      /When the wallet is already ready and you want the broader question-first packaged surface:/
-    );
+    assert.match(help, /Broader post-flagship surface:/);
     assert.match(help, /zk-agent suite/);
+    assert.match(help, /Workflow-specific follow-up:/);
     assert.match(help, /zk-agent workflow next --request-id <id>/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
@@ -546,7 +540,7 @@ test('relay and agent help surfaces expose the public product contract', async (
       /Keep `wallet create\|reapprove --await-local` as the default baseline when the browser and terminal are colocated/
     );
     assert.match(relayHelp, /Fastest hosted recovery proof path:/);
-    assert.match(relayHelp, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(relayHelp, /zk-agent relay baseline --relay-url <url>/);
     assert.match(
       relayHelp,
       /zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code/
@@ -566,7 +560,11 @@ test('relay and agent help surfaces expose the public product contract', async (
     assert.match(relayHelp, /Do not assume multi-host or load-balanced durability/);
     assert.match(
       relayHelp,
-      /Use `relay inspect` before sending users to a hosted share link/
+      /Use `relay baseline` before sending users to a hosted share link/
+    );
+    assert.match(
+      relayHelp,
+      /Use `relay inspect` when the public origin, connector UI, and hosted-readiness contract need direct lower-level inspection/
     );
 
     const agentHelp = await runCliText(['agent', '--help'], env);

@@ -270,6 +270,7 @@ test('relay serve returns relay follow-up commands and serves health endpoint', 
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, false);
     assert.deepEqual(result.recommendedCommands, {
+      baseline: `zk-agent relay baseline --relay-url ${result.origin}`,
       inspectRelay: `zk-agent relay inspect --relay-url ${result.origin}`,
       createWallet: `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
       reapproveWallet:
@@ -382,6 +383,7 @@ test('relay serve returns relay follow-up commands and serves health endpoint', 
       true
     );
     assert.deepEqual(inspected.recommendedCommands, {
+      baseline: `zk-agent relay baseline --relay-url ${result.origin}`,
       createWallet:
         `zk-agent wallet create --relay-url ${result.origin} --wait-relay --prompt-code`,
       reapproveWallet:
@@ -475,6 +477,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
     assert.equal(typeof result.connectorUiAvailable, 'boolean');
     assert.equal(result.hostedShareRedirectReady, result.connectorUiAvailable === true);
     assert.deepEqual(result.recommendedCommands, {
+      baseline: `zk-agent relay baseline --relay-url ${publicOrigin}`,
       inspectRelay: `zk-agent relay inspect --relay-url ${publicOrigin}`,
       createWallet:
         `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
@@ -626,6 +629,7 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
       true
     );
     assert.deepEqual(inspected.recommendedCommands, {
+      baseline: `zk-agent relay baseline --relay-url ${publicOrigin}`,
       createWallet:
         `zk-agent wallet create --relay-url ${publicOrigin} --wait-relay --prompt-code`,
       reapproveWallet:
@@ -641,6 +645,82 @@ test('relay serve advertises a public origin and relay inspect validates hosted 
         'zk-agent next'
       ]
     });
+
+    const baseline = await runCliJson(
+      ['relay', 'baseline', '--relay-url', result.origin, '--wallet', 'ops'],
+      env
+    );
+    assert.equal(baseline.ok, true);
+    assert.equal(baseline.status, 'relay-baseline');
+    assert.equal(baseline.relayUrl, result.origin);
+    assert.equal(baseline.walletName, 'ops');
+    assert.equal(baseline.baseline.format, 'zk-agent-relay-baseline');
+    assert.equal(baseline.baseline.version, 1);
+    assert.equal(baseline.baseline.walletName, 'ops');
+    assert.equal(baseline.baseline.relayUrl, result.origin);
+    assert.equal(baseline.baseline.mode, 'single-host-hosted-approval');
+    assert.equal(
+      baseline.baseline.supportLevel,
+      inspected.connectorUiAvailable === true ? 'supported' : 'needs-fix'
+    );
+    assert.equal(baseline.baseline.claim.externallyReachablePublicOrigin, true);
+    assert.equal(
+      baseline.baseline.claim.sameOriginApprovalUi,
+      inspected.connectorUiAvailable === true
+    );
+    assert.equal(baseline.baseline.claim.sameHostFileState, true);
+    assert.equal(
+      baseline.baseline.claim.hostedApprovalReady,
+      inspected.connectorUiAvailable === true
+    );
+    assert.equal(
+      baseline.baseline.claim.approvalEndpointStatus,
+      'hosted-public-origin-via-proxy'
+    );
+    assert.equal(
+      baseline.baseline.claim.hostedReadinessStatus,
+      inspected.connectorUiAvailable === true ? 'ready' : 'needs-connector-ui'
+    );
+    assert.deepEqual(baseline.baseline.createWalletPath, [
+      `zk-agent wallet create --name ops --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      'zk-agent next --wallet ops'
+    ]);
+    assert.deepEqual(baseline.baseline.reapproveWalletPath, [
+      `zk-agent wallet reapprove --name ops --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      'zk-agent next --wallet ops'
+    ]);
+    assert.deepEqual(baseline.baseline.createWalletProofPath, [
+      `zk-agent relay baseline --relay-url ${publicOrigin} --wallet ops`,
+      `zk-agent wallet create --name ops --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      'zk-agent next --wallet ops'
+    ]);
+    assert.deepEqual(baseline.baseline.reapproveWalletProofPath, [
+      `zk-agent relay baseline --relay-url ${publicOrigin} --wallet ops`,
+      `zk-agent wallet reapprove --name ops --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      'zk-agent wallet status --name ops'
+    ]);
+    assert.deepEqual(baseline.recommendedCommands, {
+      baseline: `zk-agent relay baseline --relay-url ${publicOrigin} --wallet ops`,
+      inspect: `zk-agent relay inspect --relay-url ${publicOrigin}`,
+      createWallet:
+        `zk-agent wallet create --name ops --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      reapproveWallet:
+        `zk-agent wallet reapprove --name ops --relay-url ${publicOrigin} --wait-relay --prompt-code`,
+      walletStatus: 'zk-agent wallet status --name ops',
+      rehearsalPlan:
+        `pnpm smoke:hosted-operated-baseline -- --wallet ops --relay-url ${publicOrigin} --reapprove --prompt-code --plan`,
+      rehearsalSingleRun:
+        `pnpm smoke:hosted-operated-baseline -- --wallet ops --relay-url ${publicOrigin} --reapprove --prompt-code`,
+      rehearsalRepeatedRun:
+        `pnpm smoke:hosted-operated-baseline -- --wallet ops --relay-url ${publicOrigin} --reapprove --repeat 2 --prompt-code --save-report`
+    });
+    assert.equal(baseline.baseline.inspection.status, 'relay-inspected');
+    assert.equal(baseline.baseline.inspection.publicOrigin, publicOrigin);
+    assert.equal(
+      baseline.baseline.inspection.recommendedCommands.baseline,
+      `zk-agent relay baseline --relay-url ${publicOrigin}`
+    );
+    assert.equal(Array.isArray(baseline.baseline.notes), true);
 
     await stopChild(child, 5000);
     const exitCode = child.exitCode;

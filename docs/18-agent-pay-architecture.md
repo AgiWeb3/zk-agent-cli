@@ -41,9 +41,12 @@ Current implementation status:
   `zk-agent payment report`
 - that local report now also emits wallet-level aggregates suitable for a
   later dashboard or platform reporting layer
+- a first product-style cross-request Agent Pay workspace now exists through
+  `zk-agent payment workspace`, packaging the current report, dashboard,
+  actionable queue, and feed into one higher-level public surface
 - a first cross-request Agent Pay dashboard summary now exists through
-  `zk-agent payment dashboard`, compressing the current report and actionable
-  queue into one higher-level runtime view
+  `zk-agent payment dashboard`, exposing the dashboard slice inside that
+  larger workspace surface
 - a first integration-ready cross-request Agent Pay feed now exists through
   `zk-agent payment feed`, so a later external dashboard, agent, or backend
   can ingest one stable batch contract instead of rebuilding it from `report`, `queue`, and
@@ -100,6 +103,20 @@ That means:
 - zkSync-specific execution details stay behind provider and adapter boundaries
 - payment semantics, lifecycle, and settlement logic live in one coherent
   payment domain
+
+## Public Product Contract
+
+The public product split must stay explicit:
+
+- `workflow pay` remains the default direct execution surface for "send value now"
+- `payment` is the request, follow-up, export, and repair layer around that
+  execution surface
+- `payment submit` is the public Agent Pay ingress; the eventual write path
+  still resolves back to execution adapters such as `workflow pay` or
+  `send-token`
+
+Do not let `payment` drift into a second competing direct-send surface. The
+product rule is execution path first, request layer around it.
 
 ## Package Boundary
 

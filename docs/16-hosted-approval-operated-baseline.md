@@ -33,25 +33,26 @@ local `--await-local` approval path is not viable.
 
 Compact product rule:
 
-- existing wallet on a remote browser path: `relay inspect -> wallet reapprove -> wallet status`
+- existing wallet on a remote browser path: `relay baseline -> wallet reapprove -> wallet status`
 - no saved wallet yet on a remote browser path:
-  `relay inspect -> wallet create -> zk-agent next`
+  `relay baseline -> wallet create -> zk-agent next`
 
 The public hosted path is:
 
 ```bash
-zk-agent relay inspect --relay-url <url>
+zk-agent relay baseline --relay-url <url>
 zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 ```
 
-`relay inspect` is the readiness gate. The wallet commands are the supported
-hosted surface after that gate passes.
+`relay baseline` is the packaged product entrypoint. It wraps the lower-level
+`relay inspect` readiness contract and then points to the supported hosted
+wallet commands.
 
 The shortest public proof path for the supported recovery baseline is:
 
 ```bash
-zk-agent relay inspect --relay-url <url>
+zk-agent relay baseline --relay-url <url>
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 zk-agent wallet status --name main
 ```
@@ -111,8 +112,10 @@ For the current hosted baseline, the following must be true.
 
 - hosted approval depends on the connector UI being available on the relay
   origin
-- `relay inspect` must report hosted readiness as `ready` before users are
-  sent to share links
+- `relay baseline` should be the public entrypoint before users are sent to
+  share links
+- `relay inspect` must still report hosted readiness as `ready` before the
+  hosted path is treated as supportable
 - if `connectorUiAvailable = false`, the relay API may still respond, but the
   hosted browser path is not supportable
 
@@ -120,15 +123,17 @@ For the current hosted baseline, the following must be true.
 
 The current hosted baseline supports the following user expectations:
 
-1. `zk-agent relay inspect --relay-url <url>` is the outside-in readiness gate.
+1. `zk-agent relay baseline --relay-url <url>` is the packaged public entrypoint.
 2. When `hostedReadinessSummary.status = ready`, the relay is advertising:
    - a usable public origin
    - a same-origin approval UI
    - the compressed deployment contract through `deploymentSummary`
-3. `wallet create --relay-url <url> --wait-relay --prompt-code` and
+3. `zk-agent relay inspect --relay-url <url>` remains the lower-level
+   readiness gate when callers need the raw hosted contract fields directly.
+4. `wallet create --relay-url <url> --wait-relay --prompt-code` and
    `wallet reapprove --relay-url <url> --wait-relay --prompt-code` are the
    canonical hosted paths.
-4. Reverse proxies and tunnels are acceptable only when they preserve the
+5. Reverse proxies and tunnels are acceptable only when they preserve the
    single-host state model.
 
 ## What Users Must Not Assume
@@ -139,7 +144,8 @@ Users must not assume:
 - requests are shared across multiple relay instances
 - the current relay is a general durable queue service
 - the current relay is a production multi-tenant SaaS surface
-- hosted approval readiness can be inferred without `relay inspect`
+- hosted approval readiness can be inferred without `relay baseline` or
+  `relay inspect`
 
 ## Request Lifecycle
 

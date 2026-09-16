@@ -159,6 +159,9 @@ the whole question:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment workspace
+zk-agent payment dashboard
+zk-agent payment feed
 zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
@@ -170,13 +173,13 @@ Fastest Agent Pay proof path:
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment dashboard
+zk-agent payment workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
 That path shows compact ingress, wallet-aware follow-up, approval readiness,
-dashboard summary, single-request handoff bundling, and cross-request feed
+workspace summary, single-request handoff bundling, and cross-request feed
 export without leaving the local-first product surface.
 
 Use `zk-agent doctor` before choosing a remediation path when readiness is
@@ -214,7 +217,7 @@ terminal.
 Shortest hosted path:
 
 ```bash
-zk-agent relay inspect --relay-url <relay-url>
+zk-agent relay baseline --relay-url <relay-url>
 zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
@@ -222,6 +225,7 @@ zk-agent next
 Existing-wallet variant:
 
 ```bash
+zk-agent relay baseline --relay-url <relay-url>
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
@@ -277,11 +281,13 @@ commands manually:
 zk-agent suite
 ```
 
-Use `payment` instead of direct execution when the workflow needs local request
-capture, queueing, reporting, or approval tracking around the same wallet:
+Use `payment` instead of direct execution when the workflow needs a durable
+local request plus follow-up, sharing, reporting, export, or approval repair
+around the same wallet:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment workspace
 zk-agent payment dashboard
 zk-agent payment feed
 zk-agent payment queue
@@ -297,8 +303,8 @@ Route by question:
   path now
 - `suite`: wallet readiness is already clear and the question is broader than
   one immediate flagship step
-- `payment`: you need local request capture, queueing, reporting, or approval
-  repair around that write path
+- `payment`: you need a durable local request plus follow-up, sharing,
+  reporting, export, or approval repair around that write path
 
 Only fund when the CLI says funding is required:
 

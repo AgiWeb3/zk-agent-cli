@@ -9,6 +9,7 @@ import {
   buildPaymentNextRecommendedCommand,
   buildPaymentReportRecommendedCommand,
   buildPaymentSubmitRecommendedCommand,
+  buildPaymentWorkspaceRecommendedCommand,
   buildPaymasterFeeTokenResolveRecommendedCommand,
   buildPaymasterFeeTokensRecommendedCommand,
   buildRelayInspectRecommendedCommand,
@@ -254,14 +255,15 @@ export function buildOperatorSuitePayload(
       surface: 'payment',
       id: 'agent-pay-requests',
       title: 'Agent Pay Requests',
-      goal: 'Capture one payment request, prove the wallet-aware follow-up path, and then move the same request into dashboard, handoff, feed, and report surfaces.',
+      goal: 'Capture one payment request, prove the wallet-aware follow-up path, and then move the same request into workspace, handoff, feed, and report surfaces.',
       useWhen:
-        'Use this when local request capture, queueing, reporting, feed export, or approval repair is the real need around the same wallet write path.',
+        'Use this when a durable local request, follow-up, sharing, export, or approval repair flow is the real need around the same wallet write path.',
       primaryCommand: paymentCommand,
       surfaceCommand: paymentSurfaceCommand,
       supportingCommands: [
         buildPaymentNextRecommendedCommand('<request-id>'),
         buildPaymentApprovalRecommendedCommand('<request-id>'),
+        buildPaymentWorkspaceRecommendedCommand(),
         buildPaymentDashboardRecommendedCommand(),
         buildPaymentHandoffRecommendedCommand('<request-id>'),
         buildPaymentFeedRecommendedCommand(),
@@ -271,7 +273,7 @@ export function buildOperatorSuitePayload(
         paymentCommand,
         buildPaymentNextRecommendedCommand('<request-id>'),
         buildPaymentApprovalRecommendedCommand('<request-id>'),
-        buildPaymentDashboardRecommendedCommand(),
+        buildPaymentWorkspaceRecommendedCommand(),
         buildPaymentHandoffRecommendedCommand('<request-id>'),
         buildPaymentFeedRecommendedCommand()
       ],
@@ -366,7 +368,7 @@ export function buildOperatorSuitePayload(
       surface: 'payment',
       title: 'Payment Surface',
       useWhen:
-        'Use this when the question is about request capture, queueing, reporting, share-safe handoff, or approval repair around the write path.',
+        'Use this when the question is about request capture, workspace summary, queueing, reporting, share-safe handoff, or approval repair around the write path.',
       command: paymentSurfaceCommand,
       categoryIds: ['request'],
       entryIds: ['agent-pay-requests']
@@ -404,7 +406,7 @@ export function buildOperatorSuitePayload(
           paymentCommand,
           buildPaymentNextRecommendedCommand('<request-id>'),
           buildPaymentApprovalRecommendedCommand('<request-id>'),
-          buildPaymentDashboardRecommendedCommand(),
+          buildPaymentWorkspaceRecommendedCommand(),
           buildPaymentHandoffRecommendedCommand('<request-id>'),
           buildPaymentFeedRecommendedCommand()
         ];
@@ -445,9 +447,9 @@ export function buildOperatorSuitePayload(
       id: 'capture-and-track-payments',
       title: 'Capture And Track Payments',
       operatorQuestion:
-        'I need a payment request layer around the write path so I can capture, queue, share, or repair payments instead of only executing immediately.',
+        'I need a durable payment request layer around the write path so I can capture, follow up, share, or repair payments instead of only executing immediately.',
       useWhen:
-        'Use this when Agent Pay request capture, queueing, approval repair, or integration-ready feed export is the real need.',
+        'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.',
       startCommand: paymentCommand,
       surface: 'payment',
       categoryIds: ['request'],

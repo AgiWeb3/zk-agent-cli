@@ -204,52 +204,55 @@ function topLevelNextLines(
 function buildNextHelpText(): string {
   return [
     '',
-    'Use `start` or `next` as the product entrypoint:',
-    '  `start` is the public onboarding command and keeps the same output contract as `next`.',
-    '  Stay on `next` until it points you at a wallet-specific or workflow-specific blocker.',
+    'Use `start` for public first touch. Keep `next` as the live routing contract.',
     '',
-    '  What `next` answers right now:',
-    '    bootstrap: config or wallet bootstrap is still the current blocker',
-    '    recover: wallet approval or local signer readiness still needs repair',
-    '    operate: wallet readiness is clear, so the flagship workflow path is next',
-    '    workflow: a stored checkpoint is already the active question',
-    '    suite: switch only when the question becomes broader than one immediate next step',
+    'Default first-run path:',
+    '  zk-agent setup',
+    '  zk-agent next',
+    '  zk-agent wallet create --await-local',
+    '  zk-agent next',
+    '  zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    '  Stop after the first successful workflow pay.',
     '',
-    '  Fresh local-first routing:',
-    '    zk-agent setup',
-    '    zk-agent next',
-    '    zk-agent wallet create --await-local',
-    '    zk-agent next',
+    'Before that first success:',
+    '  Ignore suite, payment, and relay unless the CLI points you there or the browser is remote.',
     '',
-    '  If you are new, stay on that path first:',
-    '    Ignore relay, payment, and suite until the first successful workflow pay.',
+    'What `next` routes right now:',
+    '  bootstrap: config or wallet bootstrap is still the blocker',
+    '  recover: wallet approval or local signer readiness still needs repair',
+    '  operate: wallet readiness is clear, so the flagship workflow path is next',
+    '  workflow: a stored checkpoint is already the active question',
+    '  suite: switch only when the question becomes broader than one immediate next step',
     '',
-    '  Remote-browser variant of the same path:',
-    '    zk-agent relay inspect --relay-url <url>',
-    '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
-    '    zk-agent next',
+    'Remote-browser variant of the same path:',
+    '  zk-agent relay inspect --relay-url <url>',
+    '  zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+    '  zk-agent next',
     '',
-    '  If setup has not run yet, `next` will send you back to `zk-agent setup` first.',
+    'When to leave the default path:',
+    '  doctor: local state is unclear and the normal path stopped making sense',
+    '  wallet next/status: the blocker is already wallet-specific',
+    '  workflow next: the active question is already one stored checkpoint',
+    '  suite: the wallet is ready and the question is broader than one immediate pay step',
     '',
-    '  Continue a stored workflow checkpoint:',
-    '    zk-agent next --request-id <id>',
+    'If setup has not run yet, `next` sends you back to `zk-agent setup` first.',
     '',
-    '  Stay on the wallet layer only when you need wallet-specific remediation:',
-    '    zk-agent wallet next --name main',
+    'Continue a stored workflow checkpoint:',
+    '  zk-agent next --request-id <id>',
     '',
-    '  When the wallet is already ready and you want the broader question-first packaged surface:',
-    '    zk-agent suite',
+    'Wallet-specific follow-up:',
+    '  zk-agent wallet next --name main',
+    '  zk-agent wallet status --name main',
     '',
-    '  Switch to the hosted remote-approval path only when the browser is not colocated:',
-    '    zk-agent relay inspect --relay-url <url>',
-    '    zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code',
+    'Workflow-specific follow-up:',
+    '  zk-agent workflow next --request-id <id>',
     '',
-    '  Use wallet-layer commands when you already know the blocker is wallet-specific:',
-    '    zk-agent wallet next --name main',
-    '    zk-agent wallet status --name main',
+    'Broader post-flagship surface:',
+    '  zk-agent suite',
     '',
-    '  Stay on the workflow layer only when you already have an explicit workflow or checkpoint:',
-    '    zk-agent workflow next --request-id <id>'
+    'Hosted remote-approval fallback:',
+    '  zk-agent relay inspect --relay-url <url>',
+    '  zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code'
   ].join('\n');
 }
 
@@ -257,7 +260,7 @@ export function createNextCommand(deps?: Partial<NextCommandDeps>): Command {
   const resolvedDeps = resolveNextCommandDeps(deps);
 
   return new Command('next')
-    .description('Shortest next CLI step across setup, wallet readiness, and stored workflows')
+    .description('Shortest next step on the default local-first path')
     .addHelpText('after', buildNextHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--request-id <id>', 'Stored workflow checkpoint id')
@@ -271,7 +274,7 @@ export function createStartCommand(deps?: Partial<NextCommandDeps>): Command {
   const resolvedDeps = resolveNextCommandDeps(deps);
 
   return new Command('start')
-    .description('Public onboarding entrypoint with the same output contract as next')
+    .description('Public first-touch command for the default local-first path')
     .addHelpText('after', buildNextHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--request-id <id>', 'Stored workflow checkpoint id')

@@ -11,8 +11,10 @@ import type {
 import { humanLine, jsonOut, shouldJsonOutput } from '../lib/io.js';
 import { formatRecommendedPath } from '../lib/onboarding-paths.js';
 import {
+  buildRelayBaselineRecommendedCommand,
   buildRelayInspectRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
+  buildWalletStatusRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
   buildWalletReapproveRemoteRecommendedCommand
 } from '../lib/recommended-commands.js';
@@ -22,12 +24,14 @@ function buildRelayServeRecommendedCommands(options: {
   relayUrl: string;
   publicOriginLooksLocal: boolean;
 }): {
+  baseline: string;
   inspectRelay: string;
   createWallet: string;
   reapproveWallet: string;
   restartWithPublicOrigin?: string;
 } {
   const commands = {
+    baseline: buildRelayBaselineRecommendedCommand(options.relayUrl),
     inspectRelay: buildRelayInspectRecommendedCommand(options.relayUrl),
     createWallet: buildWalletCreateRemoteRecommendedCommand(options.relayUrl),
     reapproveWallet: buildWalletReapproveRemoteRecommendedCommand('main', options.relayUrl)
@@ -49,15 +53,19 @@ function buildRelayInspectRecommendedCommands(options: {
   compatible: boolean;
   publicOriginLooksLocal: boolean;
 }): {
+  baseline: string;
   createWallet?: string;
   reapproveWallet?: string;
   restartWithPublicOrigin?: string;
 } {
   const commands: {
+    baseline: string;
     createWallet?: string;
     reapproveWallet?: string;
     restartWithPublicOrigin?: string;
-  } = {};
+  } = {
+    baseline: buildRelayBaselineRecommendedCommand(options.publicOrigin)
+  };
 
   if (options.compatible) {
     commands.createWallet = buildWalletCreateRemoteRecommendedCommand(options.publicOrigin);
@@ -80,23 +88,30 @@ interface RelayApprovalPaths {
   reapproveWallet: string[];
 }
 
+interface RelayHostedRecoveryProofPaths {
+  createWallet: string[];
+  reapproveWallet: string[];
+}
+
 function buildRelayApprovalPaths(options: {
   relayUrl: string;
   includeInspectRelay: boolean;
+  walletName?: string;
 }): RelayApprovalPaths {
   const inspectRelay = buildRelayInspectRecommendedCommand(options.relayUrl);
-  const next = buildTopLevelNextRecommendedCommand();
+  const walletName = options.walletName || 'main';
+  const next = buildTopLevelNextRecommendedCommand(undefined, undefined, walletName);
   const maybeInspectRelay = options.includeInspectRelay ? [inspectRelay] : [];
 
   return {
     createWallet: [
       ...maybeInspectRelay,
-      buildWalletCreateRemoteRecommendedCommand(options.relayUrl),
+      buildWalletCreateRemoteRecommendedCommand(options.relayUrl, undefined, walletName),
       next
     ],
     reapproveWallet: [
       ...maybeInspectRelay,
-      buildWalletReapproveRemoteRecommendedCommand('main', options.relayUrl),
+      buildWalletReapproveRemoteRecommendedCommand(walletName, options.relayUrl),
       next
     ]
   };
@@ -108,6 +123,36 @@ function relayApprovalPathLines(paths?: RelayApprovalPaths): Array<[string, stri
   return [
     ['path create wallet', formatRecommendedPath(paths.createWallet)],
     ['path reapprove wallet', formatRecommendedPath(paths.reapproveWallet)]
+  ];
+}
+
+function buildRelayHostedRecoveryProofPaths(options: {
+  relayUrl: string;
+  walletName: string;
+}): RelayHostedRecoveryProofPaths {
+  const baseline = buildRelayBaselineRecommendedCommand(options.relayUrl, options.walletName);
+  return {
+    createWallet: [
+      baseline,
+      buildWalletCreateRemoteRecommendedCommand(options.relayUrl, undefined, options.walletName),
+      buildTopLevelNextRecommendedCommand(undefined, undefined, options.walletName)
+    ],
+    reapproveWallet: [
+      baseline,
+      buildWalletReapproveRemoteRecommendedCommand(options.walletName, options.relayUrl),
+      buildWalletStatusRecommendedCommand(options.walletName)
+    ]
+  };
+}
+
+function relayHostedRecoveryProofPathLines(
+  paths?: RelayHostedRecoveryProofPaths
+): Array<[string, string]> {
+  if (!paths) return [];
+
+  return [
+    ['proof create wallet', formatRecommendedPath(paths.createWallet)],
+    ['proof reapprove wallet', formatRecommendedPath(paths.reapproveWallet)]
   ];
 }
 
@@ -456,12 +501,62 @@ interface RelayInspectPayload {
   deploymentSummary: RelayDeploymentSummary;
   capabilities: RelayCapability[];
   recommendedCommands: {
+    baseline: string;
     createWallet?: string;
     reapproveWallet?: string;
     restartWithPublicOrigin?: string;
   };
   relayApprovalPaths?: RelayApprovalPaths;
   notes: string[];
+}
+
+type RelayBaselineSupportLevel = 'supported' | 'needs-fix' | 'incompatible';
+
+interface RelayBaselineView {
+  format: 'zk-agent-relay-baseline';
+  version: 1;
+  generatedAt: string;
+  relayUrl: string;
+  walletName: string;
+  mode: 'single-host-hosted-approval';
+  supportLevel: RelayBaselineSupportLevel;
+  claim: {
+    externallyReachablePublicOrigin: boolean;
+    sameOriginApprovalUi: boolean;
+    sameHostFileState: boolean;
+    hostedApprovalReady: boolean;
+    approvalEndpointStatus: RelayApprovalEndpointStatus;
+    hostedReadinessStatus: RelayHostedReadinessStatus;
+  };
+  createWalletPath: string[];
+  reapproveWalletPath: string[];
+  createWalletProofPath: string[];
+  reapproveWalletProofPath: string[];
+  rehearsal: {
+    plan: string;
+    singleRun: string;
+    repeatedRun: string;
+  };
+  inspection: RelayInspectPayload;
+  notes: string[];
+}
+
+interface RelayBaselinePayload {
+  ok: true;
+  status: 'relay-baseline';
+  relayUrl: string;
+  walletName: string;
+  baseline: RelayBaselineView;
+  recommendedCommands: {
+    baseline: string;
+    inspect: string;
+    createWallet?: string;
+    reapproveWallet?: string;
+    walletStatus: string;
+    rehearsalPlan: string;
+    rehearsalSingleRun: string;
+    rehearsalRepeatedRun: string;
+  };
 }
 
 interface RelayDeploymentSummary {
@@ -625,6 +720,104 @@ function buildRelayInspectPayload(relayUrl: string, rawHealth: unknown): RelayIn
   };
 }
 
+function buildHostedOperatedBaselineCommands(options: {
+  relayUrl: string;
+  walletName: string;
+}): RelayBaselinePayload['recommendedCommands'] {
+  return {
+    baseline: buildRelayBaselineRecommendedCommand(options.relayUrl, options.walletName),
+    inspect: buildRelayInspectRecommendedCommand(options.relayUrl),
+    createWallet: buildWalletCreateRemoteRecommendedCommand(
+      options.relayUrl,
+      undefined,
+      options.walletName
+    ),
+    reapproveWallet: buildWalletReapproveRemoteRecommendedCommand(
+      options.walletName,
+      options.relayUrl
+    ),
+    walletStatus: buildWalletStatusRecommendedCommand(options.walletName),
+    rehearsalPlan:
+      `pnpm smoke:hosted-operated-baseline -- --wallet ${options.walletName} --relay-url ${options.relayUrl} --reapprove --prompt-code --plan`,
+    rehearsalSingleRun:
+      `pnpm smoke:hosted-operated-baseline -- --wallet ${options.walletName} --relay-url ${options.relayUrl} --reapprove --prompt-code`,
+    rehearsalRepeatedRun:
+      `pnpm smoke:hosted-operated-baseline -- --wallet ${options.walletName} --relay-url ${options.relayUrl} --reapprove --repeat 2 --prompt-code --save-report`
+  };
+}
+
+function buildRelayBaselinePayload(options: {
+  relayUrl: string;
+  walletName: string;
+  rawHealth: unknown;
+}): RelayBaselinePayload {
+  const inspection = buildRelayInspectPayload(options.relayUrl, options.rawHealth);
+  const supportLevel: RelayBaselineSupportLevel =
+    inspection.compatible !== true
+      ? 'incompatible'
+      : inspection.hostedReadinessSummary.status === 'ready'
+        ? 'supported'
+        : 'needs-fix';
+  const recommendedCommands = buildHostedOperatedBaselineCommands({
+    relayUrl: inspection.publicOrigin,
+    walletName: options.walletName
+  });
+  const relayApprovalPaths =
+    buildRelayApprovalPaths({
+      relayUrl: inspection.publicOrigin,
+      includeInspectRelay: false,
+      walletName: options.walletName
+    });
+  const proofPaths = buildRelayHostedRecoveryProofPaths({
+    relayUrl: inspection.publicOrigin,
+    walletName: options.walletName
+  });
+  const notes = [
+    supportLevel === 'supported'
+      ? 'The current single-host hosted approval baseline is ready for the public remote-browser recovery path.'
+      : supportLevel === 'needs-fix'
+        ? 'The current hosted approval baseline is not yet ready for the public remote-browser recovery path. Fix the advertised public origin and/or connector UI readiness first.'
+        : 'This relay does not advertise the zk-agent hosted approval compatibility contract yet.',
+    ...inspection.notes
+  ];
+
+  return {
+    ok: true,
+    status: 'relay-baseline',
+    relayUrl: options.relayUrl,
+    walletName: options.walletName,
+    baseline: {
+      format: 'zk-agent-relay-baseline',
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      relayUrl: options.relayUrl,
+      walletName: options.walletName,
+      mode: 'single-host-hosted-approval',
+      supportLevel,
+      claim: {
+        externallyReachablePublicOrigin: inspection.publicOriginLooksLocal === false,
+        sameOriginApprovalUi: inspection.connectorUiAvailable === true,
+        sameHostFileState: inspection.deploymentSummary.singleHostFileState,
+        hostedApprovalReady: inspection.hostedShareRedirectReady,
+        approvalEndpointStatus: inspection.approvalEndpointSummary.status,
+        hostedReadinessStatus: inspection.hostedReadinessSummary.status
+      },
+      createWalletPath: relayApprovalPaths.createWallet,
+      reapproveWalletPath: relayApprovalPaths.reapproveWallet,
+      createWalletProofPath: proofPaths.createWallet,
+      reapproveWalletProofPath: proofPaths.reapproveWallet,
+      rehearsal: {
+        plan: recommendedCommands.rehearsalPlan,
+        singleRun: recommendedCommands.rehearsalSingleRun,
+        repeatedRun: recommendedCommands.rehearsalRepeatedRun
+      },
+      inspection,
+      notes
+    },
+    recommendedCommands
+  };
+}
+
 export function createRelayCommand(): Command {
   const relay = new Command('relay').description(
     'Serve and inspect the single-host connector relay baseline for hosted approval'
@@ -637,14 +830,15 @@ export function createRelayCommand(): Command {
       '  Relay surface:',
       '    Open this layer only when the browser is remote and cannot return to this terminal.',
       '    Keep `wallet create|reapprove --await-local` as the default baseline when the browser and terminal are colocated.',
+      '    Use `relay baseline` for the product-style hosted approval summary; use `relay inspect` when you need the lower-level readiness contract fields directly.',
       '',
       '  Fastest hosted recovery proof path:',
-      '    zk-agent relay inspect --relay-url <url>',
+      '    zk-agent relay baseline --relay-url <url>',
       '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
       '    zk-agent wallet status --name main',
       '',
       '  If the wallet does not exist yet:',
-      '    zk-agent relay inspect --relay-url <url>',
+      '    zk-agent relay baseline --relay-url <url>',
       '    zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
       '    zk-agent next',
       '',
@@ -657,10 +851,88 @@ export function createRelayCommand(): Command {
       '    one same-origin share-link + approval UI surface',
       '    Do not assume multi-host or load-balanced durability.',
       '',
-      '  Use `relay inspect` before sending users to a hosted share link so',
-      '  the public origin, connector UI, and hosted-readiness contract are visible.'
+      '  Use `relay baseline` before sending users to a hosted share link when',
+      '  you want the packaged public summary and proof paths first.',
+      '  Use `relay inspect` when the public origin, connector UI, and hosted-readiness contract need direct lower-level inspection.'
     ].join('\n')
   );
+
+  relay
+    .command('baseline')
+    .description(
+      'Build the product-style hosted approval baseline summary for one relay URL'
+    )
+    .requiredOption('--relay-url <url>', 'Relay server base URL to inspect')
+    .option('--wallet <name>', 'Wallet name used in example commands', 'main')
+    .action(async (options: { relayUrl: string; wallet?: string }) => {
+      const relayUrl = options.relayUrl.trim();
+      const walletName = options.wallet?.trim() || 'main';
+      const rawHealth = await fetchRelayHealth(relayUrl);
+      const payload = buildRelayBaselinePayload({
+        relayUrl,
+        walletName,
+        rawHealth
+      });
+
+      if (shouldJsonOutput()) {
+        jsonOut(payload);
+        return;
+      }
+
+      humanLine('status', payload.status);
+      humanLine('support', payload.baseline.supportLevel);
+      humanLine('wallet', payload.walletName);
+      humanLine('relay url', payload.relayUrl);
+      humanLine('public origin', payload.baseline.inspection.publicOrigin);
+      humanLine('mode', payload.baseline.mode);
+      humanLine('approval endpoint', payload.baseline.claim.approvalEndpointStatus);
+      humanLine('hosted readiness', payload.baseline.claim.hostedReadinessStatus);
+      humanLine(
+        'hosted ready',
+        payload.baseline.claim.hostedApprovalReady ? 'yes' : 'no'
+      );
+      humanLine(
+        'public origin local',
+        payload.baseline.inspection.publicOriginLooksLocal ? 'yes' : 'no'
+      );
+      humanLine(
+        'same-host file state',
+        payload.baseline.claim.sameHostFileState ? 'yes' : 'no'
+      );
+      if (payload.baseline.inspection.connectorUiAvailable !== null) {
+        humanLine(
+          'connector ui',
+          payload.baseline.inspection.connectorUiAvailable ? 'available' : 'missing'
+        );
+      }
+      humanLine('baseline', payload.recommendedCommands.baseline);
+      humanLine('inspect', payload.recommendedCommands.inspect);
+      if (payload.recommendedCommands.createWallet) {
+        humanLine('create wallet', payload.recommendedCommands.createWallet);
+      }
+      if (payload.recommendedCommands.reapproveWallet) {
+        humanLine('reapprove wallet', payload.recommendedCommands.reapproveWallet);
+      }
+      humanLine('wallet status', payload.recommendedCommands.walletStatus);
+      for (const [label, value] of relayApprovalPathLines({
+        createWallet: payload.baseline.createWalletPath,
+        reapproveWallet: payload.baseline.reapproveWalletPath
+      })) {
+        humanLine(label, value);
+      }
+      for (const [label, value] of relayHostedRecoveryProofPathLines({
+        createWallet: payload.baseline.createWalletProofPath,
+        reapproveWallet: payload.baseline.reapproveWalletProofPath
+      })) {
+        humanLine(label, value);
+      }
+      humanLine('rehearsal plan', payload.recommendedCommands.rehearsalPlan);
+      humanLine('rehearsal run', payload.recommendedCommands.rehearsalSingleRun);
+      humanLine('rehearsal repeat', payload.recommendedCommands.rehearsalRepeatedRun);
+      for (const note of payload.baseline.notes) {
+        humanLine('note', note);
+      }
+    });
 
   relay
     .command('serve')
@@ -792,6 +1064,7 @@ export function createRelayCommand(): Command {
         if (connectorUiAvailable !== null) {
           humanLine('connector ui', connectorUiAvailable ? 'available' : 'missing');
         }
+        humanLine('baseline', recommendedCommands.baseline);
         humanLine('inspect relay', recommendedCommands.inspectRelay);
         humanLine('create wallet', recommendedCommands.createWallet);
         humanLine('reapprove wallet', recommendedCommands.reapproveWallet);
@@ -889,6 +1162,7 @@ export function createRelayCommand(): Command {
       if (payload.capabilities.length > 0) {
         humanLine('capabilities', payload.capabilities.join(', '));
       }
+      humanLine('baseline', payload.recommendedCommands.baseline);
       if (payload.compatible) {
         if (payload.recommendedCommands.createWallet) {
           humanLine('create wallet', payload.recommendedCommands.createWallet);

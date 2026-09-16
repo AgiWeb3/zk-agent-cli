@@ -128,6 +128,13 @@ export interface BuildStoredPaymentRequestsFeedInput extends ListPaymentRequests
   limit?: number;
 }
 
+export interface BuildStoredPaymentRequestsWorkspaceInput extends ListPaymentRequestsInput {
+  recentActivityLimit?: number;
+  queueLimit?: number;
+  walletLimit?: number;
+  feedLimit?: number;
+}
+
 export interface ListStoredPaymentRequestHistoryInput {
   requestId: string;
   type?: PaymentHistoryEventType;
@@ -225,6 +232,44 @@ export interface PaymentRequestsQueueResult {
   queue: PaymentRequestsQueueView;
 }
 
+export interface PaymentRequestsWorkspaceView {
+  format: 'zk-agent-payment-workspace';
+  version: 1;
+  generatedAt: string;
+  source: 'local-first';
+  filters: {
+    walletName: string | null;
+    status: PaymentRequestStatus | null;
+    recentActivityLimit: number | null;
+    queueLimit: number | null;
+    walletLimit: number | null;
+    feedLimit: number | null;
+  };
+  summary: {
+    totalRequests: number;
+    distinctWalletCount: number;
+    actionableRequests: number;
+    readyToExecuteRequests: number;
+    approvalBlockedRequests: number;
+    signerBlockedRequests: number;
+    walletLinkBlockedRequests: number;
+    awaitingConfirmationRequests: number;
+    retryableRequests: number;
+    queuedRequests: number;
+    feedItems: number;
+    recentActivityCount: number;
+    latestActivityAt: string | null;
+  };
+  report: PaymentRequestsReportView;
+  dashboard: PaymentRequestsDashboardView;
+  feed: PaymentRequestsFeedView;
+  queue: PaymentRequestsQueueView;
+}
+
+export interface PaymentRequestsWorkspaceResult {
+  workspace: PaymentRequestsWorkspaceView;
+}
+
 export interface PaymentRequestApprovalSyncResult extends PaymentRequestApprovalResult {
   sync: {
     attemptedAt: string;
@@ -270,6 +315,95 @@ async function resolveLinkedWalletSession(
   }
 
   return loadWalletSession(paymentRequest.walletName);
+}
+
+interface BuildStoredPaymentRequestsViewContextInput extends ListPaymentRequestsInput {
+  recentActivityLimit?: number;
+}
+
+interface StoredPaymentRequestsViewContext {
+  requests: PaymentRequestRecord[];
+  nextByRequestId: Record<string, PaymentRequestNextView>;
+  report: PaymentRequestsReportView;
+}
+
+async function buildStoredPaymentRequestsViewContext(
+  input: BuildStoredPaymentRequestsViewContextInput = {}
+): Promise<StoredPaymentRequestsViewContext> {
+  const requests = await listStoredPaymentRequests({
+    walletName: input.walletName,
+    status: input.status
+  });
+  const nextViews = await Promise.all(
+    requests.map(async (paymentRequest) => [
+      paymentRequest.requestId,
+      await buildLinkedWalletAwareNextView(paymentRequest)
+    ] as const)
+  );
+  const nextByRequestId = Object.fromEntries(nextViews);
+  const report = buildPaymentRequestsReport(
+    requests,
+    {
+      walletName: input.walletName,
+      status: input.status,
+      recentActivityLimit: input.recentActivityLimit
+    },
+    {
+      nextByRequestId
+    }
+  );
+
+  return {
+    requests,
+    nextByRequestId,
+    report
+  };
+}
+
+function buildStoredPaymentRequestHandoffs(
+  requests: PaymentRequestRecord[],
+  nextByRequestId: Record<string, PaymentRequestNextView>
+): Record<string, PaymentRequestHandoffView> {
+  return Object.fromEntries(
+    requests.map((paymentRequest) => {
+      const next = nextByRequestId[paymentRequest.requestId];
+      const summary = buildPaymentRequestInspectionSummary(paymentRequest);
+      const intent = buildPaymentRequestIntent(paymentRequest);
+      const parties = buildPaymentRequestParties(paymentRequest);
+      const share = buildPaymentRequestShare(paymentRequest);
+      const settlement = buildPaymentRequestSettlement(paymentRequest);
+
+      return [
+        paymentRequest.requestId,
+        buildPaymentRequestHandoff({
+          summary,
+          intent,
+          parties,
+          share,
+          settlement,
+          next
+        })
+      ] as const;
+    })
+  );
+}
+
+async function buildStoredPaymentRequestsQueueView(
+  requests: PaymentRequestRecord[],
+  nextByRequestId: Record<string, PaymentRequestNextView>,
+  input: BuildStoredPaymentRequestsQueueInput = {}
+): Promise<PaymentRequestsQueueView> {
+  const items = requests.map((paymentRequest) => ({
+    descriptor: buildPaymentRequestDescriptor(paymentRequest),
+    executionPlan: buildPaymentExecutionPlan(paymentRequest),
+    next: nextByRequestId[paymentRequest.requestId] ?? buildPaymentRequestNextView(paymentRequest)
+  }));
+
+  return buildPaymentRequestsQueue(items, {
+    walletName: input.walletName,
+    status: input.status,
+    limit: input.limit
+  } satisfies PaymentRequestsQueueFilters);
 }
 
 export async function createStoredPaymentRequest(
@@ -611,55 +745,20 @@ export async function listStoredPaymentRequests(
 export async function buildStoredPaymentRequestsReport(
   input: BuildStoredPaymentRequestsReportInput = {}
 ): Promise<PaymentRequestsReportResult> {
-  const requests = await listStoredPaymentRequests({
-    walletName: input.walletName,
-    status: input.status
-  });
-  const nextViews = await Promise.all(
-    requests.map(async (paymentRequest) => [
-      paymentRequest.requestId,
-      await buildLinkedWalletAwareNextView(paymentRequest)
-    ] as const)
-  );
+  const context = await buildStoredPaymentRequestsViewContext(input);
 
   return {
-    report: buildPaymentRequestsReport(requests, {
-      walletName: input.walletName,
-      status: input.status,
-      recentActivityLimit: input.recentActivityLimit
-    }, {
-      nextByRequestId: Object.fromEntries(nextViews)
-    })
+    report: context.report
   };
 }
 
 export async function buildStoredPaymentRequestsDashboard(
   input: BuildStoredPaymentRequestsDashboardInput = {}
 ): Promise<PaymentRequestsDashboardResult> {
-  const requests = await listStoredPaymentRequests({
-    walletName: input.walletName,
-    status: input.status
-  });
-  const nextViews = await Promise.all(
-    requests.map(async (paymentRequest) => [
-      paymentRequest.requestId,
-      await buildLinkedWalletAwareNextView(paymentRequest)
-    ] as const)
-  );
-  const report = buildPaymentRequestsReport(
-    requests,
-    {
-      walletName: input.walletName,
-      status: input.status,
-      recentActivityLimit: input.recentActivityLimit
-    },
-    {
-      nextByRequestId: Object.fromEntries(nextViews)
-    }
-  );
+  const context = await buildStoredPaymentRequestsViewContext(input);
 
   return {
-    dashboard: buildPaymentRequestsDashboard(report, {
+    dashboard: buildPaymentRequestsDashboard(context.report, {
       walletName: input.walletName,
       status: input.status,
       recentActivityLimit: input.recentActivityLimit,
@@ -672,52 +771,14 @@ export async function buildStoredPaymentRequestsDashboard(
 export async function buildStoredPaymentRequestsFeed(
   input: BuildStoredPaymentRequestsFeedInput = {}
 ): Promise<PaymentRequestsFeedResult> {
-  const requests = await listStoredPaymentRequests({
-    walletName: input.walletName,
-    status: input.status
-  });
-  const nextViews = await Promise.all(
-    requests.map(async (paymentRequest) => [
-      paymentRequest.requestId,
-      await buildLinkedWalletAwareNextView(paymentRequest)
-    ] as const)
-  );
-  const nextByRequestId = Object.fromEntries(nextViews);
-  const report = buildPaymentRequestsReport(
-    requests,
-    {
-      walletName: input.walletName,
-      status: input.status
-    },
-    {
-      nextByRequestId
-    }
-  );
+  const context = await buildStoredPaymentRequestsViewContext(input);
 
   return {
     feed: buildPaymentRequestsFeed({
-      report,
-      handoffsByRequestId: Object.fromEntries(
-        requests.map((paymentRequest) => {
-          const next = nextByRequestId[paymentRequest.requestId];
-          const summary = buildPaymentRequestInspectionSummary(paymentRequest);
-          const intent = buildPaymentRequestIntent(paymentRequest);
-          const parties = buildPaymentRequestParties(paymentRequest);
-          const share = buildPaymentRequestShare(paymentRequest);
-          const settlement = buildPaymentRequestSettlement(paymentRequest);
-
-          return [
-            paymentRequest.requestId,
-            buildPaymentRequestHandoff({
-              summary,
-              intent,
-              parties,
-              share,
-              settlement,
-              next
-            })
-          ] as const;
-        })
+      report: context.report,
+      handoffsByRequestId: buildStoredPaymentRequestHandoffs(
+        context.requests,
+        context.nextByRequestId
       ),
       filters: {
         walletName: input.walletName,
@@ -731,29 +792,88 @@ export async function buildStoredPaymentRequestsFeed(
 export async function buildStoredPaymentRequestsQueue(
   input: BuildStoredPaymentRequestsQueueInput = {}
 ): Promise<PaymentRequestsQueueResult> {
-  const requests = await listStoredPaymentRequests({
+  const context = await buildStoredPaymentRequestsViewContext(input);
+
+  return {
+    queue: await buildStoredPaymentRequestsQueueView(
+      context.requests,
+      context.nextByRequestId,
+      input
+    )
+  };
+}
+
+export async function buildStoredPaymentRequestsWorkspace(
+  input: BuildStoredPaymentRequestsWorkspaceInput = {}
+): Promise<PaymentRequestsWorkspaceResult> {
+  const context = await buildStoredPaymentRequestsViewContext({
     walletName: input.walletName,
-    status: input.status
+    status: input.status,
+    recentActivityLimit: input.recentActivityLimit
   });
-
-  const items = await Promise.all(
-    requests.map(async (paymentRequest) => {
-      const executionPlan = buildPaymentExecutionPlan(paymentRequest);
-
-      return {
-        descriptor: buildPaymentRequestDescriptor(paymentRequest),
-        executionPlan,
-        next: await buildLinkedWalletAwareNextView(paymentRequest)
-      };
-    })
+  const dashboard = buildPaymentRequestsDashboard(context.report, {
+    walletName: input.walletName,
+    status: input.status,
+    recentActivityLimit: input.recentActivityLimit,
+    queueLimit: input.queueLimit,
+    walletLimit: input.walletLimit
+  });
+  const feed = buildPaymentRequestsFeed({
+    report: context.report,
+    handoffsByRequestId: buildStoredPaymentRequestHandoffs(
+      context.requests,
+      context.nextByRequestId
+    ),
+    filters: {
+      walletName: input.walletName,
+      status: input.status,
+      limit: input.feedLimit
+    }
+  });
+  const queue = await buildStoredPaymentRequestsQueueView(
+    context.requests,
+    context.nextByRequestId,
+    {
+      walletName: input.walletName,
+      status: input.status,
+      limit: input.queueLimit
+    }
   );
 
   return {
-    queue: buildPaymentRequestsQueue(items, {
-      walletName: input.walletName,
-      status: input.status,
-      limit: input.limit
-    } satisfies PaymentRequestsQueueFilters)
+    workspace: {
+      format: 'zk-agent-payment-workspace',
+      version: 1,
+      generatedAt: context.report.generatedAt,
+      source: 'local-first',
+      filters: {
+        walletName: input.walletName ?? null,
+        status: input.status ?? null,
+        recentActivityLimit: input.recentActivityLimit ?? null,
+        queueLimit: input.queueLimit ?? null,
+        walletLimit: input.walletLimit ?? null,
+        feedLimit: input.feedLimit ?? null
+      },
+      summary: {
+        totalRequests: context.report.summary.totalRequests,
+        distinctWalletCount: context.report.summary.distinctWalletCount,
+        actionableRequests: dashboard.summary.actionableRequests,
+        readyToExecuteRequests: dashboard.summary.readyToExecuteRequests,
+        approvalBlockedRequests: dashboard.summary.approvalBlockedRequests,
+        signerBlockedRequests: dashboard.summary.signerBlockedRequests,
+        walletLinkBlockedRequests: dashboard.summary.walletLinkBlockedRequests,
+        awaitingConfirmationRequests: dashboard.summary.awaitingConfirmationRequests,
+        retryableRequests: dashboard.summary.retryableRequests,
+        queuedRequests: queue.count,
+        feedItems: feed.items.length,
+        recentActivityCount: context.report.recentActivity.length,
+        latestActivityAt: context.report.summary.latestActivityAt ?? null
+      },
+      report: context.report,
+      dashboard,
+      feed,
+      queue
+    }
   };
 }
 

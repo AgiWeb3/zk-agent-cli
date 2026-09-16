@@ -26,6 +26,9 @@ zkSync-native, local-first CLI with:
   `setup -> next -> wallet create|reapprove -> next -> workflow pay`
 - `start` exists as the public first-touch command; `next` remains the
   canonical operator/runtime contract
+- top-level help plus `setup` / `start` / `next` now share one shorter
+  first-run public shell centered on:
+  `setup -> next -> wallet create/reapprove -> next -> workflow pay`
 - `doctor`, `next`, `wallet`, `workflow`, and `suite` now share one
   question-first routing story
 - hosted approval is documented and exercised as the current single-host
@@ -38,6 +41,8 @@ zkSync-native, local-first CLI with:
   - bounded proof paths
 - Agent Pay is now a first-class packaged slice through `payment` and
   `suite`
+- `payment workspace` now exists as the product-style cross-request Agent Pay
+  entry surface above `dashboard`, `queue`, `report`, and `feed`
 - release validation and packaged install checks are in place
 
 ## Current priorities
@@ -61,7 +66,8 @@ zkSync-native, local-first CLI with:
 
 - onboarding is still stronger technically than it is market-facing
 - hosted approval is correct but still longer to explain than it should be
-- Agent Pay has strong local surfaces but not yet a hosted control-plane proof
+- Agent Pay now has a stronger public local proof surface, but not yet a
+  hosted control-plane proof
 - public differentiation versus `polygon-agent-cli` is still clearer in
   engineering terms than in first-screen product terms
 - `1.0.0` still needs less manual judgment on final release readiness
@@ -98,6 +104,9 @@ zkSync-native, local-first CLI with:
 ### Milestone 1: tighten the product shell
 
 - keep first-run docs/help short
+  status: top-level help plus `setup` / `start` / `next` are now aligned on
+  the shorter default first-run path; keep README/package README/quickstart
+  aligned as the shell continues to tighten
 - keep `doctor -> next -> suite` wording aligned
 - keep the question-first `suite` entry layer visible everywhere
 
@@ -105,6 +114,8 @@ zkSync-native, local-first CLI with:
 
 - keep `payment` and `suite` routing obvious
 - expose the shortest public proof paths directly
+  status: `payment workspace` now packages the public cross-request proof
+  surface; keep README/help/JSON contracts aligned around it
 - make the hosted Agent Pay direction legible without over-claiming
 
 ### Milestone 3: reduce release drift

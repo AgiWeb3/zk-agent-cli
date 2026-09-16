@@ -56,7 +56,7 @@ remote approval is already known.
 Fresh wallet:
 
 ```bash
-zk-agent relay inspect --relay-url <url>
+zk-agent relay baseline --relay-url <url>
 zk-agent wallet create --relay-url <url> --wait-relay --prompt-code
 zk-agent next
 ```
@@ -64,7 +64,7 @@ zk-agent next
 Existing wallet:
 
 ```bash
-zk-agent relay inspect --relay-url <url>
+zk-agent relay baseline --relay-url <url>
 zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code
 zk-agent next
 ```
@@ -80,7 +80,7 @@ zk-agent wallet signer attach --name main --private-key <hex>
 
 ```bash
 zk-agent relay serve --public-origin https://relay.example.com
-zk-agent relay inspect --relay-url https://relay.example.com
+zk-agent relay baseline --relay-url https://relay.example.com
 ```
 
 Use `--public-origin` whenever the relay sits behind FRP, a reverse proxy, or

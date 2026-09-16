@@ -19,6 +19,9 @@
 - hosted approval exists as the current single-host operated baseline
 - `start` is the public onboarding command; `next` remains the canonical
   runtime contract
+- top-level help plus `setup` / `start` / `next` now share one shorter
+  first-run shell centered on:
+  `setup -> next -> wallet create|reapprove -> next -> workflow pay`
 - `doctor`, `next`, `wallet`, `workflow`, and `suite` now share one
   question-first product-routing story
 - `suite` is now the default post-flagship packaged surface
@@ -28,6 +31,8 @@
   - deeper-surface handoff
   - bounded proof paths
 - Agent Pay is a first-class slice through `payment` and `suite`
+- `payment workspace` now exists as the public cross-request Agent Pay entry
+  surface above `dashboard`, `queue`, `report`, and `feed`
 - packaged validation now checks docs, JSON contracts, help text, install
   shape, and release-stage invariants
 
@@ -46,11 +51,12 @@
 
 ## Main remaining gaps
 
-- first-run onboarding is still more operator-facing than product-like
+- first-run onboarding is now shorter and more explicit, but the broader
+  market-facing shell still needs stronger differentiation
 - hosted approval framing is correct but still longer than it should be for a
   public first screen
-- Agent Pay has strong local surfaces but still lacks a hosted control-plane
-  proof surface
+- Agent Pay now has a stronger public local proof surface, but still lacks a
+  hosted control-plane proof surface
 - public differentiation versus `polygon-agent-cli` is still clearer in
   engineering terms than in first-screen product terms
 - final `1.0.0` promotion still needs less human judgment
@@ -98,8 +104,8 @@ Architecture source of truth:
 Foundation already present:
 
 - local-first request records and service orchestration in `packages/agent-pay`
-- payment ingress, queue, dashboard, report, approval, feed, handoff, quote,
-  settlement, and reconcile surfaces
+- payment ingress, workspace, queue, dashboard, report, approval, feed,
+  handoff, quote, settlement, and reconcile surfaces
 - wallet-aware follow-up routing through the existing session and workflow
   foundation
 - relay-backed approval and workflow checkpoint primitives already available

@@ -28,7 +28,6 @@ zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
-zk-agent suite
 ```
 
 `zk-agent start` is the public onboarding command that keeps the same output
@@ -37,9 +36,15 @@ first-touch command. Keep `next` as the canonical operator/runtime contract in
 scripts and JSON examples.
 
 If you are new, stop at the first successful `zk-agent workflow pay`. Ignore
-remote approval and Agent Pay until that baseline path works once. Use
-`zk-agent suite` only after that first success or when you want the broader
-question-first packaged surface.
+`suite`, `payment`, and `relay` until that baseline path works once, unless
+the CLI explicitly points you there. Use `zk-agent suite` only after that
+first success or when you want the broader question-first packaged surface.
+
+After that first success, the default broader follow-up is:
+
+```bash
+zk-agent suite
+```
 
 What each step is doing:
 
@@ -73,10 +78,22 @@ zk-agent workflow status --request-id <id>
 That path proves the default ready-wallet execution route plus checkpoint
 follow-up and status inspection without leaving the flagship workflow surface.
 
+Choose between the two public payment surfaces this way:
+
+- `workflow pay`: the wallet is ready and the question is simply "send value
+  now"
+- `payment`: execution is no longer the whole story and you need request
+  capture plus follow-up, sharing, reporting, export, or approval repair
+  around the write path
+
+`payment` does not replace the execution path. It keeps local request state,
+follow-up, and export surfaces around `workflow pay` and `send-token`.
+
 The current local-first Agent Pay entry surface is:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment workspace
 zk-agent payment dashboard
 zk-agent payment feed
 zk-agent payment queue
@@ -90,20 +107,20 @@ The fastest Agent Pay proof path is:
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment dashboard
+zk-agent payment workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
 That path shows compact ingress, wallet-aware follow-up, approval readiness,
-dashboard summary, single-request handoff bundling, and cross-request feed
+workspace summary, single-request handoff bundling, and cross-request feed
 export without leaving the local-first surface.
 
 When the browser is remote, the fastest hosted approval proof path on the
 current supported recovery baseline is:
 
 ```bash
-zk-agent relay inspect --relay-url <relay-url>
+zk-agent relay baseline --relay-url <relay-url>
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent wallet status --name main
 ```
@@ -192,7 +209,8 @@ Use the surfaces this way:
   packaged surface because the task is broader than one immediate flagship pay
   step
 - `payment`: the execution path is no longer the whole story and you need
-  local request capture, queueing, reporting, or approval tracking around it
+  a durable local request plus follow-up, sharing, reporting, export, or
+  approval repair around it
 - `suite --include-onboarding`: you want one combined readout from first-run
   bootstrap through the packaged post-flagship surface
 
@@ -259,8 +277,11 @@ ZK_AGENT_STORAGE_DIR=
 - `zk-agent workflow ...`: explicit workflow planning, persistence, status,
   resume questions, and the flagship pay execution path
 - `zk-agent payment ...`: local-first payment ingress, request capture, routing,
-  queueing, approval tracking, and settlement-state tracking for the Agent Pay
-  platform layer
+  follow-up, sharing, export, approval repair, and settlement-state tracking
+  for the Agent Pay platform layer
+
+Keep the split strict: `workflow pay` is the direct send surface, while
+`payment` is the request and follow-up layer around that send surface.
 
 ## Repair locally first
 
@@ -291,7 +312,7 @@ Use the relay-backed path only when the browser is not colocated with the
 terminal:
 
 ```bash
-zk-agent relay inspect --relay-url <relay-url>
+zk-agent relay baseline --relay-url <relay-url>
 zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
@@ -299,6 +320,7 @@ zk-agent next
 For an existing wallet:
 
 ```bash
+zk-agent relay baseline --relay-url <relay-url>
 zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
@@ -318,9 +340,9 @@ If the relay is self-hosted through the built-in server:
 zk-agent relay serve --public-origin https://relay.example.com
 ```
 
-Use `relay inspect` before sending users to a share link. It exposes hosted
-readiness, URL shape, persistence mode, and the exact create/reapprove follow-up
-path.
+Use `relay baseline` before sending users to a share link when you want the
+packaged public summary and proof paths first. Use `relay inspect` when you
+need the lower-level hosted-readiness, URL shape, and persistence contract.
 
 For the supported hosted operating contract, use
 [`docs/16-hosted-approval-operated-baseline.md`](../../docs/16-hosted-approval-operated-baseline.md).
@@ -359,7 +381,7 @@ Current `suite` catalog categories:
 Current `suite` handoff surfaces:
 
 - `workflow`: flagship pay, approval-based pay, and funding recovery
-- `payment`: request capture, queueing, reporting, feed export, and approval repair
+- `payment`: request capture, follow-up, sharing, export, and approval repair
 - `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
@@ -380,13 +402,13 @@ For the clearest Agent Pay proof path inside `suite`, follow:
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment dashboard
+zk-agent payment workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
 That is the shortest packaged route from one local request write into
-wallet-aware follow-up, approval readiness, dashboard summary, and
+wallet-aware follow-up, approval readiness, workspace summary, and
 integration-ready export.
 
 Use `--wallet <name>` or `--chain <chain>` when the returned suite commands

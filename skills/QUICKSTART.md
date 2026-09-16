@@ -67,7 +67,6 @@ zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
 zk-agent workflow pay --wallet main --to <address> --amount <amount>
-zk-agent suite
 ```
 
 If you want the most obvious first-touch command, start with:
@@ -77,9 +76,15 @@ zk-agent start
 ```
 
 If you are new, stop at the first successful `zk-agent workflow pay`. Ignore
-remote approval and Agent Pay until that baseline path works once. Use
-`zk-agent suite` only after that first success or when you want the broader
-question-first packaged surface.
+`suite`, `payment`, and `relay` until that baseline path works once, unless
+the CLI explicitly points you there. Use `zk-agent suite` only after that
+first success or when you want the broader question-first packaged surface.
+
+After that first success, the default broader follow-up is:
+
+```bash
+zk-agent suite
+```
 
 What each step is doing:
 
@@ -99,6 +104,9 @@ The current local-first Agent Pay entry surface is:
 
 ```bash
 zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent payment workspace
+zk-agent payment dashboard
+zk-agent payment feed
 zk-agent payment queue
 zk-agent payment report
 zk-agent payment approval --request-id <id>
@@ -110,13 +118,13 @@ The fastest Agent Pay proof path is:
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment dashboard
+zk-agent payment workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
 That path shows compact ingress, wallet-aware follow-up, approval readiness,
-dashboard summary, single-request handoff bundling, and cross-request feed
+workspace summary, single-request handoff bundling, and cross-request feed
 export without leaving the local-first surface.
 
 Use those four commands when the write path is not the whole question:
@@ -136,8 +144,8 @@ Choose the surface by question:
   path now
 - `suite`: wallet readiness is already clear and you want the packaged
   question-first post-flagship product catalog
-- `payment`: you need local request capture, queueing, reporting, or approval
-  tracking around the same write path
+- `payment`: you need a durable local request plus follow-up, sharing, reporting, export, or
+  approval repair around the same write path
 - `suite --include-onboarding`: you want the full map from first-run bootstrap
   through the packaged product surface
 
@@ -218,7 +226,7 @@ stay on a non-default wallet or chain.
 That packaged surface currently hands off into four deeper surfaces:
 
 - `workflow`: flagship pay, approval-based pay, and funding recovery
-- `payment`: request capture, queueing, reporting, feed export, and approval repair
+- `payment`: request capture, follow-up, sharing, export, and approval repair
 - `discovery`: assets/defaults/token inspection
 - `relay`: hosted approval recovery
 
@@ -244,13 +252,13 @@ For the clearest Agent Pay proof path inside `suite`, follow:
 zk-agent payment submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment dashboard
+zk-agent payment workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
 That is the shortest packaged route from one local request write into
-wallet-aware follow-up, approval readiness, dashboard summary, and
+wallet-aware follow-up, approval readiness, workspace summary, and
 integration-ready export.
 
 If you want the narrower discovery/defaults commands directly, prefer:

@@ -63,6 +63,15 @@ export function buildRelayInspectRecommendedCommand(relayUrl = '<url>'): string 
   return `zk-agent relay inspect --relay-url ${relayUrl}`;
 }
 
+export function buildRelayBaselineRecommendedCommand(
+  relayUrl = '<url>',
+  walletName = 'main'
+): string {
+  return walletName === 'main'
+    ? `zk-agent relay baseline --relay-url ${relayUrl}`
+    : `zk-agent relay baseline --relay-url ${relayUrl} --wallet ${walletName}`;
+}
+
 interface RemoteApprovalPolicyCommandOptions {
   sessionPolicies?: SessionPolicies;
   requestCreatedAt?: string;
@@ -360,6 +369,10 @@ export function buildPaymentQueueRecommendedCommand(): string {
 
 export function buildPaymentSubmitRecommendedCommand(walletName = 'main'): string {
   return `zk-agent payment submit --wallet ${walletName} --to <address> --amount <amount>`;
+}
+
+export function buildPaymentWorkspaceRecommendedCommand(): string {
+  return 'zk-agent payment workspace';
 }
 
 export function buildPaymentReportRecommendedCommand(): string {

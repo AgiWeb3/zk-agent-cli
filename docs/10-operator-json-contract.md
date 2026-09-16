@@ -594,7 +594,7 @@ Key fields:
     "recommendedNow": true,
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
-    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.",
     "recommendedQuestion": {
       "id": "send-now",
       "title": "Send Now",
@@ -815,7 +815,7 @@ Key fields:
     "recommendedNow": true,
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
-    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.",
     "recommendedQuestion": {
       "id": "send-now",
       "title": "Send Now",
@@ -962,7 +962,7 @@ Key fields:
     "recommendedNow": false,
     "command": "zk-agent suite",
     "paymentCommand": "zk-agent payment submit --wallet main --to <address> --amount <amount>",
-    "paymentUseWhen": "Use payment when the write path is not the whole question and you need local request capture, queueing, reporting, feed export, or approval tracking around the same wallet.",
+    "paymentUseWhen": "Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.",
     "recommendedQuestion": null,
     "recommendedJourney": null
   },
@@ -1422,6 +1422,7 @@ into:
 
 Current stable `recommendedCommands` shape on this surface:
 
+- `baseline`
 - `inspectRelay`
 - `createWallet`
 - `reapproveWallet`
@@ -1513,6 +1514,7 @@ Current stable `deploymentSummary` fields on this surface:
 
 Current stable `recommendedCommands` shape on this surface:
 
+- `baseline`
 - `createWallet`
 - `reapproveWallet`
 - `restartWithPublicOrigin`
@@ -1523,6 +1525,63 @@ Current stable `relayApprovalPaths` shape on this surface:
 
 - `createWallet`
 - `reapproveWallet`
+
+## `zk-agent relay baseline`
+
+This is the packaged hosted-approval baseline surface for one relay URL.
+
+Current stable top-level fields:
+
+- `ok`
+- `status`
+- `relayUrl`
+- `walletName`
+- `baseline`
+- `recommendedCommands`
+
+Current stable `baseline` fields on this surface:
+
+- `format`
+- `version`
+- `generatedAt`
+- `relayUrl`
+- `walletName`
+- `mode`
+- `supportLevel`
+- `claim`
+- `createWalletPath`
+- `reapproveWalletPath`
+- `createWalletProofPath`
+- `reapproveWalletProofPath`
+- `rehearsal`
+- `inspection`
+- `notes`
+
+Current stable `claim` fields on this surface:
+
+- `externallyReachablePublicOrigin`
+- `sameOriginApprovalUi`
+- `sameHostFileState`
+- `hostedApprovalReady`
+- `approvalEndpointStatus`
+- `hostedReadinessStatus`
+
+Current stable `supportLevel` values on this surface:
+
+- `supported`
+- `needs-fix`
+- `incompatible`
+
+Current stable `recommendedCommands` shape on this surface:
+
+- `baseline`
+- `inspect`
+- `createWallet`
+- `reapproveWallet`
+- `walletStatus`
+- `rehearsalPlan`
+- `rehearsalSingleRun`
+- `rehearsalRepeatedRun`
 
 ## `zk-agent wallet create --relay-url <url>`
 
@@ -2972,6 +3031,57 @@ payment service layer, so `report.requests[].nextAction`,
 real next-step distribution after wallet approval and signer blockers are
 applied, not only the raw settlement lifecycle.
 
+### `payment workspace`
+
+Current stable top-level fields:
+
+- `ok`
+- `workspace`
+- `recommendedCommands`
+
+`payment workspace` is the product-style cross-request Agent Pay surface. It
+packages the current local report, dashboard summary, wallet-aware queue, and
+integration-ready feed into one stable runtime contract so callers do not need
+to stitch those slices together manually.
+
+Current stable `workspace` fields:
+
+- `format`
+- `version`
+- `generatedAt`
+- `source`
+- `filters`
+- `summary`
+- `report`
+- `dashboard`
+- `feed`
+- `queue`
+
+Current stable `workspace.filters` fields:
+
+- `walletName`
+- `status`
+- `recentActivityLimit`
+- `queueLimit`
+- `walletLimit`
+- `feedLimit`
+
+Current stable `workspace.summary` fields:
+
+- `totalRequests`
+- `distinctWalletCount`
+- `actionableRequests`
+- `readyToExecuteRequests`
+- `approvalBlockedRequests`
+- `signerBlockedRequests`
+- `walletLinkBlockedRequests`
+- `awaitingConfirmationRequests`
+- `retryableRequests`
+- `queuedRequests`
+- `feedItems`
+- `recentActivityCount`
+- `latestActivityAt`
+
 ### `payment dashboard`
 
 Current stable top-level fields:
@@ -2980,10 +3090,9 @@ Current stable top-level fields:
 - `dashboard`
 - `recommendedCommands`
 
-`payment dashboard` is the first cross-request Agent Pay dashboard surface. It
-compresses the current local report and actionable queue into one runtime view
-that is easier for operator dashboards, backend services, or agent harnesses to
-consume without reassembling several lower-level reads.
+`payment dashboard` is the dashboard slice inside the broader `payment
+workspace` surface. It keeps the compact runtime summary stable for callers
+that only want the dashboard view without the full workspace bundle.
 
 Current stable `dashboard` fields:
 

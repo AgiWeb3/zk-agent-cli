@@ -11,6 +11,7 @@ import {
   buildStoredPaymentRequestsFeed,
   buildStoredPaymentRequestsQueue,
   buildStoredPaymentRequestsReport,
+  buildStoredPaymentRequestsWorkspace,
   getStoredPaymentRequestApproval,
   createStoredPaymentRequest,
   describeStoredPaymentRequest,
@@ -51,7 +52,8 @@ import {
   type PaymentRequestRecord,
   type PaymentRequestsQueueView,
   type PaymentRequestSettlementView,
-  type PaymentRequestStatus
+  type PaymentRequestStatus,
+  type PaymentRequestsWorkspaceView
 } from '@zk-agent/agent-pay';
 import type { PaymasterMode } from '@zk-agent/agent-session-protocol';
 
@@ -72,6 +74,7 @@ import {
   buildPaymentQueueRecommendedCommand,
   buildPaymentQuoteRecommendedCommand,
   buildPaymentReportRecommendedCommand,
+  buildPaymentWorkspaceRecommendedCommand,
   buildPaymentReconcileRecommendedCommand,
   buildPaymentRefreshQuoteRecommendedCommand,
   buildPaymentRemoveRecommendedCommand,
@@ -137,6 +140,15 @@ interface PaymentFeedOptions {
   wallet?: string;
   status?: string;
   limit?: string;
+}
+
+interface PaymentWorkspaceOptions {
+  wallet?: string;
+  status?: string;
+  queueLimit?: string;
+  walletLimit?: string;
+  activityLimit?: string;
+  feedLimit?: string;
 }
 
 interface PaymentApprovalOptions {
@@ -378,6 +390,7 @@ function buildPaymentRecommendedCommands(
 
   return {
     submit: buildPaymentSubmitRecommendedCommand(),
+    workspace: buildPaymentWorkspaceRecommendedCommand(),
     dashboard: buildPaymentDashboardRecommendedCommand(),
     feed: buildPaymentFeedRecommendedCommand(),
     queue: buildPaymentQueueRecommendedCommand(),
@@ -1134,6 +1147,70 @@ function paymentIngressLines(input: {
   ];
 }
 
+function paymentWorkspaceLines(
+  workspace: PaymentRequestsWorkspaceView
+): Array<[string, string]> {
+  const lines: Array<[string, string]> = [
+    ['generated', workspace.generatedAt],
+    ['source', workspace.source],
+    ['requests', String(workspace.summary.totalRequests)],
+    ['wallet groups', String(workspace.summary.distinctWalletCount)],
+    ['actionable', String(workspace.summary.actionableRequests)],
+    ['ready to execute', String(workspace.summary.readyToExecuteRequests)],
+    ['approval blocked', String(workspace.summary.approvalBlockedRequests)],
+    ['signer blocked', String(workspace.summary.signerBlockedRequests)],
+    ['wallet link blocked', String(workspace.summary.walletLinkBlockedRequests)],
+    ['awaiting confirmation', String(workspace.summary.awaitingConfirmationRequests)],
+    ['retryable', String(workspace.summary.retryableRequests)],
+    ['queue items', String(workspace.summary.queuedRequests)],
+    ['feed items', String(workspace.summary.feedItems)],
+    ['recent activity', String(workspace.summary.recentActivityCount)],
+    ['workspace', buildPaymentWorkspaceRecommendedCommand()],
+    ['dashboard', buildPaymentDashboardRecommendedCommand()],
+    ['feed', buildPaymentFeedRecommendedCommand()],
+    ['queue', buildPaymentQueueRecommendedCommand()],
+    ['report', buildPaymentReportRecommendedCommand()]
+  ];
+
+  if (workspace.filters.walletName) {
+    lines.splice(2, 0, ['wallet filter', workspace.filters.walletName]);
+  }
+  if (workspace.filters.status) {
+    lines.splice(workspace.filters.walletName ? 3 : 2, 0, [
+      'status filter',
+      workspace.filters.status
+    ]);
+  }
+  if (workspace.summary.latestActivityAt) {
+    lines.push(['latest activity', workspace.summary.latestActivityAt]);
+  }
+
+  for (const wallet of workspace.dashboard.wallets.slice(0, 3)) {
+    lines.push([
+      'wallet',
+      `${wallet.walletName} actionable=${wallet.actionableRequests} next=${wallet.primaryNextAction} route=${wallet.primaryRouteKind}`
+    ]);
+  }
+
+  for (const item of workspace.queue.items.slice(0, 3)) {
+    lines.push([
+      'queue item',
+      `${item.descriptor.requestId} ${formatPaymentAsset(item.descriptor)} -> ${item.descriptor.payee.address} (${item.descriptor.payer.walletName})`
+    ]);
+    lines.push(['next action', `${item.next.recommendedAction} (${item.next.route.kind})`]);
+  }
+
+  for (const item of workspace.feed.items.slice(0, 3)) {
+    lines.push([
+      'feed item',
+      `${item.requestId} ${item.handoff.intent.asset.amount} ${item.handoff.intent.asset.symbol || item.handoff.intent.asset.kind} -> ${item.handoff.intent.payee.address} (${item.walletName})`
+    ]);
+    lines.push(['feed next', `${item.nextAction} (${item.routeKind})`]);
+  }
+
+  return lines;
+}
+
 function paymentDashboardLines(
   dashboard: PaymentRequestsDashboardView
 ): Array<[string, string]> {
@@ -1150,6 +1227,7 @@ function paymentDashboardLines(
     ['retryable', String(dashboard.summary.retryableRequests)],
     ['queue shown', String(dashboard.queue.length)],
     ['wallets shown', String(dashboard.wallets.length)],
+    ['workspace', buildPaymentWorkspaceRecommendedCommand()],
     ['dashboard', buildPaymentDashboardRecommendedCommand()],
     ['feed', buildPaymentFeedRecommendedCommand()],
     ['queue', buildPaymentQueueRecommendedCommand()],
@@ -1208,6 +1286,7 @@ function paymentFeedLines(feed: PaymentRequestsFeedView): Array<[string, string]
     ['awaiting confirmation', String(feed.summary.awaitingConfirmationRequests)],
     ['retryable', String(feed.summary.retryableRequests)],
     ['items shown', String(feed.items.length)],
+    ['workspace', buildPaymentWorkspaceRecommendedCommand()],
     ['feed', buildPaymentFeedRecommendedCommand()],
     ['dashboard', buildPaymentDashboardRecommendedCommand()],
     ['queue', buildPaymentQueueRecommendedCommand()],
@@ -1247,6 +1326,7 @@ function paymentReportLines(report: PaymentRequestsReportView): Array<[string, s
     ['expired', String(report.summary.expiredRequests)],
     ['cancelled', String(report.summary.cancelledRequests)],
     ['history events', String(report.summary.historyEventCount)],
+    ['workspace', buildPaymentWorkspaceRecommendedCommand()],
     ['queue', buildPaymentQueueRecommendedCommand()],
     ['report', buildPaymentReportRecommendedCommand()],
     ['list', buildPaymentListRecommendedCommand()]
@@ -1333,6 +1413,7 @@ function paymentQueueLines(queue: PaymentRequestsQueueView): Array<[string, stri
   const lines: Array<[string, string]> = [
     ['generated', queue.generatedAt],
     ['items', String(queue.count)],
+    ['workspace', buildPaymentWorkspaceRecommendedCommand()],
     ['queue', buildPaymentQueueRecommendedCommand()],
     ['report', buildPaymentReportRecommendedCommand()],
     ['list', buildPaymentListRecommendedCommand()]
@@ -1451,7 +1532,7 @@ function buildPaymentListSummary(record: PaymentRequestRecord): string {
 
 export function createPaymentCommand(): Command {
   const payment = new Command('payment').description(
-    'Manage local-first Agent Pay request records separately from the execution-layer workflow and send commands'
+    'Capture and operate local-first Agent Pay requests around the direct execution-layer workflow and send commands'
   );
 
   payment.addHelpText(
@@ -1459,26 +1540,31 @@ export function createPaymentCommand(): Command {
     [
       '',
       '  Payment request surface:',
-      '    Use this layer to capture payment intent, request parties, and local settlement state before or after execution.',
+      '    Use this layer when execution is not the whole story and you need request capture, follow-up, sharing, reporting, or approval repair around the write path.',
+      '    Use `workflow pay` when the wallet is ready and the goal is "send value now".',
+      '    Use `payment` when you need a durable local request and follow-up surface before or after execution.',
+      '    `payment` does not replace the write path; it surrounds `workflow pay` and `send-token` with request state, exports, and repair guidance.',
       '    `submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
+      '    `workspace` is the product-style cross-request workspace that packages dashboard, queue, report, and feed into one public surface.',
       '    `dashboard` is the cross-request dashboard summary above the local report and queue primitives.',
       '    `feed` is the integration-ready cross-request batch feed for external dashboards, agents, or backend ingestion.',
       '    `handoff` is the integration-ready single-request bundle for external dashboards, agents, or backend ingestion.',
       '    `parties` is the stable request parties model with separate local and share-safe payer views.',
       '    `share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
-      '    `workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle.',
+      '    `workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them.',
       '',
       '  Fastest proof path:',
       '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
       '    zk-agent payment next --request-id <id>',
       '    zk-agent payment approval --request-id <id>',
-      '    zk-agent payment dashboard',
+      '    zk-agent payment workspace',
       '    zk-agent payment handoff --request-id <id>',
       '    zk-agent payment feed',
-      '    This proves compact ingress -> wallet-aware follow-up -> approval readiness -> dashboard summary -> integration-ready export.',
+      '    This proves compact ingress -> wallet-aware follow-up -> approval readiness -> cross-request workspace -> integration-ready export.',
       '',
       '  Start here:',
       '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
+      '    zk-agent payment workspace',
       '    zk-agent payment dashboard',
       '    zk-agent payment feed',
       '    zk-agent payment queue',
@@ -1492,6 +1578,7 @@ export function createPaymentCommand(): Command {
       '',
       '  Choose by question:',
       '    `next` / `approval`: what is blocking this one request right now?',
+      '    `workspace`: what is the current product-style cross-request view?',
       '    `dashboard`: what is the current dashboard summary across requests?',
       '    `handoff`: what is the stable single-request integration bundle?',
       '    `feed`: what is the stable cross-request integration feed?',
@@ -1519,6 +1606,7 @@ export function createPaymentCommand(): Command {
       '    zk-agent payment create --wallet main --to <address> --amount <amount> --symbol USDC',
       '',
       '  Stored request management:',
+      '    zk-agent payment workspace',
       '    zk-agent payment dashboard',
       '    zk-agent payment feed',
       '    zk-agent payment queue',
@@ -1680,9 +1768,65 @@ export function createPaymentCommand(): Command {
     });
 
   payment
+    .command('workspace')
+    .description(
+      'Build the product-style Agent Pay workspace that packages dashboard, queue, report, and feed'
+    )
+    .option('--wallet <name>', 'Optional payer wallet filter')
+    .option(
+      '--status <status>',
+      'Optional status filter: draft, approval_pending, ready, paid, failed, expired, or cancelled'
+    )
+    .option('--queue-limit <count>', 'Optional maximum number of queue items to return')
+    .option('--wallet-limit <count>', 'Optional maximum number of wallet summaries')
+    .option('--activity-limit <count>', 'Optional recent-activity limit for the report/dashboard slices')
+    .option('--feed-limit <count>', 'Optional maximum number of feed items to return')
+    .action(async (options: PaymentWorkspaceOptions) => {
+      const statusFilter = options.status ? resolvePaymentStatus(options.status) : undefined;
+      const queueLimit = resolvePositiveInteger(options.queueLimit, '--queue-limit');
+      const walletLimit = resolvePositiveInteger(options.walletLimit, '--wallet-limit');
+      const recentActivityLimit = resolvePositiveInteger(
+        options.activityLimit,
+        '--activity-limit'
+      );
+      const feedLimit = resolvePositiveInteger(options.feedLimit, '--feed-limit');
+      const result = await buildStoredPaymentRequestsWorkspace({
+        walletName: options.wallet,
+        status: statusFilter,
+        queueLimit,
+        walletLimit,
+        recentActivityLimit,
+        feedLimit
+      });
+
+      printResult(paymentWorkspaceLines(result.workspace), {
+        ok: true,
+        workspace: {
+          ...result.workspace,
+          queue: {
+            ...result.workspace.queue,
+            items: result.workspace.queue.items.map((item) => ({
+              descriptor: item.descriptor,
+              executionPlan: buildPaymentExecutionPlanJson(item.executionPlan),
+              next: item.next
+            }))
+          }
+        },
+        recommendedCommands: {
+          workspace: buildPaymentWorkspaceRecommendedCommand(),
+          dashboard: buildPaymentDashboardRecommendedCommand(),
+          feed: buildPaymentFeedRecommendedCommand(),
+          queue: buildPaymentQueueRecommendedCommand(),
+          report: buildPaymentReportRecommendedCommand(),
+          submit: buildPaymentSubmitRecommendedCommand()
+        }
+      });
+    });
+
+  payment
     .command('dashboard')
     .description(
-      'Build a cross-request Agent Pay dashboard summary above the current local report and queue'
+      'Build the dashboard slice inside the cross-request Agent Pay workspace'
     )
     .option('--wallet <name>', 'Optional payer wallet filter')
     .option(
@@ -1712,6 +1856,7 @@ export function createPaymentCommand(): Command {
         ok: true,
         dashboard: result.dashboard,
         recommendedCommands: {
+          workspace: buildPaymentWorkspaceRecommendedCommand(),
           dashboard: buildPaymentDashboardRecommendedCommand(),
           feed: buildPaymentFeedRecommendedCommand(),
           queue: buildPaymentQueueRecommendedCommand(),
@@ -1724,7 +1869,7 @@ export function createPaymentCommand(): Command {
   payment
     .command('feed')
     .description(
-      'Build an integration-ready cross-request Agent Pay feed for external dashboards, agents, or backend ingestion'
+      'Build the integration-ready feed slice inside the cross-request Agent Pay workspace'
     )
     .option('--wallet <name>', 'Optional payer wallet filter')
     .option(
@@ -1745,6 +1890,7 @@ export function createPaymentCommand(): Command {
         ok: true,
         feed: result.feed,
         recommendedCommands: {
+          workspace: buildPaymentWorkspaceRecommendedCommand(),
           dashboard: buildPaymentDashboardRecommendedCommand(),
           feed: buildPaymentFeedRecommendedCommand(),
           queue: buildPaymentQueueRecommendedCommand(),
@@ -1757,7 +1903,7 @@ export function createPaymentCommand(): Command {
   payment
     .command('queue')
     .description(
-      'Build a wallet-aware cross-request Agent Pay queue for platform-style request follow-up'
+      'Build the wallet-aware queue slice inside the cross-request Agent Pay workspace'
     )
     .option('--wallet <name>', 'Optional payer wallet filter')
     .option(
@@ -1785,6 +1931,7 @@ export function createPaymentCommand(): Command {
           }))
         },
         recommendedCommands: {
+          workspace: buildPaymentWorkspaceRecommendedCommand(),
           dashboard: buildPaymentDashboardRecommendedCommand(),
           feed: buildPaymentFeedRecommendedCommand(),
           queue: buildPaymentQueueRecommendedCommand(),
@@ -1797,7 +1944,7 @@ export function createPaymentCommand(): Command {
 
   payment
     .command('report')
-    .description('Build a cross-request local Agent Pay report with recent activity')
+    .description('Build the local report slice inside the cross-request Agent Pay workspace')
     .option('--wallet <name>', 'Optional payer wallet filter')
     .option(
       '--status <status>',
@@ -1817,6 +1964,7 @@ export function createPaymentCommand(): Command {
         ok: true,
         report: result.report,
         recommendedCommands: {
+          workspace: buildPaymentWorkspaceRecommendedCommand(),
           dashboard: buildPaymentDashboardRecommendedCommand(),
           feed: buildPaymentFeedRecommendedCommand(),
           queue: buildPaymentQueueRecommendedCommand(),
