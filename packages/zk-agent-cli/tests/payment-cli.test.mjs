@@ -84,26 +84,134 @@ test('payment help exposes the compact proof path and integration routing', asyn
     const env = createCliEnv(homeDir);
     const help = await runCliText(['payment', '--help'], env);
 
+    assert.match(help, /Agent Pay public shell:/);
+    assert.match(help, /`submit`: capture one request through the compact local-first ingress surface/);
+    assert.match(help, /`workspace`: review the cross-request operator view/);
+    assert.match(help, /`handoff`: export one stable single-request integration bundle/);
+    assert.match(help, /`feed`: export the stable cross-request batch view/);
+    assert.match(help, /If you only remember one route: submit -> next -> approval -> workspace -> handoff -> feed/);
     assert.match(help, /Payment request surface:/);
     assert.match(help, /Use this layer when execution is not the whole story and you need request capture, follow-up, sharing, reporting, or approval repair around the write path/);
-    assert.match(help, /Use `workflow pay` when the wallet is ready and the goal is "send value now"/);
+    assert.match(help, /Use `pay` when the wallet is ready and the goal is "send value now"/);
     assert.match(help, /Use `payment` when you need a durable local request and follow-up surface before or after execution/);
-    assert.match(help, /`payment` does not replace the write path; it surrounds `workflow pay` and `send-token` with request state, exports, and repair guidance/);
+    assert.match(help, /Use `suite` when wallet readiness is already clear but the question is still broader than one request surface/);
+    assert.match(help, /`pay` is the public shortcut; `workflow pay` remains the scoped workflow form/);
+    assert.match(help, /`payment` does not replace the write path; it surrounds `pay`, `workflow pay`, and `send-token` with request state, exports, and repair guidance/);
     assert.match(help, /Fastest proof path:/);
-    assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent submit --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment next --request-id <id>/);
     assert.match(help, /zk-agent payment approval --request-id <id>/);
-    assert.match(help, /zk-agent payment workspace/);
-    assert.match(help, /zk-agent payment dashboard/);
-    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent workspace/);
+    assert.match(help, /Public start here:/);
     assert.match(help, /zk-agent payment feed/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /Operator views when the request layer gets broader:/);
+    assert.match(help, /zk-agent payment dashboard/);
+    assert.match(help, /zk-agent payment queue/);
+    assert.match(help, /zk-agent payment report/);
+    assert.match(help, /zk-agent payment sync-approval --request-id <id>/);
+    assert.match(help, /zk-agent payment inspect --request-id <id>/);
+    assert.match(help, /zk-agent payment parties --request-id <id>/);
     assert.match(help, /This proves compact ingress -> wallet-aware follow-up -> approval readiness -> cross-request workspace -> integration-ready export/);
     assert.match(help, /Choose by question:/);
+    assert.match(help, /`submit`: I need to capture one payment request now\./);
     assert.match(help, /`next` \/ `approval`: what is blocking this one request right now\?/);
-    assert.match(help, /`workspace`: what is the current product-style cross-request view\?/);
+    assert.match(help, /`workspace`: what is the current cross-request operator workspace\?/);
     assert.match(help, /`dashboard`: what is the current dashboard summary across requests\?/);
     assert.match(help, /`handoff`: what is the stable single-request integration bundle\?/);
     assert.match(help, /`feed`: what is the stable cross-request integration feed\?/);
+    assert.match(help, /`suite`: I still need the packaged catalog across requests, discovery, funding, paymaster, and remote recovery\./);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('payment workspace help exposes the workbench route', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-payment-workspace-help-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['payment', 'workspace', '--help'], env);
+
+    assert.match(help, /Product workspace surface:/);
+    assert.match(
+      help,
+      /Use this when you need one cross-request Agent Pay workspace instead of stitching dashboard, queue, report, and feed together manually\./
+    );
+    assert.match(help, /Public shortcut: zk-agent workspace\./);
+    assert.match(help, /Shortest route into workspace: submit -> next -> approval -> workspace\./);
+    assert.match(
+      help,
+      /Stay on `dashboard`, `queue`, `report`, or `feed` only when the workspace question has already narrowed to one slice\./
+    );
+    assert.match(
+      help,
+      /Stay on `payment next`, `payment approval`, or `payment handoff` when the question is still one request lifecycle\./
+    );
+    assert.match(help, /zk-agent payment workspace/);
+    assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent payment next --request-id <id>/);
+    assert.match(help, /zk-agent payment approval --request-id <id>/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment feed/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('top-level workspace help exposes the public shortcut', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-workspace-help-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['workspace', '--help'], env);
+
+    assert.match(help, /Public workspace shortcut:/);
+    assert.match(
+      help,
+      /Use this when you already know the current question is the cross-request Agent Pay workbench\./
+    );
+    assert.match(help, /This is the top-level shortcut for `zk-agent payment workspace`\./);
+    assert.match(help, /Stay on `suite` when the question is broader than the Agent Pay workbench\./);
+    assert.match(
+      help,
+      /Stay on `payment next`, `payment approval`, or `payment handoff` when the question is still one request lifecycle\./
+    );
+    assert.match(help, /zk-agent workspace/);
+    assert.match(help, /zk-agent submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent payment next --request-id <id>/);
+    assert.match(help, /zk-agent payment approval --request-id <id>/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment feed/);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('top-level submit help exposes the public shortcut', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-submit-help-'));
+
+  try {
+    const env = createCliEnv(homeDir);
+    const help = await runCliText(['submit', '--help'], env);
+
+    assert.match(help, /Public submit shortcut:/);
+    assert.match(
+      help,
+      /Use this when execution is no longer the whole story and you want the shortest Agent Pay ingress path\./
+    );
+    assert.match(help, /This is the top-level shortcut for `zk-agent payment submit`\./);
+    assert.match(help, /Stay on `pay` when the question is simply "send value now"\./);
+    assert.match(
+      help,
+      /Stay on `workspace` when the current question is already the cross-request Agent Pay workbench\./
+    );
+    assert.match(help, /zk-agent submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent payment next --request-id <id>/);
+    assert.match(help, /zk-agent payment approval --request-id <id>/);
+    assert.match(help, /zk-agent workspace/);
+    assert.match(help, /zk-agent payment handoff --request-id <id>/);
+    assert.match(help, /zk-agent payment feed/);
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -693,7 +801,99 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
     assert.equal(workspace.workspace.queue.count, 2);
     assert.equal(workspace.workspace.feed.items.length, 1);
     assert.equal(workspace.workspace.report.summary.totalRequests, 2);
+    assert.match(workspace.recommendedCommands.submit, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
     assert.match(workspace.recommendedCommands.workspace, /zk-agent payment workspace/);
+    assert.match(workspace.recommendedCommands.next, /zk-agent payment next --request-id <request-id>/);
+    assert.match(workspace.recommendedCommands.approval, /zk-agent payment approval --request-id <request-id>/);
+    assert.match(workspace.recommendedCommands.handoff, /zk-agent payment handoff --request-id <request-id>/);
+
+    const workspaceShortcut = await runCliJson(
+      [
+        'workspace',
+        '--wallet',
+        'main',
+        '--queue-limit',
+        '2',
+        '--wallet-limit',
+        '1',
+        '--activity-limit',
+        '2',
+        '--feed-limit',
+        '1'
+      ],
+      env
+    );
+    assert.equal(workspaceShortcut.workspace.format, 'zk-agent-payment-workspace');
+    assert.equal(workspaceShortcut.workspace.summary.totalRequests, 2);
+    assert.equal(workspaceShortcut.workspace.queue.count, 2);
+    assert.equal(workspaceShortcut.workspace.feed.items.length, 1);
+    assert.match(
+      workspaceShortcut.recommendedCommands.submit,
+      /zk-agent submit --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(workspaceShortcut.recommendedCommands.workspace, /zk-agent workspace/);
+    assert.match(
+      workspaceShortcut.recommendedCommands.paymentSubmit,
+      /zk-agent payment submit --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(
+      workspaceShortcut.recommendedCommands.paymentWorkspace,
+      /zk-agent payment workspace/
+    );
+
+    const workspaceTextEnv = { ...env, ZK_AGENT_OUTPUT: 'text' };
+    const workspaceText = await runCliText(
+      [
+        'payment',
+        'workspace',
+        '--wallet',
+        'main',
+        '--queue-limit',
+        '2',
+        '--wallet-limit',
+        '1',
+        '--activity-limit',
+        '2',
+        '--feed-limit',
+        '1'
+      ],
+      workspaceTextEnv
+    );
+    assert.match(workspaceText, /surface: cross-request Agent Pay workspace/);
+    assert.match(
+      workspaceText,
+      /use when: request capture is no longer enough and you need one current operator view across requests/
+    );
+    assert.match(workspaceText, /public shell: submit -> next -> approval -> workspace -> handoff -> feed/);
+    assert.match(
+      workspaceText,
+      /submit: zk-agent payment submit --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(workspaceText, /payment next: zk-agent payment next --request-id <request-id>/);
+    assert.match(workspaceText, /approval: zk-agent payment approval --request-id <request-id>/);
+    assert.match(workspaceText, /handoff: zk-agent payment handoff --request-id <request-id>/);
+
+    const workspaceShortcutText = await runCliText(
+      [
+        'workspace',
+        '--wallet',
+        'main',
+        '--queue-limit',
+        '2',
+        '--wallet-limit',
+        '1',
+        '--activity-limit',
+        '2',
+        '--feed-limit',
+        '1'
+      ],
+      workspaceTextEnv
+    );
+    assert.match(
+      workspaceShortcutText,
+      /submit: zk-agent submit --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(workspaceShortcutText, /workspace: zk-agent workspace/);
 
     const dashboard = await runCliJson(
       [
@@ -760,6 +960,57 @@ test('payment command creates, shows, updates, lists, and removes a local paymen
 
     const empty = await runCliJson(['payment', 'list'], env);
     assert.equal(empty.count, 0);
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test('top-level submit exposes the compact ingress contract with public recommended commands', async () => {
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), 'zk-agent-submit-cli-'));
+
+  try {
+    await saveWallet(homeDir);
+    const env = createCliEnv(homeDir);
+
+    const submitted = await runCliJson(
+      [
+        'submit',
+        '--wallet',
+        'main',
+        '--to',
+        '0x3333333333333333333333333333333333333333',
+        '--amount',
+        '0.02',
+        '--description',
+        'Public shell submit'
+      ],
+      env
+    );
+
+    assert.equal(submitted.ok, true);
+    assert.equal(submitted.ingress.surface, 'workflow-pay');
+    assert.equal(submitted.ingress.walletName, 'main');
+    assert.match(
+      submitted.recommendedCommands.submit,
+      /zk-agent submit --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(
+      submitted.recommendedCommands.paymentSubmit,
+      /zk-agent payment submit --wallet main --to <address> --amount <amount>/
+    );
+    assert.match(submitted.recommendedCommands.workspace, /zk-agent workspace/);
+    assert.match(
+      submitted.recommendedCommands.paymentWorkspace,
+      /zk-agent payment workspace/
+    );
+    assert.match(
+      submitted.recommendedCommands.next,
+      /zk-agent payment next --request-id [a-z0-9-]+/
+    );
+    assert.match(
+      submitted.recommendedCommands.approval,
+      /zk-agent payment approval --request-id [a-z0-9-]+/
+    );
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -1138,11 +1389,19 @@ test('payment submit exposes the compact ingress contract and help text explains
     assert.equal(reconciledHistory.filters.status, 'ready');
 
     const help = await runCliText(['payment', '--help'], env);
+    assert.match(help, /Agent Pay public shell:/);
+    assert.match(help, /`submit`: capture one request through the compact local-first ingress surface/);
+    assert.match(help, /`workspace`: review the cross-request operator view/);
+    assert.match(help, /`handoff`: export one stable single-request integration bundle/);
+    assert.match(help, /`feed`: export the stable cross-request batch view/);
+    assert.match(help, /If you only remember one route: submit -> next -> approval -> workspace -> handoff -> feed/);
     assert.match(help, /Payment request surface:/);
     assert.match(help, /Use this layer when execution is not the whole story and you need request capture, follow-up, sharing, reporting, or approval repair around the write path/);
-    assert.match(help, /Use `workflow pay` when the wallet is ready and the goal is "send value now"/);
+    assert.match(help, /Use `pay` when the wallet is ready and the goal is "send value now"/);
     assert.match(help, /Use `payment` when you need a durable local request and follow-up surface before or after execution/);
-    assert.match(help, /`payment` does not replace the write path; it surrounds `workflow pay` and `send-token` with request state, exports, and repair guidance/);
+    assert.match(help, /Use `suite` when wallet readiness is already clear but the question is still broader than one request surface/);
+    assert.match(help, /`pay` is the public shortcut; `workflow pay` remains the scoped workflow form/);
+    assert.match(help, /`payment` does not replace the write path; it surrounds `pay`, `workflow pay`, and `send-token` with request state, exports, and repair guidance/);
     assert.match(help, /`submit` is the compact ingress write surface; `create` remains the lower-level local record primitive/);
     assert.match(help, /`workspace` is the product-style cross-request workspace that packages dashboard, queue, report, and feed into one public surface/);
     assert.match(help, /`dashboard` is the cross-request dashboard summary above the local report and queue primitives/);
@@ -1150,15 +1409,16 @@ test('payment submit exposes the compact ingress contract and help text explains
     assert.match(help, /`handoff` is the integration-ready single-request bundle for external dashboards, agents, or backend ingestion/);
     assert.match(help, /`parties` is the stable request parties model with separate local and share-safe payer views/);
     assert.match(help, /`share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences/);
-    assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
-    assert.match(help, /zk-agent payment workspace/);
+    assert.match(help, /zk-agent submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent workspace/);
     assert.match(help, /zk-agent payment dashboard/);
     assert.match(help, /zk-agent payment feed/);
     assert.match(help, /zk-agent payment queue/);
     assert.match(help, /zk-agent payment report/);
     assert.match(help, /zk-agent payment approval --request-id <id>/);
     assert.match(help, /zk-agent payment sync-approval --request-id <id>/);
-    assert.match(help, /workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them/);
+    assert.match(help, /`suite`: I still need the packaged catalog across requests, discovery, funding, paymaster, and remote recovery\./);
+    assert.match(help, /pay`, `workflow pay`, and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them/);
     assert.match(help, /zk-agent payment create --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment next --request-id <id>/);
     assert.match(help, /zk-agent payment inspect --request-id <id>/);

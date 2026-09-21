@@ -9,7 +9,7 @@ import {
   createSwapCommand,
   createWithdrawCommand
 } from '../src/commands/operations.ts';
-import { createWorkflowCommand } from '../src/commands/workflow.ts';
+import { createPayCommand, createWorkflowCommand } from '../src/commands/workflow.ts';
 
 function normalizeHelp(help: string): string {
   return help.replace(/\s+/g, ' ').trim();
@@ -22,6 +22,14 @@ test('workflow command exposes fund, auto, and pay as first-class subcommands', 
   assert.ok(names.includes('fund'));
   assert.ok(names.includes('auto'));
   assert.ok(names.includes('pay'));
+});
+
+test('top-level pay command exposes the flagship shortcut surface', () => {
+  const help = normalizeHelp(createPayCommand().helpInformation());
+
+  assert.equal(help.includes('Public shortcut for the flagship zkSync-native pay path'), true);
+  assert.equal(help.includes('--wallet <name> Wallet name'), true);
+  assert.equal(help.includes('--request-id <id> Load the workflow definition from a stored checkpoint'), true);
 });
 
 test('bridge command help marks to-chain as optional when a tracked default route exists', () => {

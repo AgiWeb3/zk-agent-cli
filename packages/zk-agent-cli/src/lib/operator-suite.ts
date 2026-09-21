@@ -12,13 +12,16 @@ import {
   buildPaymentWorkspaceRecommendedCommand,
   buildPaymasterFeeTokenResolveRecommendedCommand,
   buildPaymasterFeeTokensRecommendedCommand,
-  buildRelayInspectRecommendedCommand,
+  buildRelayBaselineRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildSubmitRecommendedCommand,
   buildSuiteRecommendedCommand,
+  buildTopLevelPayRecommendedCommand,
   buildTopLevelNextRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
   buildWalletReapproveRemoteRecommendedCommand,
   buildWalletStatusRecommendedCommand,
+  buildWorkspaceRecommendedCommand,
   buildWorkflowFundRecommendedCommand,
   buildWorkflowFundRunRecommendedCommand,
   buildWorkflowNextRecommendedCommand,
@@ -114,6 +117,7 @@ export interface OperatorSuiteJourneySummary {
   operatorQuestion: string;
   useWhen: string;
   startCommand: string;
+  publicStartCommand?: string;
   surface: OperatorSuiteSurface;
   categoryIds: OperatorSuiteEntry['category'][];
   entryIds: OperatorSuiteEntry['id'][];
@@ -126,6 +130,7 @@ export interface OperatorSuiteQuestionSummary {
   journeyId: OperatorSuiteJourneyId;
   surface: OperatorSuiteSurface;
   startCommand: string;
+  publicStartCommand?: string;
   useWhen: string;
 }
 
@@ -133,9 +138,11 @@ export interface OperatorSuiteRecommendedJourney {
   id: OperatorSuiteJourneyId;
   title: string;
   startCommand: string;
+  publicStartCommand?: string;
   surface: OperatorSuiteSurface;
   useWhen: string;
   proofPath?: string[];
+  publicProofPath?: string[];
 }
 
 export interface OperatorSuiteProofPathSummary {
@@ -151,7 +158,9 @@ export interface OperatorSuiteProofPathSummary {
   surface: OperatorSuiteSurface;
   useWhen: string;
   startCommand: string;
+  publicStartCommand?: string;
   proofPath: string[];
+  publicProofPath?: string[];
 }
 
 export interface OperatorSuitePayload {
@@ -173,6 +182,9 @@ export interface OperatorSuitePayload {
     discoverySurface: string;
     relaySurface: string;
     payment: string;
+    publicFlagship?: string;
+    publicPayment?: string;
+    publicWorkspace?: string;
     discovery: string;
     paymaster: string;
     funding: string;
@@ -194,16 +206,19 @@ export function buildOperatorSuitePayload(
   const chain = options.chain?.trim() || 'zksync-sepolia';
   const includeOnboarding = options.includeOnboarding === true;
   const flagshipCommand = buildWorkflowPayRecommendedCommand(walletName);
+  const publicFlagshipCommand = buildTopLevelPayRecommendedCommand(walletName);
   const inspectDefaults = buildDefaultsRecommendedCommand();
   const workflowSurfaceCommand = 'zk-agent workflow --help';
   const paymentSurfaceCommand = 'zk-agent payment --help';
   const relaySurfaceCommand = 'zk-agent relay --help';
   const discoveryCommand = buildAssetsRecommendedCommand(walletName);
   const paymentCommand = buildPaymentSubmitRecommendedCommand(walletName);
+  const publicPaymentCommand = buildSubmitRecommendedCommand(walletName);
+  const publicWorkspaceCommand = buildWorkspaceRecommendedCommand();
   const paymasterCommand = buildWorkflowPayRecommendedCommand(walletName, 'approval-based');
   const fundingCommand = buildWorkflowFundRecommendedCommand(walletName);
   const nextCommand = buildTopLevelNextRecommendedCommand(undefined, undefined, walletName);
-  const hostedRelayInspectCommand = buildRelayInspectRecommendedCommand('<url>');
+  const hostedRelayBaselineCommand = buildRelayBaselineRecommendedCommand('<url>', walletName);
   const hostedCreateWalletCommand = buildWalletCreateRemoteRecommendedCommand(
     '<url>',
     undefined,
@@ -231,7 +246,15 @@ export function buildOperatorSuitePayload(
             ? 'zk-agent doctor'
             : `zk-agent doctor --wallet ${walletName}`,
         localPath: preflightPaths.local,
-        remoteBrowserPath: preflightPaths.remoteBrowser,
+        remoteBrowserPath: preflightPaths.remoteBrowser?.length
+          ? [
+              'zk-agent setup',
+              nextCommand,
+              hostedRelayBaselineCommand,
+              hostedCreateWalletCommand,
+              nextCommand
+            ]
+          : preflightPaths.remoteBrowser,
         afterWalletReady: buildSuiteRecommendedCommand(walletName, chain)
       }
     : undefined;
@@ -257,7 +280,7 @@ export function buildOperatorSuitePayload(
       title: 'Agent Pay Requests',
       goal: 'Capture one payment request, prove the wallet-aware follow-up path, and then move the same request into workspace, handoff, feed, and report surfaces.',
       useWhen:
-        'Use this when a durable local request, follow-up, sharing, export, or approval repair flow is the real need around the same wallet write path.',
+        'Use this when the packaged question has already narrowed to a durable local request, follow-up, sharing, export, or approval repair flow around the same wallet write path.',
       primaryCommand: paymentCommand,
       surfaceCommand: paymentSurfaceCommand,
       supportingCommands: [
@@ -338,7 +361,7 @@ export function buildOperatorSuitePayload(
       goal: 'Validate a hosted relay URL and switch to the remote approval path when the browser is not colocated or a writable session must be reapproved remotely.',
       useWhen:
         'Use this when local callback is not viable, the browser is remote, or an expired writable session must be recovered through the single-host hosted relay baseline.',
-      primaryCommand: hostedRelayInspectCommand,
+      primaryCommand: hostedRelayBaselineCommand,
       surfaceCommand: relaySurfaceCommand,
       supportingCommands: [
         hostedCreateWalletCommand,
@@ -346,7 +369,7 @@ export function buildOperatorSuitePayload(
         `pnpm smoke:hosted-operated-baseline -- --wallet ${walletName} --relay-url <url> --reapprove --prompt-code --plan`
       ],
       proofPath: [
-        hostedRelayInspectCommand,
+        hostedRelayBaselineCommand,
         hostedReapproveCommand,
         buildWalletStatusRecommendedCommand(walletName)
       ],
@@ -420,13 +443,41 @@ export function buildOperatorSuitePayload(
         return undefined;
       case 'recover-remote-approval':
         return [
-          hostedRelayInspectCommand,
+          hostedRelayBaselineCommand,
           hostedReapproveCommand,
           buildWalletStatusRecommendedCommand(walletName)
         ];
       default: {
         const exhaustive: never = journeyId;
         throw new Error(`Unsupported suite journey proof path: ${String(exhaustive)}`);
+      }
+    }
+  }
+
+  function buildPublicJourneyProofPath(journeyId: OperatorSuiteJourneyId): string[] | undefined {
+    switch (journeyId) {
+      case 'send-value-now':
+        return [
+          publicFlagshipCommand,
+          buildWorkflowNextRecommendedCommand('<request-id>'),
+          buildWorkflowStatusRecommendedCommand('<request-id>')
+        ];
+      case 'capture-and-track-payments':
+        return [
+          publicPaymentCommand,
+          buildPaymentNextRecommendedCommand('<request-id>'),
+          buildPaymentApprovalRecommendedCommand('<request-id>'),
+          publicWorkspaceCommand,
+          buildPaymentHandoffRecommendedCommand('<request-id>'),
+          buildPaymentFeedRecommendedCommand()
+        ];
+      case 'inspect-before-acting':
+      case 'unstick-a-write':
+      case 'recover-remote-approval':
+        return undefined;
+      default: {
+        const exhaustive: never = journeyId;
+        throw new Error(`Unsupported public suite journey proof path: ${String(exhaustive)}`);
       }
     }
   }
@@ -439,6 +490,7 @@ export function buildOperatorSuitePayload(
       useWhen:
         'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
       startCommand: flagshipCommand,
+      publicStartCommand: publicFlagshipCommand,
       surface: 'workflow',
       categoryIds: ['operate'],
       entryIds: [flagship.id]
@@ -449,8 +501,9 @@ export function buildOperatorSuitePayload(
       operatorQuestion:
         'I need a durable payment request layer around the write path so I can capture, follow up, share, or repair payments instead of only executing immediately.',
       useWhen:
-        'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.',
+        'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.',
       startCommand: paymentCommand,
+      publicStartCommand: publicPaymentCommand,
       surface: 'payment',
       categoryIds: ['request'],
       entryIds: ['agent-pay-requests']
@@ -483,7 +536,7 @@ export function buildOperatorSuitePayload(
       operatorQuestion: 'The browser is remote or local callback is not viable, so approval must move to the hosted relay path.',
       useWhen:
         'Use this when a writable session must be recovered through the single-host hosted relay baseline.',
-      startCommand: hostedRelayInspectCommand,
+      startCommand: hostedRelayBaselineCommand,
       surface: 'relay',
       categoryIds: ['recover'],
       entryIds: ['hosted-approval-recovery']
@@ -497,6 +550,7 @@ export function buildOperatorSuitePayload(
       journeyId: 'send-value-now',
       surface: journeys[0].surface,
       startCommand: journeys[0].startCommand,
+      publicStartCommand: journeys[0].publicStartCommand,
       useWhen: journeys[0].useWhen
     },
     {
@@ -506,6 +560,7 @@ export function buildOperatorSuitePayload(
       journeyId: 'capture-and-track-payments',
       surface: journeys[1].surface,
       startCommand: journeys[1].startCommand,
+      publicStartCommand: journeys[1].publicStartCommand,
       useWhen: journeys[1].useWhen
     },
     {
@@ -540,9 +595,11 @@ export function buildOperatorSuitePayload(
     id: journeys[0].id,
     title: journeys[0].title,
     startCommand: journeys[0].startCommand,
+    publicStartCommand: journeys[0].publicStartCommand,
     surface: journeys[0].surface,
     useWhen: journeys[0].useWhen,
-    proofPath: buildJourneyProofPath(journeys[0].id)
+    proofPath: buildJourneyProofPath(journeys[0].id),
+    publicProofPath: buildPublicJourneyProofPath(journeys[0].id)
   };
   const proofPaths: OperatorSuiteProofPathSummary[] = [
     {
@@ -552,7 +609,10 @@ export function buildOperatorSuitePayload(
       surface: flagship.surface,
       useWhen: journeys[0].useWhen,
       startCommand: flagship.primaryCommand,
-      proofPath: buildJourneyProofPath('send-value-now') ?? [flagship.primaryCommand]
+      publicStartCommand: publicFlagshipCommand,
+      proofPath: buildJourneyProofPath('send-value-now') ?? [flagship.primaryCommand],
+      publicProofPath:
+        buildPublicJourneyProofPath('send-value-now') ?? [publicFlagshipCommand]
     },
     {
       id: 'agent-pay-requests',
@@ -561,7 +621,10 @@ export function buildOperatorSuitePayload(
       surface: slices[0].surface,
       useWhen: journeys[1].useWhen,
       startCommand: slices[0].primaryCommand,
-      proofPath: slices[0].proofPath ?? [slices[0].primaryCommand]
+      publicStartCommand: publicPaymentCommand,
+      proofPath: slices[0].proofPath ?? [slices[0].primaryCommand],
+      publicProofPath:
+        buildPublicJourneyProofPath('capture-and-track-payments') ?? [publicPaymentCommand]
     },
     {
       id: 'hosted-approval-recovery',
@@ -610,16 +673,63 @@ export function buildOperatorSuitePayload(
       discoverySurface: inspectDefaults,
       relaySurface: relaySurfaceCommand,
       payment: paymentCommand,
+      publicFlagship: publicFlagshipCommand,
+      publicPayment: publicPaymentCommand,
+      publicWorkspace: publicWorkspaceCommand,
       discovery: discoveryCommand,
       paymaster: paymasterCommand,
       funding: fundingCommand,
-      hostedApproval: hostedRelayInspectCommand,
+      hostedApproval: hostedRelayBaselineCommand,
       inspectDefaults
     }
   };
 }
 
 export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string, string]> {
+  const renderEntryPrimaryCommand = (entry: OperatorSuiteEntry): string => {
+    if (entry.id === 'flagship-pay') {
+      return payload.recommendedCommands.publicFlagship ?? entry.primaryCommand;
+    }
+
+    if (entry.id === 'agent-pay-requests') {
+      return payload.recommendedCommands.publicPayment ?? entry.primaryCommand;
+    }
+
+    return entry.primaryCommand;
+  };
+
+  const renderEntrySupportingCommands = (entry: OperatorSuiteEntry): string[] => {
+    if (entry.id !== 'agent-pay-requests') {
+      return entry.supportingCommands;
+    }
+
+    return entry.supportingCommands.map((command) =>
+      command === buildPaymentWorkspaceRecommendedCommand()
+        ? (payload.recommendedCommands.publicWorkspace ?? command)
+        : command
+    );
+  };
+
+  const renderEntryProofPath = (entry: OperatorSuiteEntry): string[] | undefined => {
+    if (!entry.proofPath) {
+      return undefined;
+    }
+
+    if (entry.id !== 'agent-pay-requests') {
+      return entry.proofPath;
+    }
+
+    return entry.proofPath.map((command) => {
+      if (command === entry.primaryCommand) {
+        return payload.recommendedCommands.publicPayment ?? command;
+      }
+      if (command === buildPaymentWorkspaceRecommendedCommand()) {
+        return payload.recommendedCommands.publicWorkspace ?? command;
+      }
+      return command;
+    });
+  };
+
   const preflightLines = payload.preflight
     ? [
         ['preflight', formatRecommendedPath(payload.preflight.localPath)] as [string, string],
@@ -636,11 +746,11 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     [`question ${question.id} title`, question.title],
     [`question ${question.id} journey`, question.journeyId],
     [`question ${question.id} surface`, question.surface],
-    [`question ${question.id} start`, question.startCommand],
+    [`question ${question.id} start`, question.publicStartCommand ?? question.startCommand],
     [`question ${question.id} when`, question.useWhen]
   ]);
   const journeyLines = payload.journeys.flatMap((journey): Array<[string, string]> => [
-    [`journey ${journey.id}`, journey.startCommand],
+    [`journey ${journey.id}`, journey.publicStartCommand ?? journey.startCommand],
     [`journey ${journey.id} surface`, journey.surface],
     [`journey ${journey.id} categories`, journey.categoryIds.join(' -> ')],
     [`journey ${journey.id} entries`, journey.entryIds.join(' -> ')],
@@ -650,10 +760,19 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     [`${entry.title.toLowerCase()} category`, entry.category],
     [`${entry.title.toLowerCase()} surface`, entry.surface],
     [`${entry.title.toLowerCase()} surface command`, entry.surfaceCommand],
-    [entry.title.toLowerCase(), formatRecommendedPath([entry.primaryCommand, ...entry.supportingCommands])],
+    [
+      entry.title.toLowerCase(),
+      formatRecommendedPath([
+        renderEntryPrimaryCommand(entry),
+        ...renderEntrySupportingCommands(entry)
+      ])
+    ],
     ...(
-      entry.proofPath
-        ? [[`${entry.title.toLowerCase()} proof path`, formatRecommendedPath(entry.proofPath)] as [string, string]]
+      renderEntryProofPath(entry)
+        ? [[
+            `${entry.title.toLowerCase()} proof path`,
+            formatRecommendedPath(renderEntryProofPath(entry) as string[])
+          ] as [string, string]]
         : []
     ),
     [`${entry.title.toLowerCase()} when`, entry.useWhen],
@@ -667,7 +786,7 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     [`${surface.surface} surface when`, surface.useWhen]
   ]);
   const proofPathLines = payload.proofPaths.flatMap((entry): Array<[string, string]> => [
-    [`proof ${entry.id}`, formatRecommendedPath(entry.proofPath)],
+    [`proof ${entry.id}`, formatRecommendedPath(entry.publicProofPath ?? entry.proofPath)],
     [`proof ${entry.id} journey`, entry.journeyId],
     [`proof ${entry.id} surface`, entry.surface],
     [`proof ${entry.id} when`, entry.useWhen]
@@ -682,11 +801,16 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     ['use when', payload.summary.useWhen],
     ['entry modes', payload.summary.entryModes.join(' -> ')],
     ['start here journey', payload.summary.startHereJourneyId],
-    ['start here', payload.recommendedJourney.startCommand],
+    ['start here', payload.recommendedJourney.publicStartCommand ?? payload.recommendedJourney.startCommand],
     ['start here surface', payload.recommendedJourney.surface],
     ['start here when', payload.recommendedJourney.useWhen],
     ...(payload.recommendedJourney.proofPath
-      ? [['start here proof path', formatRecommendedPath(payload.recommendedJourney.proofPath)] as [string, string]]
+      ? [[
+          'start here proof path',
+          formatRecommendedPath(
+            payload.recommendedJourney.publicProofPath ?? payload.recommendedJourney.proofPath
+          )
+        ] as [string, string]]
       : []),
     ['proof path ids', payload.proofPaths.map((entry) => entry.id).join(' -> ')],
     ['question ids', payload.questions.map((entry) => entry.id).join(' -> ')],
@@ -705,7 +829,7 @@ export function operatorSuiteLines(payload: OperatorSuitePayload): Array<[string
     [
       payload.flagship.title.toLowerCase(),
       formatRecommendedPath([
-        payload.flagship.primaryCommand,
+        payload.recommendedCommands.publicFlagship ?? payload.flagship.primaryCommand,
         buildTopLevelNextRecommendedCommand(undefined, undefined, payload.summary.walletName)
       ])
     ],

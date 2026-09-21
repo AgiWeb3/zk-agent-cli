@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const workspaceRoot = resolve(packageDir, '../..');
 const packDir = join(packageDir, '.release-pack');
+const releaseCheckStartMs = Date.now();
 const standaloneEnvKeys = [
   'ZK_AGENT_ACCOUNT_PROFILES_ROOT',
   'ZK_AGENT_OUTPUT',
@@ -95,6 +96,29 @@ function normalizeWhitespace(text) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function assertOrderedIncludes(text, snippets, message) {
+  const normalizedText = normalizeWhitespace(text);
+  let cursor = 0;
+
+  for (const snippet of snippets) {
+    const normalizedSnippet = normalizeWhitespace(snippet);
+    const index = normalizedText.indexOf(normalizedSnippet, cursor);
+    assert.notEqual(index, -1, `${message} Missing snippet: ${snippet}`);
+    cursor = index + normalizedSnippet.length;
+  }
+}
+
+function assertOrderedSection(text, heading, snippets, message) {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `${message} Missing heading: ${heading}`);
+  assertOrderedIncludes(text.slice(start), [heading, ...snippets], message);
+}
+
+function logReleaseCheckStep(message) {
+  const elapsedSeconds = ((Date.now() - releaseCheckStartMs) / 1000).toFixed(1);
+  process.stdout.write(`[release-check +${elapsedSeconds}s] ${message}\n`);
 }
 
 function assertReleaseMetadata(pkg) {
@@ -187,7 +211,7 @@ function assertPackageReadme(readme) {
       'Package README must explain the public start command.'
     ],
     [
-      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent pay --wallet main --to <address> --amount <amount>/,
       'Package README must document the shortest success path.'
     ],
     [
@@ -211,12 +235,24 @@ function assertPackageReadme(readme) {
       'Package README must keep the short payment-first product story visible.'
     ],
     [
+      /## What Makes It Different[\s\S]*local-first by default[\s\S]*fallback path[\s\S]*zkSync-native[\s\S]*paymaster-aware[\s\S]*Agent Pay[\s\S]*same wallet runtime[\s\S]*separate product/,
+      'Package README must keep the short product differentiation visible.'
+    ],
+    [
       /The three public proof paths today are:[\s\S]*flagship pay:[\s\S]*default ready-wallet zkSync-native send path[\s\S]*Agent Pay:[\s\S]*local request capture plus follow-up surfaces[\s\S]*hosted approval recovery:[\s\S]*remote-browser session recovery[\s\S]*single-host relay baseline/,
       'Package README must keep the three public proof paths visible.'
     ],
     [
-      /The fastest flagship proof path after wallet readiness is:[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>[\s\S]*zk-agent workflow next --request-id <id>[\s\S]*zk-agent workflow status --request-id <id>/,
+      /Choose between the two Agent Pay-facing surfaces this way:/,
+      'Package README must explain when to stay on payment versus suite.'
+    ],
+    [
+      /The fastest flagship proof path after wallet readiness is:[\s\S]*zk-agent pay --wallet main --to <address> --amount <amount>[\s\S]*zk-agent workflow next --request-id <id>[\s\S]*zk-agent workflow status --request-id <id>/,
       'Package README must keep the flagship proof path visible.'
+    ],
+    [
+      /If request capture is no longer enough and you need one current cross-request[\s\S]*zk-agent workspace[\s\S]*public shortcut to the Agent Pay workbench anchor above[\s\S]*dashboard, queue, report,[\s\S]*and feed\.[\s\S]*`zk-agent payment workspace`/,
+      'Package README must keep the Agent Pay workbench anchor visible.'
     ],
     [
       /When the browser is remote, the fastest hosted approval proof path on the[\s\S]*zk-agent relay baseline --relay-url <relay-url>[\s\S]*zk-agent wallet reapprove --name main --relay-url <relay-url> --wait-relay --prompt-code[\s\S]*zk-agent wallet status --name main/,
@@ -227,15 +263,27 @@ function assertPackageReadme(readme) {
       'Package README must keep the hosted wallet-create fallback visible.'
     ],
     [
-      /The current local-first Agent Pay entry surface is:[\s\S]*zk-agent payment submit --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment workspace[\s\S]*zk-agent payment dashboard[\s\S]*zk-agent payment feed[\s\S]*zk-agent payment queue[\s\S]*zk-agent payment report[\s\S]*zk-agent payment approval --request-id <id>/,
+      /The shortest way to think about Agent Pay is:[\s\S]*`submit`:[\s\S]*capture one payment request[\s\S]*`workspace`:[\s\S]*review the cross-request operator surface[\s\S]*`handoff`:[\s\S]*export one stable integration bundle[\s\S]*`feed`:[\s\S]*export the stable cross-request batch view/,
+      'Package README must keep the short Agent Pay public shell visible.'
+    ],
+    [
+      /Why Agent Pay instead of only direct execution:[\s\S]*capture one request before or after the write path[\s\S]*keep a cross-request operator workspace around the same wallet runtime[\s\S]*export stable handoff and feed views for external agents, dashboards, or backends/,
+      'Package README must keep the short Agent Pay value proposition visible.'
+    ],
+    [
+      /The current local-first Agent Pay entry surface is:[\s\S]*zk-agent submit --wallet main --to <address> --amount <amount>[\s\S]*zk-agent workspace[\s\S]*zk-agent payment dashboard[\s\S]*zk-agent payment feed[\s\S]*zk-agent payment queue[\s\S]*zk-agent payment report[\s\S]*zk-agent payment approval --request-id <id>[\s\S]*The scoped equivalents remain `zk-agent payment submit` and[\s\S]*`zk-agent payment workspace`\./,
       'Package README must keep the current local-first Agent Pay entry surface visible.'
+    ],
+    [
+      /Inside `suite`, the shortest way to think about Agent Pay is:[\s\S]*`submit`:[\s\S]*capture one payment request[\s\S]*`workspace`:[\s\S]*review the cross-request operator surface[\s\S]*`handoff`:[\s\S]*export one stable single-request bundle[\s\S]*`feed`:[\s\S]*export the stable cross-request batch view[\s\S]*The shortest tracked route inside `suite` remains:[\s\S]*`submit -> next -> approval -> workspace -> handoff -> feed`\./,
+      'Package README must keep the short Agent Pay suite shell visible.'
     ],
     [
       /zk-agent suite[\s\S]*(post-flagship|packaged surface)/,
       'Package README must keep the operator-suite surface visible.'
     ],
     [
-      /## Choose the right surface[\s\S]*zk-agent next[\s\S]*zk-agent doctor[\s\S]*zk-agent wallet status --name <wallet>[\s\S]*zk-agent workflow \.\.\.[\s\S]*zk-agent suite/,
+      /## Start here by question[\s\S]*zk-agent start[\s\S]*zk-agent next[\s\S]*zk-agent doctor[\s\S]*zk-agent wallet status --name <wallet>[\s\S]*zk-agent pay \.\.\.[\s\S]*zk-agent workflow \.\.\.[\s\S]*zk-agent payment \.\.\.[\s\S]*zk-agent workspace[\s\S]*zk-agent suite[\s\S]*zk-agent relay baseline --relay-url <relay-url>/,
       'Package README must route operators to the correct top-level surface.'
     ],
     [
@@ -303,7 +351,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /## Fastest Path[\s\S]*zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>[\s\S]*zk-agent suite/,
+      /## Fastest Path[\s\S]*zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent pay --wallet main --to <address> --amount <amount>/,
       'Root README must keep the canonical terminal path visible.'
     ],
     [
@@ -323,13 +371,28 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
+      /## What Makes It Different[\s\S]*local-first by default[\s\S]*fallback path[\s\S]*zkSync-native[\s\S]*paymaster-aware[\s\S]*Agent Pay[\s\S]*same wallet runtime[\s\S]*separate product/,
+      'Root README must keep the short product differentiation visible.'
+    ],
+    [
+      rootReadme,
       /The three public proof paths today are:[\s\S]*flagship pay:[\s\S]*default ready-wallet zkSync-native send path[\s\S]*Agent Pay:[\s\S]*local request capture plus follow-up surfaces[\s\S]*hosted approval recovery:[\s\S]*remote-browser session recovery[\s\S]*single-host relay baseline/,
       'Root README must keep the three public proof paths visible.'
     ],
     [
       rootReadme,
-      /The fastest flagship proof path after wallet readiness is:[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>[\s\S]*zk-agent workflow next --request-id <id>[\s\S]*zk-agent workflow status --request-id <id>/,
+      /The fastest flagship proof path after wallet readiness is:[\s\S]*zk-agent pay --wallet main --to <address> --amount <amount>[\s\S]*zk-agent workflow next --request-id <id>[\s\S]*zk-agent workflow status --request-id <id>/,
       'Root README must keep the flagship proof path visible.'
+    ],
+    [
+      rootReadme,
+      /The fastest Agent Pay proof path is:[\s\S]*zk-agent submit --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment next --request-id <id>[\s\S]*zk-agent payment approval --request-id <id>[\s\S]*zk-agent workspace[\s\S]*zk-agent payment handoff --request-id <id>[\s\S]*zk-agent payment feed/,
+      'Root README must keep the Agent Pay proof path visible.'
+    ],
+    [
+      rootReadme,
+      /If request capture is no longer enough and you need one current cross-request[\s\S]*zk-agent workspace[\s\S]*public shortcut to the Agent Pay workbench anchor above[\s\S]*dashboard, queue, report,[\s\S]*and feed\.[\s\S]*`zk-agent payment workspace`/,
+      'Root README must keep the Agent Pay workbench anchor visible.'
     ],
     [
       rootReadme,
@@ -343,11 +406,6 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /The current local-first Agent Pay entry surface is:[\s\S]*zk-agent payment submit --wallet main --to <address> --amount <amount>[\s\S]*zk-agent payment workspace[\s\S]*zk-agent payment dashboard[\s\S]*zk-agent payment feed[\s\S]*zk-agent payment queue[\s\S]*zk-agent payment report[\s\S]*zk-agent payment approval --request-id <id>/,
-      'Root README must keep the current local-first Agent Pay entry surface visible.'
-    ],
-    [
-      rootReadme,
       /Current public stage: `[^`]+`\./,
       'Root README must keep the current public-stage product baseline visible.'
     ],
@@ -358,18 +416,13 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       rootReadme,
-      /CLI manual:[\s\S]*packages\/zk-agent-cli\/README\.md/,
+      /(full|packaged) CLI manual:[\s\S]*packages\/zk-agent-cli\/README\.md/,
       'Root README must hand off the detailed CLI path to the package README.'
     ],
     [
       rootReadme,
       /## Read Next[\s\S]*packages\/zk-agent-cli\/README\.md[\s\S]*skills\/QUICKSTART\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md[\s\S]*docs\/README\.md/,
       'Root README must keep the focused reference handoff visible.'
-    ],
-    [
-      rootReadme,
-      /Hosted remote approval is documented in:[\s\S]*packages\/zk-agent-cli\/README\.md[\s\S]*docs\/16-hosted-approval-operated-baseline\.md/,
-      'Root README must hand off hosted remote approval to the package README and operated-baseline doc.'
     ],
     [
       rootReadme,
@@ -393,7 +446,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       quickstart,
-      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent pay --wallet main --to <address> --amount <amount>/,
       'Quickstart must keep the canonical terminal path visible.'
     ],
     [
@@ -415,6 +468,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       quickstart,
       /## 5\. Use `suite` as the default post-flagship surface[\s\S]*zk-agent suite[\s\S]*zk-agent assets --wallet main[\s\S]*zk-agent defaults[\s\S]*zk-agent resolve-token --chain zksync-sepolia --symbol USDC[\s\S]*zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token/,
       'Quickstart must keep the discovery/defaults contract visible.'
+    ],
+    [
+      quickstart,
+      /If request capture is no longer enough and you need one current cross-request[\s\S]*zk-agent workspace[\s\S]*current public shortcut to the Agent Pay workbench anchor above[\s\S]*`dashboard`, `queue`, `report`, and `feed`\.[\s\S]*`zk-agent payment workspace`/,
+      'Quickstart must keep the Agent Pay workbench anchor visible.'
     ],
     [
       quickstart,
@@ -463,7 +521,7 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
     ],
     [
       skillGuide,
-      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent workflow pay --wallet main --to <address> --amount <amount>/,
+      /zk-agent setup[\s\S]*zk-agent next[\s\S]*zk-agent wallet create --await-local[\s\S]*zk-agent next[\s\S]*zk-agent pay --wallet main --to <address> --amount <amount>/,
       'Primary skill guide must keep the canonical default path visible.'
     ],
     [
@@ -480,6 +538,11 @@ function assertRepositoryDocs(rootReadme, quickstart, skillGuide) {
       skillGuide,
       /Inside `suite`, the smallest question-first entry layer is:[\s\S]*send now[\s\S]*track payments[\s\S]*inspect before token action[\s\S]*unstick write[\s\S]*recover remote approval/,
       'Primary skill guide must expose the smallest question-first suite entry layer.'
+    ],
+    [
+      skillGuide,
+      /If request capture is no longer enough and you need one current cross-request[\s\S]*zk-agent workspace[\s\S]*current public shortcut to the Agent Pay workbench anchor above[\s\S]*`dashboard`, `queue`, `report`, and `feed`\.[\s\S]*`zk-agent payment workspace`/,
+      'Primary skill guide must keep the Agent Pay workbench anchor visible.'
     ],
     [
       skillGuide,
@@ -669,8 +732,18 @@ function assertReleaseStageDocs({
     ],
     [
       plans,
+      /## Landed baseline[\s\S]*`workspace`[\s\S]*public shortcut[\s\S]*Agent Pay[\s\S]*workbench anchor[\s\S]*`payment workspace`[\s\S]*scoped subcommand[\s\S]*`suite`[\s\S]*broader post-flagship shell/,
+      'PLANS.md must keep the suite-versus-workbench split explicit.'
+    ],
+    [
+      plans,
       /## Release gates[\s\S]*### Ready for the next RC refresh[\s\S]*validate:release[\s\S]*validate:rc[\s\S]*### Ready for `1\.0\.0`/,
       'PLANS.md must keep the release-stage gates explicit.'
+    ],
+    [
+      projectState,
+      /## Current public baseline[\s\S]*`workspace`[\s\S]*public shortcut[\s\S]*Agent Pay[\s\S]*workbench anchor[\s\S]*`payment workspace`[\s\S]*scoped subcommand[\s\S]*`suite`[\s\S]*broader post-flagship shell/,
+      'PROJECT_STATE.md must keep the suite-versus-workbench split explicit.'
     ],
     [
       projectState,
@@ -729,10 +802,12 @@ function assertTopLevelHelpContract(helpOutput) {
     'Agent harness: npx skills add https://github.com/AgiWeb3/zk-agent-cli',
     'One-shot CLI: npx zk-agent-cli --help',
     'Global CLI: npm install -g zk-agent-cli',
-    'Start here first: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
-    'Choose the right surface: start -> public first touch with the same output contract as next next -> the CLI still needs to choose bootstrap, recovery, or workflow continuation workflow pay -> the wallet is ready and you want the flagship native send now suite -> wallet readiness is clear and the question is broader than one immediate pay step payment -> you need a durable Agent Pay request and follow-up surface around the write path relay -> the browser is remote and approval must move to the hosted fallback path',
-    'Three public proof paths: flagship pay: zk-agent workflow pay --wallet main --to <address> --amount <amount> zk-agent workflow next --request-id <id> zk-agent workflow status --request-id <id> Agent Pay requests: zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent payment workspace zk-agent payment handoff --request-id <id> zk-agent payment feed hosted approval recovery: zk-agent relay inspect --relay-url <url> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent wallet status --name main',
-    'Open these only when the default path is no longer the whole question: zk-agent suite zk-agent suite --include-onboarding zk-agent doctor zk-agent next --request-id <id> zk-agent wallet --help zk-agent workflow --help zk-agent relay inspect --relay-url <url> zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code',
+    'What makes zk-agent-cli different: local-first by default, with hosted approval only as a fallback path one zkSync-native path from wallet readiness to paymaster-aware execution one Agent Pay layer that stays attached to the same wallet runtime instead of splitting into a separate product',
+    'Why Agent Pay instead of only direct execution: capture one request before or after the write path keep a cross-request operator workspace around the same wallet runtime export stable handoff and feed views for external agents, dashboards, or backends current request ingress: zk-agent submit current workbench anchor: zk-agent workspace',
+    'Start here first: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
+    'Start here by question: start -> public first touch with the same output contract as next next -> the CLI still needs to choose bootstrap, recovery, or workflow continuation pay -> the wallet is ready and you want the flagship proof path now submit -> you want to capture one Agent Pay request now suite -> wallet readiness is clear and the question is broader than one immediate send workspace -> you already know you need the current Agent Pay workbench anchor payment -> execution is no longer the whole story and you need the Agent Pay request layer or workbench relay baseline -> the browser is remote and approval must move to the hosted fallback path',
+    'Three public proof paths: flagship pay: zk-agent pay --wallet main --to <address> --amount <amount> zk-agent workflow next --request-id <id> zk-agent workflow status --request-id <id> Agent Pay requests: zk-agent submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent workspace zk-agent payment handoff --request-id <id> zk-agent payment feed hosted approval recovery: zk-agent relay baseline --relay-url <url> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code zk-agent wallet status --name main',
+    'Open these only when the default path is no longer the whole question: zk-agent suite zk-agent submit --wallet main --to <address> --amount <amount> zk-agent workspace zk-agent suite --include-onboarding zk-agent doctor zk-agent next --request-id <id> zk-agent wallet --help zk-agent workflow --help zk-agent relay baseline --relay-url <url> zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code',
     'Validated first-run baseline: setup defaults to zksync-sepolia and the local connector at http://localhost:4444',
     'No custom .env is required for setup, next, or wallet create/reapprove request generation.',
     'Add RPC env vars later, before live reads or broadcasts.',
@@ -754,8 +829,8 @@ function assertSetupHelpContract(helpOutput) {
     'Use `setup` once at the beginning:',
     'It writes the local default chain and connector URL for the default first-run path.',
     'Validated first-run baseline: Default chain: zksync-sepolia Connector URL: http://localhost:4444 Override --default-chain or --connector-url only when you intentionally deviate from that path.',
-    'Then stay on the default local-first path: zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
-    'Use the remote-browser variant only when the browser cannot return to this terminal: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'Then stay on the default local-first path: zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
+    'Use the remote-browser variant only when the browser cannot return to this terminal: zk-agent relay baseline --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
     'Environment note: No custom .env is required for setup, next, or wallet request creation. Add RPC env vars later, before live reads or broadcasts.'
   ];
 
@@ -772,17 +847,18 @@ function assertNextHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
     'Use `start` for public first touch. Keep `next` as the live routing contract.',
-    'Default first-run path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent workflow pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
+    'Default first-run path: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
     'Before that first success: Ignore suite, payment, and relay unless the CLI points you there or the browser is remote.',
+    'If the product question is already obvious, start here instead: start -> first-touch onboarding with the same output contract as next pay -> wallet readiness is already clear and you want the flagship proof path now submit -> execution is no longer the whole story and you want one Agent Pay request now suite -> wallet readiness is clear and the question is broader than one immediate send workspace -> you already know you need the current Agent Pay workbench anchor payment -> execution is no longer the whole story and you need the Agent Pay request layer or workbench relay baseline -> the browser is remote and approval must move to the hosted fallback path',
     'What `next` routes right now: bootstrap: config or wallet bootstrap is still the blocker recover: wallet approval or local signer readiness still needs repair operate: wallet readiness is clear, so the flagship workflow path is next workflow: a stored checkpoint is already the active question suite: switch only when the question becomes broader than one immediate next step',
-    'Remote-browser variant of the same path: zk-agent relay inspect --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
-    'When to leave the default path: doctor: local state is unclear and the normal path stopped making sense wallet next/status: the blocker is already wallet-specific workflow next: the active question is already one stored checkpoint suite: the wallet is ready and the question is broader than one immediate pay step',
+    'Remote-browser variant of the same path: zk-agent relay baseline --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'When to leave the default path: doctor: local state is unclear and the normal path stopped making sense wallet next/status: the blocker is already wallet-specific workflow next: the active question is already one stored checkpoint workspace: you already know the question is the current cross-request Agent Pay workbench suite: the wallet is ready and the question is broader than one immediate pay step',
     'If setup has not run yet, `next` sends you back to `zk-agent setup` first.',
     'Continue a stored workflow checkpoint: zk-agent next --request-id <id>',
     'Wallet-specific follow-up: zk-agent wallet next --name main zk-agent wallet status --name main',
     'Workflow-specific follow-up: zk-agent workflow next --request-id <id>',
-    'Broader post-flagship surface: zk-agent suite',
-    'Hosted remote-approval fallback: zk-agent relay inspect --relay-url <url> zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code'
+    'Broader post-flagship surface: zk-agent suite zk-agent workspace',
+    'Hosted remote-approval fallback: zk-agent relay baseline --relay-url <url> zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -790,6 +866,28 @@ function assertNextHelpContract(helpOutput) {
       help.includes(snippet),
       true,
       `Next help is missing required onboarding contract text: ${snippet}`
+    );
+  }
+}
+
+function assertStartHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    '`start` is the shortest public first-touch command.',
+    'Use it when you want one obvious entrypoint but still want the same output contract and runtime behavior as `zk-agent next`.',
+    'Shortest first proof: zk-agent setup zk-agent next zk-agent wallet create --await-local zk-agent next zk-agent pay --wallet main --to <address> --amount <amount> Stop after the first successful workflow pay.',
+    'What not to learn first: Ignore suite, payment, and relay until that baseline path works once, unless the CLI points you there or the browser is remote.',
+    'If the product question is already obvious, skip `start` and go directly to: pay -> wallet readiness is already clear and you want the flagship proof path now submit -> execution is no longer the whole story and you want one Agent Pay request now suite -> wallet readiness is clear and the question is broader than one immediate send workspace -> you already know you need the current Agent Pay workbench anchor relay baseline -> the browser is remote and approval must move to the hosted fallback path',
+    'When not to use `start`: next -> you still want the live routing contract in scripts or operator loops doctor -> local state is unclear and you need diagnosis before choosing a fix wallet next/status -> the blocker is already clearly wallet-specific workflow next -> a stored checkpoint is already the active question',
+    'Remote-browser fallback for the same first proof: zk-agent relay baseline --relay-url <url> zk-agent wallet create --relay-url <url> --wait-relay --prompt-code zk-agent next',
+    'Use `start` first, then let the CLI narrow the question. Keep `next` as the canonical operator/runtime contract in JSON examples and automation.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Start help is missing required public-entry contract text: ${snippet}`
     );
   }
 }
@@ -803,6 +901,7 @@ function assertDoctorHelpContract(helpOutput) {
     'zk-agent doctor --wallet main --relay-url https://relay.example.com',
     'Start with `zk-agent next` when you are just beginning.',
     'Use `doctor` only when the normal path stops making sense or local state is unclear.',
+    'Start here by question: next -> you are just beginning and still want live routing on the default path doctor -> local state is unclear and you need diagnosis before choosing a fix wallet -> the blocker is already clearly approval, signer, or session recovery suite -> diagnosis says readiness is clear and the question is broader than recovery',
     'What `doctor` answers right now: bootstrap: local config or wallet bootstrap is still missing recover: local approval or signer state still needs repair operate: local readiness is clear, so return to `zk-agent next` for the live path suite: once readiness is clear, the broader packaged post-flagship surface is available too',
     'Default behavior: Inspects saved config, local wallet approval metadata, local signer state, and the shortest next command without requiring live RPC reads.',
     'It is a local-only diagnosis surface, not the normal first-run happy path.',
@@ -940,6 +1039,7 @@ function assertWalletHelpContract(helpOutput) {
   const requiredSnippets = [
     'Wallet surface:',
     'Use this layer when the blocker is specifically wallet approval, signer state, or session recovery. If the CLI still needs to decide whether the problem is setup, wallet readiness, or workflow continuation, start with `zk-agent next` or `zk-agent doctor`.',
+    'Start here by question: create -> first local-first bootstrap when no wallet session exists yet reapprove -> the wallet exists but approval/session access must be refreshed signer attach -> approval still exists but local write readiness is missing status / next -> the blocker is clearly wallet-scoped but the exact repair step is still unclear suite -> wallet readiness is already clear and the question is broader than wallet recovery',
     'First local-first bootstrap: zk-agent wallet create --await-local zk-agent next',
     'Repair an existing wallet session: zk-agent wallet reapprove --name main --await-local zk-agent next',
     'Repair signer-only local execution state: zk-agent wallet signer attach --name main --private-key <hex> zk-agent next',
@@ -960,6 +1060,8 @@ function assertWorkflowHelpContract(helpOutput) {
   const requiredSnippets = [
     'Workflow surface:',
     'Use this layer when the question is already an explicit workflow, checkpoint, or execution state. If the CLI still needs to choose across setup, wallet readiness, or recovery, go back to `zk-agent next` or `zk-agent doctor`.',
+    'Public shortcut for the flagship send path: `zk-agent pay`.',
+    'Start here by question: workflow pay -> wallet readiness is already clear and you want the flagship proof path now workflow auto -> the goal is broader than one send and you want guided multi-intent execution workflow status -> a stored checkpoint already exists and you want current state first workflow next -> a stored checkpoint exists and you want the shortest next step suite -> the question is broader than one explicit workflow and needs the packaged catalog',
     'Fastest flagship pay path: zk-agent workflow pay --wallet main --to <address> --amount <amount>',
     'Multi-intent guided path: zk-agent workflow auto --wallet main --intent <intent> [goal flags] --create-checkpoint --execute-when-ready',
     'Checkpoint lifecycle when you want explicit control: zk-agent workflow start --wallet main --intent <intent> [goal flags] zk-agent workflow status --request-id <id> zk-agent workflow next --request-id <id> zk-agent workflow resume --request-id <id> [--broadcast]',
@@ -988,11 +1090,14 @@ function assertWorkflowHelpContract(helpOutput) {
 function assertPaymentHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
+    'Agent Pay public shell: `submit`: capture one request through the compact local-first ingress surface. `workspace`: review the cross-request operator view. `handoff`: export one stable single-request integration bundle. `feed`: export the stable cross-request batch view. If you only remember one route: submit -> next -> approval -> workspace -> handoff -> feed.',
     'Payment request surface:',
     'Use this layer when execution is not the whole story and you need request capture, follow-up, sharing, reporting, or approval repair around the write path.',
-    'Use `workflow pay` when the wallet is ready and the goal is "send value now".',
+    'Use `pay` when the wallet is ready and the goal is "send value now".',
     'Use `payment` when you need a durable local request and follow-up surface before or after execution.',
-    '`payment` does not replace the write path; it surrounds `workflow pay` and `send-token` with request state, exports, and repair guidance.',
+    'Use `suite` when wallet readiness is already clear but the question is still broader than one request surface.',
+    '`pay` is the public shortcut; `workflow pay` remains the scoped workflow form.',
+    '`payment` does not replace the write path; it surrounds `pay`, `workflow pay`, and `send-token` with request state, exports, and repair guidance.',
     '`submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
     '`workspace` is the product-style cross-request workspace that packages dashboard, queue, report, and feed into one public surface.',
     '`dashboard` is the cross-request dashboard summary above the local report and queue primitives.',
@@ -1000,13 +1105,14 @@ function assertPaymentHelpContract(helpOutput) {
     '`handoff` is the integration-ready single-request bundle for external dashboards, agents, or backend ingestion.',
     '`parties` is the stable request parties model with separate local and share-safe payer views.',
     '`share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
-    '`workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them.',
-    'Fastest proof path: zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent payment workspace zk-agent payment handoff --request-id <id> zk-agent payment feed This proves compact ingress -> wallet-aware follow-up -> approval readiness -> cross-request workspace -> integration-ready export.',
-    'Start here: zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent payment workspace zk-agent payment dashboard zk-agent payment feed zk-agent payment queue zk-agent payment report zk-agent payment approval --request-id <id> zk-agent payment sync-approval --request-id <id> zk-agent payment next --request-id <id> zk-agent payment inspect --request-id <id> zk-agent payment handoff --request-id <id> zk-agent payment parties --request-id <id>',
-    'Choose by question: `next` / `approval`: what is blocking this one request right now? `workspace`: what is the current product-style cross-request view? `dashboard`: what is the current dashboard summary across requests? `handoff`: what is the stable single-request integration bundle? `feed`: what is the stable cross-request integration feed?',
+    '`pay`, `workflow pay`, and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them.',
+    'Fastest proof path: zk-agent submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent workspace zk-agent payment handoff --request-id <id> zk-agent payment feed This proves compact ingress -> wallet-aware follow-up -> approval readiness -> cross-request workspace -> integration-ready export.',
+    'Public start here: zk-agent submit --wallet main --to <address> --amount <amount> zk-agent workspace zk-agent payment feed zk-agent payment approval --request-id <id> zk-agent payment next --request-id <id> zk-agent payment handoff --request-id <id>',
+    'Operator views when the request layer gets broader: zk-agent payment dashboard zk-agent payment queue zk-agent payment report zk-agent payment sync-approval --request-id <id> zk-agent payment inspect --request-id <id> zk-agent payment parties --request-id <id>',
+    'Choose by question: `submit`: I need to capture one payment request now. `next` / `approval`: what is blocking this one request right now? `workspace`: what is the current cross-request operator workspace? `dashboard`: what is the current dashboard summary across requests? `handoff`: what is the stable single-request integration bundle? `feed`: what is the stable cross-request integration feed? `suite`: I still need the packaged catalog across requests, discovery, funding, paymaster, and remote recovery.',
     'Deeper per-request reads and writes: zk-agent payment create --wallet main --to <address> --amount <amount> zk-agent payment show --request-id <id> zk-agent payment intent --request-id <id> zk-agent payment handoff --request-id <id> zk-agent payment parties --request-id <id> zk-agent payment describe --request-id <id> zk-agent payment share --request-id <id> zk-agent payment execution --request-id <id> zk-agent payment quote --request-id <id> zk-agent payment refresh-quote --request-id <id> zk-agent payment settlement --request-id <id> zk-agent payment reconcile --request-id <id> --status <status> zk-agent payment history --request-id <id> zk-agent payment set-status --request-id <id> --status approval_pending zk-agent payment set-status --request-id <id> --status ready --tx-hash <tx-hash> zk-agent payment set-status --request-id <id> --status paid --tx-hash <tx-hash> zk-agent payment set-status --request-id <id> --status failed --note <reason>',
     'ERC-20 request path: zk-agent payment create --wallet main --to <address> --amount <amount> --symbol USDC',
-    'Stored request management: zk-agent payment workspace zk-agent payment dashboard zk-agent payment feed zk-agent payment queue zk-agent payment report zk-agent payment approval --request-id <id> zk-agent payment sync-approval --request-id <id> zk-agent payment list zk-agent payment history --request-id <id> zk-agent payment remove --request-id <id>'
+    'Stored request management: zk-agent workspace zk-agent payment dashboard zk-agent payment feed zk-agent payment queue zk-agent payment report zk-agent payment approval --request-id <id> zk-agent payment sync-approval --request-id <id> zk-agent payment list zk-agent payment history --request-id <id> zk-agent payment remove --request-id <id>'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -1018,19 +1124,82 @@ function assertPaymentHelpContract(helpOutput) {
   }
 }
 
+function assertWorkspaceHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Public workspace shortcut:',
+    'Use this when you already know the current question is the cross-request Agent Pay workbench.',
+    'This is the top-level shortcut for `zk-agent payment workspace`.',
+    'Stay on `suite` when the question is broader than the Agent Pay workbench.',
+    'Stay on `payment next`, `payment approval`, or `payment handoff` when the question is still one request lifecycle.',
+    'Common commands: zk-agent workspace zk-agent submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent payment handoff --request-id <id> zk-agent payment feed'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Workspace help is missing required public-shortcut contract text: ${snippet}`
+    );
+  }
+}
+
+function assertSubmitHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Public submit shortcut:',
+    'Use this when execution is no longer the whole story and you want the shortest Agent Pay ingress path.',
+    'This is the top-level shortcut for `zk-agent payment submit`.',
+    'Stay on `pay` when the question is simply "send value now".',
+    'Stay on `workspace` when the current question is already the cross-request Agent Pay workbench.',
+    'Common commands: zk-agent submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent workspace zk-agent payment handoff --request-id <id> zk-agent payment feed'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Submit help is missing required public-shortcut contract text: ${snippet}`
+    );
+  }
+}
+
+function assertPayHelpContract(helpOutput) {
+  const help = normalizeWhitespace(helpOutput);
+  const requiredSnippets = [
+    'Public shortcut for the flagship zkSync-native pay path',
+    'Public flagship pay shortcut:',
+    'Use this when wallet readiness is already clear and you want the shortest flagship native-send path.',
+    'This is the top-level shortcut for `zk-agent workflow pay`.',
+    'Follow-up stays on workflow checkpoints: zk-agent workflow next --request-id <id> zk-agent workflow status --request-id <id>',
+    'Use `zk-agent workflow --help` when the question is broader than one pay step or you need checkpoint lifecycle control.'
+  ];
+
+  for (const snippet of requiredSnippets) {
+    assert.equal(
+      help.includes(snippet),
+      true,
+      `Top-level pay help is missing required public-shortcut contract text: ${snippet}`
+    );
+  }
+}
+
 function assertSuiteHelpContract(helpOutput) {
   const help = normalizeWhitespace(helpOutput);
   const requiredSnippets = [
     'Use `suite` after wallet readiness when you want one packaged surface for flagship pay plus the current post-flagship slices, including Agent Pay.',
+    'Use `pay` when the route is already clear and you want to execute now.',
+    'Stay on `payment` once the packaged question has already narrowed to one request lifecycle or request-centric workspace.',
     'What `suite` answers right now: operate: send native value through the flagship workflow path request: capture, follow up, share, export, and repair Agent Pay requests discover: inspect owned assets and defaults before tokenized actions pay: stay on the approval-based paymaster path with exact fee-token follow-up fund: recover from gas/funding blockers without guessing the route recover: switch to hosted relay approval when the browser is remote',
-    'If your question sounds like this, start here: I want to send native value now: send now I need to capture, track, share, or repair payments: track payments I need assets/defaults/token metadata before acting: inspect before token action The write path is blocked and I need recovery: unstick write The browser is remote and approval must move to relay: recover remote approval',
-    'Most common product journeys: send value now: go straight to the flagship pay path capture and track payments: follow submit -> next -> approval -> workspace -> handoff -> feed inspect before acting: open assets/defaults/token inspection first unstick a write: recover paymaster/funding readiness on the workflow path recover remote approval: move approval to the hosted relay path proof path: zk-agent relay inspect --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main',
-    'If you only need one default starting point inside suite: send value now proof path: zk-agent workflow pay --wallet main --to <address> --amount <amount> -> zk-agent workflow next --request-id <id> -> zk-agent workflow status --request-id <id>',
+    'Start here by question inside suite: I want to send native value now: send now I need to capture, track, share, or repair payments: track payments I need assets/defaults/token metadata before acting: inspect before token action The write path is blocked and I need recovery: unstick write The browser is remote and approval must move to relay: recover remote approval',
+    'Most common product journeys: send value now: go straight to the flagship pay path capture and track payments: follow submit -> next -> approval -> workspace -> handoff -> feed inspect before acting: open assets/defaults/token inspection first unstick a write: recover paymaster/funding readiness on the workflow path recover remote approval: move approval to the hosted relay path proof path: zk-agent relay baseline --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main',
+    'Agent Pay public shell inside suite: `submit`: capture one payment request `workspace`: review the cross-request operator surface `handoff`: export one stable single-request bundle `feed`: export the stable cross-request batch view shortest tracked route: submit -> next -> approval -> workspace -> handoff -> feed',
+    'If you only need one default starting point inside suite: send value now proof path: zk-agent pay --wallet main --to <address> --amount <amount> -> zk-agent workflow next --request-id <id> -> zk-agent workflow status --request-id <id>',
     'Where `suite` hands you off next: workflow: flagship pay, approval-based pay, and funding recovery payment: request capture, follow-up, sharing, export, and approval repair discovery: assets, defaults, and token inspection relay: hosted approval recovery and relay readiness',
     'For the full first-run to post-flagship map: zk-agent suite --include-onboarding',
-    'Recommended order inside the suite: zk-agent workflow pay --wallet main --to <address> --amount <amount> zk-agent payment submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent payment workspace zk-agent payment dashboard zk-agent payment handoff --request-id <id> zk-agent payment feed zk-agent assets --wallet main zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based zk-agent workflow fund --wallet main zk-agent relay inspect --relay-url <url>',
+    'Recommended order inside the suite: zk-agent pay --wallet main --to <address> --amount <amount> zk-agent submit --wallet main --to <address> --amount <amount> zk-agent payment next --request-id <id> zk-agent payment approval --request-id <id> zk-agent workspace zk-agent payment dashboard zk-agent payment handoff --request-id <id> zk-agent payment feed zk-agent assets --wallet main zk-agent pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based zk-agent workflow fund --wallet main zk-agent relay baseline --relay-url <url>',
     'Pass `--wallet` or `--chain` to retarget the entire suite contract. Pass `--include-onboarding` when you want setup, doctor, and wallet bootstrap guidance in the same packaged readout.',
-    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.startHereJourneyId`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `recommendedJourney`, top-level `proofPaths[]`, top-level `questions[]`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `questions[]` is the smallest question-first routing layer above `journeys[]` when a caller wants a compact decision list. `proofPaths[]` is the compact compare surface for the three public proof routes: flagship pay, Agent Pay, and hosted approval recovery. `proofPath` appears selectively on entries and on the top-level `recommendedJourney` when one bounded public demo route exists. `recommendedCommands.workflowSurface|paymentSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands.'
+    'In JSON mode, `summary.catalogView`, `summary.entryModes`, `summary.startHereJourneyId`, `summary.journeyOrder`, `summary.surfaceOrder`, top-level `recommendedJourney`, top-level `proofPaths[]`, top-level `questions[]`, top-level `journeys[]`, top-level `surfaces[]`, `summary.categoryOrder`, `summary.recommendedOrder`, optional `preflight`, and each entry `category` + `surface` + `surfaceCommand` + `useWhen` field explain which slice to choose and which deeper surface owns it next. `questions[]` is the smallest question-first routing layer above `journeys[]` when a caller wants a compact decision list. `proofPaths[]` is the compact compare surface for the three public proof routes: flagship pay, Agent Pay, and hosted approval recovery. Stable machine command fields remain scoped; optional additive public-read fields may also appear as `publicStartCommand`, `publicProofPath`, `publicFlagship`, `publicPayment`, and `publicWorkspace` when the same payload wants a shorter product-facing command layer without breaking the scoped contract. `proofPath` appears selectively on entries and on the top-level `recommendedJourney` when one bounded public demo route exists. `recommendedCommands.workflowSurface|paymentSurface|discoverySurface|relaySurface` expose the direct deeper-surface entry commands while the optional `recommendedCommands.publicFlagship|publicPayment|publicWorkspace` fields expose the shorter public shell.'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -1496,6 +1665,7 @@ function assertDoctorReadyPayload(payload) {
     useWhen:
       'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
     paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+    publicPaymentCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
     paymentUseWhen:
       'Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.',
     stayOnCurrentSurfaceWhen:
@@ -1507,14 +1677,21 @@ function assertDoctorReadyPayload(payload) {
       title: 'Send Now',
       question: 'I want to send native value now.',
       journeyId: 'send-value-now',
-      command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+      command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      publicCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>'
     },
     recommendedJourney: {
       id: 'send-value-now',
       title: 'Send Value Now',
       command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      publicCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
       proofPath: [
         'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        'zk-agent workflow next --request-id <request-id>',
+        'zk-agent workflow status --request-id <request-id>'
+      ],
+      publicProofPath: [
+        'zk-agent pay --wallet main --to <address> --amount <amount>',
         'zk-agent workflow next --request-id <request-id>',
         'zk-agent workflow status --request-id <request-id>'
       ]
@@ -1531,26 +1708,840 @@ function assertDoctorReadyPayload(payload) {
 }
 
 function assertOperatorJsonContract(doc) {
-  const requiredChecks = [
+  assertOrderedSection(
+    doc,
+    '## Compatibility Boundary',
     [
-      /## Compatibility Boundary[\s\S]*source of truth for the frozen machine-readable[\s\S]*operator contract on the default product path[\s\S]*At the current `rc` stage, the intentionally frozen compatibility boundary is:[\s\S]*`onboardingSummary`[\s\S]*`workflowEntrySummary`[\s\S]*`walletApprovalSummary`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`[\s\S]*Fields and command surfaces that are not documented here as current[\s\S]*stable contract are not frozen by default[\s\S]*### Change policy[\s\S]*Removing, renaming, or repurposing[\s\S]*Changing the meaning or command shape[\s\S]*New fields may be added only when they are optional[\s\S]*breaking change is still required during `rc`/,
-      'Operator JSON contract doc must declare the frozen compatibility boundary and change policy for rc work.'
+      'source of truth for the frozen machine-readable',
+      'operator contract on the default product path',
+      'At the current `rc` stage, the intentionally frozen compatibility boundary is:',
+      '`onboardingSummary`',
+      '`workflowEntrySummary`',
+      '`walletApprovalSummary`',
+      '`recommendedCommands`',
+      '`nextAction`',
+      '`afterApproval`',
+      '`afterApprovalStatus`',
+      'Fields and command surfaces that are not documented here as current',
+      'stable contract are not frozen by default',
+      '### Change policy',
+      'Removing, renaming, or repurposing',
+      'Changing the meaning or command shape',
+      'New fields may be added only when they are optional',
+      'breaking change is still required during `rc`'
     ],
+    'Operator JSON contract doc must declare the frozen compatibility boundary and change policy for rc work.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent doctor`',
+    [
+      'local-only onboarding and wallet-recovery diagnostic',
+      'Current stable top-level fields:',
+      '`ok`',
+      '`scope`',
+      '`walletName`',
+      '`config`',
+      '`wallet`',
+      '`onboardingSummary`',
+      '`summary`',
+      '`suiteHandoffSummary`',
+      '`agentProfile`',
+      '`agentFollowup`',
+      '`nextAction`',
+      '`recommendedCommands`',
+      'Current stable `scope` values:',
+      '`setup`',
+      '`wallet-bootstrap`',
+      '`wallet-recovery`',
+      '`wallet-ready`',
+      'Current stable `config` fields:',
+      '`exists`',
+      '`defaultChain`',
+      '`connectorUrl`',
+      '`provider`',
+      'Current stable `wallet` fields when present:',
+      '`exists`',
+      '`walletName`',
+      '`walletAddress`',
+      '`chain`',
+      '`chainId`',
+      '`accountKind`',
+      '`smartAccountProfileId`',
+      '`syncedAt`',
+      '`approvalReady`',
+      '`localExecutionKeyStored`',
+      '`legacySessionKeyStored`',
+      '`signerType`',
+      '`signerAddress`',
+      '`signerSource`',
+      'Current stable `summary` fields:',
+      '`stage`',
+      '`configExists`',
+      '`walletExists`',
+      '`approvalReady`',
+      '`localExecutionKeyStored`',
+      '`relayUrl`',
+      '`nextAction`',
+      '`localOnly`',
+      '`notes`'
+    ],
+    'Operator JSON contract doc must describe the doctor top-level contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent setup`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`config`',
+      '`onboardingSummary`',
+      '`recommendedCommands`',
+      'Current stable baseline defaults on the validated first-run path:',
+      '`defaultChain = "zksync-sepolia"`',
+      '`connectorUrl = "http://localhost:4444"`'
+    ],
+    'Operator JSON contract doc must describe the setup onboarding contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '### `scope = "wallet-ready"`',
+    [
+      '"scope": "wallet-ready"',
+      '"productEntrySummary": {',
+      '"stage": "wallet-ready"',
+      '"nextAction": "zk-agent next"',
+      '"suiteAvailable": true',
+      '"approvalReady": true',
+      '"localExecutionKeyStored": true',
+      '"suiteHandoffSummary": {',
+      '"currentSurface": "doctor"',
+      '"recommendedNow": true',
+      '"command": "zk-agent suite"',
+      '"recommendedQuestion": {',
+      '"id": "send-now"',
+      '"title": "Send Now"',
+      '"question": "I want to send native value now."',
+      '"journeyId": "send-value-now"',
+      '"command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"',
+      '"recommendedJourney": {',
+      '"id": "send-value-now"',
+      '"title": "Send Value Now"',
+      '"command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"',
+      '"nextAction": "zk-agent next"',
+      '"recommendedCommands": {',
+      '"next": "zk-agent next"',
+      '"suite": "zk-agent suite"',
+      '"walletStatus": "zk-agent wallet status --name main"',
+      '"walletNext": "zk-agent wallet next --name main"',
+      '"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"',
+      '"inspectDefaults": "zk-agent defaults"',
+      'Current stable `suiteHandoffSummary` fields on this surface use the same field',
+      'described later for top-level `zk-agent next` wallet scope.'
+    ],
+    'Operator JSON contract doc must describe the doctor wallet-ready contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent assets`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`discoverySummary`',
+      '`recommendedCommands`',
+      '`walletName`',
+      '`walletAddress`',
+      '`chain`',
+      '`chainId`',
+      '`balances`',
+      '`ownedTokenRegistry`',
+      '"inspectDefaults": "zk-agent defaults"',
+      '"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"',
+      '"discoverTokens": "zk-agent tokens --chain zksync-sepolia"',
+      '"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"',
+      'Current stable fields:',
+      '`walletName`',
+      '`chain`',
+      '`chainId`',
+      '`assetCount`',
+      '`nativeAssetSymbol`',
+      '`nativeAssetBalance`',
+      '`ownedTokenCount`',
+      '`primaryOwnedTokenSymbol`',
+      '`ownedTokenSymbols`',
+      '`ownedTokenSourceCounts`',
+      '`ownedBridgeMappingCounts`',
+      '`ownedRegistryRoleCounts`'
+    ],
+    'Operator JSON contract doc must describe the assets discoverySummary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent balances --owned-tokens`',
+    [
+      'Current stable top-level fields on that path:',
+      '`ok`',
+      '`discoverySummary`',
+      '`recommendedCommands`',
+      '`walletName`',
+      '`walletAddress`',
+      '`chain`',
+      '`chainId`',
+      '`balances`',
+      '`ownedTokenRegistry`',
+      'Same compressed single-chain owned-token summary contract as `zk-agent assets`.',
+      'Same local-first discovery follow-up contract as `zk-agent assets`.'
+    ],
+    'Operator JSON contract doc must describe the balances --owned-tokens discovery contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent wallet status|next`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`inspection`',
+      '`summary`',
+      '`tokenDiscoverySummary`',
+      '`suiteHandoffSummary`',
+      '`recommendedCommands`',
+      'Current stable `suiteHandoffSummary` fields on this surface:',
+      '`currentSurface`',
+      '`recommendedNow`',
+      '`command`',
+      '`recommendedQuestion`',
+      '`recommendedJourney`',
+      '`useWhen`',
+      '`stayOnCurrentSurfaceWhen`',
+      '`note`',
+      'When the effective wallet paymaster mode is `approval-based`',
+      '`discoverPaymasterTokens`',
+      '`inspectPaymasterToken`',
+      'When wallet-scoped discovery follow-ups are present',
+      '`walletName`',
+      '`chain`',
+      '`intent`',
+      '`nextAction`',
+      '`paymasterMode`',
+      '`tokenizedIntent`',
+      '`includesAssetDiscovery`',
+      '`includesOwnedTokenDiscovery`',
+      '`includesChainTokenDiscovery`',
+      '`includesDirectTokenInspection`',
+      '`includesPaymasterTokenDiscovery`',
+      '`includesPaymasterTokenInspection`'
+    ],
+    'Operator JSON contract doc must describe the wallet status/next suiteHandoffSummary and tokenDiscoverySummary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent defaults`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`summary`',
+      '`recommendedCommands`',
+      '`defaults`',
+      '`localTokenRegistry`',
+      '`tokenRegistrySources`',
+      '`tokenDirectoryChains`',
+      '"inspectDefaults": "zk-agent defaults"',
+      '"discoverTokens": "zk-agent tokens --chain zksync-sepolia"',
+      '"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT"',
+      '"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"',
+      '"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token"',
+      'The current stable `summary` fields are:',
+      '`primaryDiscoveryChain`',
+      '`exampleTokenSymbol`',
+      '`paymasterFeeTokenSymbol`',
+      '`localTokenCount`',
+      '`tokenDirectoryChainCount`',
+      '`tokenRegistrySources`',
+      '`resolvedDefaults`'
+    ],
+    'Operator JSON contract doc must describe the defaults discovery contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent relay serve`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`status`',
+      '`origin`',
+      '`publicOrigin`',
+      '`publicOriginSource`',
+      '`stateBackend`',
+      '`deploymentScope`',
+      '`sameHostRestartPersists`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`publicOriginLooksLocal`',
+      '`approvalEndpointSummary`',
+      '`hostedReadinessSummary`',
+      '`deploymentSummary`',
+      '`healthUrl`',
+      '`publicHealthUrl`',
+      '`relayMode`',
+      '`connectorUiAvailable`',
+      '`hostedShareRedirectReady`',
+      '`capabilities`',
+      '`recommendedCommands`',
+      '`notes`',
+      'Current stable `hostedReadinessSummary` fields on this surface:',
+      '`status`',
+      '`compatible`',
+      '`hostedApprovalReady`',
+      '`publicOriginConfigured`',
+      '`publicOriginLooksLocal`',
+      '`connectorUiAvailable`',
+      '`singleHostFileState`',
+      'Current stable `approvalEndpointSummary` fields on this surface:',
+      '`status`',
+      '`publicOriginConfigured`',
+      '`publicOriginLooksLocal`',
+      '`relayUrlMatchesPublicOrigin`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      'Current stable approval-endpoint `status` values on this surface:',
+      '`local-public-origin`',
+      '`hosted-public-origin`',
+      'Current stable hosted-readiness `status` values on this surface:',
+      '`ready`',
+      '`needs-public-origin`',
+      '`needs-connector-ui`',
+      '`needs-public-origin-and-ui`',
+      '`incompatible`',
+      'When present, `deploymentSummary` compresses the hosted deployment contract',
+      'into:',
+      '`origin`',
+      '`publicOrigin`',
+      '`publicOriginSource`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`publicOriginConfigured`',
+      '`publicOriginLooksLocal`',
+      '`connectorUiAvailable`',
+      '`hostedShareRedirectReady`',
+      '`singleHostFileState`',
+      'Current stable `recommendedCommands` shape on this surface:',
+      '`baseline`',
+      '`inspectRelay`',
+      '`createWallet`',
+      '`reapproveWallet`',
+      '`restartWithPublicOrigin`'
+    ],
+    'Operator JSON contract doc must describe the relay serve approval-endpoint and deployment-summary contracts.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent wallet create --relay-url <url>`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`walletName`',
+      '`requestId`',
+      '`walletRequestId`',
+      '`approvalUrl`',
+      '`relay`',
+      '`relayRecoverySummary`',
+      '`expiresAt`',
+      '`chain`',
+      '`chainId`',
+      '`accountKind`',
+      '`paymasterMode`',
+      '`capabilities`',
+      '`sessionScope`',
+      '`nextAction`',
+      '`recommendedCommands`',
+      'Current stable `recommendedCommands` shape on this surface:',
+      '`awaitLocal`',
+      '`relayStatus`',
+      '`relayApprove`',
+      '`approve`',
+      '`afterApproval`',
+      '`afterApprovalStatus`',
+      'Current stable `relayRecoverySummary` fields on this surface:',
+      '`requestId`',
+      '`walletName`',
+      '`relayUrl`',
+      '`relayStatus`',
+      '`approvalReady`',
+      '`nextAction`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`recoveryMode`',
+      '`includesStatusPoll`',
+      '`includesApprove`',
+      '`includesRelayInspect`',
+      '`includesRemoteReissue`',
+      'Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`'
+    ],
+    'Operator JSON contract doc must describe the wallet create --relay-url recovery summary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent wallet reapprove --name <name> --relay-url <url>`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`walletRequestId`',
+      '`wallet`',
+      '`request`',
+      '`relay`',
+      '`relayRecoverySummary`',
+      '`nextAction`',
+      '`recommendedCommands`',
+      'Current stable `recommendedCommands` shape on this surface:',
+      '`awaitLocal`',
+      '`relayStatus`',
+      '`relayApprove`',
+      '`approve`',
+      '`afterApproval`',
+      '`afterApprovalStatus`',
+      'Current stable `relayRecoverySummary` fields on this surface:',
+      '`requestId`',
+      '`walletName`',
+      '`relayUrl`',
+      '`relayStatus`',
+      '`approvalReady`',
+      '`nextAction`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`recoveryMode`',
+      '`includesStatusPoll`',
+      '`includesApprove`',
+      '`includesRelayInspect`',
+      '`includesRemoteReissue`',
+      'Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`'
+    ],
+    'Operator JSON contract doc must describe the wallet reapprove --relay-url recovery summary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '### `scope = "setup"`',
+    [
+      '"scope": "setup"',
+      '"config": {',
+      '"exists": false',
+      '"summary": {',
+      '"stage": "setup"',
+      '"nextAction": "zk-agent setup"',
+      '"localOnly": true',
+      '"recommendedCommands": {',
+      '"setup": "zk-agent setup"',
+      '"next": "zk-agent next"',
+      '"inspectDefaults": "zk-agent defaults"'
+    ],
+    'Operator JSON contract doc must describe the doctor setup contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '### `scope = "wallet"`',
+    [
+      '"tokenDiscoverySummary": { "...": "wallet-scope token recovery summary" }',
+      'When the wallet scope exposes token/discovery follow-ups',
+      '`walletName`',
+      '`chain`',
+      '`intent`',
+      '`nextAction`',
+      '`paymasterMode`',
+      '`tokenizedIntent`',
+      '`includesAssetDiscovery`',
+      '`includesOwnedTokenDiscovery`',
+      '`includesChainTokenDiscovery`',
+      '`includesDirectTokenInspection`',
+      '`includesPaymasterTokenDiscovery`',
+      '`includesPaymasterTokenInspection`'
+    ],
+    'Operator JSON contract doc must describe the top-level wallet tokenDiscoverySummary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '### `workflow plan`',
+    [
+      '`inspection`',
+      '`plan`',
+      '`workflowEntrySummary`',
+      '`tokenDiscoverySummary`',
+      '`recommendedCommands`',
+      'When the current intent is tokenized',
+      '`walletName`',
+      '`chain`',
+      '`intent`',
+      '`nextAction`',
+      '`paymasterMode`',
+      '`tokenizedIntent`',
+      '`includesAssetDiscovery`',
+      '`includesOwnedTokenDiscovery`',
+      '`includesChainTokenDiscovery`',
+      '`includesDirectTokenInspection`',
+      '`includesPaymasterTokenDiscovery`',
+      '`includesPaymasterTokenInspection`'
+    ],
+    'Operator JSON contract doc must describe the workflow plan tokenDiscoverySummary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '### `workflow auto`',
+    [
+      '`walletApproval`',
+      '`workflowEntrySummary`',
+      '`tokenDiscoverySummary`',
+      '`recommendedCommands`',
+      '### `workflow status|next|run|resume`',
+      '`agentProfile`',
+      '`agentFollowup`',
+      '`workflowEntrySummary`',
+      '`tokenDiscoverySummary`',
+      '`recommendedCommands`',
+      'Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:',
+      '`walletName`',
+      '`chain`',
+      '`intent`',
+      '`nextAction`',
+      '`paymasterMode`',
+      '`tokenizedIntent`',
+      '`includesAssetDiscovery`',
+      '`includesOwnedTokenDiscovery`',
+      '`includesChainTokenDiscovery`',
+      '`includesDirectTokenInspection`',
+      '`includesPaymasterTokenDiscovery`',
+      '`includesPaymasterTokenInspection`'
+    ],
+    'Operator JSON contract doc must describe the workflow runtime tokenDiscoverySummary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent suite`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`summary`',
+      '`preflight`',
+      '`recommendedJourney`',
+      '`proofPaths`',
+      '`questions`',
+      '`journeys`',
+      '`surfaces`',
+      '`flagship`',
+      '`slices`',
+      '`recommendedCommands`',
+      'Current stable `summary` fields:',
+      '`suiteId`',
+      '`catalogView`',
+      '`walletName`',
+      '`chain`',
+      '`stage`',
+      '`useWhen`',
+      '`entryModes`',
+      '`startHereJourneyId`',
+      '`journeyOrder`',
+      '`surfaceOrder`',
+      '`categoryOrder`',
+      '`flagshipId`',
+      '`postFlagshipSliceIds`',
+      '`recommendedOrder`',
+      '`nextAction`',
+      'Current stable `flagship` / `slices[]` fields:',
+      '`category`',
+      '`surface`',
+      '`id`',
+      '`title`',
+      '`goal`',
+      '`useWhen`',
+      '`primaryCommand`',
+      '`surfaceCommand`',
+      '`supportingCommands`',
+      '`proofPath`',
+      '`skillPath`',
+      'Current stable `surfaceOrder` values on this surface are:',
+      '`workflow`',
+      '`payment`',
+      '`discovery`',
+      '`relay`',
+      'Current stable `surfaces[]` fields:',
+      '`surface`',
+      '`title`',
+      '`useWhen`',
+      '`command`',
+      '`categoryIds`',
+      '`entryIds`',
+      'Current stable `questions[]` fields:',
+      '`id`',
+      '`title`',
+      '`question`',
+      '`journeyId`',
+      '`surface`',
+      '`startCommand`',
+      '`useWhen`',
+      'Current stable `journeys[]` fields:',
+      '`id`',
+      '`title`',
+      '`operatorQuestion`',
+      '`useWhen`',
+      '`startCommand`',
+      '`surface`',
+      '`categoryIds`',
+      '`entryIds`',
+      'Current stable `recommendedJourney` fields:',
+      '`id`',
+      '`title`',
+      '`startCommand`',
+      '`surface`',
+      '`useWhen`',
+      '`proofPath`',
+      'Current stable `proofPaths[]` fields:',
+      '`id`',
+      '`title`',
+      '`journeyId`',
+      '`surface`',
+      '`useWhen`',
+      '`startCommand`',
+      '`proofPath`',
+      'Current stable `journeyOrder` values on this surface are:',
+      '`send-value-now`',
+      '`capture-and-track-payments`',
+      '`inspect-before-acting`',
+      '`unstick-a-write`',
+      '`recover-remote-approval`',
+      'Current stable `startHereJourneyId` value on this surface is:',
+      '`send-value-now`',
+      'Current stable `recommendedCommands` shape on this surface:',
+      '`suite`',
+      '`flagship`',
+      '`workflowSurface`',
+      '`paymentSurface`',
+      '`discoverySurface`',
+      '`relaySurface`',
+      '`payment`',
+      '`discovery`',
+      '`paymaster`',
+      '`funding`',
+      '`hostedApproval`',
+      '`inspectDefaults`'
+    ],
+    'Operator JSON contract doc must describe the suite catalog, journey layer, deeper-surface handoff, and direct surface command contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent relay inspect`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`status`',
+      '`relayUrl`',
+      '`compatible`',
+      '`origin`',
+      '`publicOrigin`',
+      '`publicOriginSource`',
+      '`stateBackend`',
+      '`deploymentScope`',
+      '`sameHostRestartPersists`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`relayUrlMatchesOrigin`',
+      '`relayUrlMatchesPublicOrigin`',
+      '`publicOriginLooksLocal`',
+      '`approvalEndpointSummary`',
+      '`hostedReadinessSummary`',
+      '`deploymentSummary`',
+      '`connectorUiAvailable`',
+      '`hostedShareRedirectReady`',
+      '`capabilities`',
+      '`recommendedCommands`',
+      '`notes`',
+      'Current stable `hostedReadinessSummary` fields on this surface:',
+      '`status`',
+      '`compatible`',
+      '`hostedApprovalReady`',
+      '`publicOriginConfigured`',
+      '`publicOriginLooksLocal`',
+      '`connectorUiAvailable`',
+      '`singleHostFileState`',
+      'Current stable `approvalEndpointSummary` fields on this surface:',
+      '`status`',
+      '`publicOriginConfigured`',
+      '`publicOriginLooksLocal`',
+      '`relayUrlMatchesPublicOrigin`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      'Current stable approval-endpoint `status` values on this surface:',
+      '`local-public-origin`',
+      '`hosted-public-origin`',
+      '`hosted-public-origin-via-proxy`',
+      'Current stable hosted-readiness `status` values on this surface:',
+      '`ready`',
+      '`needs-public-origin`',
+      '`needs-connector-ui`',
+      '`needs-public-origin-and-ui`',
+      '`incompatible`',
+      'Current stable `deploymentSummary` fields on this surface:',
+      '`origin`',
+      '`publicOrigin`',
+      '`publicOriginSource`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`publicOriginConfigured`',
+      '`publicOriginLooksLocal`',
+      '`connectorUiAvailable`',
+      '`hostedShareRedirectReady`',
+      '`singleHostFileState`',
+      'Current stable `recommendedCommands` shape on this surface:',
+      '`baseline`',
+      '`createWallet`',
+      '`reapproveWallet`',
+      '`restartWithPublicOrigin`'
+    ],
+    'Operator JSON contract doc must describe the relay inspect approval-endpoint and deployment-summary contracts.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent relay baseline`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`status`',
+      '`relayUrl`',
+      '`walletName`',
+      '`baseline`',
+      '`recommendedCommands`',
+      'Current stable `baseline` fields on this surface:',
+      '`format`',
+      '`version`',
+      '`generatedAt`',
+      '`relayUrl`',
+      '`walletName`',
+      '`mode`',
+      '`supportLevel`',
+      '`claim`',
+      '`createWalletPath`',
+      '`reapproveWalletPath`',
+      '`createWalletProofPath`',
+      '`reapproveWalletProofPath`',
+      '`rehearsal`',
+      '`inspection`',
+      '`notes`',
+      'Current stable `claim` fields on this surface:',
+      '`externallyReachablePublicOrigin`',
+      '`sameOriginApprovalUi`',
+      '`sameHostFileState`',
+      '`hostedApprovalReady`',
+      '`approvalEndpointStatus`',
+      '`hostedReadinessStatus`',
+      'Current stable `supportLevel` values on this surface:',
+      '`supported`',
+      '`needs-fix`',
+      '`incompatible`',
+      'Current stable `recommendedCommands` shape on this surface:',
+      '`baseline`',
+      '`inspect`',
+      '`createWallet`',
+      '`reapproveWallet`',
+      '`walletStatus`',
+      '`rehearsalPlan`',
+      '`rehearsalSingleRun`',
+      '`rehearsalRepeatedRun`'
+    ],
+    'Operator JSON contract doc must describe the packaged relay baseline surface.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent wallet request relay-publish`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`walletRequestId`',
+      '`relay`',
+      '`relayRecoverySummary`',
+      '`request`',
+      '`recommendedCommands`',
+      '`nextAction`',
+      'Current stable `relayRecoverySummary` fields on this surface:',
+      '`requestId`',
+      '`walletName`',
+      '`relayUrl`',
+      '`relayStatus`',
+      '`approvalReady`',
+      '`nextAction`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`recoveryMode`',
+      '`includesStatusPoll`',
+      '`includesApprove`',
+      '`includesRelayInspect`',
+      '`includesRemoteReissue`'
+    ],
+    'Operator JSON contract doc must describe the wallet request relay-publish recovery summary contract.'
+  );
+
+  assertOrderedSection(
+    doc,
+    '## `zk-agent wallet request relay-status`',
+    [
+      'Current stable top-level fields:',
+      '`ok`',
+      '`walletRequestId`',
+      '`relay`',
+      '`relayRecoverySummary`',
+      '`recommendedCommands`',
+      '`nextAction`',
+      'Current stable `relay` fields:',
+      '`request_id`',
+      '`status`',
+      '`approval_ready`',
+      '`share_url`',
+      '`status_url`',
+      '`approval_url`',
+      '`expires_at`',
+      'Current stable `relayRecoverySummary` fields on this surface:',
+      '`requestId`',
+      '`walletName`',
+      '`relayUrl`',
+      '`relayStatus`',
+      '`approvalReady`',
+      '`nextAction`',
+      '`shareLinkBaseUrl`',
+      '`statusApiBaseUrl`',
+      '`recoveryMode`',
+      '`includesStatusPoll`',
+      '`includesApprove`',
+      '`includesRelayInspect`',
+      '`includesRemoteReissue`',
+      '"relayInspect": "zk-agent relay inspect --relay-url https://relay.example.com"',
+      '"reissueRemoteApproval": "zk-agent wallet reapprove --name main --relay-url https://relay.example.com --wait-relay --prompt-code"',
+      'The same `relayRecoverySummary` field set now also appears in:',
+      '`wallet create --relay-url <url>`',
+      '`wallet reapprove --name <name> --relay-url <url>`',
+      '`wallet request relay-publish`',
+      '`RELAY_APPROVAL_TIMEOUT` error details',
+      '`RELAY_APPROVAL_EXPIRED` error details'
+    ],
+    'Operator JSON contract doc must describe the wallet request relay-status recovery summary contract.'
+  );
+
+  const requiredChecks = [
     [
       /### `onboardingSummary`[\s\S]*Current stable fields:[\s\S]*`stage`[\s\S]*`baseline`[\s\S]*`localOnly`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`notes`/,
       'Operator JSON contract doc must describe the shared onboardingSummary contract.'
-    ],
-    [
-      /## `zk-agent setup`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`config`[\s\S]*`onboardingSummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable baseline defaults on the validated first-run path:[\s\S]*`defaultChain = "zksync-sepolia"`[\s\S]*`connectorUrl = "http:\/\/localhost:4444"`/,
-      'Operator JSON contract doc must describe the setup onboarding contract.'
-    ],
-    [
-      /## `zk-agent doctor`[\s\S]*local-only onboarding and wallet-recovery diagnostic[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`scope`[\s\S]*`walletName`[\s\S]*`config`[\s\S]*`wallet`[\s\S]*`onboardingSummary`[\s\S]*`summary`[\s\S]*`suiteHandoffSummary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `scope` values:[\s\S]*`setup`[\s\S]*`wallet-bootstrap`[\s\S]*`wallet-recovery`[\s\S]*`wallet-ready`[\s\S]*Current stable `config` fields:[\s\S]*`exists`[\s\S]*`defaultChain`[\s\S]*`connectorUrl`[\s\S]*`provider`[\s\S]*Current stable `wallet` fields when present:[\s\S]*`exists`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`smartAccountProfileId`[\s\S]*`syncedAt`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`legacySessionKeyStored`[\s\S]*`signerType`[\s\S]*`signerAddress`[\s\S]*`signerSource`[\s\S]*Current stable `summary` fields:[\s\S]*`stage`[\s\S]*`configExists`[\s\S]*`walletExists`[\s\S]*`approvalReady`[\s\S]*`localExecutionKeyStored`[\s\S]*`relayUrl`[\s\S]*`nextAction`[\s\S]*`localOnly`[\s\S]*`notes`/,
-      'Operator JSON contract doc must describe the doctor top-level contract.'
-    ],
-    [
-      /### `scope = "setup"`[\s\S]*"scope": "setup"[\s\S]*"config": \{[\s\S]*"exists": false[\s\S]*"summary": \{[\s\S]*"stage": "setup"[\s\S]*"nextAction": "zk-agent setup"[\s\S]*"localOnly": true[\s\S]*"recommendedCommands": \{[\s\S]*"setup": "zk-agent setup"[\s\S]*"next": "zk-agent next"[\s\S]*"inspectDefaults": "zk-agent defaults"/,
-      'Operator JSON contract doc must describe the doctor setup contract.'
     ],
     [
       /### `scope = "wallet-bootstrap"`[\s\S]*"scope": "wallet-bootstrap"[\s\S]*"defaultChain": "zksync-sepolia"[\s\S]*"connectorUrl": "http:\/\/localhost:4444"[\s\S]*"provider": "zksync-sso"[\s\S]*"nextAction": "zk-agent wallet create --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"createWallet": "zk-agent wallet create --await-local"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"createWalletRemote": "zk-agent wallet create --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"/,
@@ -1559,10 +2550,6 @@ function assertOperatorJsonContract(doc) {
     [
       /### `scope = "wallet-recovery"`[\s\S]*"scope": "wallet-recovery"[\s\S]*"approvalReady": false[\s\S]*"localExecutionKeyStored": false[\s\S]*"nextAction": "zk-agent wallet reapprove --name main --await-local"[\s\S]*"recommendedCommands": \{[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"signerShow": "zk-agent wallet signer show --name main"[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"reapproveRemote": "zk-agent wallet reapprove --name main --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"[\s\S]*"reapprove": "zk-agent wallet reapprove --name main --await-local"[\s\S]*When approval metadata is present but the local execution signer is missing[\s\S]*`zk-agent wallet signer attach --name main --private-key <hex>`[\s\S]*`attachSigner`[\s\S]*`reapprove`/,
       'Operator JSON contract doc must describe the doctor wallet-recovery contract.'
-    ],
-    [
-      /### `scope = "wallet-ready"`[\s\S]*"scope": "wallet-ready"[\s\S]*"productEntrySummary": \{[\s\S]*"stage": "wallet-ready"[\s\S]*"nextAction": "zk-agent next"[\s\S]*"suiteAvailable": true[\s\S]*"approvalReady": true[\s\S]*"localExecutionKeyStored": true[\s\S]*"suiteHandoffSummary": \{[\s\S]*"currentSurface": "doctor"[\s\S]*"recommendedNow": true[\s\S]*"command": "zk-agent suite"[\s\S]*"recommendedQuestion": \{[\s\S]*"id": "send-now"[\s\S]*"title": "Send Now"[\s\S]*"question": "I want to send native value now\."[\s\S]*"journeyId": "send-value-now"[\s\S]*"command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*\}[\s\S]*"recommendedJourney": \{[\s\S]*"id": "send-value-now"[\s\S]*"title": "Send Value Now"[\s\S]*"command": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*\}[\s\S]*"nextAction": "zk-agent next"[\s\S]*"recommendedCommands": \{[\s\S]*"next": "zk-agent next"[\s\S]*"suite": "zk-agent suite"[\s\S]*"walletStatus": "zk-agent wallet status --name main"[\s\S]*"walletNext": "zk-agent wallet next --name main"[\s\S]*"workflowPay": "zk-agent workflow pay --wallet main --to <address> --amount <amount>"[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*Current stable `suiteHandoffSummary` fields on this surface use the same field[\s\S]*described later for top-level `zk-agent next` wallet scope\./,
-      'Operator JSON contract doc must describe the doctor wallet-ready contract.'
     ],
     [
       /## `zk-agent next`[\s\S]*### Shared fields[\s\S]*`scope`[\s\S]*`nextCommand`[\s\S]*`onboardingSummary`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`recommendedCommands`/,
@@ -1581,10 +2568,6 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the wallet-scope suite handoff and discovery recommendedCommands contract.'
     ],
     [
-      /### `scope = "wallet"`[\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "wallet-scope token recovery summary"\s*\}[\s\S]*When the wallet scope exposes token\/discovery follow-ups[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
-      'Operator JSON contract doc must describe the top-level wallet tokenDiscoverySummary contract.'
-    ],
-    [
       /### `scope = "workflow"`[\s\S]*"summary": \{[\s\S]*"status": "blocked"[\s\S]*"readyForGoal": false[\s\S]*"nextCommand": "zk-agent workflow resume --request-id wf123456"[\s\S]*"blockingActionIds": \["reapprove"\][\s\S]*"tokenDiscoverySummary": \{\s*"\.\.\.": "workflow-scope token recovery summary"\s*\}[\s\S]*Current stable `summary` fields on this surface:[\s\S]*`status`[\s\S]*`readyForGoal`[\s\S]*`nextCommand`[\s\S]*`blockingActionIds`[\s\S]*`fundingProgress`[\s\S]*When the restored workflow intent is tokenized[\s\S]*the same field set described for wallet scope/,
       'Operator JSON contract doc must describe the top-level workflow tokenDiscoverySummary contract.'
     ],
@@ -1593,20 +2576,12 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the top-level workflow suiteHandoffSummary contract.'
     ],
     [
-      /## `zk-agent wallet status\|next`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`inspection`[\s\S]*`summary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`suiteHandoffSummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable `suiteHandoffSummary` fields on this surface:[\s\S]*`currentSurface`[\s\S]*`recommendedNow`[\s\S]*`command`[\s\S]*`recommendedQuestion`[\s\S]*`recommendedJourney`[\s\S]*`useWhen`[\s\S]*`stayOnCurrentSurfaceWhen`[\s\S]*`note`[\s\S]*When the effective wallet paymaster mode is `approval-based`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`[\s\S]*When wallet-scoped discovery follow-ups are present[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
-      'Operator JSON contract doc must describe the wallet status/next suiteHandoffSummary and tokenDiscoverySummary contract.'
+      /Optional additive public-read fields may also appear on this handoff layer[\s\S]*`publicPaymentCommand`[\s\S]*`recommendedQuestion\.publicCommand`[\s\S]*`recommendedJourney\.publicCommand`[\s\S]*`recommendedJourney\.publicProofPath`/,
+      'Operator JSON contract doc must describe the additive public-read handoff fields.'
     ],
     [
       /### `workflow status\|next\|run\|resume`[\s\S]*Tokenized workflow outputs should keep the same local-first recovery contract[\s\S]*visible:[\s\S]*`discoverAssets`[\s\S]*`discoverOwnedTokens`[\s\S]*`discoverTokens`[\s\S]*`inspectToken`[\s\S]*`discoverPaymasterTokens`[\s\S]*`inspectPaymasterToken`/,
       'Operator JSON contract doc must describe the tokenized workflow discovery follow-up contract.'
-    ],
-    [
-      /### `workflow plan`[\s\S]*`inspection`[\s\S]*`plan`[\s\S]*`workflowEntrySummary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*When the current intent is tokenized[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
-      'Operator JSON contract doc must describe the workflow plan tokenDiscoverySummary contract.'
-    ],
-    [
-      /### `workflow auto`[\s\S]*`walletApproval`[\s\S]*`workflowEntrySummary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`agentProfile`[\s\S]*`agentFollowup`[\s\S]*`workflowEntrySummary`[\s\S]*`tokenDiscoverySummary`[\s\S]*`recommendedCommands`[\s\S]*Current stable `tokenDiscoverySummary` fields on tokenized workflow surfaces:[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`intent`[\s\S]*`nextAction`[\s\S]*`paymasterMode`[\s\S]*`tokenizedIntent`[\s\S]*`includesAssetDiscovery`[\s\S]*`includesOwnedTokenDiscovery`[\s\S]*`includesChainTokenDiscovery`[\s\S]*`includesDirectTokenInspection`[\s\S]*`includesPaymasterTokenDiscovery`[\s\S]*`includesPaymasterTokenInspection`/,
-      'Operator JSON contract doc must describe the workflow runtime tokenDiscoverySummary contract.'
     ],
     [
       /### `workflow auto`[\s\S]*`walletApprovalSummary`[\s\S]*### `workflow status\|next\|run\|resume`[\s\S]*`walletApprovalSummary`[\s\S]*Current stable `walletApprovalSummary` fields on workflow runtime surfaces when[\s\S]*`status`[\s\S]*`walletRequestId`[\s\S]*`reusedRequest`[\s\S]*`relayPublished`[\s\S]*`nextAction`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`/,
@@ -1625,20 +2600,8 @@ function assertOperatorJsonContract(doc) {
       'Operator JSON contract doc must describe the workflow token-input error discovery summary contract.'
     ],
     [
-      /## `zk-agent suite`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`preflight`[\s\S]*`recommendedJourney`[\s\S]*`proofPaths`[\s\S]*`questions`[\s\S]*`journeys`[\s\S]*`surfaces`[\s\S]*`flagship`[\s\S]*`slices`[\s\S]*`recommendedCommands`[\s\S]*Current stable `summary` fields:[\s\S]*`suiteId`[\s\S]*`catalogView`[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`stage`[\s\S]*`useWhen`[\s\S]*`entryModes`[\s\S]*`startHereJourneyId`[\s\S]*`journeyOrder`[\s\S]*`surfaceOrder`[\s\S]*`categoryOrder`[\s\S]*`flagshipId`[\s\S]*`postFlagshipSliceIds`[\s\S]*`recommendedOrder`[\s\S]*`nextAction`[\s\S]*Current stable `flagship` \/ `slices\[\]` fields:[\s\S]*`category`[\s\S]*`surface`[\s\S]*`id`[\s\S]*`title`[\s\S]*`goal`[\s\S]*`useWhen`[\s\S]*`primaryCommand`[\s\S]*`surfaceCommand`[\s\S]*`supportingCommands`[\s\S]*`proofPath`[\s\S]*`skillPath`[\s\S]*Current stable `surfaceOrder` values on this surface are:[\s\S]*`workflow`[\s\S]*`payment`[\s\S]*`discovery`[\s\S]*`relay`[\s\S]*Current stable `surfaces\[\]` fields:[\s\S]*`surface`[\s\S]*`title`[\s\S]*`useWhen`[\s\S]*`command`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `questions\[\]` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`question`[\s\S]*`journeyId`[\s\S]*`surface`[\s\S]*`startCommand`[\s\S]*`useWhen`[\s\S]*Current stable `journeys\[\]` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`operatorQuestion`[\s\S]*`useWhen`[\s\S]*`startCommand`[\s\S]*`surface`[\s\S]*`categoryIds`[\s\S]*`entryIds`[\s\S]*Current stable `recommendedJourney` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`startCommand`[\s\S]*`surface`[\s\S]*`useWhen`[\s\S]*`proofPath`[\s\S]*Current stable `proofPaths\[\]` fields:[\s\S]*`id`[\s\S]*`title`[\s\S]*`journeyId`[\s\S]*`surface`[\s\S]*`useWhen`[\s\S]*`startCommand`[\s\S]*`proofPath`[\s\S]*Current stable `journeyOrder` values on this surface are:[\s\S]*`send-value-now`[\s\S]*`capture-and-track-payments`[\s\S]*`inspect-before-acting`[\s\S]*`unstick-a-write`[\s\S]*`recover-remote-approval`[\s\S]*Current stable `startHereJourneyId` value on this surface is:[\s\S]*`send-value-now`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`suite`[\s\S]*`flagship`[\s\S]*`workflowSurface`[\s\S]*`paymentSurface`[\s\S]*`discoverySurface`[\s\S]*`relaySurface`[\s\S]*`payment`[\s\S]*`discovery`[\s\S]*`paymaster`[\s\S]*`funding`[\s\S]*`hostedApproval`[\s\S]*`inspectDefaults`/,
-      'Operator JSON contract doc must describe the suite catalog, journey layer, deeper-surface handoff, and direct surface command contract.'
-    ],
-    [
-      /## `zk-agent defaults`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`summary`[\s\S]*`recommendedCommands`[\s\S]*`defaults`[\s\S]*`localTokenRegistry`[\s\S]*`tokenRegistrySources`[\s\S]*`tokenDirectoryChains`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT"[\s\S]*"discoverPaymasterTokens": "zk-agent tokens --chain zksync-sepolia --role paymaster-fee-token"[\s\S]*"inspectPaymasterToken": "zk-agent resolve-token --chain zksync-sepolia --symbol ZKAT --role paymaster-fee-token"[\s\S]*The current stable `summary` fields are:[\s\S]*`primaryDiscoveryChain`[\s\S]*`exampleTokenSymbol`[\s\S]*`paymasterFeeTokenSymbol`[\s\S]*`localTokenCount`[\s\S]*`tokenDirectoryChainCount`[\s\S]*`tokenRegistrySources`[\s\S]*`resolvedDefaults`/,
-      'Operator JSON contract doc must describe the defaults discovery contract.'
-    ],
-    [
-      /## `zk-agent assets`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`balances`[\s\S]*`ownedTokenRegistry`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverOwnedTokens": "zk-agent tokens --wallet main --owned"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*Current stable fields:[\s\S]*`walletName`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`assetCount`[\s\S]*`nativeAssetSymbol`[\s\S]*`nativeAssetBalance`[\s\S]*`ownedTokenCount`[\s\S]*`primaryOwnedTokenSymbol`[\s\S]*`ownedTokenSymbols`[\s\S]*`ownedTokenSourceCounts`[\s\S]*`ownedBridgeMappingCounts`[\s\S]*`ownedRegistryRoleCounts`/,
-      'Operator JSON contract doc must describe the assets discoverySummary contract.'
-    ],
-    [
-      /## `zk-agent balances --owned-tokens`[\s\S]*Current stable top-level fields on that path:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`walletName`[\s\S]*`walletAddress`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`balances`[\s\S]*`ownedTokenRegistry`[\s\S]*Same compressed single-chain owned-token summary contract as `zk-agent assets`\.[\s\S]*Same local-first discovery follow-up contract as `zk-agent assets`\./,
-      'Operator JSON contract doc must describe the balances --owned-tokens discovery contract.'
+      /Optional additive public-read fields may also appear on this surface[\s\S]*`questions\[\]\.publicStartCommand`[\s\S]*`journeys\[\]\.publicStartCommand`[\s\S]*`recommendedJourney\.publicStartCommand`[\s\S]*`recommendedJourney\.publicProofPath`[\s\S]*`proofPaths\[\]\.publicStartCommand`[\s\S]*`proofPaths\[\]\.publicProofPath`[\s\S]*`recommendedCommands\.publicFlagship`[\s\S]*`recommendedCommands\.publicPayment`[\s\S]*`recommendedCommands\.publicWorkspace`/,
+      'Operator JSON contract doc must describe the additive public-read suite fields.'
     ],
     [
       /## `zk-agent tokens`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`tokenRegistrySources`[\s\S]*`entries`[\s\S]*`entryCount`[\s\S]*Important current distinction:[\s\S]*`discoverySummary`[\s\S]*`summary`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia"[\s\S]*"inspectToken": "zk-agent resolve-token --chain zksync-sepolia --symbol <symbol>"[\s\S]*"discoverAssets": "zk-agent assets --wallet main"[\s\S]*Current stable fields:[\s\S]*`mode`[\s\S]*`walletName`[\s\S]*`chainScope`[\s\S]*`chainCount`[\s\S]*`entryCount`[\s\S]*`symbolFilter`[\s\S]*`roleFilter`[\s\S]*`sourceFilter`[\s\S]*`primarySymbol`[\s\S]*`primarySource`[\s\S]*`sourceCounts`[\s\S]*`roleMatchCounts`[\s\S]*`currentDefaultEntryCount`[\s\S]*`probeFailureCount`[\s\S]*`bridgeMappingCounts`[\s\S]*`tokenRegistrySources`/,
@@ -1647,34 +2610,6 @@ function assertOperatorJsonContract(doc) {
     [
       /## `zk-agent resolve-token`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`discoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`chainId`[\s\S]*`chainKey`[\s\S]*`queryType`[\s\S]*`symbol`[\s\S]*`address`[\s\S]*`role`[\s\S]*`source`[\s\S]*`matchCount`[\s\S]*`ambiguous`[\s\S]*`primaryMatch`[\s\S]*`matches`[\s\S]*`tokenRegistrySources`[\s\S]*"inspectDefaults": "zk-agent defaults"[\s\S]*"discoverTokens": "zk-agent tokens --chain zksync-sepolia --symbol USDC"[\s\S]*Current stable fields:[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`queryType`[\s\S]*`query`[\s\S]*`roleFilter`[\s\S]*`sourceFilter`[\s\S]*`matchCount`[\s\S]*`ambiguous`[\s\S]*`primarySymbol`[\s\S]*`primaryAddress`[\s\S]*`primaryDecimals`[\s\S]*`primarySource`[\s\S]*`sourceCounts`[\s\S]*`roleMatchCounts`[\s\S]*`currentDefaultEntryCount`[\s\S]*`tokenRegistrySources`/,
       'Operator JSON contract doc must describe the resolve-token discoverySummary contract.'
-    ],
-    [
-      /## `zk-agent relay serve`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`status`[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`stateBackend`[\s\S]*`deploymentScope`[\s\S]*`sameHostRestartPersists`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`publicOriginLooksLocal`[\s\S]*`approvalEndpointSummary`[\s\S]*`hostedReadinessSummary`[\s\S]*`deploymentSummary`[\s\S]*`healthUrl`[\s\S]*`publicHealthUrl`[\s\S]*`relayMode`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`capabilities`[\s\S]*`recommendedCommands`[\s\S]*`notes`[\s\S]*Current stable `hostedReadinessSummary` fields on this surface:[\s\S]*`status`[\s\S]*`compatible`[\s\S]*`hostedApprovalReady`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`connectorUiAvailable`[\s\S]*`singleHostFileState`[\s\S]*Current stable `approvalEndpointSummary` fields on this surface:[\s\S]*`status`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`relayUrlMatchesPublicOrigin`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*Current stable approval-endpoint `status` values on this surface:[\s\S]*`local-public-origin`[\s\S]*`hosted-public-origin`[\s\S]*Current stable hosted-readiness `status` values on this surface:[\s\S]*`ready`[\s\S]*`needs-public-origin`[\s\S]*`needs-connector-ui`[\s\S]*`needs-public-origin-and-ui`[\s\S]*`incompatible`[\s\S]*When present, `deploymentSummary` compresses the hosted deployment contract[\s\S]*into:[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`singleHostFileState`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`baseline`[\s\S]*`inspectRelay`[\s\S]*`createWallet`[\s\S]*`reapproveWallet`[\s\S]*`restartWithPublicOrigin`/,
-      'Operator JSON contract doc must describe the relay serve approval-endpoint and deployment-summary contracts.'
-    ],
-    [
-      /## `zk-agent relay inspect`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`status`[\s\S]*`relayUrl`[\s\S]*`compatible`[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`stateBackend`[\s\S]*`deploymentScope`[\s\S]*`sameHostRestartPersists`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`relayUrlMatchesOrigin`[\s\S]*`relayUrlMatchesPublicOrigin`[\s\S]*`publicOriginLooksLocal`[\s\S]*`approvalEndpointSummary`[\s\S]*`hostedReadinessSummary`[\s\S]*`deploymentSummary`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`capabilities`[\s\S]*`recommendedCommands`[\s\S]*`notes`[\s\S]*Current stable `hostedReadinessSummary` fields on this surface:[\s\S]*`status`[\s\S]*`compatible`[\s\S]*`hostedApprovalReady`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`connectorUiAvailable`[\s\S]*`singleHostFileState`[\s\S]*Current stable `approvalEndpointSummary` fields on this surface:[\s\S]*`status`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`relayUrlMatchesPublicOrigin`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*Current stable approval-endpoint `status` values on this surface:[\s\S]*`local-public-origin`[\s\S]*`hosted-public-origin`[\s\S]*`hosted-public-origin-via-proxy`[\s\S]*Current stable hosted-readiness `status` values on this surface:[\s\S]*`ready`[\s\S]*`needs-public-origin`[\s\S]*`needs-connector-ui`[\s\S]*`needs-public-origin-and-ui`[\s\S]*`incompatible`[\s\S]*Current stable `deploymentSummary` fields on this surface:[\s\S]*`origin`[\s\S]*`publicOrigin`[\s\S]*`publicOriginSource`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`publicOriginConfigured`[\s\S]*`publicOriginLooksLocal`[\s\S]*`connectorUiAvailable`[\s\S]*`hostedShareRedirectReady`[\s\S]*`singleHostFileState`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`baseline`[\s\S]*`createWallet`[\s\S]*`reapproveWallet`[\s\S]*`restartWithPublicOrigin`/,
-      'Operator JSON contract doc must describe the relay inspect approval-endpoint and deployment-summary contracts.'
-    ],
-    [
-      /## `zk-agent relay baseline`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`status`[\s\S]*`relayUrl`[\s\S]*`walletName`[\s\S]*`baseline`[\s\S]*`recommendedCommands`[\s\S]*Current stable `baseline` fields on this surface:[\s\S]*`format`[\s\S]*`version`[\s\S]*`generatedAt`[\s\S]*`relayUrl`[\s\S]*`walletName`[\s\S]*`mode`[\s\S]*`supportLevel`[\s\S]*`claim`[\s\S]*`createWalletPath`[\s\S]*`reapproveWalletPath`[\s\S]*`createWalletProofPath`[\s\S]*`reapproveWalletProofPath`[\s\S]*`rehearsal`[\s\S]*`inspection`[\s\S]*`notes`[\s\S]*Current stable `claim` fields on this surface:[\s\S]*`externallyReachablePublicOrigin`[\s\S]*`sameOriginApprovalUi`[\s\S]*`sameHostFileState`[\s\S]*`hostedApprovalReady`[\s\S]*`approvalEndpointStatus`[\s\S]*`hostedReadinessStatus`[\s\S]*Current stable `supportLevel` values on this surface:[\s\S]*`supported`[\s\S]*`needs-fix`[\s\S]*`incompatible`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`baseline`[\s\S]*`inspect`[\s\S]*`createWallet`[\s\S]*`reapproveWallet`[\s\S]*`walletStatus`[\s\S]*`rehearsalPlan`[\s\S]*`rehearsalSingleRun`[\s\S]*`rehearsalRepeatedRun`/,
-      'Operator JSON contract doc must describe the packaged relay baseline surface.'
-    ],
-    [
-      /## `zk-agent wallet create --relay-url <url>`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletName`[\s\S]*`requestId`[\s\S]*`walletRequestId`[\s\S]*`approvalUrl`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`expiresAt`[\s\S]*`chain`[\s\S]*`chainId`[\s\S]*`accountKind`[\s\S]*`paymasterMode`[\s\S]*`capabilities`[\s\S]*`sessionScope`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`awaitLocal`[\s\S]*`relayStatus`[\s\S]*`relayApprove`[\s\S]*`approve`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`[\s\S]*Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`/,
-      'Operator JSON contract doc must describe the wallet create --relay-url recovery summary contract.'
-    ],
-    [
-      /## `zk-agent wallet reapprove --name <name> --relay-url <url>`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`wallet`[\s\S]*`request`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`nextAction`[\s\S]*`recommendedCommands`[\s\S]*Current stable `recommendedCommands` shape on this surface:[\s\S]*`awaitLocal`[\s\S]*`relayStatus`[\s\S]*`relayApprove`[\s\S]*`approve`[\s\S]*`afterApproval`[\s\S]*`afterApprovalStatus`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`[\s\S]*Defaults to `zk-agent wallet request relay-status --request-id <id> --relay-url <url>`/,
-      'Operator JSON contract doc must describe the wallet reapprove --relay-url recovery summary contract.'
-    ],
-    [
-      /## `zk-agent wallet request relay-publish`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`request`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`/,
-      'Operator JSON contract doc must describe the wallet request relay-publish recovery summary contract.'
-    ],
-    [
-      /## `zk-agent wallet request relay-status`[\s\S]*Current stable top-level fields:[\s\S]*`ok`[\s\S]*`walletRequestId`[\s\S]*`relay`[\s\S]*`relayRecoverySummary`[\s\S]*`recommendedCommands`[\s\S]*`nextAction`[\s\S]*Current stable `relay` fields:[\s\S]*`request_id`[\s\S]*`status`[\s\S]*`approval_ready`[\s\S]*`share_url`[\s\S]*`status_url`[\s\S]*`approval_url`[\s\S]*`expires_at`[\s\S]*Current stable `relayRecoverySummary` fields on this surface:[\s\S]*`requestId`[\s\S]*`walletName`[\s\S]*`relayUrl`[\s\S]*`relayStatus`[\s\S]*`approvalReady`[\s\S]*`nextAction`[\s\S]*`shareLinkBaseUrl`[\s\S]*`statusApiBaseUrl`[\s\S]*`recoveryMode`[\s\S]*`includesStatusPoll`[\s\S]*`includesApprove`[\s\S]*`includesRelayInspect`[\s\S]*`includesRemoteReissue`[\s\S]*"relayInspect": "zk-agent relay inspect --relay-url https:\/\/relay\.example\.com"[\s\S]*"reissueRemoteApproval": "zk-agent wallet reapprove --name main --relay-url https:\/\/relay\.example\.com --wait-relay --prompt-code"[\s\S]*The same `relayRecoverySummary` field set now also appears in:[\s\S]*`wallet create --relay-url <url>`[\s\S]*`wallet reapprove --name <name> --relay-url <url>`[\s\S]*`wallet request relay-publish`[\s\S]*`RELAY_APPROVAL_TIMEOUT` error details[\s\S]*`RELAY_APPROVAL_EXPIRED` error details/,
-      'Operator JSON contract doc must describe the wallet request relay-status recovery summary contract.'
     ],
     [
       /## `zk-agent agent \*`[\s\S]*### `agent status\|show`[\s\S]*`ok`[\s\S]*`plugin`[\s\S]*`profileExists`[\s\S]*`profile`[\s\S]*`recommendedCommands`[\s\S]*"status": "zk-agent agent status"[\s\S]*"show": "zk-agent agent show"[\s\S]*"export": "zk-agent agent export"[\s\S]*"import": "zk-agent agent import --payload @agent-profile\.json"[\s\S]*"set": "zk-agent agent set --name <name> --wallet main"/,
@@ -1700,6 +2635,7 @@ function envWithoutDryRun() {
 }
 
 function packPackage() {
+  logReleaseCheckStep('Packing published tarball.');
   const output = execFileSync('pnpm', ['pack', '--pack-destination', packDir], {
     cwd: packageDir,
     env: envWithoutDryRun(),
@@ -1904,6 +2840,7 @@ function writeCleanMachinePackageJson(projectRoot) {
 function installTarballInCleanMachineProject(projectRoot, tarballPath) {
   writeCleanMachinePackageJson(projectRoot);
   const installEnv = envWithoutDryRun();
+  logReleaseCheckStep('Installing tarball into a clean-machine project.');
 
   try {
     runCommand('pnpm', ['add', '--offline', tarballPath], {
@@ -2203,6 +3140,7 @@ function assertNoWorkspaceLeak(output) {
 }
 
 function assertStandaloneSmoke(extractedPackageDir) {
+  logReleaseCheckStep('Running standalone tarball smoke against the extracted package.');
   const homeDir = mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-home-'));
 
   try {
@@ -2304,7 +3242,7 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertPackedCliStderr(startHelpResult.stderr, startHelpResult.stdout, 'start --help');
     assert.match(startHelpResult.stdout, /Usage: zk-agent start/);
     assertNoWorkspaceLeak(startHelpResult.stdout);
-    assertNextHelpContract(startHelpResult.stdout);
+    assertStartHelpContract(startHelpResult.stdout);
 
     const doctorHelpResult = runPackedCli(extractedPackageDir, homeDir, ['doctor', '--help']);
     assertPackedCliStderr(doctorHelpResult.stderr, doctorHelpResult.stdout, 'doctor --help');
@@ -2356,11 +3294,33 @@ function assertStandaloneSmoke(extractedPackageDir) {
     assertNoWorkspaceLeak(workflowHelpResult.stdout);
     assertWorkflowHelpContract(workflowHelpResult.stdout);
 
+    const payHelpResult = runPackedCli(extractedPackageDir, homeDir, ['pay', '--help']);
+    assertPackedCliStderr(payHelpResult.stderr, payHelpResult.stdout, 'pay --help');
+    assert.match(payHelpResult.stdout, /Usage: zk-agent pay/);
+    assertNoWorkspaceLeak(payHelpResult.stdout);
+    assertPayHelpContract(payHelpResult.stdout);
+
+    const submitHelpResult = runPackedCli(extractedPackageDir, homeDir, ['submit', '--help']);
+    assertPackedCliStderr(submitHelpResult.stderr, submitHelpResult.stdout, 'submit --help');
+    assert.match(submitHelpResult.stdout, /Usage: zk-agent submit/);
+    assertNoWorkspaceLeak(submitHelpResult.stdout);
+    assertSubmitHelpContract(submitHelpResult.stdout);
+
     const paymentHelpResult = runPackedCli(extractedPackageDir, homeDir, ['payment', '--help']);
     assertPackedCliStderr(paymentHelpResult.stderr, paymentHelpResult.stdout, 'payment --help');
     assert.match(paymentHelpResult.stdout, /Usage: zk-agent payment/);
     assertNoWorkspaceLeak(paymentHelpResult.stdout);
     assertPaymentHelpContract(paymentHelpResult.stdout);
+
+    const workspaceHelpResult = runPackedCli(extractedPackageDir, homeDir, ['workspace', '--help']);
+    assertPackedCliStderr(
+      workspaceHelpResult.stderr,
+      workspaceHelpResult.stdout,
+      'workspace --help'
+    );
+    assert.match(workspaceHelpResult.stdout, /Usage: zk-agent workspace/);
+    assertNoWorkspaceLeak(workspaceHelpResult.stdout);
+    assertWorkspaceHelpContract(workspaceHelpResult.stdout);
 
     const bridgeHelpResult = runPackedCli(extractedPackageDir, homeDir, ['bridge', '--help']);
     assertPackedCliStderr(bridgeHelpResult.stderr, bridgeHelpResult.stdout, 'bridge --help');
@@ -2527,7 +3487,13 @@ function assertStandaloneSmoke(extractedPackageDir) {
 }
 
 async function assertInstalledRelayServe(projectRoot, homeDir) {
-  const binaryPath = join(projectRoot, 'node_modules', '.bin', 'zk-agent');
+  logReleaseCheckStep('Running installed relay serve smoke.');
+  const installedEntry = join(projectRoot, 'node_modules', 'zk-agent-cli', 'dist', 'index.js');
+  assert.equal(
+    existsSync(installedEntry),
+    true,
+    `Expected installed CLI entry not found: ${installedEntry}`
+  );
   const relayEnv = createStandaloneEnv(homeDir);
   const publicOrigin = 'https://relay.example.test';
   const requestId = 'release-check-share-link';
@@ -2535,8 +3501,17 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
 
   function spawnRelay(port) {
     const spawned = spawn(
-      binaryPath,
-      ['--json', 'relay', 'serve', '--port', String(port), '--public-origin', publicOrigin],
+      process.execPath,
+      [
+        installedEntry,
+        '--json',
+        'relay',
+        'serve',
+        '--port',
+        String(port),
+        '--public-origin',
+        publicOrigin
+      ],
       {
         cwd: projectRoot,
         env: relayEnv,
@@ -2557,6 +3532,7 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
   }
 
   try {
+    logReleaseCheckStep('Starting installed relay and validating hosted share-link readiness.');
     const firstRelay = spawnRelay(0);
     child = firstRelay.child;
     const payload = await waitForJsonOutput(child.stdout);
@@ -2615,6 +3591,7 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
     );
     child = null;
 
+    logReleaseCheckStep('Restarting installed relay to confirm same-host request persistence.');
     const secondRelay = spawnRelay(relayPort);
     child = secondRelay.child;
     const restartedPayload = await waitForJsonOutput(child.stdout);
@@ -2715,6 +3692,7 @@ async function assertInstalledRelayServe(projectRoot, homeDir) {
 }
 
 async function assertCleanMachineInstallSmoke(tarballPath) {
+  logReleaseCheckStep('Running clean-machine packaged install smoke.');
   const projectRoot = createCleanMachineInstallRoot();
   const homeDir = mkdtempSync(join(tmpdir(), 'zk-agent-cli-release-check-install-home-'));
 
@@ -2726,6 +3704,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       'Installed package must include the bundled connector UI build.'
     );
 
+    logReleaseCheckStep('Checking installed help contracts and packaged command surfaces.');
     const helpResult = runInstalledCli(projectRoot, homeDir, ['--help']);
     assertPackedCliStderr(helpResult.stderr, helpResult.stdout, 'installed zk-agent --help');
     assert.match(helpResult.stdout, /Usage: zk-agent/);
@@ -2850,7 +3829,27 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     );
     assert.match(startHelpResult.stdout, /Usage: zk-agent start/);
     assertNoWorkspaceLeak(startHelpResult.stdout);
-    assertNextHelpContract(startHelpResult.stdout);
+    assertStartHelpContract(startHelpResult.stdout);
+
+    const payHelpResult = runInstalledCli(projectRoot, homeDir, ['pay', '--help']);
+    assertPackedCliStderr(
+      payHelpResult.stderr,
+      payHelpResult.stdout,
+      'installed zk-agent pay --help'
+    );
+    assert.match(payHelpResult.stdout, /Usage: zk-agent pay/);
+    assertNoWorkspaceLeak(payHelpResult.stdout);
+    assertPayHelpContract(payHelpResult.stdout);
+
+    const submitHelpResult = runInstalledCli(projectRoot, homeDir, ['submit', '--help']);
+    assertPackedCliStderr(
+      submitHelpResult.stderr,
+      submitHelpResult.stdout,
+      'installed zk-agent submit --help'
+    );
+    assert.match(submitHelpResult.stdout, /Usage: zk-agent submit/);
+    assertNoWorkspaceLeak(submitHelpResult.stdout);
+    assertSubmitHelpContract(submitHelpResult.stdout);
 
     const doctorHelpResult = runInstalledCli(projectRoot, homeDir, ['doctor', '--help']);
     assertPackedCliStderr(
@@ -2871,6 +3870,16 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.match(paymentHelpResult.stdout, /Usage: zk-agent payment/);
     assertNoWorkspaceLeak(paymentHelpResult.stdout);
     assertPaymentHelpContract(paymentHelpResult.stdout);
+
+    const workspaceHelpResult = runInstalledCli(projectRoot, homeDir, ['workspace', '--help']);
+    assertPackedCliStderr(
+      workspaceHelpResult.stderr,
+      workspaceHelpResult.stdout,
+      'installed zk-agent workspace --help'
+    );
+    assert.match(workspaceHelpResult.stdout, /Usage: zk-agent workspace/);
+    assertNoWorkspaceLeak(workspaceHelpResult.stdout);
+    assertWorkspaceHelpContract(workspaceHelpResult.stdout);
 
     const suiteHelpResult = runInstalledCli(projectRoot, homeDir, ['suite', '--help']);
     assertPackedCliStderr(
@@ -3012,6 +4021,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assertNoWorkspaceLeak(agentHelpResult.stdout);
     assertAgentHelpContract(agentHelpResult.stdout);
 
+    logReleaseCheckStep('Checking installed JSON contracts and packaged read surfaces.');
     const defaultsOutput = runInstalledCliJson(projectRoot, homeDir, ['defaults', '--json']);
     assertNoWorkspaceLeak(defaultsOutput);
     const defaultsPayload = JSON.parse(defaultsOutput);
@@ -3045,9 +4055,18 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       suitePayload.recommendedJourney?.startCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
+    assert.equal(
+      suitePayload.recommendedJourney?.publicStartCommand,
+      'zk-agent pay --wallet main --to <address> --amount <amount>'
+    );
     assert.equal(suitePayload.recommendedJourney?.surface, 'workflow');
     assert.deepEqual(suitePayload.recommendedJourney?.proofPath, [
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      'zk-agent workflow next --request-id <request-id>',
+      'zk-agent workflow status --request-id <request-id>'
+    ]);
+    assert.deepEqual(suitePayload.recommendedJourney?.publicProofPath, [
+      'zk-agent pay --wallet main --to <address> --amount <amount>',
       'zk-agent workflow next --request-id <request-id>',
       'zk-agent workflow status --request-id <request-id>'
     ]);
@@ -3061,8 +4080,14 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
         startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
         proofPath: [
           'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+          'zk-agent workflow next --request-id <request-id>',
+          'zk-agent workflow status --request-id <request-id>'
+        ],
+        publicProofPath: [
+          'zk-agent pay --wallet main --to <address> --amount <amount>',
           'zk-agent workflow next --request-id <request-id>',
           'zk-agent workflow status --request-id <request-id>'
         ]
@@ -3073,13 +4098,22 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
         journeyId: 'capture-and-track-payments',
         surface: 'payment',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.',
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.',
         startCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         proofPath: [
           'zk-agent payment submit --wallet main --to <address> --amount <amount>',
           'zk-agent payment next --request-id <request-id>',
           'zk-agent payment approval --request-id <request-id>',
           'zk-agent payment workspace',
+          'zk-agent payment handoff --request-id <request-id>',
+          'zk-agent payment feed'
+        ],
+        publicProofPath: [
+          'zk-agent submit --wallet main --to <address> --amount <amount>',
+          'zk-agent payment next --request-id <request-id>',
+          'zk-agent payment approval --request-id <request-id>',
+          'zk-agent workspace',
           'zk-agent payment handoff --request-id <request-id>',
           'zk-agent payment feed'
         ]
@@ -3091,9 +4125,9 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
         surface: 'relay',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url>',
         proofPath: [
-          'zk-agent relay inspect --relay-url <url>',
+          'zk-agent relay baseline --relay-url <url>',
           'zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
           'zk-agent wallet status --name main'
         ]
@@ -3108,6 +4142,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
         journeyId: 'send-value-now',
         surface: 'workflow',
         startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.'
       },
@@ -3118,8 +4153,9 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
         journeyId: 'capture-and-track-payments',
         surface: 'payment',
         startCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.'
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.'
       },
       {
         id: 'inspect-before-token-action',
@@ -3148,7 +4184,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
         question: 'The browser is remote, so approval must move to the relay path.',
         journeyId: 'recover-remote-approval',
         surface: 'relay',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url>',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.'
       }
@@ -3169,10 +4205,18 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
       suitePayload.journeys?.[0]?.startCommand,
       'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
     );
+    assert.equal(
+      suitePayload.journeys?.[0]?.publicStartCommand,
+      'zk-agent pay --wallet main --to <address> --amount <amount>'
+    );
     assert.equal(suitePayload.journeys?.[1]?.surface, 'payment');
     assert.equal(
       suitePayload.journeys?.[1]?.startCommand,
       'zk-agent payment submit --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(
+      suitePayload.journeys?.[1]?.publicStartCommand,
+      'zk-agent submit --wallet main --to <address> --amount <amount>'
     );
     assert.equal(suitePayload.journeys?.[2]?.surface, 'discovery');
     assert.equal(suitePayload.journeys?.[2]?.startCommand, 'zk-agent assets --wallet main');
@@ -3184,7 +4228,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.equal(suitePayload.journeys?.[4]?.surface, 'relay');
     assert.equal(
       suitePayload.journeys?.[4]?.startCommand,
-      'zk-agent relay inspect --relay-url <url>'
+      'zk-agent relay baseline --relay-url <url>'
     );
     assert.equal(Array.isArray(suitePayload.surfaces), true);
     assert.deepEqual(
@@ -3195,6 +4239,15 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.equal(suitePayload.recommendedCommands?.paymentSurface, 'zk-agent payment --help');
     assert.equal(suitePayload.recommendedCommands?.discoverySurface, 'zk-agent defaults');
     assert.equal(suitePayload.recommendedCommands?.relaySurface, 'zk-agent relay --help');
+    assert.equal(
+      suitePayload.recommendedCommands?.publicFlagship,
+      'zk-agent pay --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(
+      suitePayload.recommendedCommands?.publicPayment,
+      'zk-agent submit --wallet main --to <address> --amount <amount>'
+    );
+    assert.equal(suitePayload.recommendedCommands?.publicWorkspace, 'zk-agent workspace');
     assert.equal(suitePayload.surfaces?.[0]?.command, 'zk-agent workflow --help');
     assert.equal(suitePayload.surfaces?.[1]?.command, 'zk-agent payment --help');
     assert.equal(suitePayload.surfaces?.[2]?.command, 'zk-agent defaults');
@@ -3219,7 +4272,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
     assert.equal(suitePayload.slices?.[4]?.surface, 'relay');
     assert.equal(suitePayload.slices?.[4]?.surfaceCommand, 'zk-agent relay --help');
     assert.deepEqual(suitePayload.slices?.[4]?.proofPath, [
-      'zk-agent relay inspect --relay-url <url>',
+      'zk-agent relay baseline --relay-url <url>',
       'zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
       'zk-agent wallet status --name main'
     ]);
@@ -3284,6 +4337,7 @@ async function assertCleanMachineInstallSmoke(tarballPath) {
 }
 
 async function main() {
+  logReleaseCheckStep('Loading package metadata, docs, and release artifacts.');
   const workspacePkg = readWorkspacePackageJson();
   const pkg = readPackageJson();
   const readme = readPackageReadme();
@@ -3298,11 +4352,17 @@ async function main() {
   const releaseNotes = readReleaseNotes(pkg.version);
   const quickstart = readSkillQuickstart();
   const skillGuide = readSkillGuide();
+
+  logReleaseCheckStep('Checking package metadata and plugin manifest alignment.');
   assertVersionAlignment(workspacePkg, pkg);
   assertReleaseMetadata(pkg);
   assertPluginManifest(pluginManifest, pkg);
+
+  logReleaseCheckStep('Checking package README and repository front-door docs.');
   assertPackageReadme(readme);
   assertRepositoryDocs(rootReadme, quickstart, skillGuide);
+
+  logReleaseCheckStep('Checking release-stage and hosted-baseline contracts.');
   assertReleaseStageDocs({
     packageReadme: readme,
     rootReadme,
@@ -3311,7 +4371,11 @@ async function main() {
     releaseGateDoc,
     hostedBaselineDoc
   });
+
+  logReleaseCheckStep('Checking changelog and current release artifact structure.');
   assertReleaseArtifact(changelog, releaseNotes);
+
+  logReleaseCheckStep('Checking operator JSON contract and current-version alignment.');
   assertOperatorJsonContract(operatorJsonContractDoc);
   assertCurrentVersionDocs({
     version: pkg.version,
@@ -3337,6 +4401,7 @@ async function main() {
   const standaloneInstallRoot = createStandaloneInstallRoot();
 
   try {
+    logReleaseCheckStep('Extracting tarball and verifying standalone package contents.');
     const extractedPackageDir = extractTarball(tarballPath, standaloneInstallRoot);
     linkRuntimeNodeModules(extractedPackageDir);
     assertStandaloneSmoke(extractedPackageDir);
@@ -3347,6 +4412,7 @@ async function main() {
   await assertCleanMachineInstallSmoke(tarballPath);
 
   rmSync(packDir, { recursive: true, force: true });
+  logReleaseCheckStep('Release check completed successfully.');
   process.stdout.write(`Release check passed: ${tarballName}\n`);
 }
 

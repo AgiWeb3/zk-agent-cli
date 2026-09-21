@@ -14,7 +14,7 @@ zkSync-native, local-first CLI with:
 ## Current stage
 
 - release stage: `rc`
-- current package line: `0.1.0-rc.7`
+- current package line: `0.1.0-rc.8`
 - default AA path: `sed-lite`
 - broad DeFi expansion: deferred
 - current work: RC closeout, product-shell tightening, benchmark-gap closure,
@@ -23,12 +23,14 @@ zkSync-native, local-first CLI with:
 ## Landed baseline
 
 - flagship path is validated:
-  `setup -> next -> wallet create|reapprove -> next -> workflow pay`
+  `setup -> next -> wallet create|reapprove -> next -> pay`
+- `pay` now exists as the public shortcut to the flagship native-send surface,
+  while `workflow pay` remains the scoped workflow form
 - `start` exists as the public first-touch command; `next` remains the
   canonical operator/runtime contract
 - top-level help plus `setup` / `start` / `next` now share one shorter
   first-run public shell centered on:
-  `setup -> next -> wallet create/reapprove -> next -> workflow pay`
+  `setup -> next -> wallet create/reapprove -> next -> pay`
 - `doctor`, `next`, `wallet`, `workflow`, and `suite` now share one
   question-first routing story
 - hosted approval is documented and exercised as the current single-host
@@ -41,20 +43,34 @@ zkSync-native, local-first CLI with:
   - bounded proof paths
 - Agent Pay is now a first-class packaged slice through `payment` and
   `suite`
-- `payment workspace` now exists as the product-style cross-request Agent Pay
-  entry surface above `dashboard`, `queue`, `report`, and `feed`
+- `submit` now exists as the public shortcut to the compact Agent Pay ingress
+  path, while `payment submit` remains the scoped subcommand
+- `workspace` now exists as the public shortcut to the current Agent Pay
+  workbench anchor above `dashboard`, `queue`, `report`, and `feed`, while
+  `payment workspace` remains the scoped subcommand and `suite` remains the
+  broader post-flagship shell
+- `suite` and `suiteHandoffSummary` now preserve their scoped machine
+  commands while also exposing additive public-read command fields for the
+  shorter `pay` / `submit` / `workspace` product shell
 - release validation and packaged install checks are in place
+- packaged release validation now emits stage progress and no longer spends
+  minutes in silent operator-JSON regex backtracking before pack/install smoke
+- pre-pack release-contract checks now stay in the sub-second range on the
+  current RC line, with no remaining operator-contract regex hotspot above
+  the 50 ms profiling threshold; the remaining gate time is mostly packaged
+  smoke coverage rather than doc-regex overhead
 
 ## Current priorities
 
 1. Keep the first screen short and obvious:
-   `start -> next -> wallet create/reapprove -> next -> workflow pay -> suite`.
+   `start -> next -> wallet create/reapprove -> next -> pay -> suite`.
 2. Keep one canonical product story across README, package README, help,
    skills, JSON contracts, `PLANS.md`, and `PROJECT_STATE.md`.
 3. Keep the hosted approval operated baseline explicit, supportable, and easy
    to explain as a fallback path rather than baseline complexity.
-4. Keep the post-flagship product surface centered on `suite`, with Agent Pay,
-   discovery, defaults, funding, and paymaster guidance easy to find.
+4. Keep the post-flagship product surface centered on `suite`, while keeping
+   `submit` and `workspace` explicit as the current public Agent Pay ingress
+   and workbench shortcuts under that broader shell.
 5. Turn the `polygon-agent-cli` comparison into explicit release-critical
    decisions instead of vague parity language.
 6. Keep Agent Pay moving toward a hosted platform layer without pretending the
@@ -66,8 +82,8 @@ zkSync-native, local-first CLI with:
 
 - onboarding is still stronger technically than it is market-facing
 - hosted approval is correct but still longer to explain than it should be
-- Agent Pay now has a stronger public local proof surface, but not yet a
-  hosted control-plane proof
+- Agent Pay now has a stronger public local proof surface and a clearer
+  workbench anchor, but not yet a hosted control-plane proof
 - public differentiation versus `polygon-agent-cli` is still clearer in
   engineering terms than in first-screen product terms
 - `1.0.0` still needs less manual judgment on final release readiness
@@ -105,8 +121,9 @@ zkSync-native, local-first CLI with:
 
 - keep first-run docs/help short
   status: top-level help plus `setup` / `start` / `next` are now aligned on
-  the shorter default first-run path; keep README/package README/quickstart
-  aligned as the shell continues to tighten
+  the shorter default first-run path, with `pay` as the public flagship
+  shortcut and `workflow pay` retained as the scoped form; keep
+  README/package README/quickstart aligned as the shell continues to tighten
 - keep `doctor -> next -> suite` wording aligned
 - keep the question-first `suite` entry layer visible everywhere
 
@@ -114,8 +131,12 @@ zkSync-native, local-first CLI with:
 
 - keep `payment` and `suite` routing obvious
 - expose the shortest public proof paths directly
-  status: `payment workspace` now packages the public cross-request proof
-  surface; keep README/help/JSON contracts aligned around it
+  status: `submit` now exposes the public shortcut to the compact Agent Pay
+  ingress path while `workspace` remains the public workbench shortcut;
+  `payment submit` and `payment workspace` remain the scoped surfaces; keep
+  README/help/skills/state docs/JSON contracts aligned around that split with
+  `suite`; `suite` / handoff JSON now also carry additive public-read fields
+  without breaking the scoped stable machine contract
 - make the hosted Agent Pay direction legible without over-claiming
 
 ### Milestone 3: reduce release drift

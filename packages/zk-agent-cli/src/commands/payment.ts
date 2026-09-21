@@ -84,6 +84,8 @@ import {
   buildPaymentSettlementRecommendedCommand,
   buildPaymentSetStatusRecommendedCommand,
   buildPaymentShowRecommendedCommand,
+  buildSubmitRecommendedCommand,
+  buildWorkspaceRecommendedCommand,
   buildWalletListRecommendedCommand,
   buildWalletReapproveRecommendedCommand,
   buildWalletSignerAttachRecommendedCommand,
@@ -1148,11 +1150,24 @@ function paymentIngressLines(input: {
 }
 
 function paymentWorkspaceLines(
-  workspace: PaymentRequestsWorkspaceView
+  workspace: PaymentRequestsWorkspaceView,
+  workspaceCommand = buildDefaultPaymentWorkspaceCommand(),
+  submitCommand = buildDefaultPaymentSubmitCommand()
 ): Array<[string, string]> {
+  const walletName = workspace.filters.walletName || 'main';
   const lines: Array<[string, string]> = [
+    ['surface', 'cross-request Agent Pay workspace'],
+    [
+      'use when',
+      'request capture is no longer enough and you need one current operator view across requests'
+    ],
+    ['public shell', 'submit -> next -> approval -> workspace -> handoff -> feed'],
     ['generated', workspace.generatedAt],
     ['source', workspace.source],
+    ['submit', submitCommand || buildPaymentSubmitRecommendedCommand(walletName)],
+    ['payment next', buildPaymentNextRecommendedCommand('<request-id>')],
+    ['approval', buildPaymentApprovalRecommendedCommand('<request-id>')],
+    ['handoff', buildPaymentHandoffRecommendedCommand('<request-id>')],
     ['requests', String(workspace.summary.totalRequests)],
     ['wallet groups', String(workspace.summary.distinctWalletCount)],
     ['actionable', String(workspace.summary.actionableRequests)],
@@ -1165,7 +1180,7 @@ function paymentWorkspaceLines(
     ['queue items', String(workspace.summary.queuedRequests)],
     ['feed items', String(workspace.summary.feedItems)],
     ['recent activity', String(workspace.summary.recentActivityCount)],
-    ['workspace', buildPaymentWorkspaceRecommendedCommand()],
+    ['workspace', workspaceCommand],
     ['dashboard', buildPaymentDashboardRecommendedCommand()],
     ['feed', buildPaymentFeedRecommendedCommand()],
     ['queue', buildPaymentQueueRecommendedCommand()],
@@ -1209,6 +1224,302 @@ function paymentWorkspaceLines(
   }
 
   return lines;
+}
+
+function buildDefaultPaymentWorkspaceCommand(): string {
+  return buildPaymentWorkspaceRecommendedCommand();
+}
+
+function buildDefaultPaymentSubmitCommand(): string {
+  return buildPaymentSubmitRecommendedCommand();
+}
+
+function buildWorkspaceSurfaceHelpText(options: {
+  workspaceCommand: string;
+  submitCommand: string;
+  topLevel: boolean;
+}): string {
+  if (options.topLevel) {
+    return [
+      '',
+      '  Public workspace shortcut:',
+      '    Use this when you already know the current question is the cross-request Agent Pay workbench.',
+      '    This is the top-level shortcut for `zk-agent payment workspace`.',
+      '    Stay on `suite` when the question is broader than the Agent Pay workbench.',
+      '    Stay on `payment next`, `payment approval`, or `payment handoff` when the question is still one request lifecycle.',
+      '',
+      '  Common commands:',
+      `    ${options.workspaceCommand}`,
+      `    ${options.submitCommand}`,
+      '    zk-agent payment next --request-id <id>',
+      '    zk-agent payment approval --request-id <id>',
+      '    zk-agent payment handoff --request-id <id>',
+      '    zk-agent payment feed'
+    ].join('\n');
+  }
+
+  return [
+    '',
+    '  Product workspace surface:',
+    '    Use this when you need one cross-request Agent Pay workspace instead of stitching dashboard, queue, report, and feed together manually.',
+    '    Public shortcut: zk-agent workspace.',
+    '    Shortest route into workspace: submit -> next -> approval -> workspace.',
+    '    Stay on `dashboard`, `queue`, `report`, or `feed` only when the workspace question has already narrowed to one slice.',
+    '    Stay on `payment next`, `payment approval`, or `payment handoff` when the question is still one request lifecycle.',
+    '',
+    '  Common commands:',
+    `    ${options.workspaceCommand}`,
+    `    ${options.submitCommand}`,
+    '    zk-agent payment next --request-id <id>',
+    '    zk-agent payment approval --request-id <id>',
+    '    zk-agent payment handoff --request-id <id>',
+    '    zk-agent payment feed'
+  ].join('\n');
+}
+
+function addWorkspaceSurfaceCommand(
+  command: Command,
+  options: {
+    workspaceCommand: string;
+    submitCommand: string;
+    topLevel: boolean;
+  }
+): Command {
+  return command
+    .option('--wallet <name>', 'Optional payer wallet filter')
+    .option(
+      '--status <status>',
+      'Optional status filter: draft, approval_pending, ready, paid, failed, expired, or cancelled'
+    )
+    .option('--queue-limit <count>', 'Optional maximum number of queue items to return')
+    .option('--wallet-limit <count>', 'Optional maximum number of wallet summaries')
+    .option('--activity-limit <count>', 'Optional recent-activity limit for the report/dashboard slices')
+    .option('--feed-limit <count>', 'Optional maximum number of feed items to return')
+    .addHelpText(
+      'after',
+      buildWorkspaceSurfaceHelpText({
+        workspaceCommand: options.workspaceCommand,
+        submitCommand: options.submitCommand,
+        topLevel: options.topLevel
+      })
+    )
+    .action(async (workspaceOptions: PaymentWorkspaceOptions) => {
+      const statusFilter = workspaceOptions.status
+        ? resolvePaymentStatus(workspaceOptions.status)
+        : undefined;
+      const queueLimit = resolvePositiveInteger(workspaceOptions.queueLimit, '--queue-limit');
+      const walletLimit = resolvePositiveInteger(workspaceOptions.walletLimit, '--wallet-limit');
+      const recentActivityLimit = resolvePositiveInteger(
+        workspaceOptions.activityLimit,
+        '--activity-limit'
+      );
+      const feedLimit = resolvePositiveInteger(workspaceOptions.feedLimit, '--feed-limit');
+      const result = await buildStoredPaymentRequestsWorkspace({
+        walletName: workspaceOptions.wallet,
+        status: statusFilter,
+        queueLimit,
+        walletLimit,
+        recentActivityLimit,
+        feedLimit
+      });
+
+      const walletName = result.workspace.filters.walletName || 'main';
+      const submitCommand = options.topLevel
+        ? buildSubmitRecommendedCommand(walletName)
+        : buildPaymentSubmitRecommendedCommand(walletName);
+
+      printResult(
+        paymentWorkspaceLines(result.workspace, options.workspaceCommand, submitCommand),
+        {
+          ok: true,
+          workspace: {
+            ...result.workspace,
+            queue: {
+              ...result.workspace.queue,
+              items: result.workspace.queue.items.map((item) => ({
+                descriptor: item.descriptor,
+                executionPlan: buildPaymentExecutionPlanJson(item.executionPlan),
+                next: item.next
+              }))
+            }
+          },
+          recommendedCommands: {
+            workspace: options.workspaceCommand,
+            ...(options.topLevel
+              ? {
+                  paymentSubmit: buildPaymentSubmitRecommendedCommand(walletName),
+                  paymentWorkspace: buildPaymentWorkspaceRecommendedCommand()
+                }
+              : {}),
+            dashboard: buildPaymentDashboardRecommendedCommand(),
+            feed: buildPaymentFeedRecommendedCommand(),
+            queue: buildPaymentQueueRecommendedCommand(),
+            report: buildPaymentReportRecommendedCommand(),
+            submit: submitCommand,
+            next: buildPaymentNextRecommendedCommand('<request-id>'),
+            approval: buildPaymentApprovalRecommendedCommand('<request-id>'),
+            handoff: buildPaymentHandoffRecommendedCommand('<request-id>')
+          }
+        }
+      );
+    });
+}
+
+export function createWorkspaceCommand(): Command {
+  return addWorkspaceSurfaceCommand(
+    new Command('workspace').description(
+      'Open the current Agent Pay workbench anchor as a top-level public shortcut'
+    ),
+    {
+      workspaceCommand: buildWorkspaceRecommendedCommand(),
+      submitCommand: buildSubmitRecommendedCommand(),
+      topLevel: true
+    }
+  );
+}
+
+function buildSubmitSurfaceHelpText(options: {
+  submitCommand: string;
+  topLevel: boolean;
+}): string {
+  if (options.topLevel) {
+    return [
+      '',
+      '  Public submit shortcut:',
+      '    Use this when execution is no longer the whole story and you want the shortest Agent Pay ingress path.',
+      '    This is the top-level shortcut for `zk-agent payment submit`.',
+      '    Stay on `pay` when the question is simply "send value now".',
+      '    Stay on `workspace` when the current question is already the cross-request Agent Pay workbench.',
+      '',
+      '  Common commands:',
+      `    ${options.submitCommand}`,
+      '    zk-agent payment next --request-id <id>',
+      '    zk-agent payment approval --request-id <id>',
+      '    zk-agent workspace',
+      '    zk-agent payment handoff --request-id <id>',
+      '    zk-agent payment feed'
+    ].join('\n');
+  }
+
+  return [
+    '',
+    '  Compact ingress surface:',
+    '    Use this when you need one local-first Agent Pay request before moving to next, approval, workspace, handoff, or feed.',
+    '    Public shortcut: zk-agent submit.',
+    '    Stay on `payment create` only when you need the lower-level local record primitive.',
+    '    Stay on `pay` when the question is simply "send value now".',
+    '',
+    '  Common commands:',
+    `    ${options.submitCommand}`,
+    '    zk-agent payment next --request-id <id>',
+    '    zk-agent payment approval --request-id <id>',
+    '    zk-agent workspace',
+    '    zk-agent payment handoff --request-id <id>',
+    '    zk-agent payment feed'
+  ].join('\n');
+}
+
+async function executePaymentSubmitSurface(
+  options: PaymentSubmitOptions,
+  topLevel: boolean
+) {
+  const input = await resolvePaymentCreateInput(options);
+  const result = await submitStoredPaymentRequest(input);
+  const nextCommand = buildPaymentNextCommand(result.next, result.executionPlan);
+  const walletName = result.ingress.walletName;
+
+  printResult(
+    paymentIngressLines({
+      requestId: result.ingress.requestId,
+      walletName,
+      chain: result.ingress.chain,
+      chainId: result.ingress.chainId,
+      settlementStatus: result.ingress.settlementStatus,
+      lifecycleState: result.ingress.lifecycleState,
+      action: result.ingress.action,
+      surface: result.ingress.surface,
+      submissionState: result.ingress.submissionState,
+      ingressMode: result.ingress.ingressMode,
+      acceptedAt: result.ingress.acceptedAt,
+      routeKind: result.ingress.route.kind,
+      nextCommand,
+      inspectCommand: buildPaymentInspectRecommendedCommand(result.ingress.requestId),
+      nextInspectCommand: buildPaymentNextRecommendedCommand(result.ingress.requestId),
+      historyCommand: buildPaymentHistoryRecommendedCommand(result.ingress.requestId)
+    }),
+    {
+      ok: true,
+      requestId: result.ingress.requestId,
+      ingress: result.ingress,
+      next: result.next,
+      nextCommand,
+      recommendedCommands: {
+        ...buildPaymentRecommendedCommands(result.paymentRequest, result.executionPlan),
+        submit: topLevel
+          ? buildSubmitRecommendedCommand(walletName)
+          : buildPaymentSubmitRecommendedCommand(walletName),
+        ...(topLevel
+          ? {
+              workspace: buildWorkspaceRecommendedCommand(),
+              paymentWorkspace: buildPaymentWorkspaceRecommendedCommand(),
+              paymentSubmit: buildPaymentSubmitRecommendedCommand(walletName)
+            }
+          : {})
+      }
+    }
+  );
+}
+
+function addSubmitSurfaceCommand(
+  command: Command,
+  options: {
+    submitCommand: string;
+    topLevel: boolean;
+  }
+): Command {
+  return command
+    .option('--wallet <name>', 'Stored payer wallet name', 'main')
+    .requiredOption('--to <address>', 'Payee address')
+    .requiredOption('--amount <value>', 'Amount in human-readable units')
+    .option('--token <address>', 'ERC-20 token contract address')
+    .option('--symbol <symbol>', 'ERC-20 token symbol for registry-backed resolution')
+    .option('--decimals <value>', 'ERC-20 token decimals when registry metadata is unavailable')
+    .option('--payee-name <name>', 'Optional payee display name')
+    .option('--payer-name <name>', 'Optional payer display name')
+    .option('--description <text>', 'Short payment description')
+    .option('--memo <text>', 'Optional memo or invoice reference')
+    .option('--metadata <key=value>', 'Additional payment metadata', collectRepeatedString, [])
+    .option('--paymaster-mode <mode>', 'Optional execution preference: none, sponsored, or approval-based')
+    .option(
+      '--status <status>',
+      'Initial local payment status: draft, approval_pending, ready, paid, failed, expired, or cancelled'
+    )
+    .option('--request-id <id>', 'Optional explicit payment request id')
+    .addHelpText(
+      'after',
+      buildSubmitSurfaceHelpText({
+        submitCommand: options.submitCommand,
+        topLevel: options.topLevel
+      })
+    )
+    .action(async (submitOptions: PaymentSubmitOptions) => {
+      await executePaymentSubmitSurface(
+        submitOptions,
+        options.topLevel
+      );
+    });
+}
+
+export function createSubmitCommand(): Command {
+  return addSubmitSurfaceCommand(
+    new Command('submit').description(
+      'Public shortcut for the compact Agent Pay ingress path'
+    ),
+    {
+      submitCommand: buildSubmitRecommendedCommand(),
+      topLevel: true
+    }
+  );
 }
 
 function paymentDashboardLines(
@@ -1539,11 +1850,20 @@ export function createPaymentCommand(): Command {
     'after',
     [
       '',
+      '  Agent Pay public shell:',
+      '    `submit`: capture one request through the compact local-first ingress surface.',
+      '    `workspace`: review the cross-request operator view.',
+      '    `handoff`: export one stable single-request integration bundle.',
+      '    `feed`: export the stable cross-request batch view.',
+      '    If you only remember one route: submit -> next -> approval -> workspace -> handoff -> feed.',
+      '',
       '  Payment request surface:',
       '    Use this layer when execution is not the whole story and you need request capture, follow-up, sharing, reporting, or approval repair around the write path.',
-      '    Use `workflow pay` when the wallet is ready and the goal is "send value now".',
+      '    Use `pay` when the wallet is ready and the goal is "send value now".',
       '    Use `payment` when you need a durable local request and follow-up surface before or after execution.',
-      '    `payment` does not replace the write path; it surrounds `workflow pay` and `send-token` with request state, exports, and repair guidance.',
+      '    Use `suite` when wallet readiness is already clear but the question is still broader than one request surface.',
+      '    `pay` is the public shortcut; `workflow pay` remains the scoped workflow form.',
+      '    `payment` does not replace the write path; it surrounds `pay`, `workflow pay`, and `send-token` with request state, exports, and repair guidance.',
       '    `submit` is the compact ingress write surface; `create` remains the lower-level local record primitive.',
       '    `workspace` is the product-style cross-request workspace that packages dashboard, queue, report, and feed into one public surface.',
       '    `dashboard` is the cross-request dashboard summary above the local report and queue primitives.',
@@ -1551,37 +1871,41 @@ export function createPaymentCommand(): Command {
       '    `handoff` is the integration-ready single-request bundle for external dashboards, agents, or backend ingestion.',
       '    `parties` is the stable request parties model with separate local and share-safe payer views.',
       '    `share` is the payee-facing, share-safe request view that hides local wallet linkage and execution preferences.',
-      '    `workflow pay` and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them.',
+      '    `pay`, `workflow pay`, and `send-token` still execute the transfer; `payment` stores the request record and status lifecycle around them.',
       '',
       '  Fastest proof path:',
-      '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
+      '    zk-agent submit --wallet main --to <address> --amount <amount>',
       '    zk-agent payment next --request-id <id>',
       '    zk-agent payment approval --request-id <id>',
-      '    zk-agent payment workspace',
+      '    zk-agent workspace',
       '    zk-agent payment handoff --request-id <id>',
       '    zk-agent payment feed',
       '    This proves compact ingress -> wallet-aware follow-up -> approval readiness -> cross-request workspace -> integration-ready export.',
       '',
-      '  Start here:',
-      '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
-      '    zk-agent payment workspace',
-      '    zk-agent payment dashboard',
+      '  Public start here:',
+      '    zk-agent submit --wallet main --to <address> --amount <amount>',
+      '    zk-agent workspace',
       '    zk-agent payment feed',
+      '    zk-agent payment approval --request-id <id>',
+      '    zk-agent payment next --request-id <id>',
+      '    zk-agent payment handoff --request-id <id>',
+      '',
+      '  Operator views when the request layer gets broader:',
+      '    zk-agent payment dashboard',
       '    zk-agent payment queue',
       '    zk-agent payment report',
-      '    zk-agent payment approval --request-id <id>',
       '    zk-agent payment sync-approval --request-id <id>',
-      '    zk-agent payment next --request-id <id>',
       '    zk-agent payment inspect --request-id <id>',
-      '    zk-agent payment handoff --request-id <id>',
       '    zk-agent payment parties --request-id <id>',
       '',
       '  Choose by question:',
+      '    `submit`: I need to capture one payment request now.',
       '    `next` / `approval`: what is blocking this one request right now?',
-      '    `workspace`: what is the current product-style cross-request view?',
+      '    `workspace`: what is the current cross-request operator workspace?',
       '    `dashboard`: what is the current dashboard summary across requests?',
       '    `handoff`: what is the stable single-request integration bundle?',
       '    `feed`: what is the stable cross-request integration feed?',
+      '    `suite`: I still need the packaged catalog across requests, discovery, funding, paymaster, and remote recovery.',
       '',
       '  Deeper per-request reads and writes:',
       '    zk-agent payment create --wallet main --to <address> --amount <amount>',
@@ -1606,7 +1930,7 @@ export function createPaymentCommand(): Command {
       '    zk-agent payment create --wallet main --to <address> --amount <amount> --symbol USDC',
       '',
       '  Stored request management:',
-      '    zk-agent payment workspace',
+      '    zk-agent workspace',
       '    zk-agent payment dashboard',
       '    zk-agent payment feed',
       '    zk-agent payment queue',
@@ -1619,63 +1943,15 @@ export function createPaymentCommand(): Command {
     ].join('\n')
   );
 
-  payment
-    .command('submit')
-    .description('Submit a local-first Agent Pay request through the compact ingress write surface')
-    .option('--wallet <name>', 'Stored payer wallet name', 'main')
-    .requiredOption('--to <address>', 'Payee address')
-    .requiredOption('--amount <value>', 'Amount in human-readable units')
-    .option('--token <address>', 'ERC-20 token contract address')
-    .option('--symbol <symbol>', 'ERC-20 token symbol for registry-backed resolution')
-    .option('--decimals <value>', 'ERC-20 token decimals when registry metadata is unavailable')
-    .option('--payee-name <name>', 'Optional payee display name')
-    .option('--payer-name <name>', 'Optional payer display name')
-    .option('--description <text>', 'Short payment description')
-    .option('--memo <text>', 'Optional memo or invoice reference')
-    .option('--metadata <key=value>', 'Additional payment metadata', collectRepeatedString, [])
-    .option('--paymaster-mode <mode>', 'Optional execution preference: none, sponsored, or approval-based')
-    .option(
-      '--status <status>',
-      'Initial local payment status: draft, approval_pending, ready, paid, failed, expired, or cancelled'
-    )
-    .option('--request-id <id>', 'Optional explicit payment request id')
-    .action(async (options: PaymentSubmitOptions) => {
-      const input = await resolvePaymentCreateInput(options);
-      const result = await submitStoredPaymentRequest(input);
-      const nextCommand = buildPaymentNextCommand(result.next, result.executionPlan);
-
-      printResult(
-        paymentIngressLines({
-          requestId: result.ingress.requestId,
-          walletName: result.ingress.walletName,
-          chain: result.ingress.chain,
-          chainId: result.ingress.chainId,
-          settlementStatus: result.ingress.settlementStatus,
-          lifecycleState: result.ingress.lifecycleState,
-          action: result.ingress.action,
-          surface: result.ingress.surface,
-          submissionState: result.ingress.submissionState,
-          ingressMode: result.ingress.ingressMode,
-          acceptedAt: result.ingress.acceptedAt,
-          routeKind: result.ingress.route.kind,
-          nextCommand,
-          inspectCommand: buildPaymentInspectRecommendedCommand(result.ingress.requestId),
-          nextInspectCommand: buildPaymentNextRecommendedCommand(result.ingress.requestId),
-          historyCommand: buildPaymentHistoryRecommendedCommand(result.ingress.requestId)
-        }),
-        {
-          ok: true,
-          requestId: result.ingress.requestId,
-          ingress: result.ingress,
-          next: result.next,
-          nextCommand,
-          recommendedCommands: buildPaymentRecommendedCommands(
-            result.paymentRequest,
-            result.executionPlan
-          )
-        }
-      );
-    });
+  addSubmitSurfaceCommand(
+    payment.command('submit').description(
+      'Submit a local-first Agent Pay request through the compact ingress write surface'
+    ),
+    {
+      submitCommand: buildPaymentSubmitRecommendedCommand(),
+      topLevel: false
+    }
+  );
 
   payment
     .command('create')
@@ -1767,61 +2043,18 @@ export function createPaymentCommand(): Command {
       );
     });
 
-  payment
-    .command('workspace')
-    .description(
-      'Build the product-style Agent Pay workspace that packages dashboard, queue, report, and feed'
+  payment.addCommand(
+    addWorkspaceSurfaceCommand(
+      new Command('workspace').description(
+        'Build the product-style Agent Pay workspace that packages dashboard, queue, report, and feed'
+      ),
+      {
+        workspaceCommand: buildPaymentWorkspaceRecommendedCommand(),
+        submitCommand: buildPaymentSubmitRecommendedCommand(),
+        topLevel: false
+      }
     )
-    .option('--wallet <name>', 'Optional payer wallet filter')
-    .option(
-      '--status <status>',
-      'Optional status filter: draft, approval_pending, ready, paid, failed, expired, or cancelled'
-    )
-    .option('--queue-limit <count>', 'Optional maximum number of queue items to return')
-    .option('--wallet-limit <count>', 'Optional maximum number of wallet summaries')
-    .option('--activity-limit <count>', 'Optional recent-activity limit for the report/dashboard slices')
-    .option('--feed-limit <count>', 'Optional maximum number of feed items to return')
-    .action(async (options: PaymentWorkspaceOptions) => {
-      const statusFilter = options.status ? resolvePaymentStatus(options.status) : undefined;
-      const queueLimit = resolvePositiveInteger(options.queueLimit, '--queue-limit');
-      const walletLimit = resolvePositiveInteger(options.walletLimit, '--wallet-limit');
-      const recentActivityLimit = resolvePositiveInteger(
-        options.activityLimit,
-        '--activity-limit'
-      );
-      const feedLimit = resolvePositiveInteger(options.feedLimit, '--feed-limit');
-      const result = await buildStoredPaymentRequestsWorkspace({
-        walletName: options.wallet,
-        status: statusFilter,
-        queueLimit,
-        walletLimit,
-        recentActivityLimit,
-        feedLimit
-      });
-
-      printResult(paymentWorkspaceLines(result.workspace), {
-        ok: true,
-        workspace: {
-          ...result.workspace,
-          queue: {
-            ...result.workspace.queue,
-            items: result.workspace.queue.items.map((item) => ({
-              descriptor: item.descriptor,
-              executionPlan: buildPaymentExecutionPlanJson(item.executionPlan),
-              next: item.next
-            }))
-          }
-        },
-        recommendedCommands: {
-          workspace: buildPaymentWorkspaceRecommendedCommand(),
-          dashboard: buildPaymentDashboardRecommendedCommand(),
-          feed: buildPaymentFeedRecommendedCommand(),
-          queue: buildPaymentQueueRecommendedCommand(),
-          report: buildPaymentReportRecommendedCommand(),
-          submit: buildPaymentSubmitRecommendedCommand()
-        }
-      });
-    });
+  );
 
   payment
     .command('dashboard')

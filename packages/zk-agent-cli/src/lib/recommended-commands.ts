@@ -327,6 +327,14 @@ export function buildWorkflowAutoRecommendedCommand(walletName: string): string 
   return `zk-agent workflow auto --wallet ${walletName} --intent <intent> [goal flags] --create-checkpoint --execute-when-ready`;
 }
 
+export function buildTopLevelPayRecommendedCommand(
+  walletName: string,
+  paymasterMode?: PaymasterMode
+): string {
+  const command = `zk-agent pay --wallet ${walletName} --to <address> --amount <amount>`;
+  return appendPaymasterMode(command, paymasterMode);
+}
+
 export function buildWorkflowPayRecommendedCommand(
   walletName: string,
   paymasterMode?: PaymasterMode
@@ -363,12 +371,20 @@ export function buildPaymentListRecommendedCommand(): string {
   return 'zk-agent payment list';
 }
 
+export function buildSubmitRecommendedCommand(walletName = 'main'): string {
+  return `zk-agent submit --wallet ${walletName} --to <address> --amount <amount>`;
+}
+
 export function buildPaymentQueueRecommendedCommand(): string {
   return 'zk-agent payment queue';
 }
 
 export function buildPaymentSubmitRecommendedCommand(walletName = 'main'): string {
   return `zk-agent payment submit --wallet ${walletName} --to <address> --amount <amount>`;
+}
+
+export function buildWorkspaceRecommendedCommand(): string {
+  return 'zk-agent workspace';
 }
 
 export function buildPaymentWorkspaceRecommendedCommand(): string {

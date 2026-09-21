@@ -4,7 +4,7 @@
 approval, flagship pay execution, hosted relay recovery, and Agent Pay request
 routing.
 
-Current public stage: `0.1.0-rc.7`.
+Current public stage: `0.1.0-rc.8`.
 
 This README is only the project front door.
 
@@ -14,6 +14,15 @@ This README is only the project front door.
 - zkSync-native smart-account and paymaster path centered on `sed-lite`
 - Agent Pay request capture and follow-up surface around the same wallet
   runtime
+
+## What Makes It Different
+
+- local-first by default, with hosted approval only as a fallback path when
+  the browser is remote
+- one zkSync-native operator path from wallet readiness to paymaster-aware
+  execution
+- one Agent Pay layer that stays attached to the same wallet runtime instead
+  of splitting into a separate product
 
 ## Fastest Path
 
@@ -25,7 +34,7 @@ zk-agent setup
 zk-agent next
 zk-agent wallet create --await-local
 zk-agent next
-zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent pay --wallet main --to <address> --amount <amount>
 ```
 
 `zk-agent start` is the public onboarding command that keeps the same output
@@ -33,11 +42,20 @@ contract as `zk-agent next`. Use `start` when you want the shortest obvious
 first-touch command. Keep `next` as the canonical operator/runtime contract in
 scripts and JSON examples.
 
+`zk-agent pay` is the public shortcut for the flagship send path. The scoped
+form remains `zk-agent workflow pay`.
+`zk-agent submit` is the public shortcut for the compact Agent Pay ingress
+path. The scoped form remains `zk-agent payment submit`.
+
 If you are evaluating the product for the first time, stop at the first
-successful `zk-agent workflow pay`. Ignore `suite`, `payment`, and `relay`
+successful `zk-agent pay`. Ignore `suite`, `payment`, and `relay`
 until that baseline path is working once, unless the CLI explicitly points you
 there. Use `zk-agent suite` only after that first success or when you want the
 broader question-first packaged surface.
+
+If readiness is still unclear, use `zk-agent doctor` first. When `doctor`
+shows readiness is clear and you want the broader question-first packaged
+surface, move to `zk-agent suite`.
 
 After that first success, the default broader follow-up is:
 
@@ -45,22 +63,41 @@ After that first success, the default broader follow-up is:
 zk-agent suite
 ```
 
-`zk-agent next` is the product entrypoint. It now compresses the current
-question into one of four categories:
+The smallest question-first `suite` entry layer is:
 
-- `bootstrap`
-- `recover`
-- `operate`
-- `workflow`
-
-After the flagship path is live, use `zk-agent suite` as the broader
-question-first packaged surface for Agent Pay request work, discovery,
-defaults, funding, paymaster readiness, and hosted approval recovery.
+- `send now`
+- `track payments`
+- `inspect before token action`
+- `unstick write`
+- `recover remote approval`
 
 The public default story is payment-first: get a ready wallet, send native
 value now, stay on the approval-based pay path when fee-token/default state
 matters, and recover funding only when the workflow says the write path is
 blocked.
+
+## Start Here by Question
+
+- `zk-agent start`: first touch when you want one obvious public entrypoint
+- `zk-agent next`: same path, but keep this as the canonical live
+  operator/runtime contract
+- `zk-agent doctor`: local state is unclear and you need diagnosis before
+  choosing a fix
+- `zk-agent wallet status --name <wallet>`: the blocker is already clearly
+  wallet-scoped
+- `zk-agent pay --wallet main --to <address> --amount <amount>`: wallet
+  readiness is already clear and you want the flagship proof path now
+- `zk-agent workflow ...`: the question is already explicitly workflow-scoped
+- `zk-agent payment ...`: execution is no longer the whole story and you need
+  the Agent Pay request layer
+- `zk-agent workspace`: you already know the question is the current Agent Pay
+  workbench
+- `zk-agent suite`: wallet readiness is clear and the question is broader than
+  one immediate send
+- `zk-agent relay baseline --relay-url <relay-url>`: the browser is remote and
+  approval must move to the hosted fallback path
+
+## Public Proof Paths
 
 The three public proof paths today are:
 
@@ -73,51 +110,32 @@ The three public proof paths today are:
 The fastest flagship proof path after wallet readiness is:
 
 ```bash
-zk-agent workflow pay --wallet main --to <address> --amount <amount>
+zk-agent pay --wallet main --to <address> --amount <amount>
 zk-agent workflow next --request-id <id>
 zk-agent workflow status --request-id <id>
-```
-
-That path proves the default ready-wallet execution route plus checkpoint
-follow-up and status inspection without leaving the flagship workflow surface.
-
-Choose between the two public payment surfaces this way:
-
-- `workflow pay`: the wallet is ready and the question is simply "send value
-  now"
-- `payment`: execution is no longer the whole story and you need request
-  capture plus follow-up, sharing, reporting, export, or approval repair
-  around the write path
-
-`payment` does not replace the execution path. It keeps local request state,
-follow-up, and export surfaces around `workflow pay` and `send-token`.
-
-The current local-first Agent Pay entry surface is:
-
-```bash
-zk-agent payment submit --wallet main --to <address> --amount <amount>
-zk-agent payment workspace
-zk-agent payment dashboard
-zk-agent payment feed
-zk-agent payment queue
-zk-agent payment report
-zk-agent payment approval --request-id <id>
 ```
 
 The fastest Agent Pay proof path is:
 
 ```bash
-zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment workspace
+zk-agent workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```
 
-That path shows compact ingress, wallet-aware follow-up, approval readiness,
-workspace summary, single-request handoff bundling, and cross-request feed
-export without leaving the local-first product surface.
+If request capture is no longer enough and you need one current cross-request
+operator view, open the workbench directly:
+
+```bash
+zk-agent workspace
+```
+
+That is the current public shortcut to the Agent Pay workbench anchor above
+dashboard, queue, report, and feed. The scoped form remains
+`zk-agent payment workspace`.
 
 When the browser is remote, the fastest hosted approval proof path on the
 current supported recovery baseline is:
@@ -139,104 +157,8 @@ zk-agent wallet create --relay-url <relay-url> --wait-relay --prompt-code
 zk-agent next
 ```
 
-Use those commands for the public "start here" path:
-
-- `submit`: capture one payment request through the compact ingress surface
-- `dashboard`: review one cross-request dashboard summary above wallet groups,
-  actionable queue items, and recent payment activity
-- `feed`: expose an integration-ready cross-request batch feed for external
-  dashboards, agents, or backend ingestion
-- `queue`: review the current actionable request queue
-- `report`: summarize cross-request state and next-action distribution
-- `approval`: inspect whether the linked wallet is still blocking execution
-
-When you already have a request id and need the deeper local lifecycle,
-integration-ready handoff bundle, request parties model, share-safe request
-view, routing, quote, settlement, or reconciliation views, use:
-
-```bash
-zk-agent payment --help
-```
-
-Use `zk-agent payment share --request-id <id>` when the request must be shared
-with a payee or external reviewer without exposing local wallet linkage or
-execution-preference details.
-
-Use `zk-agent payment parties --request-id <id>` when an external agent or
-backend needs the stable request parties model with separate local and
-share-safe payer projections.
-
-Use `zk-agent payment handoff --request-id <id>` when an external dashboard,
-agent, or backend needs one stable integration bundle instead of
-reassembling local reads.
-
-Use `zk-agent payment feed` when that same external surface needs the stable
-cross-request batch feed instead of one request at a time.
-
-Use the public entry surfaces this way:
-
-- `start`: when you are just beginning and want the public onboarding command
-  that mirrors `next`
-- `next`: when the CLI still needs to choose the shortest path across setup,
-  wallet readiness, recovery, or workflow continuation
-- `workflow pay`: when the wallet is ready and you already know you want the
-  flagship native-send path now
-- `suite`: when wallet readiness is already clear and you want the broader
-  question-first packaged surface instead of one immediate flagship pay step
-- `payment`: when you need a durable local request and follow-up layer around
-  the write path instead of only a direct execution step
-- `suite --include-onboarding`: when you want one readout from first-run
-  bootstrap through the packaged product surface
-
-Keep the split strict: `workflow pay` is the direct send surface, while
-`payment` is the request and follow-up layer around that send surface.
-
-If readiness is still unclear, use `zk-agent doctor` first. When `doctor`
-shows readiness is clear and you want the broader question-first packaged
-surface, move to `zk-agent suite`.
-
-If you want the full product map from fresh install through wallet bootstrap
-and into the packaged product surface, use:
-
-```bash
-zk-agent suite --include-onboarding
-```
-
-Inside `suite`, the current product catalog is organized by the question the
-user is actually asking:
-
-- `operate`: run the flagship native send path
-- `request`: capture, follow up, share, export, and repair Agent Pay requests
-- `discover`: inspect assets/defaults before tokenized actions
-- `pay`: stay on the approval-based paymaster path
-- `fund`: recover from gas and funding blockers
-- `recover`: switch to hosted relay approval when the browser is remote
-
-Those categories currently hand off into four deeper surfaces:
-
-- `workflow`: flagship pay, approval-based pay, and funding recovery
-- `payment`: request capture, follow-up, sharing, export, and approval repair
-- `discovery`: assets/defaults/token inspection
-- `relay`: hosted approval recovery
-
-The same surface now also exposes five simpler product journeys:
-
-- send value now
-- capture and track payments
-- inspect before acting
-- unstick a write
-- recover remote approval
-
-The smallest question-first `suite` entry layer is:
-
-- send now
-- track payments
-- inspect before token action
-- unstick write
-- recover remote approval
-
-If you only need one default starting point inside `suite`, start with
-`send value now`.
+For the broader packaged surface after that first success, use
+`zk-agent suite`.
 
 ## Use It From
 
@@ -267,7 +189,7 @@ machine or cannot return directly to the waiting terminal.
 
 ## Read Next
 
-- packaged CLI manual:
+- full CLI manual:
   [packages/zk-agent-cli/README.md](./packages/zk-agent-cli/README.md)
 - shortest verified CLI/skill path:
   [skills/QUICKSTART.md](./skills/QUICKSTART.md)

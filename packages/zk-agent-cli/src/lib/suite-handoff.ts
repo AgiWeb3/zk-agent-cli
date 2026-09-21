@@ -9,11 +9,14 @@ import {
   buildPaymentHandoffRecommendedCommand,
   buildPaymentNextRecommendedCommand,
   buildPaymentSubmitRecommendedCommand,
-  buildRelayInspectRecommendedCommand,
+  buildRelayBaselineRecommendedCommand,
   buildResolveTokenRecommendedCommand,
+  buildSubmitRecommendedCommand,
   buildSuiteRecommendedCommand,
+  buildTopLevelPayRecommendedCommand,
   buildWalletReapproveRemoteRecommendedCommand,
   buildWalletStatusRecommendedCommand,
+  buildWorkspaceRecommendedCommand,
   buildWorkflowNextRecommendedCommand,
   buildWorkflowPayRecommendedCommand,
   buildWorkflowStatusRecommendedCommand
@@ -25,7 +28,9 @@ export interface SuiteHandoffJourneySummary {
   id: OperatorSuiteJourneyId;
   title: string;
   command: string;
+  publicCommand?: string;
   proofPath?: string[];
+  publicProofPath?: string[];
 }
 
 export interface SuiteHandoffQuestionSummary {
@@ -34,6 +39,7 @@ export interface SuiteHandoffQuestionSummary {
   question: string;
   journeyId: OperatorSuiteJourneyId;
   command: string;
+  publicCommand?: string;
 }
 
 export interface SuiteHandoffSummary {
@@ -42,6 +48,7 @@ export interface SuiteHandoffSummary {
   command: string;
   useWhen: string;
   paymentCommand: string;
+  publicPaymentCommand?: string;
   paymentUseWhen: string;
   stayOnCurrentSurfaceWhen: string;
   note: string;
@@ -80,13 +87,46 @@ function buildSuiteHandoffJourneyProofPath(
       return undefined;
     case 'recover-remote-approval':
       return [
-        buildRelayInspectRecommendedCommand('<url>'),
+        buildRelayBaselineRecommendedCommand('<url>', walletName),
         buildWalletReapproveRemoteRecommendedCommand(walletName, '<url>'),
         buildWalletStatusRecommendedCommand(walletName)
       ];
     default: {
       const exhaustive: never = journeyId;
       throw new Error(`Unsupported suite handoff journey proof path: ${String(exhaustive)}`);
+    }
+  }
+}
+
+function buildSuiteHandoffPublicJourneyProofPath(
+  journeyId: OperatorSuiteJourneyId,
+  walletName: string
+): string[] | undefined {
+  switch (journeyId) {
+    case 'send-value-now':
+      return [
+        buildTopLevelPayRecommendedCommand(walletName),
+        buildWorkflowNextRecommendedCommand('<request-id>'),
+        buildWorkflowStatusRecommendedCommand('<request-id>')
+      ];
+    case 'capture-and-track-payments':
+      return [
+        buildSubmitRecommendedCommand(walletName),
+        buildPaymentNextRecommendedCommand('<request-id>'),
+        buildPaymentApprovalRecommendedCommand('<request-id>'),
+        buildWorkspaceRecommendedCommand(),
+        buildPaymentHandoffRecommendedCommand('<request-id>'),
+        buildPaymentFeedRecommendedCommand()
+      ];
+    case 'inspect-before-acting':
+    case 'unstick-a-write':
+    case 'recover-remote-approval':
+      return undefined;
+    default: {
+      const exhaustive: never = journeyId;
+      throw new Error(
+        `Unsupported public suite handoff journey proof path: ${String(exhaustive)}`
+      );
     }
   }
 }
@@ -100,6 +140,10 @@ function buildSuiteHandoffJourney(
     journeyId === null || journeyId === undefined
       ? undefined
       : buildSuiteHandoffJourneyProofPath(journeyId, walletName, chain);
+  const publicProofPath =
+    journeyId === null || journeyId === undefined
+      ? undefined
+      : buildSuiteHandoffPublicJourneyProofPath(journeyId, walletName);
 
   switch (journeyId) {
     case 'send-value-now':
@@ -107,14 +151,18 @@ function buildSuiteHandoffJourney(
         id: journeyId,
         title: 'Send Value Now',
         command: buildWorkflowPayRecommendedCommand(walletName),
-        ...(proofPath ? { proofPath } : {})
+        publicCommand: buildTopLevelPayRecommendedCommand(walletName),
+        ...(proofPath ? { proofPath } : {}),
+        ...(publicProofPath ? { publicProofPath } : {})
       };
     case 'capture-and-track-payments':
       return {
         id: journeyId,
         title: 'Capture And Track Payments',
         command: buildPaymentSubmitRecommendedCommand(walletName),
-        ...(proofPath ? { proofPath } : {})
+        publicCommand: buildSubmitRecommendedCommand(walletName),
+        ...(proofPath ? { proofPath } : {}),
+        ...(publicProofPath ? { publicProofPath } : {})
       };
     case 'inspect-before-acting':
       return {
@@ -134,7 +182,7 @@ function buildSuiteHandoffJourney(
       return {
         id: journeyId,
         title: 'Recover Remote Approval',
-        command: buildRelayInspectRecommendedCommand('<url>'),
+        command: buildRelayBaselineRecommendedCommand('<url>', walletName),
         ...(proofPath ? { proofPath } : {})
       };
     case null:
@@ -158,7 +206,8 @@ function buildSuiteHandoffQuestion(
         title: 'Send Now',
         question: 'I want to send native value now.',
         journeyId,
-        command: buildWorkflowPayRecommendedCommand(walletName)
+        command: buildWorkflowPayRecommendedCommand(walletName),
+        publicCommand: buildTopLevelPayRecommendedCommand(walletName)
       };
     case 'capture-and-track-payments':
       return {
@@ -166,7 +215,8 @@ function buildSuiteHandoffQuestion(
         title: 'Track Payments',
         question: 'I need to capture, track, share, or repair payments.',
         journeyId,
-        command: buildPaymentSubmitRecommendedCommand(walletName)
+        command: buildPaymentSubmitRecommendedCommand(walletName),
+        publicCommand: buildSubmitRecommendedCommand(walletName)
       };
     case 'inspect-before-acting':
       return {
@@ -190,7 +240,7 @@ function buildSuiteHandoffQuestion(
         title: 'Recover Remote Approval',
         question: 'The browser is remote, so approval must move to the relay path.',
         journeyId,
-        command: buildRelayInspectRecommendedCommand('<url>')
+        command: buildRelayBaselineRecommendedCommand('<url>', walletName)
       };
     case null:
     case undefined:
@@ -213,6 +263,7 @@ export function buildSuiteHandoffSummary(input: {
   const chain = input.chain?.trim() || 'zksync-sepolia';
   const command = buildSuiteRecommendedCommand(input.walletName, input.chain);
   const paymentCommand = buildPaymentSubmitRecommendedCommand(walletName);
+  const publicPaymentCommand = buildSubmitRecommendedCommand(walletName);
   const recommendedQuestion =
     input.recommendedNow === true
       ? buildSuiteHandoffQuestion(input.recommendedJourneyId ?? null, walletName)
@@ -234,6 +285,7 @@ export function buildSuiteHandoffSummary(input: {
         command,
         useWhen,
         paymentCommand,
+        publicPaymentCommand,
         paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on doctor when local config, approval metadata, or local signer state is still unclear and you need a local check before choosing the live path.',
@@ -250,6 +302,7 @@ export function buildSuiteHandoffSummary(input: {
         command,
         useWhen,
         paymentCommand,
+        publicPaymentCommand,
         paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on next when you still need the CLI to choose across setup, wallet readiness, and the shortest flagship workflow entry.',
@@ -266,6 +319,7 @@ export function buildSuiteHandoffSummary(input: {
         command,
         useWhen,
         paymentCommand,
+        publicPaymentCommand,
         paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on wallet status or wallet next when approval, signer attach, deployment sync, or wallet-specific remediation is still the blocker.',
@@ -282,6 +336,7 @@ export function buildSuiteHandoffSummary(input: {
         command,
         useWhen,
         paymentCommand,
+        publicPaymentCommand,
         paymentUseWhen,
         stayOnCurrentSurfaceWhen:
           'Stay on workflow when you already have an explicit workflow question, checkpoint, or execution state to inspect, continue, or resume.',
@@ -304,7 +359,7 @@ export function suiteHandoffLines(
     ['suite', summary.command],
     ['suite ready', summary.recommendedNow ? 'yes' : 'no'],
     ['suite when', summary.useWhen],
-    ['payment', summary.paymentCommand],
+    ['payment', summary.publicPaymentCommand ?? summary.paymentCommand],
     ['payment when', summary.paymentUseWhen],
     ...(summary.recommendedQuestion
       ? [
@@ -314,7 +369,10 @@ export function suiteHandoffLines(
           ] as [string, string],
           ['suite question ask', summary.recommendedQuestion.question] as [string, string],
           ['suite question journey', summary.recommendedQuestion.journeyId] as [string, string],
-          ['suite question start', summary.recommendedQuestion.command] as [string, string]
+          [
+            'suite question start',
+            summary.recommendedQuestion.publicCommand ?? summary.recommendedQuestion.command
+          ] as [string, string]
         ]
       : []),
     ...(summary.recommendedJourney
@@ -323,12 +381,18 @@ export function suiteHandoffLines(
             'suite journey',
             `${summary.recommendedJourney.id} (${summary.recommendedJourney.title})`
           ] as [string, string],
-          ['suite journey start', summary.recommendedJourney.command] as [string, string],
+          [
+            'suite journey start',
+            summary.recommendedJourney.publicCommand ?? summary.recommendedJourney.command
+          ] as [string, string],
           ...(summary.recommendedJourney.proofPath
             ? [
                 [
                   'suite journey proof path',
-                  formatRecommendedPath(summary.recommendedJourney.proofPath)
+                  formatRecommendedPath(
+                    summary.recommendedJourney.publicProofPath ??
+                      summary.recommendedJourney.proofPath
+                  )
                 ] as [string, string]
               ]
             : [])

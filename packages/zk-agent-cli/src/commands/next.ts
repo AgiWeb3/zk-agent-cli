@@ -53,6 +53,7 @@ import {
   buildRelayInspectRecommendedCommand,
   buildResolveTokenRecommendedCommand,
   buildSuiteRecommendedCommand,
+  buildTopLevelPayRecommendedCommand,
   buildTokensRecommendedCommand,
   buildWalletCreateRecommendedCommand,
   buildWalletCreateRemoteRecommendedCommand,
@@ -211,11 +212,20 @@ function buildNextHelpText(): string {
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
-    '  zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    `  ${buildTopLevelPayRecommendedCommand('main')}`,
     '  Stop after the first successful workflow pay.',
     '',
     'Before that first success:',
     '  Ignore suite, payment, and relay unless the CLI points you there or the browser is remote.',
+    '',
+    'If the product question is already obvious, start here instead:',
+    '  start          -> first-touch onboarding with the same output contract as next',
+    '  pay            -> wallet readiness is already clear and you want the flagship proof path now',
+    '  submit         -> execution is no longer the whole story and you want one Agent Pay request now',
+    '  suite          -> wallet readiness is clear and the question is broader than one immediate send',
+    '  workspace      -> you already know you need the current Agent Pay workbench anchor',
+    '  payment        -> execution is no longer the whole story and you need the Agent Pay request layer or workbench',
+    '  relay baseline -> the browser is remote and approval must move to the hosted fallback path',
     '',
     'What `next` routes right now:',
     '  bootstrap: config or wallet bootstrap is still the blocker',
@@ -225,7 +235,7 @@ function buildNextHelpText(): string {
     '  suite: switch only when the question becomes broader than one immediate next step',
     '',
     'Remote-browser variant of the same path:',
-    '  zk-agent relay inspect --relay-url <url>',
+    '  zk-agent relay baseline --relay-url <url>',
     '  zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
     '  zk-agent next',
     '',
@@ -233,6 +243,7 @@ function buildNextHelpText(): string {
     '  doctor: local state is unclear and the normal path stopped making sense',
     '  wallet next/status: the blocker is already wallet-specific',
     '  workflow next: the active question is already one stored checkpoint',
+    '  workspace: you already know the question is the current cross-request Agent Pay workbench',
     '  suite: the wallet is ready and the question is broader than one immediate pay step',
     '',
     'If setup has not run yet, `next` sends you back to `zk-agent setup` first.',
@@ -249,10 +260,54 @@ function buildNextHelpText(): string {
     '',
     'Broader post-flagship surface:',
     '  zk-agent suite',
+    '  zk-agent workspace',
     '',
     'Hosted remote-approval fallback:',
-    '  zk-agent relay inspect --relay-url <url>',
+    '  zk-agent relay baseline --relay-url <url>',
     '  zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code'
+  ].join('\n');
+}
+
+function buildStartHelpText(): string {
+  return [
+    '',
+    '`start` is the shortest public first-touch command.',
+    'Use it when you want one obvious entrypoint but still want the same',
+    'output contract and runtime behavior as `zk-agent next`.',
+    '',
+    'Shortest first proof:',
+    '  zk-agent setup',
+    '  zk-agent next',
+    '  zk-agent wallet create --await-local',
+    '  zk-agent next',
+    `  ${buildTopLevelPayRecommendedCommand('main')}`,
+    '  Stop after the first successful workflow pay.',
+    '',
+    'What not to learn first:',
+    '  Ignore suite, payment, and relay until that baseline path works once,',
+    '  unless the CLI points you there or the browser is remote.',
+    '',
+    'If the product question is already obvious, skip `start` and go directly to:',
+    '  pay            -> wallet readiness is already clear and you want the flagship proof path now',
+    '  submit         -> execution is no longer the whole story and you want one Agent Pay request now',
+    '  suite          -> wallet readiness is clear and the question is broader than one immediate send',
+    '  workspace      -> you already know you need the current Agent Pay workbench anchor',
+    '  relay baseline -> the browser is remote and approval must move to the hosted fallback path',
+    '',
+    'When not to use `start`:',
+    '  next           -> you still want the live routing contract in scripts or operator loops',
+    '  doctor         -> local state is unclear and you need diagnosis before choosing a fix',
+    '  wallet next/status -> the blocker is already clearly wallet-specific',
+    '  workflow next  -> a stored checkpoint is already the active question',
+    '',
+    'Remote-browser fallback for the same first proof:',
+    '  zk-agent relay baseline --relay-url <url>',
+    '  zk-agent wallet create --relay-url <url> --wait-relay --prompt-code',
+    '  zk-agent next',
+    '',
+    'Use `start` first, then let the CLI narrow the question.',
+    'Keep `next` as the canonical operator/runtime contract in JSON examples',
+    'and automation.'
   ].join('\n');
 }
 
@@ -275,7 +330,7 @@ export function createStartCommand(deps?: Partial<NextCommandDeps>): Command {
 
   return new Command('start')
     .description('Public first-touch command for the default local-first path')
-    .addHelpText('after', buildNextHelpText())
+    .addHelpText('after', buildStartHelpText())
     .option('--wallet <name>', 'Wallet name', 'main')
     .option('--request-id <id>', 'Stored workflow checkpoint id')
     .option('--paymaster-mode <mode>', 'none, sponsored, or approval-based')

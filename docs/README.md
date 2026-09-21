@@ -5,23 +5,58 @@ deeper architecture notes.
 
 It is not the primary first-run path for CLI users.
 
-Choose the public entry surface first:
+## Front Door
 
-- project front door: [README.md](../README.md)
-- canonical CLI manual:
+If you only need the current public shell, remember this order first:
+
+1. `zk-agent start`
+2. `zk-agent next`
+3. `zk-agent pay --wallet main --to <address> --amount <amount>`
+4. `zk-agent suite`
+
+Open these only when the question is already narrower or different:
+
+- `zk-agent submit`
+- `zk-agent workspace`
+- `zk-agent relay baseline --relay-url <relay-url>`
+- `zk-agent doctor`
+
+## Start Here by Question
+
+- I want the shortest public first touch:
+  [README.md](../README.md)
+- I want the canonical CLI manual after that first proof:
   [packages/zk-agent-cli/README.md](../packages/zk-agent-cli/README.md)
-- shortest verified path: [skills/QUICKSTART.md](../skills/QUICKSTART.md)
-- native Codex plugin path:
+- I want the shortest verified operator path:
+  [skills/QUICKSTART.md](../skills/QUICKSTART.md)
+- I need the native Codex plugin install path:
   [15-codex-plugin-onboarding.md](./15-codex-plugin-onboarding.md)
+- I need the machine-readable product and routing contract:
+  [10-operator-json-contract.md](./10-operator-json-contract.md)
+- I need the hosted remote-approval fallback contract:
+  [16-hosted-approval-operated-baseline.md](./16-hosted-approval-operated-baseline.md)
+
+## Current Public Shell
 
 The current public proof paths live in the root and package READMEs:
 
-- flagship zkSync-native pay
-- Agent Pay request capture and follow-up
+- flagship zkSync-native pay through `pay` / `workflow pay`
+- Agent Pay request capture through `submit` / `payment submit`, plus
+  follow-up and the `workspace` / `payment workspace` workbench anchor
 - hosted approval recovery
 
 Treat those three proof paths as the current public product shell before
 dropping into the deeper reference docs below.
+
+- public flagship entry:
+  `zk-agent pay`
+- public Agent Pay ingress:
+  `zk-agent submit`
+- public Agent Pay workbench:
+  `zk-agent workspace`
+- scoped equivalents:
+  `zk-agent workflow pay`, `zk-agent payment submit`,
+  `zk-agent payment workspace`
 
 The machine-readable contract for those same bounded routes lives in
 [10-operator-json-contract.md](./10-operator-json-contract.md).

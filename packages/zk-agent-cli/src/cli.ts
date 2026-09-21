@@ -23,20 +23,23 @@ import { createNextCommand, createStartCommand } from './commands/next.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createAgentCommand } from './commands/agent.js';
 import { createDefaultsCommand } from './commands/defaults.js';
-import { createPaymentCommand } from './commands/payment.js';
+import { createPaymentCommand, createSubmitCommand, createWorkspaceCommand } from './commands/payment.js';
 import { createResolveTokenCommand } from './commands/resolve-token.js';
 import { createSuiteCommand } from './commands/suite.js';
 import { createTokensCommand } from './commands/tokens.js';
 import { createRelayCommand } from './commands/relay.js';
 import { createWalletCommand } from './commands/wallet.js';
-import { createWorkflowCommand } from './commands/workflow.js';
+import { createPayCommand, createWorkflowCommand } from './commands/workflow.js';
 import {
   formatErrorPayload,
   formatHumanErrorMessage,
   jsonOut,
   shouldJsonOutput
 } from './lib/io.js';
-import { buildWorkflowPayRecommendedCommand } from './lib/recommended-commands.js';
+import {
+  buildSubmitRecommendedCommand,
+  buildTopLevelPayRecommendedCommand
+} from './lib/recommended-commands.js';
 
 function buildDefaultOperatorPathHelpText(): string {
   return [
@@ -52,50 +55,66 @@ function buildDefaultOperatorPathHelpText(): string {
     '  zkSync-native smart-account and paymaster path centered on sed-lite',
     '  Agent Pay request capture and follow-up surface around the same wallet runtime',
     '',
+    'What makes zk-agent-cli different:',
+    '  local-first by default, with hosted approval only as a fallback path',
+    '  one zkSync-native path from wallet readiness to paymaster-aware execution',
+    '  one Agent Pay layer that stays attached to the same wallet runtime instead of splitting into a separate product',
+    '',
+    'Why Agent Pay instead of only direct execution:',
+    '  capture one request before or after the write path',
+    '  keep a cross-request operator workspace around the same wallet runtime',
+    '  export stable handoff and feed views for external agents, dashboards, or backends',
+    '  current request ingress: zk-agent submit',
+    '  current workbench anchor: zk-agent workspace',
+    '',
     'Start here first:',
     '  zk-agent setup',
     '  zk-agent next',
     '  zk-agent wallet create --await-local',
     '  zk-agent next',
-    `  ${buildWorkflowPayRecommendedCommand('main')}`,
+    `  ${buildTopLevelPayRecommendedCommand('main')}`,
     '  Stop after the first successful workflow pay.',
     '',
     'Before that first success:',
     '  Ignore suite, payment, and relay unless the CLI points you there or the browser is remote.',
     '',
-    'Choose the right surface:',
+    'Start here by question:',
     '  start        -> public first touch with the same output contract as next',
     '  next         -> the CLI still needs to choose bootstrap, recovery, or workflow continuation',
-    '  workflow pay -> the wallet is ready and you want the flagship native send now',
-    '  suite        -> wallet readiness is clear and the question is broader than one immediate pay step',
-    '  payment      -> you need a durable Agent Pay request and follow-up surface around the write path',
-    '  relay        -> the browser is remote and approval must move to the hosted fallback path',
+    '  pay          -> the wallet is ready and you want the flagship proof path now',
+    '  submit       -> you want to capture one Agent Pay request now',
+    '  suite        -> wallet readiness is clear and the question is broader than one immediate send',
+    '  workspace    -> you already know you need the current Agent Pay workbench anchor',
+    '  payment      -> execution is no longer the whole story and you need the Agent Pay request layer or workbench',
+    '  relay baseline -> the browser is remote and approval must move to the hosted fallback path',
     '',
     'Three public proof paths:',
     '  flagship pay:',
-    '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+    '    zk-agent pay --wallet main --to <address> --amount <amount>',
     '    zk-agent workflow next --request-id <id>',
     '    zk-agent workflow status --request-id <id>',
-    '  Agent Pay requests:',
-    '    zk-agent payment submit --wallet main --to <address> --amount <amount>',
+  '  Agent Pay requests:',
+    `    ${buildSubmitRecommendedCommand('main')}`,
     '    zk-agent payment next --request-id <id>',
     '    zk-agent payment approval --request-id <id>',
-    '    zk-agent payment workspace',
+    '    zk-agent workspace',
     '    zk-agent payment handoff --request-id <id>',
     '    zk-agent payment feed',
     '  hosted approval recovery:',
-    '    zk-agent relay inspect --relay-url <url>',
+    '    zk-agent relay baseline --relay-url <url>',
     '    zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
     '    zk-agent wallet status --name main',
     '',
     'Open these only when the default path is no longer the whole question:',
     '  zk-agent suite',
+    `  ${buildSubmitRecommendedCommand('main')}`,
+    '  zk-agent workspace',
     '  zk-agent suite --include-onboarding',
     '  zk-agent doctor',
     '  zk-agent next --request-id <id>',
     '  zk-agent wallet --help',
     '  zk-agent workflow --help',
-    '  zk-agent relay inspect --relay-url <url>',
+    '  zk-agent relay baseline --relay-url <url>',
     '  zk-agent wallet create|reapprove --relay-url <url> --wait-relay --prompt-code',
     '',
     'Validated first-run baseline:',
@@ -111,11 +130,14 @@ function buildDefaultOperatorPathHelpText(): string {
 const ROOT_HELP_COMMAND_ORDER = [
   'start',
   'next',
+  'pay',
+  'submit',
   'doctor',
   'init',
   'wallet',
   'workflow',
   'suite',
+  'workspace',
   'payment',
   'assets',
   'balances',
@@ -167,10 +189,13 @@ function createProgram(): Command {
   program.addCommand(createInitCommand());
   program.addCommand(createStartCommand());
   program.addCommand(createNextCommand());
+  program.addCommand(createPayCommand());
+  program.addCommand(createSubmitCommand());
   program.addCommand(createDoctorCommand());
   program.addCommand(createAgentCommand());
   program.addCommand(createDefaultsCommand());
   program.addCommand(createSuiteCommand());
+  program.addCommand(createWorkspaceCommand());
   program.addCommand(createPaymentCommand());
   program.addCommand(createTokensCommand());
   program.addCommand(createResolveTokenCommand());

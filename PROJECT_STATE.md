@@ -2,9 +2,9 @@
 
 ## Snapshot
 
-- updated: `2026-09-15`
+- updated: `2026-09-21`
 - branch: `main`
-- package stage: `0.1.0-rc.7`
+- package stage: `0.1.0-rc.8`
 - current focus: RC closeout, benchmark-gap assessment versus
   `polygon-agent-cli`, and Agent Pay platform planning
 - latest RC review artifact:
@@ -15,13 +15,15 @@
 - workspace layout is stable
 - `sed-lite` is the default AA profile
 - flagship path is validated:
-  `setup -> next -> wallet create|reapprove -> next -> workflow pay`
+  `setup -> next -> wallet create|reapprove -> next -> pay`
+- `pay` is now the public shortcut to the flagship native-send surface, while
+  `workflow pay` remains the scoped workflow form
 - hosted approval exists as the current single-host operated baseline
 - `start` is the public onboarding command; `next` remains the canonical
   runtime contract
 - top-level help plus `setup` / `start` / `next` now share one shorter
   first-run shell centered on:
-  `setup -> next -> wallet create|reapprove -> next -> workflow pay`
+  `setup -> next -> wallet create|reapprove -> next -> pay`
 - `doctor`, `next`, `wallet`, `workflow`, and `suite` now share one
   question-first product-routing story
 - `suite` is now the default post-flagship packaged surface
@@ -31,17 +33,32 @@
   - deeper-surface handoff
   - bounded proof paths
 - Agent Pay is a first-class slice through `payment` and `suite`
-- `payment workspace` now exists as the public cross-request Agent Pay entry
-  surface above `dashboard`, `queue`, `report`, and `feed`
+- `submit` is now the public shortcut to the compact Agent Pay ingress path,
+  while `payment submit` remains the scoped subcommand
+- `workspace` is now the public shortcut to the cross-request Agent Pay
+  workbench anchor above `dashboard`, `queue`, `report`, and `feed`, while
+  `payment workspace` remains the scoped subcommand and `suite` remains the
+  broader post-flagship shell
+- `suite` and `suiteHandoffSummary` now keep the scoped machine command
+  contract while also exposing additive public-read command fields for the
+  shorter `pay` / `submit` / `workspace` shell
 - packaged validation now checks docs, JSON contracts, help text, install
   shape, and release-stage invariants
+- packaged release validation now emits stage progress, and the pre-pack
+  operator-JSON contract gate no longer stalls behind catastrophic regex
+  backtracking
+- pre-pack release-contract checks now stay in the sub-second range on the
+  current RC line, with no remaining operator-contract regex hotspot above
+  the 50 ms profiling threshold; the remaining packaged gate time is
+  dominated by real install/help/JSON/relay smoke coverage
 
 ## Current priorities
 
 1. Keep the hosted approval operated baseline explicit, repeatable, and short
    enough to explain as a remote-browser fallback.
 2. Keep the post-flagship product surface centered on `suite`, with one
-   obvious question-first default after wallet readiness.
+   obvious question-first default after wallet readiness and clear `submit`
+   and `workspace` shortcuts for the Agent Pay ingress and workbench.
 3. Keep the benchmark work versus `polygon-agent-cli` explicit and tied to
    release-critical product gaps instead of broad parity language.
 4. Keep Agent Pay moving from a strong local request layer toward a believable
@@ -55,8 +72,8 @@
   market-facing shell still needs stronger differentiation
 - hosted approval framing is correct but still longer than it should be for a
   public first screen
-- Agent Pay now has a stronger public local proof surface, but still lacks a
-  hosted control-plane proof surface
+- Agent Pay now has a stronger public local proof surface and clearer
+  workbench anchor, but still lacks a hosted control-plane proof surface
 - public differentiation versus `polygon-agent-cli` is still clearer in
   engineering terms than in first-screen product terms
 - final `1.0.0` promotion still needs less human judgment
@@ -106,6 +123,8 @@ Foundation already present:
 - local-first request records and service orchestration in `packages/agent-pay`
 - payment ingress, workspace, queue, dashboard, report, approval, feed,
   handoff, quote, settlement, and reconcile surfaces
+- `workspace` as the current public shortcut to the workbench anchor above
+  the narrower dashboard, queue, report, and feed views
 - wallet-aware follow-up routing through the existing session and workflow
   foundation
 - relay-backed approval and workflow checkpoint primitives already available

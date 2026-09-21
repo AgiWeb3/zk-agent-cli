@@ -2732,6 +2732,14 @@ function buildWorkflowHelpText(): string {
     '  Workflow surface:',
     '    Use this layer when the question is already an explicit workflow, checkpoint, or execution state.',
     '    If the CLI still needs to choose across setup, wallet readiness, or recovery, go back to `zk-agent next` or `zk-agent doctor`.',
+    '    Public shortcut for the flagship send path: `zk-agent pay`.',
+    '',
+    '  Start here by question:',
+    '    workflow pay    -> wallet readiness is already clear and you want the flagship proof path now',
+    '    workflow auto   -> the goal is broader than one send and you want guided multi-intent execution',
+    '    workflow status -> a stored checkpoint already exists and you want current state first',
+    '    workflow next   -> a stored checkpoint exists and you want the shortest next step',
+    '    suite           -> the question is broader than one explicit workflow and needs the packaged catalog',
     '',
     '  Fastest flagship pay path:',
     '    zk-agent workflow pay --wallet main --to <address> --amount <amount>',
@@ -2796,6 +2804,61 @@ function applyWorkflowHelpCommandOrder(workflow: Command): void {
     return left.name().localeCompare(right.name());
   });
   ((workflow as unknown) as { commands: Command[] }).commands = sortedCommands;
+}
+
+function buildWorkflowPaySurfaceHelpText(surface: 'workflow' | 'top-level'): string {
+  if (surface === 'top-level') {
+    return [
+      '',
+      '  Public flagship pay shortcut:',
+      '    Use this when wallet readiness is already clear and you want the shortest flagship native-send path.',
+      '    This is the top-level shortcut for `zk-agent workflow pay`.',
+      '    Follow-up stays on workflow checkpoints:',
+      '      zk-agent workflow next --request-id <id>',
+      '      zk-agent workflow status --request-id <id>',
+      '    Use `zk-agent workflow --help` when the question is broader than one pay step or you need checkpoint lifecycle control.'
+    ].join('\n');
+  }
+
+  return [
+    '',
+    '  Scoped flagship pay surface:',
+    '    Use this when you are already inside the workflow surface and the question has narrowed to the flagship native-send path.',
+    '    Public shortcut: `zk-agent pay`.',
+    '    Stay on `workflow auto` when the goal is broader than one send.',
+    '    Stay on `workflow status`, `workflow next`, or `workflow resume` when a stored checkpoint is already the active question.'
+  ].join('\n');
+}
+
+function configureWorkflowPayCommand(
+  command: Command,
+  resolvedDeps: WorkflowCommandDeps,
+  surface: 'workflow' | 'top-level'
+): Command {
+  command
+    .description(
+      surface === 'top-level'
+        ? 'Public shortcut for the flagship zkSync-native pay path'
+        : 'Guided flagship AA native-send path with checkpoint persistence, intent-scoped session recovery, and paymaster-aware defaults'
+    )
+    .option('--wallet <name>', 'Wallet name', 'main')
+    .option(
+      '--request-id <id>',
+      'Load the workflow definition from a stored checkpoint, or reserve this id for the flagship pay path'
+    )
+    .addHelpText('after', buildWorkflowPaySurfaceHelpText(surface));
+
+  return addWorkflowGoalOptions(command, {
+    includeExecutionFlags: true,
+    includeFundingDispatch: true,
+    includeLocalApproval: true
+  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
+    const execution = await executeWorkflowAutoCommand(
+      applyWorkflowPayDefaults(options),
+      resolvedDeps
+    );
+    await printWorkflowAutoCommandResult(execution, 'pay');
+  }));
 }
 
 export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Command {
@@ -3106,28 +3169,7 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
     await printWorkflowAutoCommandResult(execution, 'auto');
   }));
 
-  const pay = workflow
-    .command('pay')
-    .description(
-      'Guided flagship AA native-send path with checkpoint persistence, intent-scoped session recovery, and paymaster-aware defaults'
-    )
-    .option('--wallet <name>', 'Wallet name', 'main')
-    .option(
-      '--request-id <id>',
-      'Load the workflow definition from a stored checkpoint, or reserve this id for the flagship pay path'
-    );
-
-  addWorkflowGoalOptions(pay, {
-    includeExecutionFlags: true,
-    includeFundingDispatch: true,
-    includeLocalApproval: true
-  }).action(withWorkflowInputErrorHandling(async (options: WorkflowCommandOptions) => {
-    const execution = await executeWorkflowAutoCommand(
-      applyWorkflowPayDefaults(options),
-      resolvedDeps
-    );
-    await printWorkflowAutoCommandResult(execution, 'pay');
-  }));
+  configureWorkflowPayCommand(workflow.command('pay'), resolvedDeps, 'workflow');
 
   const run = workflow
     .command('run')
@@ -3615,4 +3657,9 @@ export function createWorkflowCommand(deps?: Partial<WorkflowCommandDeps>): Comm
   applyWorkflowHelpCommandOrder(workflow);
 
   return workflow;
+}
+
+export function createPayCommand(deps?: Partial<WorkflowCommandDeps>): Command {
+  const resolvedDeps = resolveWorkflowCommandDeps(deps);
+  return configureWorkflowPayCommand(new Command('pay'), resolvedDeps, 'top-level');
 }

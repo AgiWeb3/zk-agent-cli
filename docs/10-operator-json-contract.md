@@ -907,6 +907,18 @@ entry hint with:
 `paymentCommand` is the compact local-first Agent Pay ingress command for the
 same wallet context.
 
+Optional additive public-read fields may also appear on this handoff layer
+without changing the stable scoped command contract:
+
+- `publicPaymentCommand`
+- `recommendedQuestion.publicCommand`
+- `recommendedJourney.publicCommand`
+- `recommendedJourney.publicProofPath`
+
+When present, these mirror the same routing intent through the shorter public
+shell such as top-level `pay`, `submit`, or `workspace`. Existing callers must
+continue to treat them as optional.
+
 `paymentUseWhen` explains when the caller should choose `payment` instead of
 staying on the current direct execution or suite-routing surface.
 
@@ -1168,6 +1180,10 @@ On `workflow auto|run|resume`, `summary.status` mirrors `result.stage` after a f
 `workflowEntrySummary` now provides the entrypoint-level compatibility contract
 across `plan|start|auto|pay|run|status|next|resume` and the fixed-intent
 workflow shortcuts.
+
+`pay` is also exposed as a top-level public shortcut to `workflow pay`. Both
+entry forms currently share the same flagship pay payload shape and
+checkpoint-follow-up contract.
 
 Current stable `workflowEntrySummary` fields:
 
@@ -1953,6 +1969,23 @@ Current stable `recommendedJourney` fields:
   appears selectively when the default start-here journey exposes a bounded
   public proof route
 
+Optional additive public-read fields may also appear on this surface without
+changing the stable scoped command contract:
+
+- `questions[].publicStartCommand`
+- `journeys[].publicStartCommand`
+- `recommendedJourney.publicStartCommand`
+- `recommendedJourney.publicProofPath`
+- `proofPaths[].publicStartCommand`
+- `proofPaths[].publicProofPath`
+- `recommendedCommands.publicFlagship`
+- `recommendedCommands.publicPayment`
+- `recommendedCommands.publicWorkspace`
+
+These optional fields expose the same routing intent through the shorter
+product-facing command layer while preserving the scoped machine-readable
+fields above as the stable contract.
+
 `questions[]` is the smallest question-first routing layer on this surface.
 Use it when the caller wants the shortest compact decision list before it cares
 about richer journey metadata or slice ids.
@@ -2691,6 +2724,10 @@ stored record. The returned `next` surface is already wallet-aware, so wallet
 repair can win over raw execution when approval or signer readiness is still
 missing.
 
+`submit` is also exposed as a top-level public shortcut to `payment submit`.
+Both entry forms currently share the same compact ingress payload shape and
+follow-up contract.
+
 Current stable `ingress` fields:
 
 - `format`
@@ -3044,6 +3081,14 @@ packages the current local report, dashboard summary, wallet-aware queue, and
 integration-ready feed into one stable runtime contract so callers do not need
 to stitch those slices together manually.
 
+`workspace` is the top-level public shortcut to that same surface. The scoped
+and top-level forms share the same JSON payload shape.
+
+It is also the current packaged Agent Pay workbench surface. The stable
+recommended route into that workbench remains:
+
+- `submit -> next -> approval -> workspace -> handoff -> feed`
+
 Current stable `workspace` fields:
 
 - `format`
@@ -3081,6 +3126,18 @@ Current stable `workspace.summary` fields:
 - `feedItems`
 - `recentActivityCount`
 - `latestActivityAt`
+
+Current stable `recommendedCommands` fields on this surface:
+
+- `submit`
+- `next`
+- `approval`
+- `workspace`
+- `dashboard`
+- `feed`
+- `queue`
+- `report`
+- `handoff`
 
 ### `payment dashboard`
 

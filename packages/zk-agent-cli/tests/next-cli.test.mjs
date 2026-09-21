@@ -202,6 +202,7 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         useWhen:
           'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
         paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicPaymentCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         paymentUseWhen:
           'Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.',
         stayOnCurrentSurfaceWhen:
@@ -215,7 +216,8 @@ function expectedSuiteHandoff(surface, recommendedNow) {
               title: 'Send Now',
               question: 'I want to send native value now.',
               journeyId: 'send-value-now',
-              command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>'
+              command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+              publicCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>'
             }
           : null,
         recommendedJourney: recommendedNow
@@ -223,8 +225,14 @@ function expectedSuiteHandoff(surface, recommendedNow) {
               id: 'send-value-now',
               title: 'Send Value Now',
               command: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+              publicCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
               proofPath: [
                 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+                'zk-agent workflow next --request-id <request-id>',
+                'zk-agent workflow status --request-id <request-id>'
+              ],
+              publicProofPath: [
+                'zk-agent pay --wallet main --to <address> --amount <amount>',
                 'zk-agent workflow next --request-id <request-id>',
                 'zk-agent workflow status --request-id <request-id>'
               ]
@@ -239,6 +247,7 @@ function expectedSuiteHandoff(surface, recommendedNow) {
         useWhen:
           'Use suite once wallet approval and local signer readiness are no longer the blocker and you want one packaged, question-first surface for flagship pay plus the current post-flagship Agent Pay, discovery, paymaster, funding, and hosted recovery slices.',
         paymentCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicPaymentCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         paymentUseWhen:
           'Use payment when the write path is not the whole question and you need a durable local request plus follow-up, sharing, reporting, export, or approval repair around the same wallet.',
         stayOnCurrentSurfaceWhen:

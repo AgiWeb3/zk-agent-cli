@@ -44,8 +44,8 @@ Use `payment` instead of direct workflow execution when the write path is not
 the whole question:
 
 ```bash
-zk-agent payment submit --wallet main --to <address> --amount <amount>
-zk-agent payment workspace
+zk-agent submit --wallet main --to <address> --amount <amount>
+zk-agent workspace
 zk-agent payment dashboard
 zk-agent payment feed
 zk-agent payment report
@@ -69,17 +69,19 @@ Interpretation:
 - `approval`
   linked-wallet approval readiness for one stored request
 
-If the task is only “send native value now,” stay on `workflow pay` instead.
+The scoped equivalents remain `zk-agent payment submit` and
+`zk-agent payment workspace`. If the task is only “send native value now,”
+stay on `pay` instead.
 
 ## Preferred Agent Pay order
 
 Use Agent Pay in this order when the request layer is the real question:
 
 ```bash
-zk-agent payment submit --wallet main --to <address> --amount <amount>
+zk-agent submit --wallet main --to <address> --amount <amount>
 zk-agent payment next --request-id <id>
 zk-agent payment approval --request-id <id>
-zk-agent payment workspace
+zk-agent workspace
 zk-agent payment handoff --request-id <id>
 zk-agent payment feed
 ```

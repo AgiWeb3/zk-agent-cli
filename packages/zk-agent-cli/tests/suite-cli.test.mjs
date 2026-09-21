@@ -98,11 +98,17 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
       id: 'send-value-now',
       title: 'Send Value Now',
       startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+      publicStartCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
       surface: 'workflow',
       useWhen:
         'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
       proofPath: [
         'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        'zk-agent workflow next --request-id <request-id>',
+        'zk-agent workflow status --request-id <request-id>'
+      ],
+      publicProofPath: [
+        'zk-agent pay --wallet main --to <address> --amount <amount>',
         'zk-agent workflow next --request-id <request-id>',
         'zk-agent workflow status --request-id <request-id>'
       ]
@@ -116,8 +122,14 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
         startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
         proofPath: [
           'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+          'zk-agent workflow next --request-id <request-id>',
+          'zk-agent workflow status --request-id <request-id>'
+        ],
+        publicProofPath: [
+          'zk-agent pay --wallet main --to <address> --amount <amount>',
           'zk-agent workflow next --request-id <request-id>',
           'zk-agent workflow status --request-id <request-id>'
         ]
@@ -128,13 +140,22 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         journeyId: 'capture-and-track-payments',
         surface: 'payment',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.',
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.',
         startCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         proofPath: [
           'zk-agent payment submit --wallet main --to <address> --amount <amount>',
           'zk-agent payment next --request-id <request-id>',
           'zk-agent payment approval --request-id <request-id>',
           'zk-agent payment workspace',
+          'zk-agent payment handoff --request-id <request-id>',
+          'zk-agent payment feed'
+        ],
+        publicProofPath: [
+          'zk-agent submit --wallet main --to <address> --amount <amount>',
+          'zk-agent payment next --request-id <request-id>',
+          'zk-agent payment approval --request-id <request-id>',
+          'zk-agent workspace',
           'zk-agent payment handoff --request-id <request-id>',
           'zk-agent payment feed'
         ]
@@ -146,9 +167,9 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         surface: 'relay',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url>',
         proofPath: [
-          'zk-agent relay inspect --relay-url <url>',
+          'zk-agent relay baseline --relay-url <url>',
           'zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
           'zk-agent wallet status --name main'
         ]
@@ -162,6 +183,7 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         journeyId: 'send-value-now',
         surface: 'workflow',
         startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.'
       },
@@ -172,8 +194,9 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         journeyId: 'capture-and-track-payments',
         surface: 'payment',
         startCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.'
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.'
       },
       {
         id: 'inspect-before-token-action',
@@ -202,7 +225,7 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         question: 'The browser is remote, so approval must move to the relay path.',
         journeyId: 'recover-remote-approval',
         surface: 'relay',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url>',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.'
       }
@@ -241,6 +264,7 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
         startCommand: 'zk-agent workflow pay --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet main --to <address> --amount <amount>',
         surface: 'workflow',
         categoryIds: ['operate'],
         entryIds: ['flagship-pay']
@@ -251,8 +275,9 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
         operatorQuestion:
           'I need a durable payment request layer around the write path so I can capture, follow up, share, or repair payments instead of only executing immediately.',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.',
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.',
         startCommand: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet main --to <address> --amount <amount>',
         surface: 'payment',
         categoryIds: ['request'],
         entryIds: ['agent-pay-requests']
@@ -289,7 +314,7 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
           'The browser is remote or local callback is not viable, so approval must move to the hosted relay path.',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url>',
         surface: 'relay',
         categoryIds: ['recover'],
         entryIds: ['hosted-approval-recovery']
@@ -422,7 +447,7 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
       'zk-agent fund --wallet main --amount <amount>',
       'zk-agent workflow status --request-id <request-id>'
     ]);
-    assert.equal(result.slices[4].primaryCommand, 'zk-agent relay inspect --relay-url <url>');
+    assert.equal(result.slices[4].primaryCommand, 'zk-agent relay baseline --relay-url <url>');
     assert.equal(result.slices[4].category, 'recover');
     assert.equal(result.slices[4].surface, 'relay');
     assert.equal(result.slices[4].surfaceCommand, 'zk-agent relay --help');
@@ -433,7 +458,7 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
       'pnpm smoke:hosted-operated-baseline -- --wallet main --relay-url <url> --reapprove --prompt-code --plan'
     ]);
     assert.deepEqual(result.slices[4].proofPath, [
-      'zk-agent relay inspect --relay-url <url>',
+      'zk-agent relay baseline --relay-url <url>',
       'zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code',
       'zk-agent wallet status --name main'
     ]);
@@ -446,11 +471,14 @@ test('suite command exposes the flagship and post-flagship packaged suite', asyn
       discoverySurface: 'zk-agent defaults',
       relaySurface: 'zk-agent relay --help',
       payment: 'zk-agent payment submit --wallet main --to <address> --amount <amount>',
+      publicFlagship: 'zk-agent pay --wallet main --to <address> --amount <amount>',
+      publicPayment: 'zk-agent submit --wallet main --to <address> --amount <amount>',
+      publicWorkspace: 'zk-agent workspace',
       discovery: 'zk-agent assets --wallet main',
       paymaster:
         'zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based',
       funding: 'zk-agent workflow fund --wallet main',
-      hostedApproval: 'zk-agent relay inspect --relay-url <url>',
+      hostedApproval: 'zk-agent relay baseline --relay-url <url>',
       inspectDefaults: 'zk-agent defaults'
     });
   } finally {
@@ -483,11 +511,17 @@ test('suite command preserves wallet and chain context across the packaged contr
       id: 'send-value-now',
       title: 'Send Value Now',
       startCommand: 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+      publicStartCommand: 'zk-agent pay --wallet ops-wallet --to <address> --amount <amount>',
       surface: 'workflow',
       useWhen:
         'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
       proofPath: [
         'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+        'zk-agent workflow next --request-id <request-id>',
+        'zk-agent workflow status --request-id <request-id>'
+      ],
+      publicProofPath: [
+        'zk-agent pay --wallet ops-wallet --to <address> --amount <amount>',
         'zk-agent workflow next --request-id <request-id>',
         'zk-agent workflow status --request-id <request-id>'
       ]
@@ -501,8 +535,14 @@ test('suite command preserves wallet and chain context across the packaged contr
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.',
         startCommand: 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet ops-wallet --to <address> --amount <amount>',
         proofPath: [
           'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+          'zk-agent workflow next --request-id <request-id>',
+          'zk-agent workflow status --request-id <request-id>'
+        ],
+        publicProofPath: [
+          'zk-agent pay --wallet ops-wallet --to <address> --amount <amount>',
           'zk-agent workflow next --request-id <request-id>',
           'zk-agent workflow status --request-id <request-id>'
         ]
@@ -513,13 +553,22 @@ test('suite command preserves wallet and chain context across the packaged contr
         journeyId: 'capture-and-track-payments',
         surface: 'payment',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.',
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.',
         startCommand: 'zk-agent payment submit --wallet ops-wallet --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet ops-wallet --to <address> --amount <amount>',
         proofPath: [
           'zk-agent payment submit --wallet ops-wallet --to <address> --amount <amount>',
           'zk-agent payment next --request-id <request-id>',
           'zk-agent payment approval --request-id <request-id>',
           'zk-agent payment workspace',
+          'zk-agent payment handoff --request-id <request-id>',
+          'zk-agent payment feed'
+        ],
+        publicProofPath: [
+          'zk-agent submit --wallet ops-wallet --to <address> --amount <amount>',
+          'zk-agent payment next --request-id <request-id>',
+          'zk-agent payment approval --request-id <request-id>',
+          'zk-agent workspace',
           'zk-agent payment handoff --request-id <request-id>',
           'zk-agent payment feed'
         ]
@@ -531,9 +580,9 @@ test('suite command preserves wallet and chain context across the packaged contr
         surface: 'relay',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url> --wallet ops-wallet',
         proofPath: [
-          'zk-agent relay inspect --relay-url <url>',
+          'zk-agent relay baseline --relay-url <url> --wallet ops-wallet',
           'zk-agent wallet reapprove --name ops-wallet --relay-url <url> --wait-relay --prompt-code',
           'zk-agent wallet status --name ops-wallet'
         ]
@@ -547,6 +596,7 @@ test('suite command preserves wallet and chain context across the packaged contr
         journeyId: 'send-value-now',
         surface: 'workflow',
         startCommand: 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent pay --wallet ops-wallet --to <address> --amount <amount>',
         useWhen:
           'Use this when the wallet is already ready and you want the flagship zkSync-native pay path first.'
       },
@@ -557,8 +607,9 @@ test('suite command preserves wallet and chain context across the packaged contr
         journeyId: 'capture-and-track-payments',
         surface: 'payment',
         startCommand: 'zk-agent payment submit --wallet ops-wallet --to <address> --amount <amount>',
+        publicStartCommand: 'zk-agent submit --wallet ops-wallet --to <address> --amount <amount>',
         useWhen:
-          'Use this when a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export is the real need.'
+          'Use this when the packaged question has already narrowed to a durable Agent Pay request, follow-up, sharing, approval repair, or integration-ready export.'
       },
       {
         id: 'inspect-before-token-action',
@@ -587,7 +638,7 @@ test('suite command preserves wallet and chain context across the packaged contr
         question: 'The browser is remote, so approval must move to the relay path.',
         journeyId: 'recover-remote-approval',
         surface: 'relay',
-        startCommand: 'zk-agent relay inspect --relay-url <url>',
+        startCommand: 'zk-agent relay baseline --relay-url <url> --wallet ops-wallet',
         useWhen:
           'Use this when a writable session must be recovered through the single-host hosted relay baseline.'
       }
@@ -671,7 +722,10 @@ test('suite command preserves wallet and chain context across the packaged contr
     assert.equal(result.slices[3].primaryCommand, 'zk-agent workflow fund --wallet ops-wallet');
     assert.equal(result.slices[3].surface, 'workflow');
     assert.equal(result.slices[3].surfaceCommand, 'zk-agent workflow --help');
-    assert.equal(result.slices[4].primaryCommand, 'zk-agent relay inspect --relay-url <url>');
+    assert.equal(
+      result.slices[4].primaryCommand,
+      'zk-agent relay baseline --relay-url <url> --wallet ops-wallet'
+    );
     assert.equal(result.slices[4].surface, 'relay');
     assert.equal(result.slices[4].surfaceCommand, 'zk-agent relay --help');
     assert.deepEqual(result.slices[4].supportingCommands, [
@@ -680,7 +734,7 @@ test('suite command preserves wallet and chain context across the packaged contr
       'pnpm smoke:hosted-operated-baseline -- --wallet ops-wallet --relay-url <url> --reapprove --prompt-code --plan'
     ]);
     assert.deepEqual(result.slices[4].proofPath, [
-      'zk-agent relay inspect --relay-url <url>',
+      'zk-agent relay baseline --relay-url <url> --wallet ops-wallet',
       'zk-agent wallet reapprove --name ops-wallet --relay-url <url> --wait-relay --prompt-code',
       'zk-agent wallet status --name ops-wallet'
     ]);
@@ -692,11 +746,14 @@ test('suite command preserves wallet and chain context across the packaged contr
       discoverySurface: 'zk-agent defaults',
       relaySurface: 'zk-agent relay --help',
       payment: 'zk-agent payment submit --wallet ops-wallet --to <address> --amount <amount>',
+      publicFlagship: 'zk-agent pay --wallet ops-wallet --to <address> --amount <amount>',
+      publicPayment: 'zk-agent submit --wallet ops-wallet --to <address> --amount <amount>',
+      publicWorkspace: 'zk-agent workspace',
       discovery: 'zk-agent assets --wallet ops-wallet',
       paymaster:
         'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount> --paymaster-mode approval-based',
       funding: 'zk-agent workflow fund --wallet ops-wallet',
-      hostedApproval: 'zk-agent relay inspect --relay-url <url>',
+      hostedApproval: 'zk-agent relay baseline --relay-url <url> --wallet ops-wallet',
       inspectDefaults: 'zk-agent defaults'
     });
   } finally {
@@ -713,14 +770,15 @@ test('suite help exposes the packaged suite entrypoint', async () => {
 
     assert.match(help, /Show the flagship and post-flagship zkSync-native packaged suite/);
     assert.match(help, /Use `suite` after wallet readiness when you want one packaged surface/);
-    assert.match(help, /Use `workflow pay` when the route is already clear and you want to execute now\./);
+    assert.match(help, /Use `pay` when the route is already clear and you want to execute now\./);
     assert.match(help, /Use `payment` when the real need is a durable local request and follow-up/);
     assert.match(help, /surface before or after execution\./);
+    assert.match(help, /Stay on `payment` once the packaged question has already narrowed to one request lifecycle or request-centric workspace\./);
     assert.match(help, /What `suite` answers right now:/);
     assert.match(help, /operate: send native value through the flagship workflow path/);
     assert.match(help, /request: capture, follow up, share, export, and repair Agent Pay requests/);
     assert.match(help, /recover: switch to hosted relay approval when the browser is remote/);
-    assert.match(help, /If your question sounds like this, start here:/);
+    assert.match(help, /Start here by question inside suite:/);
     assert.match(help, /I want to send native value now: send now/);
     assert.match(help, /I need to capture, track, share, or repair payments: track payments/);
     assert.match(help, /I need assets\/defaults\/token metadata before acting: inspect before token action/);
@@ -734,8 +792,14 @@ test('suite help exposes the packaged suite entrypoint', async () => {
     assert.match(help, /recover remote approval: move approval to the hosted relay path/);
     assert.match(
       help,
-      /proof path: zk-agent relay inspect --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main/
+      /proof path: zk-agent relay baseline --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main/
     );
+    assert.match(help, /Agent Pay public shell inside suite:/);
+    assert.match(help, /`submit`: capture one payment request/);
+    assert.match(help, /`workspace`: review the cross-request operator surface/);
+    assert.match(help, /`handoff`: export one stable single-request bundle/);
+    assert.match(help, /`feed`: export the stable cross-request batch view/);
+    assert.match(help, /shortest tracked route: submit -> next -> approval -> workspace -> handoff -> feed/);
     assert.match(help, /If you only need one default starting point inside suite:/);
     assert.match(help, /send value now/);
     assert.match(help, /Where `suite` hands you off next:/);
@@ -745,21 +809,21 @@ test('suite help exposes the packaged suite entrypoint', async () => {
     assert.match(help, /relay: hosted approval recovery and relay readiness/);
     assert.match(help, /zk-agent suite --include-onboarding/);
     assert.match(help, /Recommended order inside the suite:/);
-    assert.match(help, /zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
-    assert.match(help, /zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent pay --wallet main --to <address> --amount <amount>/);
+    assert.match(help, /zk-agent submit --wallet main --to <address> --amount <amount>/);
     assert.match(help, /zk-agent payment next --request-id <id>/);
     assert.match(help, /zk-agent payment approval --request-id <id>/);
-    assert.match(help, /zk-agent payment workspace/);
+    assert.match(help, /zk-agent workspace/);
     assert.match(help, /zk-agent payment dashboard/);
     assert.match(help, /zk-agent payment handoff --request-id <id>/);
     assert.match(help, /zk-agent payment feed/);
     assert.match(help, /zk-agent assets --wallet main/);
     assert.match(
       help,
-      /zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based/
+      /zk-agent pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based/
     );
     assert.match(help, /zk-agent workflow fund --wallet main/);
-    assert.match(help, /zk-agent relay inspect --relay-url <url>/);
+    assert.match(help, /zk-agent relay baseline --relay-url <url>/);
     assert.match(help, /Pass `--wallet` or `--chain` to retarget the entire suite contract\./);
     assert.match(help, /Pass `--include-onboarding` when you want setup, doctor, and wallet bootstrap/);
     assert.match(help, /summary\.catalogView/);
@@ -819,14 +883,17 @@ test('suite can include the first-run preflight without changing the packaged su
       remoteBrowserPath: [
         'zk-agent setup',
         'zk-agent next --wallet ops-wallet',
-        'zk-agent relay inspect --relay-url <url>',
+        'zk-agent relay baseline --relay-url <url> --wallet ops-wallet',
         'zk-agent wallet create --name ops-wallet --relay-url <url> --wait-relay --prompt-code',
         'zk-agent next --wallet ops-wallet'
       ],
       afterWalletReady: 'zk-agent suite --wallet ops-wallet --chain zksync-era'
     });
     assert.equal(result.flagship.primaryCommand, 'zk-agent workflow pay --wallet ops-wallet --to <address> --amount <amount>');
-    assert.equal(result.slices[4].primaryCommand, 'zk-agent relay inspect --relay-url <url>');
+    assert.equal(
+      result.slices[4].primaryCommand,
+      'zk-agent relay baseline --relay-url <url> --wallet ops-wallet'
+    );
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -861,14 +928,14 @@ test('suite text output explains when to use each packaged slice', async () => {
     );
     assert.match(
       output,
-      /proof flagship-pay: zk-agent workflow pay --wallet main --to <address> --amount <amount> -> zk-agent workflow next --request-id <request-id> -> zk-agent workflow status --request-id <request-id>/
+      /proof flagship-pay: zk-agent pay --wallet main --to <address> --amount <amount> -> zk-agent workflow next --request-id <request-id> -> zk-agent workflow status --request-id <request-id>/
     );
     assert.match(output, /question send-now: I want to send native value now\./);
     assert.match(output, /question send-now journey: send-value-now/);
     assert.match(output, /question send-now surface: workflow/);
     assert.match(
       output,
-      /question send-now start: zk-agent workflow pay --wallet main --to <address> --amount <amount>/
+      /question send-now start: zk-agent pay --wallet main --to <address> --amount <amount>/
     );
     assert.match(output, /question track-payments journey: capture-and-track-payments/);
     assert.match(output, /question inspect-before-token-action surface: discovery/);
@@ -878,26 +945,26 @@ test('suite text output explains when to use each packaged slice', async () => {
     assert.match(output, /proof flagship-pay surface: workflow/);
     assert.match(
       output,
-      /proof agent-pay-requests: zk-agent payment submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent payment workspace -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed/
+      /proof agent-pay-requests: zk-agent submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent workspace -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed/
     );
     assert.match(output, /proof agent-pay-requests journey: capture-and-track-payments/);
     assert.match(output, /proof agent-pay-requests surface: payment/);
     assert.match(
       output,
-      /proof hosted-approval-recovery: zk-agent relay inspect --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main/
+      /proof hosted-approval-recovery: zk-agent relay baseline --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main/
     );
     assert.match(output, /proof hosted-approval-recovery journey: recover-remote-approval/);
     assert.match(output, /proof hosted-approval-recovery surface: relay/);
     assert.match(output, /surface order: workflow -> payment -> discovery -> relay/);
     assert.match(output, /category order: operate -> request -> discover -> pay -> fund -> recover/);
-    assert.match(output, /journey send-value-now: zk-agent workflow pay --wallet main --to <address> --amount <amount>/);
-    assert.match(output, /journey capture-and-track-payments: zk-agent payment submit --wallet main --to <address> --amount <amount>/);
+    assert.match(output, /journey send-value-now: zk-agent pay --wallet main --to <address> --amount <amount>/);
+    assert.match(output, /journey capture-and-track-payments: zk-agent submit --wallet main --to <address> --amount <amount>/);
     assert.match(output, /journey inspect-before-acting: zk-agent assets --wallet main/);
     assert.match(
       output,
       /journey unstick-a-write: zk-agent workflow pay --wallet main --to <address> --amount <amount> --paymaster-mode approval-based/
     );
-    assert.match(output, /journey recover-remote-approval: zk-agent relay inspect --relay-url <url>/);
+    assert.match(output, /journey recover-remote-approval: zk-agent relay baseline --relay-url <url>/);
     assert.match(output, /workflow surface: zk-agent workflow --help/);
     assert.match(output, /workflow surface categories: operate -> pay -> fund/);
     assert.match(output, /workflow surface entries: flagship-pay -> paymaster-readiness -> funding-readiness/);
@@ -913,14 +980,14 @@ test('suite text output explains when to use each packaged slice', async () => {
     assert.match(output, /agent pay requests category: request/);
     assert.match(output, /agent pay requests surface: payment/);
     assert.match(output, /agent pay requests surface command: zk-agent payment --help/);
-    assert.match(output, /agent pay requests when: Use this when a durable local request, follow-up, sharing, export, or approval repair flow is the real need around the same wallet write path\./);
+    assert.match(output, /agent pay requests when: Use this when the packaged question has already narrowed to a durable local request, follow-up, sharing, export, or approval repair flow around the same wallet write path\./);
     assert.match(
       output,
-      /agent pay requests: zk-agent payment submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent payment workspace -> zk-agent payment dashboard -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed -> zk-agent payment report/
+      /agent pay requests: zk-agent submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent workspace -> zk-agent payment dashboard -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed -> zk-agent payment report/
     );
     assert.match(
       output,
-      /agent pay requests proof path: zk-agent payment submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent payment workspace -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed/
+      /agent pay requests proof path: zk-agent submit --wallet main --to <address> --amount <amount> -> zk-agent payment next --request-id <request-id> -> zk-agent payment approval --request-id <request-id> -> zk-agent workspace -> zk-agent payment handoff --request-id <request-id> -> zk-agent payment feed/
     );
     assert.match(output, /discovery \/ defaults category: discover/);
     assert.match(output, /discovery \/ defaults surface: discovery/);
@@ -940,7 +1007,7 @@ test('suite text output explains when to use each packaged slice', async () => {
     assert.match(output, /hosted approval recovery when: Use this when local callback is not viable/);
     assert.match(
       output,
-      /hosted approval recovery proof path: zk-agent relay inspect --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main/
+      /hosted approval recovery proof path: zk-agent relay baseline --relay-url <url> -> zk-agent wallet reapprove --name main --relay-url <url> --wait-relay --prompt-code -> zk-agent wallet status --name main/
     );
   } finally {
     await rm(homeDir, { recursive: true, force: true });
